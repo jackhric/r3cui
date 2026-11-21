@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+Cargo.lock
+
+# build output / secrets
+packaging/out/
+*.tar.gz
+secrets/
+*.pin
+ws-token

@@ -1,0 +1,8 @@
+{
+  "name": { "en": "Custom Remote UI" },
+  "version": "0.1.0",
+  "description": { "en": "From-scratch Rust frontend for the UCR3." },
+  "developer": { "name": "Jack Hric" },
+  "release_date": "2026-11-21",
+  "requirements": { "firmware_version": ">=0.13.0, <1.0.0" }
+}

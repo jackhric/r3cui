@@ -1,0 +1,62 @@
+// Milestone-1 placeholder screen: 480x800 portrait, a status line and a live entity list.
+// Replace with the real UI once the protocol path is proven.
+
+struct EntityRow {
+    name: string,
+    kind: string,
+}
+
+export component AppWindow inherits Window {
+    title: "remote-ui";
+    width: 480px;
+    height: 800px;
+    background: #101014;
+
+    in property <string> status: "connecting…";
+    in property <[EntityRow]> entities: [];
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 8px;
+
+        Text {
+            text: "UCR3 custom UI";
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: 700;
+        }
+        Text {
+            text: root.status;
+            color: #8a8a94;
+            font-size: 13px;
+        }
+
+        Rectangle { height: 1px; background: #26262e; }
+
+        ListView {
+            for row in root.entities: Rectangle {
+                height: 44px;
+                background: touch.has-hover ? #1b1b22 : transparent;
+                touch := TouchArea {}
+                HorizontalLayout {
+                    padding-left: 4px;
+                    padding-right: 4px;
+                    spacing: 8px;
+                    Text {
+                        text: row.name;
+                        color: #e8e8ee;
+                        font-size: 15px;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: row.kind;
+                        color: #6f6f7a;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,28 @@
+[package]
+name = "remote-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "remote-ui"
+path = "src/main.rs"
+
+[dependencies]
+coreapi = { path = "../coreapi" }
+tokio.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Desktop spike (milestone 1): winit + FemtoVG so it runs on the workstation.
+# Device build (milestone 3+): swap `backend-winit` for `backend-linuxkms` and add `renderer-femtovg`
+# (GLES2) / `renderer-software`; consider the `dlopen` story for cross-compiling. See docs/plan.md.
+[dependencies.slint]
+version = "1.8"
+default-features = false
+features = ["compat-1-2", "backend-winit", "renderer-femtovg", "std"]
+
+[build-dependencies]
+slint-build = "1.8"
