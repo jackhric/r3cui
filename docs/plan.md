@@ -42,8 +42,13 @@ confirmed the remote's GPU driver (likely Panfrost/Mali) — verify on device.
    `docker compose up` the sim (see `scripts/`), read its token, authenticate over WS, dump
    `get_entities`, show them in a minimal Slint window (`backend-winit`). Proves the full protocol
    path with zero device risk. ← the scaffold in this repo is aimed here.
-2. **Flesh out the protocol module.** Serde types for the messages a UI needs; subscribe to events;
-   render a live entity/activity list driven by `entity_change`. Still desktop.
+2. **First real app: Kodi remote + HA volume keys** (still desktop, vs simulator). Flesh out the
+   protocol module (typed messages; consider the `uc_api` crate), then build the target app:
+   render the Kodi `media_player`/`remote` entity as the on-screen remote, and map the physical
+   `VOLUME_UP`/`VOLUME_DOWN` evdev keys to a Home Assistant `media_player`'s `volume_up`/`volume_down`
+   commands. See `docs/integrations.md` for the entity/command specifics and the one-time
+   "is the entity configured?" check. This exercises get_entities, subscribe/`entity_change`,
+   `execute_entity_command`, and the evdev→command wiring — the core of the whole UI.
 3. **Cross-compile to aarch64** with `backend-linuxkms` + `dlopen`, using the `ucr2-toolchain`
    Buildroot sysroot (has fontconfig/freetype/openssl — Slint needs fontconfig). Produce the
    `.tar.gz` via `packaging/pack.sh`.
