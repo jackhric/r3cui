@@ -1,7 +1,15 @@
 # Research sources & provenance
 
 The facts in these docs come from reading Unfolded Circle's public repos (not from memory).
-Recon on the specific physical unit lives in the sibling repo `../ucr3-cfw`.
+Device-specific research on this owned unit lives in the sibling repo `../ucr3-cfw`.
+
+## Why the custom-UI route
+
+This is the manufacturer's **supported** way to replace the UI on your own remote: the stock
+`remote-ui` is GPLv3 and explicitly meant to be swapped via `POST /system/install/ui`. We take
+this route because the device offers no shell — SSH is Dropbear, public-key only, and we hold no
+key, so there is no filesystem or OS-level access to work with. The custom-UI slot is the intended,
+documented interface for exactly this, and it needs no shell.
 
 ## Upstream repos
 
@@ -14,16 +22,18 @@ Recon on the specific physical unit lives in the sibling repo `../ucr3-cfw`.
 
 ## Device facts (UCR3 under test — from ../ucr3-cfw)
 
-- Model UCR3, OS 2.8.4, core 0.69.4-bt, UI 0.70.1, Core-API 0.16.0. Admin API key available.
-- Custom-UI slot is empty (clean). A custom integration (Kodi) already runs → on-device custom
-  code path is proven live on this unit. `remote-ui` scope exists for the UI WS role.
+- Model UCR3, OS 2.8.4, core 0.69.4-bt, UI 0.70.1, Core-API 0.16.0. Admin API key available (made
+  through the normal web-configurator PIN flow).
+- Custom-UI slot is empty (clean). The device already runs a user-installed custom integration
+  (Kodi), confirming the supported custom-code install paths work on this unit. The `remote-ui`
+  scope exists for the UI's WebSocket role.
 
 ## Rust GUI survey (library decision — see plan.md)
 
 Slint chosen. Key source: [Slint LinuxKMS backend docs](https://docs.slint.dev/latest/docs/slint/guide/backends-and-renderers/backend_linuxkms/).
 egui fallback reference for a hand-rolled DRM/GBM/EGL path: the `wizdraw` crate's `drm_kms.rs`.
 
-## Not published upstream (discover on device)
+## Not published upstream (read from our own device at runtime)
 
 - Exact `/dev/input/event*` paths, `UC_TOUCHSLIDER_DEV_PATH`, `QT_QPA_*`/eglfs KMS config values.
 - Real `UC_SOCKET_URL` and token filename on the device.
