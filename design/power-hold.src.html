@@ -1,0 +1,296 @@
+<title>Power Hold Variations</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@200;300;400;500;600&display=swap">
+<style>
+  /* Layout: a dark viewing room; three 480x800 panels side by side, each with its own hold button and haptic trace. */
+  :root {
+    color-scheme: dark;
+    --room: #0b0b0d;
+    --bezel: #1d1d21;
+    --line: #26262b;
+    --ink: #f1f3f3;
+    --dim: #8b9195;
+    --faint: #53595d;
+    --accent: #e8343a;
+    --track: rgba(255, 255, 255, 0.14);
+    --font: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  html, body { height: 100%; }
+  body { background: var(--room); color: var(--ink); font: 15px/1.5 var(--font); }
+  .page {
+    max-width: 1700px;
+    margin-inline: auto;
+    padding-block: 24px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  h1 { font-size: 22px; font-weight: 600; margin: 0; }
+  .lede { margin: 0; color: var(--dim); max-width: 68ch; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+  .seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; }
+  .seg button, .hold, .all {
+    font: 500 14px/1 var(--font);
+    color: var(--dim);
+    background: none;
+    border: 0;
+    border-radius: 7px;
+    padding: 10px 13px;
+    cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: #000; }
+  .controls .label { color: var(--dim); font-size: 13px; }
+  .all, .hold {
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 14px 18px;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+  }
+  .all.down, .hold.down { background: var(--ink); color: #000; }
+  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .stage { --z: 1; display: flex; flex-wrap: wrap; justify-content: center; gap: 36px 28px; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 12px; width: calc(482px * var(--z)); }
+  figcaption { min-height: 4.6em; }
+  figcaption strong { display: block; font-size: 17px; font-weight: 600; }
+  figcaption span { color: var(--dim); font-size: 14px; }
+  .bezel { border: 1px solid var(--bezel); border-radius: 14px; overflow: hidden; background: #000; line-height: 0; }
+  .hold { width: 100%; }
+  .haptic { display: flex; align-items: center; gap: 12px; color: var(--dim); font-size: 13px; }
+  .haptic canvas { flex: 1; min-width: 0; height: 34px; border-bottom: 1px solid var(--line); }
+  .haptic .now { width: 9ch; text-align: right; color: var(--ink); }
+
+  /* The panel, in device pixels. */
+  .screen {
+    width: 480px; height: 800px; position: relative; overflow: hidden; background: #000;
+    zoom: var(--z); line-height: normal; color: var(--ink); font-family: var(--font);
+    font-variant-numeric: tabular-nums;
+  }
+  .screen * { box-sizing: border-box; }
+  .ctr { position: absolute; left: 0; right: 0; display: flex; align-items: center; justify-content: center; }
+  .under .clock { position: absolute; left: 40px; top: 20px; font-size: 20px; }
+  .under .hero { top: 292px; height: 190px; font-size: 200px; font-weight: 200; letter-spacing: -8px; }
+  .under .db { top: 486px; font-size: 26px; font-weight: 300; color: var(--dim); }
+  .bar { position: absolute; left: 40px; width: 400px; height: 14px; border-radius: 7px; background: var(--track); overflow: hidden; }
+  .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 7px; background: var(--accent); }
+  .under .src { top: 122px; height: 130px; flex-direction: column; gap: 14px; font-size: 26px; font-weight: 500; }
+  .under .fmt { top: 690px; gap: 14px; font-size: 22px; color: var(--dim); }
+  .under .fmt svg { color: var(--ink); }
+  .under.off > * { visibility: hidden; }
+  .under.off .clock, .under.off .offmark { visibility: visible; }
+  .under .offmark { visibility: hidden; top: 340px; flex-direction: column; gap: 22px; color: var(--dim); font-size: 26px; }
+  .under .offmark svg { color: var(--faint); }
+
+  .over { position: absolute; inset: 0; background: #000; opacity: 0; }
+  .glyph { fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .over .cap { top: 560px; font-size: 26px; font-weight: 300; color: var(--dim); }
+  .over .lift { position: absolute; left: 0; right: 0; }
+  .over .stack { position: relative; margin: 0 auto; }
+  .over .stack svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .over .base { color: var(--faint); }
+  .over .lit { color: var(--accent); }
+  .over .edge { color: #fff; opacity: 0; }
+  .over .glow {
+    position: absolute; left: 50%; top: 378px; width: 480px; height: 480px; margin: -240px 0 0 -240px; border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--accent) 62%, transparent) 0%, transparent 68%); opacity: 0;
+  }
+  .over .ripple {
+    position: absolute; left: 50%; top: 378px; width: 200px; height: 200px; margin: -100px 0 0 -100px; border-radius: 50%;
+    border: 3px solid var(--accent); opacity: 0;
+  }
+  .over.done .ripple { animation: ripple 680ms ease-out; }
+  @keyframes ripple { 0% { opacity: 0.9; transform: scale(0.9); } 100% { opacity: 0; transform: scale(2.4); } }
+  @media (prefers-reduced-motion: reduce) { .over.done .ripple { animation: none; } }
+  .over .tide {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 0;
+    background: linear-gradient(to top, color-mix(in srgb, var(--accent) 36%, transparent), transparent);
+  }
+</style>
+
+<div class="page">
+  <h1>Hold power: adding flair to Fill</h1>
+  <p class="lede">Press and hold a button below (or hold the space bar for all three). Let go early and it backs out. The trace under each screen is what the haptic motor would do: a rumble that builds while you hold, then two quick ticks when it completes.</p>
+
+  <div class="controls">
+    <span class="label">Hold time</span>
+    <div class="seg" id="dur" role="group" aria-label="Hold time">
+      <button type="button" data-ms="800">0.8 s</button>
+      <button type="button" data-ms="1200" aria-pressed="true">1.2 s</button>
+      <button type="button" data-ms="1600">1.6 s</button>
+    </div>
+    <button type="button" class="all" id="all">Hold all three</button>
+  </div>
+
+  <div class="stage" id="stage">
+    <figure data-kind="glow">
+      <figcaption><strong>Glow</strong><span>A bloom grows behind the symbol, the fill has a white-hot leading edge, and a ring ripples outward when it completes.</span></figcaption>
+    </figure>
+    <figure data-kind="tide">
+      <figcaption><strong>Tide</strong><span>The whole screen fills with a faint wash of the accent, rising in step with the symbol.</span></figcaption>
+    </figure>
+    <figure data-kind="drain">
+      <figcaption><strong>Drain</strong><span>Direction carries meaning: turning off drains a lit symbol to empty, turning on fills it, with the glow and ripple only on the way up.</span></figcaption>
+    </figure>
+  </div>
+</div>
+
+<template id="tpl">
+  <div class="bezel">
+    <div class="screen">
+      <div class="under">
+        <span class="clock">21:14</span>
+        <div class="ctr src"><svg viewBox="0 0 24 24" width="56" height="56" fill="currentColor"><use href="#logo-playstation"/></svg>PLAYSTATION 5</div>
+        <div class="ctr hero">62</div>
+        <div class="ctr db">−18 dB</div>
+        <div class="bar" style="top:546px"><i style="width:62%"></i></div>
+        <div class="ctr fmt"><svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor"><use href="#logo-dolby"/></svg>Digital</div>
+        <div class="ctr offmark"><svg class="glyph" viewBox="0 0 24 24" width="72" height="72"><path d="M12 3v9M6.3 6.6a8 8 0 1 0 11.4 0"/></svg>Off</div>
+      </div>
+      <div class="over"></div>
+    </div>
+  </div>
+  <button type="button" class="hold">Hold power</button>
+  <div class="haptic"><span>Haptics</span><canvas width="600" height="68"></canvas><span class="now">idle</span></div>
+</template>
+
+<script>
+(() => {
+  const POWER = 'M12 3v9M6.3 6.6a8 8 0 1 0 11.4 0';
+  const glyph = (cls) => `<svg class="glyph ${cls}" viewBox="0 0 24 24"><path d="${POWER}"/></svg>`;
+  const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const ACCENT = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  let holdMs = 1200;
+
+  const stack = `<div class="lift"><div class="stack" style="width:176px;height:176px">${glyph('base')}${glyph('lit')}${glyph('edge')}</div></div><div class="ctr cap"></div>`;
+  const overlays = {
+    glow: `<div class="glow"></div><div class="ripple"></div>${stack}`,
+    tide: `<div class="tide"></div>${stack}`,
+    drain: `<div class="glow"></div><div class="ripple"></div>${stack}`,
+  };
+
+  const demos = [...document.querySelectorAll('figure')].map((fig) => {
+    fig.append(document.getElementById('tpl').content.cloneNode(true));
+    const kind = fig.dataset.kind;
+    const over = fig.querySelector('.over');
+    over.innerHTML = overlays[kind];
+    const d = {
+      kind, over, t: 0, holding: false, done: 0, on: true, trace: [],
+      under: fig.querySelector('.under'), lift: over.querySelector('.lift'), cap: over.querySelector('.cap'),
+      lit: over.querySelector('.lit'), edge: over.querySelector('.edge'), glow: over.querySelector('.glow'),
+      tide: over.querySelector('.tide'), ripple: over.querySelector('.ripple'), btn: fig.querySelector('.hold'),
+      cv: fig.querySelector('canvas'), now: fig.querySelector('.now'),
+    };
+    const down = (e) => { e.preventDefault(); press(d, true); };
+    const up = () => press(d, false);
+    d.btn.addEventListener('pointerdown', down);
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) d.btn.addEventListener(ev, up);
+    d.btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    d.btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.repeat) press(d, true); });
+    d.btn.addEventListener('keyup', (e) => { if (e.key === 'Enter') press(d, false); });
+    return d;
+  });
+
+  function press(d, on) {
+    if (on && d.done) return;
+    d.holding = on;
+    d.btn.classList.toggle('down', on);
+  }
+
+  function amplitude(d, nowMs) {
+    if (d.done) {
+      const dt = nowMs - d.done;
+      return (dt < 55 || (dt > 130 && dt < 185)) ? 1 : 0;
+    }
+    return d.holding ? 0.22 + 0.4 * ease(d.t) : 0;
+  }
+
+  function draw(d, nowMs) {
+    const e = ease(d.t);
+    const shown = d.done ? 1 : Math.min(1, d.t * 7);
+    d.over.style.opacity = d.done ? Math.max(0, 1 - Math.max(0, nowMs - d.done - 900) / 260) : shown;
+    d.lift.style.top = '290px';
+    const finished = !!d.done;
+    d.cap.textContent = finished ? (d.on ? 'On' : 'Off') : (d.on ? 'Hold to turn off' : 'Hold to turn on');
+    const since = d.done ? nowMs - d.done : 0;
+    // `on` flips at completion, so during the finish it describes the new state.
+    const turningOff = d.done ? !d.on : d.on;
+    const level = d.kind === 'drain' && turningOff ? 1 - e : e;
+    d.lit.style.clipPath = `inset(${(1 - level) * 100}% 0 0 0)`;
+    d.edge.style.opacity = !d.done && e > 0.02 && e < 0.98 ? 1 : 0;
+    d.edge.style.clipPath = `inset(${Math.max(0, (1 - level) * 100 - 1.5)}% 0 ${Math.max(0, level * 100 - 3.5)}% 0)`;
+    if (d.glow) d.glow.style.opacity = 0.5 * level * (d.done ? Math.max(0, 1 - since / 900) : 1);
+    if (d.ripple) d.ripple.style.visibility = d.kind === 'drain' && turningOff ? 'hidden' : 'visible';
+    if (d.tide) {
+      d.tide.style.height = (e * 100) + '%';
+      d.tide.style.opacity = d.done ? Math.max(0, 1 - since / 500) : 1;
+    }
+
+    const a = amplitude(d, nowMs);
+    d.now.textContent = d.done ? (nowMs - d.done < 200 ? 'double tick' : 'idle') : d.holding ? 'rumble' : 'idle';
+    d.trace.push(a);
+    if (d.trace.length > 150) d.trace.shift();
+    const c = d.cv.getContext('2d');
+    c.clearRect(0, 0, 600, 68);
+    d.trace.forEach((v, i) => {
+      if (!v) return;
+      c.fillStyle = v >= 1 ? '#f1f3f3' : ACCENT;
+      c.fillRect(i * 4, 66 - v * 62, 3, v * 62);
+    });
+  }
+
+  let last = performance.now();
+  function frame(nowMs) {
+    const dt = Math.min(50, nowMs - last);
+    last = nowMs;
+    for (const d of demos) {
+      if (d.done) {
+        if (nowMs - d.done > 1200) {
+          d.done = 0; d.t = 0; d.over.classList.remove('done');
+        }
+      } else if (d.holding) {
+        d.t = Math.min(1, d.t + dt / holdMs);
+        if (d.t >= 1) {
+          d.done = nowMs; d.on = !d.on; d.holding = false; d.btn.classList.remove('down');
+          d.over.classList.add('done');
+          d.under.classList.toggle('off', !d.on);
+          try { navigator.vibrate && navigator.vibrate([45, 80, 45]); } catch (err) {}
+        }
+      } else if (d.t > 0) {
+        d.t = Math.max(0, d.t - dt / (holdMs * 0.45));
+      }
+      draw(d, nowMs);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  const all = document.getElementById('all');
+  const allPress = (on) => { all.classList.toggle('down', on); demos.forEach((d) => press(d, on)); };
+  all.addEventListener('pointerdown', (e) => { e.preventDefault(); allPress(true); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) all.addEventListener(ev, () => allPress(false));
+  all.addEventListener('contextmenu', (e) => e.preventDefault());
+  document.addEventListener('keydown', (e) => { if (e.key === ' ' && !e.repeat) { e.preventDefault(); allPress(true); } });
+  document.addEventListener('keyup', (e) => { if (e.key === ' ') allPress(false); });
+
+  const dur = [...document.querySelectorAll('#dur button')];
+  dur.forEach((b) => b.addEventListener('click', () => {
+    holdMs = +b.dataset.ms;
+    dur.forEach((x) => x.setAttribute('aria-pressed', x === b));
+  }));
+
+  const stage = document.getElementById('stage');
+  const fit = () => {
+    const w = stage.clientWidth;
+    const cols = w >= 1100 ? 3 : w >= 700 ? 2 : 1;
+    stage.style.setProperty('--z', Math.min(1, (w - 28 * (cols - 1)) / (cols * 482)).toFixed(3));
+  };
+  window.addEventListener('resize', fit);
+  fit();
+})();
+</script>

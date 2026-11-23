@@ -1,0 +1,122 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Inter+Tight:wght@200;300&display=swap">
+<style>
+  .v-sigtype .screen{font-family:'Inter','Helvetica Neue',Arial,sans-serif;color:#fff;font-weight:300;font-variant-numeric:tabular-nums;--c:#63E6D9;--g1:#9A9FA3;--g2:#5C6166;--hl:rgba(255,255,255,.14)}
+  .v-sigtype .screen *{box-sizing:border-box;margin:0}
+  .v-sigtype .a{position:absolute;left:32px;right:32px}
+  .v-sigtype .d{font-family:'Inter Tight','Inter','Helvetica Neue',Arial,sans-serif;font-weight:200;letter-spacing:-.03em;white-space:nowrap}
+  .v-sigtype .t{font-family:'Inter Tight','Inter','Helvetica Neue',Arial,sans-serif;font-weight:300;letter-spacing:-.01em}
+  .v-sigtype .cy{color:var(--c)}
+  .v-sigtype .g1{color:var(--g1)}
+  .v-sigtype .g2{color:var(--g2)}
+  .v-sigtype .ic{display:block;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:square;stroke-linejoin:miter}
+  .v-sigtype .logo{display:block;flex:none}
+  .v-sigtype .st{position:absolute;left:32px;right:16px;top:4px;height:56px;display:flex;align-items:center;justify-content:space-between;font-size:20px;font-weight:400;letter-spacing:.02em}
+  .v-sigtype .st.nm{right:32px}
+  .v-sigtype .st-r{display:flex;align-items:center;gap:8px;color:var(--g1)}
+  .v-sigtype .st-m{width:56px;height:56px;display:flex;align-items:center;justify-content:center;color:var(--g1)}
+  .v-sigtype .rw{position:absolute;left:32px;right:32px;display:flex;align-items:center;gap:24px;border-top:1px solid var(--hl)}
+  .v-sigtype .rw .n{flex:1;font-size:32px;line-height:36px}
+  .v-sigtype .rw .v{font-size:24px;line-height:28px;color:var(--g1)}
+  .v-sigtype .rw .ch{color:var(--g2);margin-right:-6px}
+  .v-sigtype .rw.on{left:0;right:0;padding:0 32px;background:#121212}
+  .v-sigtype .rw.on::before{content:"";position:absolute;left:14px;top:50%;margin-top:-14px;width:2px;height:28px;background:var(--c)}
+  .v-sigtype .meter{position:absolute;left:32px;width:416px;height:28px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.16) 0 2px,transparent 2px 6px)}
+  .v-sigtype .meter i{position:absolute;left:0;top:0;bottom:0;background:repeating-linear-gradient(90deg,var(--c) 0 2px,transparent 2px 6px)}
+  .v-sigtype .meter u{position:absolute;top:2px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px #000}
+  .v-sigtype .sw{position:relative;width:56px;height:32px;border-radius:16px;background:#fff;flex:none}
+  .v-sigtype .sw::after{content:"";position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:50%;background:#000}
+  .v-sigtype .act{position:absolute;display:flex;align-items:center;gap:14px;height:80px;font-size:24px;font-weight:400}
+  @keyframes sigtype-settle{from{opacity:.4;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .v-sigtype [data-screen="volume"] .settle{animation:sigtype-settle .5s ease-out both}
+  @media (prefers-reduced-motion:reduce){.v-sigtype .settle{animation:none!important}}
+</style>
+<section class="variant v-sigtype" data-name="Signal Type" data-fonts="Inter + Inter Tight"
+         data-note="Monolith's strict left-aligned grid and giant thin numerals, with Signal's cyan reduced to one stroke-row meter that is also the progress bar and the brightness slider.">
+
+  <article class="screen" data-screen="receiver" data-label="Receiver">
+    <div class="st"><span>21:14</span><div class="st-r"><svg class="ic" width="28" height="14" viewBox="0 0 28 14"><rect x="1" y="1.5" width="23" height="11"/><path d="M26.5 5v4M4 5v4M7 5v4M10 5v4"/></svg><div class="st-m"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h18"/></svg></div></div></div>
+
+    <div class="a d cy" style="top:112px;height:200px;font-size:200px;line-height:200px;margin-left:-8px">62</div>
+    <div class="meter" style="top:352px"><i style="width:260px"></i></div>
+
+    <div class="rw" style="top:440px;height:112px">
+      <svg class="logo" viewBox="0 0 24 24" width="36" height="36" fill="currentColor"><use href="#logo-playstation"/></svg>
+      <span class="n t">PLAYSTATION 5</span>
+      <svg class="ic ch" width="24" height="24" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+    </div>
+    <div class="rw g1" style="top:552px;height:96px;gap:16px">
+      <svg class="logo" viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><use href="#logo-dolby"/></svg>
+      <span class="t" style="font-size:28px;line-height:32px">Digital</span>
+    </div>
+  </article>
+
+  <article class="screen" data-screen="inputs" data-label="Inputs">
+    <div class="st"><span>21:14</span><div class="st-r"><svg class="ic" width="28" height="14" viewBox="0 0 28 14"><rect x="1" y="1.5" width="23" height="11"/><path d="M26.5 5v4M4 5v4M7 5v4M10 5v4"/></svg><div class="st-m"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h18"/></svg></div></div></div>
+
+    <div class="rw g1" style="top:72px;height:88px"><svg class="logo" viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><use href="#logo-android"/></svg><span class="n t" style="color:#fff">ANDROID TV</span></div>
+    <div class="rw g1" style="top:160px;height:88px"><svg class="logo" viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><use href="#logo-bluetooth"/></svg><span class="n t" style="color:#fff">Bluetooth</span></div>
+    <div class="rw g1" style="top:248px;height:88px"><svg class="logo" viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><path d="M9 3v11.2A3.6 3.6 0 1 0 11.5 17.6V8.2l6-1.4V12A3.6 3.6 0 1 0 20 15.4V3.5z" transform="translate(-1 1)"/></svg><span class="n t" style="color:#fff">HEOS Music</span></div>
+    <div class="rw g1" style="top:336px;height:88px"><svg class="logo" viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><use href="#logo-kodi"/></svg><span class="n t" style="color:#fff">KODI</span></div>
+    <div class="rw g1" style="top:424px;height:88px"><svg class="logo" viewBox="0 0 24 24" width="32" height="32"><circle cx="12" cy="12" r="10" fill="currentColor"/><g fill="none" stroke="#000" stroke-width="1.4"><ellipse cx="12" cy="12" rx="4.2" ry="10"/><path d="M2 12h20M3.8 7.2h16.4M3.8 16.8h16.4"/></g></svg><span class="n t" style="color:#fff">NET</span></div>
+    <div class="rw" style="top:512px;height:88px"><svg class="logo" viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><use href="#logo-playstation"/></svg><span class="n t cy" style="font-weight:400">PLAYSTATION 5</span></div>
+    <div class="rw g1" style="top:600px;height:88px"><svg class="logo" viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><use href="#logo-xbox"/></svg><span class="n t" style="color:#fff">XBOX 360</span></div>
+  </article>
+
+  <article class="screen" data-screen="kodi-playing" data-label="Kodi · playing">
+    <div class="st"><span>21:14</span><div class="st-r"><svg class="ic" width="28" height="14" viewBox="0 0 28 14"><rect x="1" y="1.5" width="23" height="11"/><path d="M26.5 5v4M4 5v4M7 5v4M10 5v4"/></svg><div class="st-m"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h18"/></svg></div></div></div>
+
+    <div class="a" style="top:76px;height:150px;overflow:hidden"><svg width="416" height="150" viewBox="0 0 416 150" preserveAspectRatio="xMidYMid slice" style="display:block"><defs><linearGradient id="sigtype-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0c3138"/><stop offset=".55" stop-color="#2a6a6c"/><stop offset="1" stop-color="#d9803a"/></linearGradient></defs><rect width="416" height="150" fill="url(#sigtype-sky)"/><circle cx="292" cy="104" r="34" fill="#f0a35a" opacity=".92"/><path d="M0 150V112l40-18 30 24 36-36 28 30 44-42 34 48 40-26 52 36 40-32 72 36v48z" fill="#0a1d22"/><path d="M0 150V130l60-12 70 14 80-16 90 16 116-12v30z" fill="#050b0d"/></svg></div>
+    <div class="a t" style="top:240px;height:44px;font-size:36px;line-height:44px;white-space:nowrap">Blade Runner 2049</div>
+
+    <div class="a d cy" style="top:300px;height:108px;font-size:108px;line-height:108px;margin-left:-4px">1:12:08</div>
+    <div class="meter" style="top:440px"><i style="width:182px"></i></div>
+    <div class="a t" style="top:488px;height:32px;display:flex;justify-content:space-between;font-size:26px;line-height:32px"><span>1:31 left</span><span class="g1">ends 22:47</span></div>
+
+    <div class="rw" style="top:552px;height:88px;gap:0">
+      <div class="act" style="position:static;flex:1"><svg class="ic" width="28" height="28" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14"/><path d="M6 11h4M13 11h5M6 15h6M15 15h3"/></svg>Subtitles</div>
+      <div class="act" style="position:static;flex:1"><svg class="ic" width="28" height="28" viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg>Audio</div>
+    </div>
+    <div class="rw g1" style="top:640px;height:88px;justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:12px;font-size:24px;font-weight:400"><svg class="logo" viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><use href="#logo-dts"/></svg>HD MA 7.1</span>
+      <span class="t" style="display:flex;align-items:center;gap:10px;font-size:28px;color:#fff"><svg class="ic g1" width="24" height="24" viewBox="0 0 24 24"><path d="M3 9h4l6-5v16l-6-5H3zM17 8.5a5 5 0 0 1 0 7"/></svg>62</span>
+    </div>
+  </article>
+
+  <article class="screen" data-screen="kodi-browse" data-label="Kodi · browsing">
+    <div class="st"><span>21:14</span><div class="st-r"><svg class="ic" width="28" height="14" viewBox="0 0 28 14"><rect x="1" y="1.5" width="23" height="11"/><path d="M26.5 5v4M4 5v4M7 5v4M10 5v4"/></svg><div class="st-m"><svg class="ic" width="24" height="24" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h18"/></svg></div></div></div>
+
+    <svg class="logo a g1" viewBox="0 0 24 24" width="72" height="72" fill="currentColor" style="top:120px;right:auto"><use href="#logo-kodi"/></svg>
+    <div class="a d cy" style="top:540px;height:160px;font-size:160px;line-height:160px;margin-left:-6px">62</div>
+  </article>
+
+  <article class="screen" data-screen="volume" data-label="Volume">
+    <div class="a d cy settle" style="top:250px;height:220px;font-size:220px;line-height:220px;margin-left:-8px">64</div>
+    <div class="meter" style="top:510px"><i style="width:272px"></i></div>
+  </article>
+
+  <article class="screen" data-screen="menu" data-label="Menu">
+    <div class="st nm"><span>21:14</span><div class="st-r"><svg class="ic" width="28" height="14" viewBox="0 0 28 14"><rect x="1" y="1.5" width="23" height="11"/><path d="M26.5 5v4M4 5v4M7 5v4M10 5v4"/></svg></div></div>
+    <div class="a t" style="top:76px;height:60px;font-size:52px;line-height:60px">Menu</div>
+
+    <div class="rw" style="top:152px;height:104px"><span class="n t">Wi-Fi</span><span class="v">HomeNetwork</span><svg class="ic ch" width="24" height="24" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+    <div class="rw on" style="top:256px;height:104px"><span class="n t">Display</span><span class="v">90%</span><svg class="ic ch" width="24" height="24" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+    <div class="rw" style="top:360px;height:104px"><span class="n t">Sound &amp; haptics</span><span class="v">On</span><svg class="ic ch" width="24" height="24" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+    <div class="rw" style="top:464px;height:104px"><span class="n t">Power</span><svg class="ic ch" width="24" height="24" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+    <div class="rw" style="top:568px;height:104px;border-bottom:1px solid var(--hl)"><span class="n t">About</span><span class="v">Remote 3</span><svg class="ic ch" width="24" height="24" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+  </article>
+
+  <article class="screen" data-screen="menu-display" data-label="Menu · Display">
+    <div class="st nm"><span>21:14</span><div class="st-r"><svg class="ic" width="28" height="14" viewBox="0 0 28 14"><rect x="1" y="1.5" width="23" height="11"/><path d="M26.5 5v4M4 5v4M7 5v4M10 5v4"/></svg></div></div>
+    <div class="a" style="top:72px;height:64px;display:flex;align-items:center;gap:8px;left:12px">
+      <div style="width:56px;height:56px;display:flex;align-items:center;justify-content:center"><svg class="ic" width="28" height="28" viewBox="0 0 24 24"><path d="M15 4l-8 8 8 8"/></svg></div>
+      <span class="t" style="font-size:44px;line-height:52px">Display</span>
+    </div>
+
+    <div class="rw" style="top:152px;height:168px;display:block">
+      <div style="position:absolute;left:0;right:0;top:24px;display:flex;align-items:baseline;justify-content:space-between"><span class="t" style="font-size:28px;line-height:32px">Brightness</span><span class="d cy" style="font-size:56px;line-height:56px">90%</span></div>
+      <div class="meter" style="left:0;top:104px"><i style="width:374px"></i><u style="left:361px"></u></div>
+    </div>
+    <div class="rw" style="top:320px;height:96px"><span class="n t">Auto brightness</span><span class="sw"></span></div>
+    <div class="rw" style="top:416px;height:96px;border-bottom:1px solid var(--hl)"><span class="n t">Screen off after</span><span class="v">60 s</span><svg class="ic ch" width="24" height="24" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+  </article>
+</section>

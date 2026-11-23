@@ -1,0 +1,1163 @@
+<title>Theater Remote Variants</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+  /* Layout: a dark viewing room. One quiet control bar, then black 480x800 panels at true pixel size or scaled to fit. */
+  :root {
+    color-scheme: dark;
+    --room: #0b0b0d;
+    --bezel: #1d1d21;
+    --line: #26262b;
+    --ink: #ededf0;
+    --dim: #8d8d97;
+    --pick: #ffffff;
+    --ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--room);
+    color: var(--ink);
+    font: 14px/1.45 var(--ui);
+  }
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding-block: 20px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    max-width: 2100px;
+    margin-inline: auto;
+  }
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+  }
+  .bar h1 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 auto 0 0;
+    letter-spacing: 0.01em;
+  }
+  .seg {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .seg button {
+    font: 500 13px/1 var(--ui);
+    color: var(--dim);
+    background: none;
+    border: 0;
+    border-radius: 7px;
+    padding: 9px 12px;
+    cursor: pointer;
+  }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--pick); color: #000; }
+  .seg button:focus-visible, .nav:focus-visible, .frame:focus-visible {
+    outline: 2px solid var(--pick);
+    outline-offset: 2px;
+  }
+  .about {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 14px;
+    min-height: 22px;
+  }
+  .about strong { font-size: 18px; font-weight: 600; }
+  .about .fonts { color: var(--dim); font-size: 13px; }
+  .about .note { color: var(--dim); flex-basis: 100%; max-width: 70ch; }
+  .keys { color: var(--dim); font-size: 12px; }
+  .keys kbd {
+    font: 500 11px/1 var(--ui);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 2px 5px;
+    color: var(--ink);
+  }
+
+  .viewer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+  .nav {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--ink);
+    font: 400 20px/1 var(--ui);
+    cursor: pointer;
+  }
+  .nav:hover { background: #16161a; }
+  body:not([data-mode="one"]) .nav { display: none; }
+
+  .stage {
+    --z: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 28px 20px;
+    touch-action: pan-y;
+  }
+  .variant { display: contents; }
+  .frame { margin: 0; display: none; flex-direction: column; gap: 8px; cursor: pointer; }
+  body[data-mode="one"] .frame { cursor: default; }
+  body[data-mode="one"] .frame[data-on-variant][data-on-screen],
+  body[data-mode="variant"] .frame[data-on-variant],
+  body[data-mode="compare"] .frame[data-on-screen] { display: flex; }
+  .bezel {
+    border: 1px solid var(--bezel);
+    border-radius: 14px;
+    overflow: hidden;
+    background: #000;
+    line-height: 0;
+  }
+  .frame figcaption { color: var(--dim); font-size: 12px; text-align: center; }
+  body[data-mode="one"] .frame figcaption { display: none; }
+
+  /* The panel itself. Variants design inside this box in device pixels. */
+  .screen {
+    width: 480px;
+    height: 800px;
+    position: relative;
+    overflow: hidden;
+    background: #000;
+    box-sizing: border-box;
+    line-height: normal;
+    zoom: var(--z);
+  }
+  .screen *, .screen *::before, .screen *::after { box-sizing: border-box; }
+</style>
+
+<div class="page">
+  <div class="bar">
+    <h1>Theater Remote Variants</h1>
+    <div class="seg" id="variant-tabs" role="group" aria-label="Variant"></div>
+    <div class="seg" id="screen-tabs" role="group" aria-label="Screen"></div>
+    <div class="seg" id="mode-tabs" role="group" aria-label="View">
+      <button type="button" data-mode="one">Single</button>
+      <button type="button" data-mode="variant">All screens</button>
+      <button type="button" data-mode="compare">Compare variants</button>
+    </div>
+  </div>
+  <div class="about">
+    <strong id="about-name"></strong>
+    <span class="fonts" id="about-fonts"></span>
+    <span class="keys"><kbd>←</kbd> <kbd>→</kbd> screen · <kbd>↑</kbd> <kbd>↓</kbd> variant · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> view</span>
+    <span class="note" id="about-note"></span>
+  </div>
+  <div class="viewer">
+    <button type="button" class="nav" id="nav-prev" aria-label="Previous screen">‹</button>
+    <div class="stage" id="stage">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo-android" viewBox="0 0 24 24"><path d="M18.4395 5.5586c-.675 1.1664-1.352 2.3318-2.0274 3.498-.0366-.0155-.0742-.0286-.1113-.043-1.8249-.6957-3.484-.8-4.42-.787-1.8551.0185-3.3544.4643-4.2597.8203-.084-.1494-1.7526-3.021-2.0215-3.4864a1.1451 1.1451 0 0 0-.1406-.1914c-.3312-.364-.9054-.4859-1.379-.203-.475.282-.7136.9361-.3886 1.5019 1.9466 3.3696-.0966-.2158 1.9473 3.3593.0172.031-.4946.2642-1.3926 1.0177C2.8987 12.176.452 14.772 0 18.9902h24c-.119-1.1108-.3686-2.099-.7461-3.0683-.7438-1.9118-1.8435-3.2928-2.7402-4.1836a12.1048 12.1048 0 0 0-2.1309-1.6875c.6594-1.122 1.312-2.2559 1.9649-3.3848.2077-.3615.1886-.7956-.0079-1.1191a1.1001 1.1001 0 0 0-.8515-.5332c-.5225-.0536-.9392.3128-1.0488.5449zm-.0391 8.461c.3944.5926.324 1.3306-.1563 1.6503-.4799.3197-1.188.0985-1.582-.4941-.3944-.5927-.324-1.3307.1563-1.6504.4727-.315 1.1812-.1086 1.582.4941zM7.207 13.5273c.4803.3197.5506 1.0577.1563 1.6504-.394.5926-1.1038.8138-1.584.4941-.48-.3197-.5503-1.0577-.1563-1.6504.4008-.6021 1.1087-.8106 1.584-.4941z"/></symbol>
+  <symbol id="logo-bluetooth" viewBox="0 0 24 24"><path d="M12 0C6.76 0 3.1484 2.4895 3.1484 12S6.76 24 12 24c5.24 0 8.8516-2.4895 8.8516-12S17.24 0 12 0zm-.7773 1.6816l6.2148 6.2149L13.334 12l4.1035 4.1035-6.2148 6.2149V14.125l-3.418 3.42-1.2422-1.2442L10.8515 12l-4.289-4.3008 1.2422-1.2441 3.418 3.4199V1.6816zm1.748 4.2442v3.9687l1.9844-1.9843-1.9844-1.9844zm0 8.1816v3.9668l1.9844-1.9844-1.9844-1.9824Z"/></symbol>
+  <symbol id="logo-denon" viewBox="0 0 24 24"><path d="m9.365 11.237 3.394 3.361v-5.07h-.778v3.16L8.58 9.406v5.077h.779V11.27l.006-.033m-4.497 3.245V9.528h2.79v.773H5.646v1.164h1.558v.772H5.646v1.472h1.999v.773H4.868M20.58 11.23 24 14.58V9.528h-.779v3.2l-.005-.015-3.422-3.311v5.08h.79v-3.234l-.003-.019M.78 13.747v-3.503h.688s1.755-.032 1.755 1.77c0 1.647-1.593 1.733-1.593 1.733H.78zM0 9.527v4.955h1.655s2.336-.193 2.336-2.496c0-2.374-2.343-2.458-2.343-2.458H0zm14.416 2.452c0 .552.187 1.006.56 1.361.713.724 1.931.702 2.618-.01.724-.689.724-1.991.007-2.676-.675-.726-1.966-.724-2.645 0-.36.357-.54.8-.54 1.325zm-.764-.01c0-.702.26-1.306.777-1.81.981-1.004 2.724-1.016 3.702.006 1.026.965 1.032 2.706-.003 3.66-.961.964-2.596 1.015-3.624.084-.568-.493-.852-1.14-.852-1.94z"/></symbol>
+  <symbol id="logo-dolby" viewBox="0 0 24 24"><path d="M0 3.564v16.872h2.488c4.648 0 8.438-3.788 8.438-8.436s-3.79-8.436-8.438-8.436H0zm21.512 0c-4.648 0-8.438 3.788-8.438 8.436s3.79 8.436 8.438 8.436H24V3.564h-2.488z"/></symbol>
+  <symbol id="logo-dts" viewBox="0 0 24 24"><path d="m23.556 14.346-1.194-1.173a.841.841 0 0 1 .604-1.445h.59a.346.346 0 0 0 .349-.343v-.636H18.97a1.492 1.492 0 0 0-1.507 1.477v.003c0 .396.16.775.444 1.05l1.201 1.18a.841.841 0 0 1-.604 1.446h-1.849a1.306 1.306 0 0 1-1.317-1.294v-2.876h1.135a.346.346 0 0 0 .35-.343v-.636h-1.485V7.587l-3.866 1.66v1.494h-1.87V7.123h-2.87a.986.986 0 0 0-.997.98v2.638H3.67C1.514 10.741 0 11.893 0 13.81c0 1.71 1.776 3.068 3.676 3.068h4.615a1.306 1.306 0 0 0 1.318-1.294v-3.855h1.863v2.503c0 1.423.874 2.646 2.65 2.646h8.371A1.492 1.492 0 0 0 24 15.4v-.003a1.444 1.444 0 0 0-.444-1.051zM5.729 15.683a.217.217 0 0 1-.219.214h-.13c-1.34 0-1.835-.908-1.85-2.088.015-1.216.525-2.088 1.85-2.088h.349v3.962z"/></symbol>
+  <symbol id="logo-homeassistant" viewBox="0 0 24 24"><path d="M22.939 10.627 13.061.749a1.505 1.505 0 0 0-2.121 0l-9.879 9.878C.478 11.21 0 12.363 0 13.187v9c0 .826.675 1.5 1.5 1.5h9.227l-4.063-4.062a2.034 2.034 0 0 1-.664.113c-1.13 0-2.05-.92-2.05-2.05s.92-2.05 2.05-2.05 2.05.92 2.05 2.05c0 .233-.041.456-.113.665l3.163 3.163V9.928a2.05 2.05 0 0 1-1.15-1.84c0-1.13.92-2.05 2.05-2.05s2.05.92 2.05 2.05a2.05 2.05 0 0 1-1.15 1.84v8.127l3.146-3.146A2.051 2.051 0 0 1 18 12.239c1.13 0 2.05.92 2.05 2.05s-.92 2.05-2.05 2.05c-.25 0-.488-.047-.709-.13L12.9 20.602v3.088h9.6c.825 0 1.5-.675 1.5-1.5v-9c0-.825-.477-1.977-1.061-2.561z"/></symbol>
+  <symbol id="logo-kodi" viewBox="0 0 24 24"><path d="M12.03.047c-.226 0-.452.107-.669.324-.922.922-1.842 1.845-2.763 2.768-.233.233-.455.48-.703.695-.31.267-.405.583-.399.988.02 1.399.008 2.799.008 4.198 0 1.453-.002 2.907 0 4.36 0 .11.002.223.03.327.087.337.303.393.546.15 1.31-1.31 2.618-2.622 3.928-3.933l4.449-4.453c.43-.431.43-.905 0-1.336L12.697.37c-.216-.217-.442-.324-.668-.324zm7.224 7.23c-.223 0-.445.104-.65.309L14.82 11.37c-.428.429-.427.895 0 1.322l3.76 3.766c.44.44.908.44 1.346.002 1.215-1.216 2.427-2.433 3.644-3.647.182-.18.353-.364.43-.615v-.33c-.077-.251-.246-.436-.428-.617-1.224-1.22-2.443-2.445-3.666-3.668-.205-.205-.429-.307-.652-.307zM4.18 7.611c-.086.014-.145.094-.207.157L.209 11.572c-.28.284-.278.677.004.96l2.043 2.046c.59.59 1.177 1.182 1.767 1.772.169.168.33.139.416-.084.044-.114.062-.242.063-.364.004-1.283.004-2.567.004-3.851h-.002V8.184c0-.085-.01-.169-.022-.252-.019-.135-.072-.258-.207-.309a.186.186 0 0 0-.095-.012zm7.908 6.838c-.224 0-.447.106-.656.315L7.66 18.537c-.433.434-.433.899.002 1.334 1.215 1.216 2.43 2.43 3.643 3.649.18.18.361.354.611.433h.33c.244-.069.423-.226.598-.402 1.222-1.23 2.45-2.453 3.676-3.68.43-.43.427-.905-.004-1.338l-3.772-3.773c-.208-.208-.432-.311-.656-.31z"/></symbol>
+  <symbol id="logo-playstation5" viewBox="0 0 24 24"><path d="M10.4499 14.56905a1.38287 1.38287 0 001.38287-1.38287v-2.37841a.83315.83315 0 01.83416-.83315h2.68403a.03732.03732 0 00.03631-.03732V9.4612a.03631.03631 0 00-.0363-.0363H12.1172a1.38287 1.38287 0 00-1.38388 1.38286v2.38043a.83416.83416 0 01-.83315.83415H7.25347a.03631.03631 0 00-.03631.03632v.47608a.03631.03631 0 00.03631.03631zm6.04488-3.21156V9.4612a.03631.03631 0 01.0363-.0363h7.30772a.03732.03732 0 01.03732.0363v.47609a.03833.03833 0 01-.03732.03732h-6.20929a.03631.03631 0 00-.0363.03631v1.2356a.3954.3954 0 00.3964.39741h4.62267a1.46457 1.46457 0 010 2.9251h-6.0812a.03631.03631 0 01-.0363-.0363v-.47407a.03631.03631 0 01.0363-.03632h5.53047a.91586.91586 0 10-.00706-1.8307h-4.72656a.83315.83315 0 01-.83315-.83416m-10.84608.28645a.83466.83466 0 000-1.66932H.03654a.03732.03732 0 01-.03632-.03732V9.4612a.03631.03631 0 01.03632-.0363h6.1528a1.38388 1.38388 0 010 2.76673H1.9328a.83315.83315 0 00-.83315.83416v1.51299a.03631.03631 0 01-.03631.0363H.03654a.03631.03631 0 01-.03632-.04034v-1.51298a1.38287 1.38287 0 011.38388-1.37783Z"/></symbol>
+  <symbol id="logo-playstation" viewBox="0 0 24 24"><path d="M8.984 2.596v17.547l3.915 1.261V6.688c0-.69.304-1.151.794-.991.636.18.76.814.76 1.505v5.875c2.441 1.193 4.362-.002 4.362-3.152 0-3.237-1.126-4.675-4.438-5.827-1.307-.448-3.728-1.186-5.39-1.502zm4.656 16.241l6.296-2.275c.715-.258.826-.625.246-.818-.586-.192-1.637-.139-2.357.123l-4.205 1.5V14.98l.24-.085s1.201-.42 2.913-.615c1.696-.18 3.785.03 5.437.661 1.848.601 2.04 1.472 1.576 2.072-.465.6-1.622 1.036-1.622 1.036l-8.544 3.107V18.86zM1.807 18.6c-1.9-.545-2.214-1.668-1.352-2.32.801-.586 2.16-1.052 2.16-1.052l5.615-2.013v2.313L4.205 17c-.705.271-.825.632-.239.826.586.195 1.637.15 2.343-.12L8.247 17v2.074c-.12.03-.256.044-.39.073-1.939.331-3.996.196-6.038-.479z"/></symbol>
+  <symbol id="logo-xbox" viewBox="0 0 24 24"><path d="M4.102 21.033C6.211 22.881 8.977 24 12 24c3.026 0 5.789-1.119 7.902-2.967 1.877-1.912-4.316-8.709-7.902-11.417-3.582 2.708-9.779 9.505-7.898 11.417zm11.16-14.406c2.5 2.961 7.484 10.313 6.076 12.912C23.002 17.48 24 14.861 24 12.004c0-3.34-1.365-6.362-3.57-8.536 0 0-.027-.022-.082-.042-.063-.022-.152-.045-.281-.045-.592 0-1.985.434-4.805 3.246zM3.654 3.426c-.057.02-.082.041-.086.042C1.365 5.642 0 8.664 0 12.004c0 2.854.998 5.473 2.661 7.533-1.401-2.605 3.579-9.951 6.08-12.91-2.82-2.813-4.216-3.245-4.806-3.245-.131 0-.223.021-.281.046v-.002zM12 3.551S9.055 1.828 6.755 1.746c-.903-.033-1.454.295-1.521.339C7.379.646 9.659 0 11.984 0H12c2.334 0 4.605.646 6.766 2.085-.068-.046-.615-.372-1.52-.339C14.946 1.828 12 3.545 12 3.545v.006z"/></symbol>
+</svg>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap">
+<style>
+  .v-halo .screen { font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif; color: #F5F5F2; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; font-size: 18px; line-height: 1.2; }
+  .v-halo .screen svg { display: block; }
+  .v-halo .h-ic { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .v-halo .h-status { position: absolute; left: 0; right: 0; top: 0; height: 48px; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: 600; color: #F5F5F2; }
+  .v-halo .h-status .h-sr { display: flex; align-items: center; gap: 14px; color: #A8A59E; font-weight: 500; }
+  .v-halo .h-status .h-sr span { display: flex; align-items: center; gap: 6px; }
+  .v-halo .h-status .h-ic { width: 22px; height: 22px; }
+
+  .v-halo .h-ring { position: absolute; left: 70px; width: 340px; height: 340px; }
+  .v-halo .h-ring::before { content: ""; position: absolute; left: -110px; top: -110px; width: 560px; height: 560px; background: radial-gradient(circle at center, rgba(255,122,77,.20) 0, rgba(255,122,77,.07) 38%, rgba(255,122,77,0) 62%); }
+  .v-halo .h-ring.h-idle::before { background: radial-gradient(circle at center, rgba(255,122,77,.07) 0, rgba(255,122,77,0) 55%); }
+  .v-halo .h-ring svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .v-halo .h-ring-in { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .v-halo .h-lab { font-size: 13px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: #8E8A83; }
+  .v-halo .h-big { font-size: 150px; line-height: 150px; font-weight: 300; letter-spacing: -.02em; margin: 6px 0 8px; }
+  .v-halo .h-inname { font-size: 18px; font-weight: 700; letter-spacing: .1em; color: #F5F5F2; }
+  .v-halo .h-grey { color: #8E8A83; }
+
+  .v-halo .h-pill { position: absolute; height: 56px; border-radius: 999px; background: #121212; display: flex; align-items: center; gap: 12px; padding: 0 22px; font-size: 18px; font-weight: 600; box-sizing: border-box; }
+  .v-halo .h-pill .h-ic { color: #C9C6BF; }
+  .v-halo .h-pill.h-c { justify-content: center; }
+  .v-halo .h-circle { position: absolute; width: 80px; height: 80px; border-radius: 50%; background: #121212; display: flex; align-items: center; justify-content: center; }
+  .v-halo .h-circle .h-ic { width: 30px; height: 30px; color: #F5F5F2; }
+  .v-halo .h-dot { width: 12px; height: 12px; border-radius: 50%; background: #FF7A4D; box-shadow: 0 0 0 4px rgba(255,122,77,.22); flex: none; }
+  .v-halo .h-sp { flex: 1; }
+
+  .v-halo .h-mode { left: 28px; width: 424px; height: 68px; border-radius: 34px; padding: 0 28px; justify-content: space-between; }
+  .v-halo .h-mode .h-v { font-size: 22px; font-weight: 700; letter-spacing: .04em; display: block; margin-top: 4px; }
+
+  .v-halo .h-t { position: absolute; left: 0; right: 0; text-align: center; }
+  .v-halo .h-title { font-size: 30px; font-weight: 600; line-height: 40px; }
+
+  .v-halo .h-disc { position: absolute; left: 14px; top: 14px; width: 312px; height: 312px; border-radius: 50%; overflow: hidden; background: #0b1c20; }
+  .v-halo .h-disc svg { width: 312px; height: 312px; }
+  .v-halo .h-disc::after { content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: 50%; background: rgba(0,0,0,.58); }
+  .v-halo .h-elapsed { font-size: 54px; line-height: 60px; font-weight: 300; margin-top: 8px; }
+  .v-halo .h-ring-in.h-above { z-index: 2; }
+
+  .v-halo .h-chip { position: absolute; height: 56px; border-radius: 999px; background: #121212; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 18px; font-weight: 600; padding: 0 26px; box-sizing: border-box; }
+  .v-halo .h-chip .h-n { font-size: 26px; font-weight: 500; }
+  .v-halo .h-chip.h-inring { position: static; margin-top: 18px; height: 44px; padding: 0 20px; }
+
+  .v-halo .h-legend { position: absolute; left: 28px; right: 28px; top: 584px; display: flex; flex-direction: column; gap: 6px; }
+  .v-halo .h-lg { height: 30px; display: flex; align-items: center; gap: 18px; font-size: 18px; color: #C9C6BF; font-weight: 500; }
+  .v-halo .h-key { width: 104px; height: 30px; border-radius: 15px; background: #141414; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; letter-spacing: .14em; color: #F5F5F2; flex: none; }
+
+  .v-halo .h-list { position: absolute; left: 28px; right: 28px; display: flex; flex-direction: column; }
+  .v-halo .h-item { height: 60px; border-radius: 30px; background: #101010; display: flex; align-items: center; gap: 14px; padding: 0 26px; font-size: 20px; font-weight: 600; margin-bottom: 8px; box-sizing: border-box; color: #D8D5CE; }
+  .v-halo .h-item .h-rd { width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box; border: 2px solid rgba(255,255,255,.18); flex: none; }
+  .v-halo .h-item.h-on { background: #141414; color: #F5F5F2; box-shadow: inset 0 0 0 2px rgba(255,122,77,.55); }
+  .v-halo .h-item.h-on .h-rd { background: #FF7A4D; border-color: #FF7A4D; box-shadow: 0 0 0 4px rgba(255,122,77,.22); }
+  .v-halo .h-item .h-tag { margin-left: auto; font-size: 13px; font-weight: 700; letter-spacing: .16em; color: #FF7A4D; }
+  .v-halo .h-modes { position: absolute; left: 28px; right: 28px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .v-halo .h-md { height: 56px; border-radius: 28px; background: #101010; padding: 0 24px; display: flex; align-items: center; font-size: 18px; font-weight: 600; color: #D8D5CE; box-sizing: border-box; }
+
+  .v-halo .h-under { position: absolute; left: 0; top: 0; width: 480px; height: 800px; opacity: .22; }
+  .v-halo .h-veil { position: absolute; left: 0; top: 0; width: 480px; height: 800px; background: rgba(0,0,0,.55); }
+  .v-halo .h-vring { position: absolute; left: 40px; top: 22px; width: 400px; height: 400px; }
+  .v-halo .h-vring::before { content: ""; position: absolute; left: -120px; top: -120px; width: 640px; height: 640px; background: radial-gradient(circle at center, rgba(255,122,77,.34) 0, rgba(255,122,77,.12) 40%, rgba(255,122,77,0) 64%); animation: halo-breathe 2.4s ease-in-out infinite; }
+  .v-halo .h-vring svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .v-halo .h-vbig { font-size: 176px; line-height: 176px; font-weight: 300; letter-spacing: -.02em; margin: 4px 0 8px; animation: halo-settle .5s ease-out both; }
+  .v-halo .h-up { display: flex; align-items: center; gap: 6px; font-size: 20px; font-weight: 700; color: #FF9A6F; }
+  .v-halo .h-up .h-ic { width: 20px; height: 20px; }
+  .v-halo .h-mutebox { position: absolute; left: 0; right: 0; top: 496px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .v-halo .h-mutepill { width: 200px; height: 64px; border-radius: 32px; background: #121212; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 20px; font-weight: 600; color: #8E8A83; }
+
+  .v-halo .h-sl { position: absolute; left: 28px; font-size: 13px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: #8E8A83; }
+  .v-halo .h-row { height: 56px; border-radius: 28px; background: #101010; display: flex; align-items: center; gap: 12px; padding: 0 22px 0 26px; font-size: 18px; font-weight: 600; margin-bottom: 6px; box-sizing: border-box; }
+  .v-halo .h-row.h-tall { height: 72px; border-radius: 36px; }
+  .v-halo .h-row .h-val { margin-left: auto; color: #A8A59E; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+  .v-halo .h-row .h-val b { color: #F5F5F2; font-weight: 600; }
+  .v-halo .h-row small { display: block; font-size: 18px; font-weight: 500; color: #8E8A83; margin-top: 2px; }
+  .v-halo .h-mini { width: 32px; height: 32px; flex: none; }
+  .v-halo .h-tog { width: 56px; height: 32px; border-radius: 16px; background: #FF7A4D; position: relative; flex: none; }
+  .v-halo .h-tog::after { content: ""; position: absolute; right: 4px; top: 4px; width: 24px; height: 24px; border-radius: 50%; background: #0a0a0a; }
+  .v-halo .h-pw { position: absolute; top: 630px; width: 133px; height: 56px; border-radius: 28px; background: #121212; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; box-sizing: border-box; }
+
+  @keyframes halo-breathe { 0%,100% { opacity: .8; } 50% { opacity: 1; } }
+  @keyframes halo-settle { from { opacity: .4; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) {
+    .v-halo .h-vring::before, .v-halo .h-vbig { animation: none; }
+  }
+</style>
+<section class="variant v-halo" data-name="Halo" data-fonts="Manrope"
+         data-note="One large ember ring carries the screen (volume, film progress), echoing the round d-pad below, with soft pill controls on pure black.">
+
+  <article class="screen" data-screen="receiver" data-label="Receiver">
+    <div class="h-status"><span>21:14</span><div class="h-sr">
+      <span><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg></span>
+      <span><svg class="h-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M22 10.5v3"/><path d="M6 12h5"/></svg>50%</span></div></div>
+
+    <div class="h-ring" style="top:92px">
+      <svg viewBox="0 0 340 340">
+        <defs><linearGradient id="halo-ember-r" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB083"/><stop offset="1" stop-color="#FF7A4D"/></linearGradient></defs>
+        <circle cx="170" cy="170" r="164" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8"/>
+        <circle cx="170" cy="170" r="164" fill="none" stroke="url(#halo-ember-r)" stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="62 100" transform="rotate(-90 170 170)"/>
+        <circle cx="57.7" cy="289.5" r="7" fill="#F5F5F2"/>
+      </svg>
+      <div class="h-ring-in"><div class="h-lab">Volume</div><div class="h-big">62</div><div class="h-inname">PLAYSTATION 5</div></div>
+    </div>
+
+    <div class="h-pill h-mode" style="top:460px"><div><span class="h-lab">Sound mode</span><span class="h-v">DTS SURROUND</span></div><svg class="h-ic" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
+
+    <div class="h-pill" style="left:28px;top:552px;width:228px;height:80px;border-radius:40px;padding:0 28px"><span class="h-dot"></span>Inputs<span class="h-sp"></span><svg class="h-ic" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
+    <div class="h-circle" style="left:272px;top:552px"><svg class="h-ic" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 9.5a3.5 3.5 0 0 1 0 5M19 7a7 7 0 0 1 0 10"/></svg></div>
+    <div class="h-circle" style="left:372px;top:552px"><svg class="h-ic" viewBox="0 0 24 24"><path d="M12 3v8M6.4 6.8a8 8 0 1 0 11.2 0"/></svg></div>
+  </article>
+
+  <article class="screen" data-screen="inputs" data-label="Inputs">
+    <div class="h-status"><span>21:14</span><div class="h-sr">
+      <span><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg></span>
+      <span><svg class="h-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M22 10.5v3"/><path d="M6 12h5"/></svg>50%</span></div></div>
+    <div class="h-sl" style="top:58px">Input</div>
+    <div class="h-list" style="top:84px">
+      <div class="h-item"><span class="h-rd"></span>ANDROID TV</div>
+      <div class="h-item"><span class="h-rd"></span>Bluetooth</div>
+      <div class="h-item"><span class="h-rd"></span>HEOS Music</div>
+      <div class="h-item"><span class="h-rd"></span>KODI</div>
+      <div class="h-item"><span class="h-rd"></span>NET</div>
+      <div class="h-item h-on"><span class="h-rd"></span>PLAYSTATION 5<span class="h-tag">NOW</span></div>
+      <div class="h-item"><span class="h-rd"></span>XBOX 360</div>
+    </div>
+    <div class="h-sl" style="top:582px">Sound mode</div>
+    <div class="h-modes" style="top:610px">
+      <div class="h-md">MOVIE</div><div class="h-md">MUSIC</div><div class="h-md">GAME</div><div class="h-md">STEREO</div><div class="h-md">PURE DIRECT</div>
+    </div>
+  </article>
+
+  <article class="screen" data-screen="kodi-playing" data-label="Kodi · playing">
+    <div class="h-status"><span>21:14</span><div class="h-sr">
+      <span><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg></span>
+      <span><svg class="h-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M22 10.5v3"/><path d="M6 12h5"/></svg>50%</span></div></div>
+
+    <div class="h-ring" style="top:52px">
+      <div class="h-disc">
+        <svg viewBox="0 0 312 312">
+          <defs>
+            <linearGradient id="halo-sky-k" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B3A44"/><stop offset=".5" stop-color="#1F7C80"/><stop offset=".72" stop-color="#F08A4A"/><stop offset="1" stop-color="#3A1A10"/></linearGradient>
+            <radialGradient id="halo-sun-k" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFC98A"/><stop offset=".45" stop-color="#FF8A4C"/><stop offset="1" stop-color="#FF8A4C" stop-opacity="0"/></radialGradient>
+          </defs>
+          <rect width="312" height="312" fill="url(#halo-sky-k)"/>
+          <circle cx="170" cy="190" r="96" fill="url(#halo-sun-k)"/>
+          <circle cx="170" cy="190" r="34" fill="#FFB36E"/>
+          <path d="M0 222h30v-26h18v20h22v-48h20v30h26v-14h16v40h24v-18h30v-34h20v52h28v-24h22v36h36v-22h20v62H0z" fill="#0A1A1E"/>
+          <path d="M0 262h312v50H0z" fill="#06100F"/>
+        </svg>
+      </div>
+      <svg viewBox="0 0 340 340">
+        <defs><linearGradient id="halo-ember-k" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB083"/><stop offset="1" stop-color="#FF7A4D"/></linearGradient></defs>
+        <circle cx="170" cy="170" r="164" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8"/>
+        <circle cx="170" cy="170" r="164" fill="none" stroke="url(#halo-ember-k)" stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="44 100" transform="rotate(-90 170 170)"/>
+        <circle cx="230.4" cy="322.5" r="7" fill="#F5F5F2"/>
+      </svg>
+      <div class="h-ring-in h-above"><div class="h-lab">Elapsed</div><div class="h-elapsed">1:12:08</div><div class="h-grey" style="margin-top:6px">of 2:44:00</div></div>
+    </div>
+
+    <div class="h-t h-title" style="top:400px">Blade Runner 2049</div>
+    <div class="h-t" style="top:442px;font-weight:500">2017 · 2 h 44 min</div>
+    <div class="h-t" style="top:470px;font-weight:600"><span style="color:#FF9A6F">1:31:52 left</span> <span class="h-grey">· ends 22:47</span></div>
+    <div class="h-t h-grey" style="top:498px;font-weight:500">DTS-HD MA 7.1 · English · Subs English</div>
+
+    <div class="h-pill" style="left:28px;top:548px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M7 11h4M13 11h4M7 15h7"/></svg>Subtitles</div>
+    <div class="h-pill" style="left:246px;top:548px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 9.5a3.5 3.5 0 0 1 0 5M19 7a7 7 0 0 1 0 10"/></svg>Audio</div>
+    <div class="h-pill" style="left:28px;top:616px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r=".6"/></svg>Info</div>
+    <div class="h-pill" style="left:246px;top:616px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/></svg>Context menu</div>
+
+    <div class="h-chip" style="left:150px;top:696px;width:180px"><span class="h-dot"></span><span class="h-lab">Vol</span><span class="h-n">62</span></div>
+  </article>
+
+  <article class="screen" data-screen="kodi-browse" data-label="Kodi · browsing">
+    <div class="h-status"><span>21:14</span><div class="h-sr">
+      <span><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg></span>
+      <span><svg class="h-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M22 10.5v3"/><path d="M6 12h5"/></svg>50%</span></div></div>
+
+    <div class="h-ring h-idle" style="top:52px">
+      <svg viewBox="0 0 340 340">
+        <circle cx="170" cy="170" r="164" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8"/>
+        <circle cx="170" cy="6" r="8" fill="#FF7A4D"/>
+      </svg>
+      <div class="h-ring-in"><div class="h-lab">Input</div><div style="font-size:72px;line-height:80px;font-weight:300;letter-spacing:.04em;margin-top:4px">KODI</div><div class="h-grey" style="font-weight:500">Nothing playing</div>
+        <div class="h-chip h-inring"><span class="h-lab">Vol</span><span class="h-n">62</span></div></div>
+    </div>
+
+    <div class="h-pill h-c" style="left:28px;top:412px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4z"/></svg>Home</div>
+    <div class="h-pill h-c" style="left:246px;top:412px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4-2.5z"/></svg>Videos</div>
+    <div class="h-pill h-c" style="left:28px;top:480px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r=".6"/></svg>Info</div>
+    <div class="h-pill h-c" style="left:246px;top:480px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>Fullscreen</div>
+
+    <div class="h-sl" style="top:556px">Hard keys here</div>
+    <div class="h-legend">
+      <div class="h-lg"><span class="h-key">BACK</span>Back</div>
+      <div class="h-lg"><span class="h-key">HOME</span>Kodi home</div>
+      <div class="h-lg"><span class="h-key">MENU</span>Context menu</div>
+      <div class="h-lg"><span class="h-key">CH + / −</span>Page up / down</div>
+    </div>
+  </article>
+
+  <article class="screen" data-screen="volume" data-label="Volume overlay">
+    <div class="h-under">
+      <div class="h-ring" style="top:52px">
+        <div class="h-disc">
+          <svg viewBox="0 0 312 312">
+            <defs>
+              <linearGradient id="halo-sky-u" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B3A44"/><stop offset=".5" stop-color="#1F7C80"/><stop offset=".72" stop-color="#F08A4A"/><stop offset="1" stop-color="#3A1A10"/></linearGradient>
+            </defs>
+            <rect width="312" height="312" fill="url(#halo-sky-u)"/>
+            <circle cx="170" cy="190" r="34" fill="#FFB36E"/>
+            <path d="M0 222h30v-26h18v20h22v-48h20v30h26v-14h16v40h24v-18h30v-34h20v52h28v-24h22v36h36v-22h20v62H0z" fill="#0A1A1E"/>
+          </svg>
+        </div>
+        <svg viewBox="0 0 340 340"><circle cx="170" cy="170" r="164" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8"/><circle cx="170" cy="170" r="164" fill="none" stroke="#FF7A4D" stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="44 100" transform="rotate(-90 170 170)"/></svg>
+      </div>
+      <div class="h-t h-title" style="top:400px">Blade Runner 2049</div>
+      <div class="h-t" style="top:442px">2017 · 2 h 44 min</div>
+      <div class="h-pill" style="left:28px;top:548px;width:206px">Subtitles</div>
+      <div class="h-pill" style="left:246px;top:548px;width:206px">Audio</div>
+      <div class="h-pill" style="left:28px;top:616px;width:206px">Info</div>
+      <div class="h-pill" style="left:246px;top:616px;width:206px">Context menu</div>
+    </div>
+    <div class="h-veil"></div>
+
+    <div class="h-vring">
+      <svg viewBox="0 0 400 400">
+        <defs><linearGradient id="halo-ember-v" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC09A"/><stop offset="1" stop-color="#FF7A4D"/></linearGradient></defs>
+        <circle cx="200" cy="200" r="192" fill="#000" fill-opacity=".92"/>
+        <circle cx="200" cy="200" r="192" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="10"/>
+        <circle cx="200" cy="200" r="192" fill="none" stroke="url(#halo-ember-v)" stroke-width="10" stroke-linecap="round" pathLength="100" stroke-dasharray="64 100" transform="rotate(-90 200 200)"/>
+        <circle cx="52.1" cy="322.4" r="9" fill="#FFF6EE"/>
+      </svg>
+      <div class="h-ring-in"><div class="h-lab">Volume</div><div class="h-vbig">64</div>
+        <div class="h-up"><svg class="h-ic" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>from 62</div></div>
+    </div>
+
+    <div class="h-mutebox"><div class="h-lab">If muted</div><div class="h-mutepill"><svg class="h-ic" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>Muted</div></div>
+  </article>
+
+  <article class="screen" data-screen="settings" data-label="Settings">
+    <div class="h-status"><span>21:14</span><div class="h-sr">
+      <span><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg></span>
+      <span><svg class="h-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M22 10.5v3"/><path d="M6 12h5"/></svg>50%</span></div></div>
+    <div class="h-sl" style="top:56px">Settings</div>
+    <div class="h-list" style="top:84px">
+      <div class="h-row h-tall"><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg><div>HomeNetwork<small>−68 dBm · 192.168.1.50</small></div></div>
+      <div class="h-row">Battery<span class="h-val"><b>50 %</b> charging
+        <svg class="h-mini" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/><circle cx="18" cy="18" r="14" fill="none" stroke="#FF7A4D" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="50 100" transform="rotate(-90 18 18)"/></svg></span></div>
+      <div class="h-row">Display brightness<span class="h-val"><b>90 %</b> auto
+        <svg class="h-mini" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/><circle cx="18" cy="18" r="14" fill="none" stroke="#FF7A4D" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="90 100" transform="rotate(-90 18 18)"/></svg></span></div>
+      <div class="h-row">Key backlight<span class="h-val"><b>50 %</b>
+        <svg class="h-mini" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/><circle cx="18" cy="18" r="14" fill="none" stroke="#FF7A4D" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="50 100" transform="rotate(-90 18 18)"/></svg></span></div>
+      <div class="h-row">Screen off after<span class="h-val"><b>60 s</b></span></div>
+      <div class="h-row">Standby after<span class="h-val"><b>3 min</b></span></div>
+      <div class="h-row">Haptics<span class="h-val"><b>On</b><span class="h-tog"></span></span></div>
+      <div class="h-row">Sounds<span class="h-val"><b>80 %</b>
+        <svg class="h-mini" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/><circle cx="18" cy="18" r="14" fill="none" stroke="#FF7A4D" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="80 100" transform="rotate(-90 18 18)"/></svg></span></div>
+    </div>
+    <div class="h-sl" style="top:606px">Power</div>
+    <div class="h-pw" style="left:28px">Standby</div>
+    <div class="h-pw" style="left:173px">Restart</div>
+    <div class="h-pw" style="left:318px;color:#FF9A6F">Power off</div>
+    <div class="h-list" style="top:702px"><div class="h-row" style="margin:0">About<span class="h-val"><b>Remote 3</b> · firmware 2.8.4</span></div></div>
+  </article>
+</section>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap">
+<style>
+  .v-marquee .screen {
+    --gold: #E9B872; --ink: #F3EDE4; --grey: #968c80; --line: rgba(243,237,228,.15);
+    font-family: 'Geist', 'Helvetica Neue', Arial, sans-serif; color: var(--ink); font-size: 18px;
+  }
+  .v-marquee .screen * { box-sizing: border-box; margin: 0; }
+  .v-marquee .abs { position: absolute; left: 40px; right: 40px; }
+  .v-marquee .full { position: absolute; left: 0; right: 0; }
+  .v-marquee .serif { font-family: 'Instrument Serif', 'Times New Roman', serif; font-weight: 400; }
+  .v-marquee .ital { font-style: italic; }
+  .v-marquee .num { font-variant-numeric: tabular-nums; }
+  .v-marquee .gold { color: var(--gold); }
+  .v-marquee .grey { color: var(--grey); }
+  .v-marquee .ctr { text-align: center; }
+  .v-marquee .lbl { font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: var(--grey); font-weight: 500; line-height: 16px; }
+  .v-marquee .ic { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .v-marquee .sb { position: absolute; top: 18px; left: 40px; right: 40px; height: 28px; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: 400; letter-spacing: .04em; z-index: 5; }
+  .v-marquee .sb .r { display: flex; align-items: center; gap: 14px; color: var(--grey); }
+  .v-marquee .sb .r span { color: var(--ink); }
+  .v-marquee .hair { position: absolute; left: 40px; right: 40px; height: 1px; background: var(--line); }
+
+  .v-marquee .btn { position: absolute; height: 60px; border: 1px solid var(--line); border-radius: 30px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 18px; letter-spacing: .03em; color: var(--ink); }
+  .v-marquee .btn.dim { color: var(--grey); }
+
+  .v-marquee .list-row { position: absolute; left: 40px; right: 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+  .v-marquee .list-row .t { font-family: 'Instrument Serif', 'Times New Roman', serif; font-size: 34px; line-height: 40px; }
+  .v-marquee .list-row .v { color: var(--grey); font-size: 18px; text-align: right; line-height: 24px; }
+  .v-marquee .list-row.on .t { color: var(--gold); font-style: italic; }
+  .v-marquee .list-row.on .v { color: var(--gold); }
+
+  .v-marquee .chip { position: absolute; height: 56px; border: 1px solid var(--line); border-radius: 28px; display: flex; align-items: center; justify-content: center; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; font-weight: 500; }
+
+  .v-marquee .art { position: absolute; top: 0; left: 0; width: 480px; height: 440px; display: block; }
+
+  .v-marquee .track { position: absolute; left: 40px; right: 40px; height: 2px; background: rgba(243,237,228,.2); }
+  .v-marquee .track i { position: absolute; left: 0; top: 0; bottom: 0; width: 44%; background: var(--gold); animation: marquee-creep 40s linear infinite alternate; }
+  .v-marquee .track b { position: absolute; left: 44%; top: -4px; width: 10px; height: 10px; margin-left: -5px; border-radius: 5px; background: var(--gold); animation: marquee-creep-knob 40s linear infinite alternate; }
+  @keyframes marquee-creep { to { width: 44.6%; } }
+  @keyframes marquee-creep-knob { to { left: 44.6%; } }
+  @keyframes marquee-settle { from { transform: translateY(-10px); opacity: .5; } to { transform: none; opacity: 1; } }
+  .v-marquee .settle { animation: marquee-settle .5s ease-out both; }
+  @media (prefers-reduced-motion: reduce) {
+    .v-marquee .track i, .v-marquee .track b, .v-marquee .settle { animation: none; }
+  }
+
+  .v-marquee .act { position: absolute; top: 636px; height: 88px; width: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .v-marquee .act .lbl { color: var(--ink); text-align: center; line-height: 15px; letter-spacing: .16em; }
+
+  .v-marquee .key { position: absolute; left: 40px; right: 40px; height: 40px; display: flex; align-items: center; gap: 20px; }
+  .v-marquee .key em { font-style: normal; width: 104px; flex: none; font-size: 13px; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); font-weight: 500; }
+  .v-marquee .key span { font-size: 18px; }
+</style>
+
+<section class="variant v-marquee" data-name="Marquee" data-fonts="Instrument Serif + Geist"
+         data-note="A private screening room: huge serif input names, a dusk poster that melts into black, and one projector-lamp gold for the live number.">
+
+  <article class="screen" data-screen="receiver" data-label="Receiver">
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <symbol id="marquee-i-wifi" viewBox="0 0 24 24"><path d="M2.5 9a14 14 0 0 1 19 0M5.6 12.4a9.5 9.5 0 0 1 12.8 0M8.8 15.8a5 5 0 0 1 6.4 0"/><circle cx="12" cy="19.2" r=".6"/></symbol>
+        <symbol id="marquee-i-bat" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M21.5 10.5v3"/><rect x="4.5" y="9.5" width="6" height="5" fill="currentColor" stroke="none"/></symbol>
+        <symbol id="marquee-i-power" viewBox="0 0 24 24"><path d="M12 3v8M6.3 6.8a8 8 0 1 0 11.4 0"/></symbol>
+        <symbol id="marquee-i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4zM15.5 9.5l5 5M20.5 9.5l-5 5"/></symbol>
+        <symbol id="marquee-i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+        <symbol id="marquee-i-subs" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 11h4M13 11h4M7 15h6M15 15h2"/></symbol>
+        <symbol id="marquee-i-audio" viewBox="0 0 24 24"><path d="M4 11v2M7.5 8v8M11 4.5v15M14.5 7.5v9M18 10v4M21 11.5v1"/></symbol>
+        <symbol id="marquee-i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></symbol>
+        <symbol id="marquee-i-ctx" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h9"/></symbol>
+        <symbol id="marquee-i-restart" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8M20 4v5h-5"/></symbol>
+        <symbol id="marquee-i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></symbol>
+      </defs>
+    </svg>
+    <div class="sb"><span class="num">21:14</span><div class="r"><svg class="ic"><use href="#marquee-i-wifi"/></svg><svg class="ic"><use href="#marquee-i-bat"/></svg><span class="num">50%</span></div></div>
+
+    <div class="abs lbl" style="top:100px">Input</div>
+    <div class="abs serif" style="top:124px;font-size:96px;line-height:92px;letter-spacing:-.01em">PlayStation<br><i class="gold">5</i></div>
+    <div class="abs lbl" style="top:330px;letter-spacing:.3em;color:var(--ink)">DTS Surround</div>
+    <div class="hair" style="top:372px"></div>
+
+    <div class="full ctr lbl" style="top:400px">Volume</div>
+    <div class="full ctr serif gold num" style="top:424px;font-size:160px;line-height:160px">62</div>
+
+    <div class="btn abs" style="top:618px;left:40px;right:40px;justify-content:space-between;padding:0 28px;border-radius:30px">
+      <span class="serif" style="font-size:28px">All inputs</span><svg class="ic"><use href="#marquee-i-chev"/></svg>
+    </div>
+    <div class="btn dim" style="top:704px;left:40px;width:190px"><svg class="ic"><use href="#marquee-i-mute"/></svg>Mute</div>
+    <div class="btn dim" style="top:704px;right:40px;width:190px"><svg class="ic"><use href="#marquee-i-power"/></svg>Power</div>
+  </article>
+
+  <article class="screen" data-screen="inputs" data-label="Inputs">
+    <div class="sb"><span class="num">21:14</span><div class="r"><svg class="ic"><use href="#marquee-i-wifi"/></svg><svg class="ic"><use href="#marquee-i-bat"/></svg><span class="num">50%</span></div></div>
+    <div class="abs lbl" style="top:76px">Receiver</div>
+    <div class="abs serif ital" style="top:94px;font-size:44px;line-height:48px">Input</div>
+
+    <div class="list-row" style="top:156px;height:60px"><span class="t">Android TV</span></div>
+    <div class="list-row" style="top:216px;height:60px"><span class="t">Bluetooth</span></div>
+    <div class="list-row" style="top:276px;height:60px"><span class="t">HEOS Music</span></div>
+    <div class="list-row" style="top:336px;height:60px"><span class="t">Kodi</span></div>
+    <div class="list-row" style="top:396px;height:60px"><span class="t">Net</span></div>
+    <div class="list-row on" style="top:456px;height:60px"><span class="t">PlayStation 5</span><span class="v lbl gold">Now</span></div>
+    <div class="list-row" style="top:516px;height:60px"><span class="t">Xbox 360</span></div>
+
+    <div class="abs lbl" style="top:602px">Sound mode</div>
+    <div class="chip" style="top:630px;left:40px;width:124px">Movie</div>
+    <div class="chip" style="top:630px;left:178px;width:124px">Music</div>
+    <div class="chip" style="top:630px;left:316px;width:124px">Game</div>
+    <div class="chip" style="top:698px;left:40px;width:150px">Stereo</div>
+    <div class="chip" style="top:698px;left:204px;width:190px">Pure direct</div>
+  </article>
+
+  <article class="screen" data-screen="kodi-playing" data-label="Kodi · playing">
+    <svg class="art" viewBox="0 0 480 440" aria-hidden="true">
+      <defs>
+        <linearGradient id="marquee-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#07191f"/><stop offset=".35" stop-color="#14424b"/>
+          <stop offset=".62" stop-color="#2f6b6e"/><stop offset=".78" stop-color="#c9703c"/><stop offset=".92" stop-color="#e8a45a"/>
+        </linearGradient>
+        <radialGradient id="marquee-sun" cx=".5" cy=".5" r=".5">
+          <stop offset="0" stop-color="#ffd9a0"/><stop offset=".35" stop-color="#f0a35a" stop-opacity=".9"/><stop offset="1" stop-color="#c9703c" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="marquee-fade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".45" stop-color="#000" stop-opacity=".55"/><stop offset=".85" stop-color="#000" stop-opacity="1"/>
+        </linearGradient>
+      </defs>
+      <rect width="480" height="440" fill="url(#marquee-sky)"/>
+      <circle cx="318" cy="290" r="150" fill="url(#marquee-sun)"/>
+      <circle cx="318" cy="290" r="46" fill="#f6c88a"/>
+      <path d="M0 300 L60 270 L120 296 L190 250 L250 300 L480 300 L480 440 L0 440Z" fill="#0d2a31" opacity=".85"/>
+      <rect x="88" y="120" width="44" height="260" fill="#071419"/>
+      <rect x="150" y="190" width="26" height="190" fill="#0a1f25"/>
+      <rect x="388" y="170" width="34" height="210" fill="#071419"/>
+      <rect x="430" y="230" width="20" height="150" fill="#0a1f25"/>
+      <path d="M0 330 H480" stroke="#f6c88a" stroke-opacity=".25" stroke-width="1"/>
+      <rect y="170" width="480" height="270" fill="url(#marquee-fade)"/>
+    </svg>
+    <div class="sb"><span class="num">21:14</span><div class="r"><svg class="ic"><use href="#marquee-i-wifi"/></svg><svg class="ic"><use href="#marquee-i-bat"/></svg><span class="num">50%</span></div></div>
+
+    <div class="full ctr serif ital" style="top:352px;font-size:62px;line-height:64px;white-space:nowrap">Blade Runner 2049</div>
+    <div class="full ctr grey num" style="top:426px;font-size:18px;line-height:24px;letter-spacing:.06em">2017 · 2 h 44 min</div>
+
+    <div class="track" style="top:484px"><i></i><b></b></div>
+    <div class="abs num" style="top:502px;display:flex;justify-content:space-between;font-size:20px;line-height:28px">
+      <span class="gold">1:12:08</span><span class="grey">ends 22:47</span><span class="grey">−1:31:52</span>
+    </div>
+
+    <div class="abs ctr" style="top:560px;font-size:18px;line-height:26px"><span class="lbl" style="margin-right:12px">Audio</span>DTS-HD MA 7.1 · English</div>
+    <div class="abs ctr" style="top:590px;font-size:18px;line-height:26px"><span class="lbl" style="margin-right:12px">Subtitles</span>English</div>
+
+    <div class="act" style="left:40px"><svg class="ic"><use href="#marquee-i-subs"/></svg><span class="lbl">Subtitles</span></div>
+    <div class="act" style="left:140px"><svg class="ic"><use href="#marquee-i-audio"/></svg><span class="lbl">Audio</span></div>
+    <div class="act" style="left:240px"><svg class="ic"><use href="#marquee-i-info"/></svg><span class="lbl">Info</span></div>
+    <div class="act" style="left:340px"><svg class="ic"><use href="#marquee-i-ctx"/></svg><span class="lbl">Context menu</span></div>
+
+    <div class="full ctr" style="top:746px;font-size:18px;line-height:24px;letter-spacing:.08em"><span class="lbl" style="margin-right:12px">Vol</span><span class="gold num">62</span></div>
+  </article>
+
+  <article class="screen" data-screen="kodi-browse" data-label="Kodi · browsing">
+    <div class="sb"><span class="num">21:14</span><div class="r"><svg class="ic"><use href="#marquee-i-wifi"/></svg><svg class="ic"><use href="#marquee-i-bat"/></svg><span class="num">50%</span></div></div>
+
+    <div class="abs lbl" style="top:100px">Input</div>
+    <div class="abs serif" style="top:114px;font-size:176px;line-height:176px;letter-spacing:-.02em">Kodi</div>
+    <div class="abs serif ital grey" style="top:306px;font-size:32px;line-height:38px">Nothing playing</div>
+    <div class="abs" style="top:356px;font-size:18px;line-height:24px"><span class="lbl" style="margin-right:12px">Vol</span><span class="gold num">62</span></div>
+
+    <div class="hair" style="top:408px"></div>
+    <div class="abs lbl" style="top:424px">Hard keys here</div>
+    <div class="key" style="top:452px"><em>Back</em><span>Back</span></div>
+    <div class="key" style="top:492px"><em>Home</em><span>Kodi home</span></div>
+    <div class="key" style="top:532px"><em>Menu</em><span>Context menu</span></div>
+    <div class="key" style="top:572px"><em>CH + / −</em><span>Page up / down</span></div>
+
+    <div class="btn" style="top:640px;left:40px;width:192px"><svg class="ic"><use href="#marquee-i-home"/></svg>Home</div>
+    <div class="btn" style="top:640px;right:40px;width:192px"><svg class="ic"><use href="#marquee-i-video"/></svg>Videos</div>
+    <div class="btn" style="top:708px;left:40px;width:192px"><svg class="ic"><use href="#marquee-i-info"/></svg>Info</div>
+    <div class="btn" style="top:708px;right:40px;width:192px"><svg class="ic"><use href="#marquee-i-full"/></svg>Fullscreen</div>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <symbol id="marquee-i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 10v10h12V10"/></symbol>
+        <symbol id="marquee-i-video" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4-2.5z"/></symbol>
+        <symbol id="marquee-i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+      </defs>
+    </svg>
+  </article>
+
+  <article class="screen" data-screen="volume" data-label="Volume overlay">
+    <svg class="art" viewBox="0 0 480 440" aria-hidden="true" style="opacity:.28">
+      <defs>
+        <linearGradient id="marquee-sky-b" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#07191f"/><stop offset=".35" stop-color="#14424b"/>
+          <stop offset=".62" stop-color="#2f6b6e"/><stop offset=".78" stop-color="#c9703c"/><stop offset=".92" stop-color="#e8a45a"/>
+        </linearGradient>
+        <linearGradient id="marquee-fade-b" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".85" stop-color="#000" stop-opacity="1"/>
+        </linearGradient>
+      </defs>
+      <rect width="480" height="440" fill="url(#marquee-sky-b)"/>
+      <circle cx="318" cy="290" r="46" fill="#f6c88a"/>
+      <path d="M0 300 L60 270 L120 296 L190 250 L250 300 L480 300 L480 440 L0 440Z" fill="#0d2a31"/>
+      <rect x="88" y="120" width="44" height="260" fill="#071419"/>
+      <rect x="388" y="170" width="34" height="210" fill="#071419"/>
+      <rect y="170" width="480" height="270" fill="url(#marquee-fade-b)"/>
+    </svg>
+    <div class="full ctr serif ital" style="top:360px;font-size:62px;line-height:64px;white-space:nowrap;opacity:.2">Blade Runner 2049</div>
+
+    <div class="full ctr lbl" style="top:150px;letter-spacing:.34em">Volume</div>
+    <div class="full ctr serif gold num settle" style="top:176px;font-size:260px;line-height:260px">64</div>
+    <div class="full ctr grey num" style="top:448px;font-size:18px;line-height:24px;letter-spacing:.08em">up from 62</div>
+
+    <div class="track" style="top:504px"><i style="width:64%;animation:none"></i><b style="left:64%;animation:none"></b></div>
+
+    <div class="hair" style="top:600px"></div>
+    <div class="abs" style="top:620px;height:60px;display:flex;align-items:center;justify-content:center;gap:16px;color:var(--grey)">
+      <svg class="ic"><use href="#marquee-i-mute"/></svg>
+      <span class="lbl">If muted</span>
+      <span class="serif num" style="font-size:40px;line-height:44px;text-decoration:line-through;text-decoration-thickness:1px">64</span>
+    </div>
+  </article>
+
+  <article class="screen" data-screen="settings" data-label="Settings">
+    <div class="sb"><span class="num">21:14</span><div class="r"><svg class="ic"><use href="#marquee-i-wifi"/></svg><svg class="ic"><use href="#marquee-i-bat"/></svg><span class="num">50%</span></div></div>
+    <div class="abs serif ital" style="top:62px;font-size:52px;line-height:56px">Settings</div>
+
+    <div class="list-row" style="top:130px;height:72px"><span class="t">WiFi</span><span class="v">HomeNetwork<br><span class="num" style="font-size:18px">−68 dBm · 192.168.1.50</span></span></div>
+    <div class="list-row" style="top:202px;height:56px"><span class="t">Battery</span><span class="v num"><span class="gold">50 %</span> · charging</span></div>
+    <div class="list-row" style="top:258px;height:56px"><span class="t">Brightness</span><span class="v num">90 % · auto</span></div>
+    <div class="list-row" style="top:314px;height:56px"><span class="t">Key backlight</span><span class="v num">50 %</span></div>
+    <div class="list-row" style="top:370px;height:56px"><span class="t">Screen off after</span><span class="v num">60 s</span></div>
+    <div class="list-row" style="top:426px;height:56px"><span class="t">Standby after</span><span class="v num">3 min</span></div>
+    <div class="list-row" style="top:482px;height:56px"><span class="t">Haptics</span><span class="v">On</span></div>
+    <div class="list-row" style="top:538px;height:56px"><span class="t">Sounds</span><span class="v num">80 %</span></div>
+
+    <div class="btn dim" style="top:614px;left:40px;width:124px;gap:8px;font-size:18px">Standby</div>
+    <div class="btn dim" style="top:614px;left:178px;width:124px;gap:8px">Restart</div>
+    <div class="btn dim" style="top:614px;left:316px;width:124px;gap:8px">Power off</div>
+
+    <div class="list-row" style="top:694px;height:56px;border-bottom:0;border-top:1px solid var(--line)"><span class="t">About</span><span class="v">Remote 3 · firmware 2.8.4</span></div>
+  </article>
+</section>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Inter+Tight:wght@200;300&display=swap">
+<style>
+  .v-monolith .screen { font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; color: #fff; font-weight: 300; font-variant-numeric: tabular-nums; }
+  .v-monolith .a { position: absolute; left: 32px; right: 32px; margin: 0; }
+  .v-monolith .r { position: absolute; left: 32px; right: 32px; height: 0; border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .rf { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .st { top: 24px; height: 24px; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: 400; letter-spacing: .02em; }
+  .v-monolith .st-r { display: flex; align-items: center; gap: 16px; color: #8c8c8c; font-size: 18px; }
+  .v-monolith .st-r span { display: flex; align-items: center; gap: 6px; }
+  .v-monolith svg { display: block; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: square; stroke-linejoin: miter; }
+  .v-monolith .lbl { font-size: 13px; line-height: 16px; letter-spacing: .16em; text-transform: uppercase; color: #8c8c8c; font-weight: 400; }
+  .v-monolith .disp { font-family: 'Inter Tight', 'Inter', 'Helvetica Neue', Arial, sans-serif; font-weight: 200; letter-spacing: -.03em; }
+  .v-monolith .t { font-family: 'Inter Tight', 'Inter', 'Helvetica Neue', Arial, sans-serif; font-weight: 300; letter-spacing: -.01em; }
+  .v-monolith .live { color: #FFF4E0; }
+  .v-monolith .grey { color: #8c8c8c; }
+  .v-monolith .dim { color: #5c5c5c; }
+  .v-monolith .row { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+  .v-monolith .btn { display: flex; align-items: center; gap: 14px; font-size: 18px; font-weight: 400; letter-spacing: .04em; }
+  .v-monolith .kv { display: flex; align-items: center; justify-content: space-between; font-size: 18px; }
+  .v-monolith .kv b { font-family: 'Inter Tight', 'Inter', Arial, sans-serif; font-weight: 300; font-size: 22px; color: #fff; }
+  .v-monolith .kv b i { font-style: normal; color: #8c8c8c; font-size: 18px; margin-left: 8px; }
+  .v-monolith .li { display: flex; align-items: center; height: 56px; font-size: 24px; }
+  .v-monolith .li em { font-style: normal; width: 48px; font-size: 13px; letter-spacing: .1em; color: #5c5c5c; font-weight: 400; }
+  .v-monolith .li span { margin-left: auto; font-size: 13px; letter-spacing: .16em; text-transform: uppercase; font-weight: 400; }
+  .v-monolith .modes { display: flex; flex-wrap: wrap; column-gap: 28px; font-size: 18px; letter-spacing: .06em; font-weight: 400; color: #8c8c8c; }
+  .v-monolith .modes div { height: 56px; display: flex; align-items: center; }
+  .v-monolith .art { height: 112px; overflow: hidden; }
+  .v-monolith .art svg { width: 416px; height: 112px; }
+  .v-monolith .bar { position: absolute; left: 0; right: 0; height: 3px; }
+  .v-monolith .bar::before { content: ""; position: absolute; left: 0; right: 0; top: 1px; border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .bar i { position: absolute; left: 0; top: 0; height: 3px; background: #FFF4E0; }
+  .v-monolith .keys { display: flex; align-items: center; height: 48px; font-size: 18px; border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .keys b { width: 104px; font-weight: 500; letter-spacing: .08em; font-size: 18px; }
+  .v-monolith .keys span { color: #8c8c8c; }
+  .v-monolith .grid2 { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 64px; }
+  .v-monolith .grid2 .btn { border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; height: 64px; }
+  .v-monolith .grid3 .btn { border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .scrim { position: absolute; inset: 0; background: #000; opacity: .0; }
+</style>
+<section class="variant v-monolith" data-name="Monolith" data-fonts="Inter + Inter Tight"
+         data-note="Swiss and severe: white and two greys on black, hairline rules, giant thin numerals, and a single warm white reserved for the one live element on each screen.">
+
+  <article class="screen" data-screen="receiver" data-label="Receiver">
+    <div class="a st"><span>21:14</span><div class="st-r">
+      <span><svg width="20" height="18" viewBox="0 0 20 18"><path d="M2 6.5a11 11 0 0 1 16 0M5 10a6.5 6.5 0 0 1 10 0M8.2 13.4a2 2 0 0 1 3.6 0"/></svg></span>
+      <span><svg width="26" height="14" viewBox="0 0 26 14"><rect x="1" y="1.5" width="21" height="11"/><path d="M24.5 5v4M4 5v4M7 5v4M10 5v4"/></svg>50%</span></div></div>
+    <div class="rf" style="top:64px"></div>
+    <div class="a lbl" style="top:80px">Volume</div>
+    <div class="a disp" style="top:96px;font-size:220px;line-height:220px;height:220px;margin-left:-8px">62</div>
+    <div class="r" style="top:340px"></div>
+    <div class="a row" style="top:340px;height:96px"><div class="lbl">Input</div><div class="t live" style="font-size:32px;line-height:36px">PLAYSTATION 5</div></div>
+    <div class="r" style="top:436px"></div>
+    <div class="a row" style="top:436px;height:96px"><div class="lbl">Sound mode</div><div class="t" style="font-size:32px;line-height:36px">DTS SURROUND</div></div>
+    <div class="r" style="top:532px"></div>
+    <div class="a lbl" style="top:548px">Denon AVR-S760H</div>
+    <div class="r" style="top:688px"></div>
+    <div class="a btn" style="top:688px;height:80px;width:176px;right:auto"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M3 9h4l6-5v16l-6-5H3zM17 9l5 6M22 9l-5 6"/></svg>MUTE</div>
+    <div class="a btn" style="top:688px;height:80px;left:256px;width:176px;right:auto"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 3v9M6.5 6.5a8 8 0 1 0 11 0"/></svg>POWER</div>
+  </article>
+
+  <article class="screen" data-screen="inputs" data-label="Inputs">
+    <div class="a st"><span>21:14</span><div class="st-r">
+      <span><svg width="20" height="18" viewBox="0 0 20 18"><path d="M2 6.5a11 11 0 0 1 16 0M5 10a6.5 6.5 0 0 1 10 0M8.2 13.4a2 2 0 0 1 3.6 0"/></svg></span>
+      <span><svg width="26" height="14" viewBox="0 0 26 14"><rect x="1" y="1.5" width="21" height="11"/><path d="M24.5 5v4M4 5v4M7 5v4M10 5v4"/></svg>50%</span></div></div>
+    <div class="rf" style="top:64px"></div>
+    <div class="a t" style="top:84px;font-size:56px;line-height:60px;height:60px">Inputs</div>
+    <div class="r" style="top:168px"></div>
+    <div class="a" style="top:168px;height:392px">
+      <div class="li"><em>01</em>ANDROID TV</div>
+      <div class="li" style="border-top:1px solid rgba(255,255,255,.14)"><em>02</em>Bluetooth</div>
+      <div class="li" style="border-top:1px solid rgba(255,255,255,.14)"><em>03</em>HEOS Music</div>
+      <div class="li" style="border-top:1px solid rgba(255,255,255,.14)"><em>04</em>KODI</div>
+      <div class="li" style="border-top:1px solid rgba(255,255,255,.14)"><em>05</em>NET</div>
+      <div class="li live" style="border-top:1px solid rgba(255,255,255,.14);font-weight:400"><em style="color:#FFF4E0">06</em>PLAYSTATION 5<span>Current</span></div>
+      <div class="li" style="border-top:1px solid rgba(255,255,255,.14)"><em>07</em>XBOX 360</div>
+    </div>
+    <div class="r" style="top:560px"></div>
+    <div class="a lbl" style="top:584px">Sound mode</div>
+    <div class="a modes" style="top:608px;height:112px"><div>MOVIE</div><div>MUSIC</div><div>GAME</div><div>STEREO</div><div>PURE DIRECT</div></div>
+  </article>
+
+  <article class="screen" data-screen="kodi-playing" data-label="Kodi · playing">
+    <div class="a st"><span>21:14</span><div class="st-r">
+      <span><svg width="20" height="18" viewBox="0 0 20 18"><path d="M2 6.5a11 11 0 0 1 16 0M5 10a6.5 6.5 0 0 1 10 0M8.2 13.4a2 2 0 0 1 3.6 0"/></svg></span>
+      <span><svg width="26" height="14" viewBox="0 0 26 14"><rect x="1" y="1.5" width="21" height="11"/><path d="M24.5 5v4M4 5v4M7 5v4M10 5v4"/></svg>50%</span></div></div>
+    <div class="rf" style="top:64px"></div>
+    <div class="a art" style="top:80px"><svg viewBox="0 0 416 112" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="monolith-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f3a40"/><stop offset=".6" stop-color="#2a6a6c"/><stop offset="1" stop-color="#d9803a"/></linearGradient></defs><rect width="416" height="112" fill="url(#monolith-sky)"/><circle cx="292" cy="78" r="26" fill="#f0a35a" opacity=".9"/><path d="M0 112V84l40-14 30 20 36-30 28 24 44-34 34 40 40-22 52 30 40-26 52 30v40z" fill="#0a1d22"/><path d="M0 112V98l60-10 70 12 80-14 90 14 116-10v22z" fill="#050b0d"/></svg></div>
+    <div class="a t" style="top:208px;font-size:40px;line-height:44px;height:44px;white-space:nowrap">Blade Runner 2049</div>
+    <div class="a grey" style="top:256px;font-size:18px;line-height:24px;display:flex;justify-content:space-between"><span>2017 · 2 h 44 min</span><span><span class="lbl">Vol</span>&nbsp; <span style="color:#fff">62</span></span></div>
+    <div class="a disp live" style="top:300px;font-size:112px;line-height:112px;height:112px;margin-left:-4px;white-space:nowrap">1:12:08</div>
+    <div class="bar" style="top:436px"><i style="width:44%"></i></div>
+    <div class="a grey" style="top:452px;font-size:18px;line-height:24px;display:flex;justify-content:space-between"><span>1:31:52 left</span><span>Ends 22:47</span></div>
+    <div class="a" style="top:516px;height:96px;font-size:18px">
+      <div class="keys"><b class="lbl" style="font-size:13px;font-weight:400;letter-spacing:.16em">AUDIO</b><span style="color:#fff">DTS-HD MA 7.1 · English</span></div>
+      <div class="keys" style="height:48px"><b class="lbl" style="font-size:13px;font-weight:400;letter-spacing:.16em">SUBTITLES</b><span style="color:#fff">English</span></div>
+    </div>
+    <div class="a grid2" style="top:640px;height:128px"><div class="btn">Subtitles</div><div class="btn">Audio</div><div class="btn">Info</div><div class="btn">Context menu</div></div>
+  </article>
+
+  <article class="screen" data-screen="kodi-browse" data-label="Kodi · browsing">
+    <div class="a st"><span>21:14</span><div class="st-r">
+      <span><svg width="20" height="18" viewBox="0 0 20 18"><path d="M2 6.5a11 11 0 0 1 16 0M5 10a6.5 6.5 0 0 1 10 0M8.2 13.4a2 2 0 0 1 3.6 0"/></svg></span>
+      <span><svg width="26" height="14" viewBox="0 0 26 14"><rect x="1" y="1.5" width="21" height="11"/><path d="M24.5 5v4M4 5v4M7 5v4M10 5v4"/></svg>50%</span></div></div>
+    <div class="rf" style="top:64px"></div>
+    <div class="a lbl" style="top:88px;right:auto;width:200px">Input</div>
+    <div class="a lbl" style="top:88px;left:256px">Volume</div>
+    <div class="a disp live" style="top:112px;right:auto;width:216px;font-size:88px;line-height:88px;height:88px">KODI</div>
+    <div class="a disp" style="top:112px;left:256px;font-size:88px;line-height:88px;height:88px">62</div>
+    <div class="a grey" style="top:212px;font-size:18px;line-height:24px">Nothing playing. Navigate on the TV.</div>
+    <div class="r" style="top:264px"></div>
+    <div class="a lbl" style="top:288px">Hard keys</div>
+    <div class="a" style="top:320px;height:192px">
+      <div class="keys"><b>BACK</b><span>Back</span></div>
+      <div class="keys"><b>HOME</b><span>Kodi home</span></div>
+      <div class="keys"><b>MENU</b><span>Context menu</span></div>
+      <div class="keys"><b>CH +/−</b><span>Page up / down</span></div>
+    </div>
+    <div class="a lbl" style="top:608px">Shortcuts</div>
+    <div class="a grid2" style="top:640px;height:128px"><div class="btn">Home</div><div class="btn">Videos</div><div class="btn">Info</div><div class="btn">Fullscreen</div></div>
+  </article>
+
+  <article class="screen" data-screen="volume" data-label="Volume overlay">
+    <div class="a art" style="top:80px;opacity:.16"><svg viewBox="0 0 416 112" preserveAspectRatio="xMidYMid slice"><rect width="416" height="112" fill="#2a6a6c"/><circle cx="292" cy="78" r="26" fill="#f0a35a"/><path d="M0 112V84l40-14 30 20 36-30 28 24 44-34 34 40 40-22 52 30 40-26 52 30v40z" fill="#0a1d22"/></svg></div>
+    <div class="a lbl" style="top:204px">Volume</div>
+    <div class="a disp live" style="top:224px;font-size:200px;line-height:200px;height:200px;margin-left:-8px">64</div>
+    <div class="a grey" style="top:432px;font-size:18px;line-height:24px">Up from 62</div>
+    <div class="bar" style="top:480px"><i style="width:64%"></i></div>
+    <div class="a t dim" style="top:560px;font-size:24px;line-height:28px;white-space:nowrap">Blade Runner 2049</div>
+    <div class="bar" style="top:604px;opacity:.35"><i style="width:44%;background:#fff"></i></div>
+    <div class="r" style="top:672px"></div>
+    <div class="a row" style="top:672px;height:96px"><div class="lbl">When muted</div><div class="t dim" style="font-size:32px;line-height:36px"><span style="text-decoration:line-through">64</span>&nbsp; MUTED</div></div>
+  </article>
+
+  <article class="screen" data-screen="settings" data-label="Settings">
+    <div class="a st"><span>21:14</span><div class="st-r">
+      <span><svg width="20" height="18" viewBox="0 0 20 18"><path d="M2 6.5a11 11 0 0 1 16 0M5 10a6.5 6.5 0 0 1 10 0M8.2 13.4a2 2 0 0 1 3.6 0"/></svg></span>
+      <span><svg width="26" height="14" viewBox="0 0 26 14"><rect x="1" y="1.5" width="21" height="11"/><path d="M24.5 5v4M4 5v4M7 5v4M10 5v4"/></svg>50%</span></div></div>
+    <div class="rf" style="top:64px"></div>
+    <div class="a t" style="top:80px;font-size:48px;line-height:52px;height:52px">Settings</div>
+    <div class="a" style="top:144px;height:464px">
+      <div class="kv" style="height:72px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">WiFi</span><div style="text-align:right"><b>HomeNetwork</b><div class="grey" style="font-size:18px;line-height:22px;margin-top:2px">−68 dBm · 192.168.1.50</div></div></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Battery</span><b>50 %<i>charging</i></b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Brightness</span><b>90 %<i>auto</i></b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Key backlight</span><b>50 %</b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Screen off after</span><b>60 s</b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Standby after</span><b>3 min</b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Haptics</span><b>On</b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Sounds</span><b>80 %</b></div>
+    </div>
+    <div class="a lbl" style="top:624px">Power</div>
+    <div class="a grid3" style="top:640px;height:64px;"><div class="btn">Standby</div><div class="btn">Restart</div><div class="btn">Power off</div></div>
+    <div class="a kv" style="top:704px;height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">About</span><b>Remote 3<i>firmware 2.8.4</i></b></div>
+  </article>
+</section>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap">
+<style>
+  .v-signal .screen{font-family:'Space Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:#E8F1F2;--c:#63E6D9;--dim:rgba(99,230,217,.22);--line:rgba(99,230,217,.3);--grey:#8497A0;--w:#E8F1F2;font-size:18px;line-height:24px}
+  .v-signal .screen *{box-sizing:border-box;margin:0}
+  .v-signal .abs{position:absolute}
+  .v-signal .mono{font-family:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+  .v-signal .cap{font-size:13px;line-height:16px;letter-spacing:.16em;text-transform:uppercase;color:var(--grey);font-weight:500}
+  .v-signal .lit{color:var(--c)}
+  .v-signal .ic{width:24px;height:24px;stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .v-signal .status{position:absolute;left:0;right:0;top:0;height:48px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;font-size:18px;color:var(--grey)}
+  .v-signal .status .r{display:flex;align-items:center;gap:14px}
+  .v-signal .status .t{color:var(--w)}
+  .v-signal .mod{border:1px solid var(--line);border-radius:4px}
+  .v-signal .btn{display:flex;align-items:center;gap:12px;padding:0 16px;font-size:20px;font-weight:500;color:var(--w)}
+  .v-signal .bars{position:relative;background:repeating-linear-gradient(90deg,var(--dim) 0 var(--b),transparent var(--b) var(--p))}
+  .v-signal .bars>i{position:absolute;left:0;top:0;bottom:0;background:repeating-linear-gradient(90deg,var(--c) 0 var(--b),transparent var(--b) var(--p))}
+  .v-signal .bars>i.w{background:repeating-linear-gradient(90deg,var(--w) 0 var(--b),transparent var(--b) var(--p))}
+  .v-signal .ticks{position:absolute;height:6px;background:repeating-linear-gradient(90deg,var(--grey) 0 1px,transparent 1px var(--s))}
+  .v-signal .ticks::after{content:"";position:absolute;right:0;top:0;bottom:0;width:1px;background:var(--grey)}
+  .v-signal .tl{position:absolute;font-size:13px;line-height:16px;color:var(--grey);white-space:nowrap}
+  .v-signal .tl.m{transform:translateX(-50%)}
+  .v-signal .tl.e{transform:translateX(-100%)}
+  .v-signal .vol{font-size:160px;line-height:150px;letter-spacing:-.04em;color:var(--c);font-weight:500}
+  .v-signal .art{width:112px;height:168px;border:1px solid var(--line);border-radius:4px;padding:3px}
+  .v-signal .art>div{position:relative;width:100%;height:100%;border-radius:2px;overflow:hidden;background:linear-gradient(180deg,#06252c 0%,#12545a 34%,#c8682f 72%,#3a1a0a 100%)}
+  .v-signal .art .sun{position:absolute;left:50%;top:92px;width:64px;height:64px;margin-left:-32px;border-radius:50%;background:radial-gradient(circle,#ffb26b 0%,#e57b36 55%,rgba(229,123,54,0) 72%)}
+  .v-signal .art svg{position:absolute;left:0;bottom:0;width:100%;height:70px}
+  .v-signal .row{position:absolute;left:24px;right:24px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid rgba(99,230,217,.14)}
+  .v-signal .row .n{font-size:20px;color:var(--w)}
+  .v-signal .row .v{display:flex;align-items:center;gap:14px;font-size:18px;color:var(--w)}
+  .v-signal .src{position:absolute;left:24px;right:24px;height:60px;display:flex;align-items:center;gap:16px;border-top:1px solid rgba(99,230,217,.14);padding-left:8px}
+  .v-signal .src .led{width:4px;height:28px;border-radius:2px;background:var(--dim)}
+  .v-signal .src .ix{width:28px;font-size:18px;color:var(--grey)}
+  .v-signal .src .nm{font-size:24px;font-weight:500;color:var(--w);flex:1}
+  .v-signal .src.on{background:rgba(99,230,217,.07);border-radius:4px;border-top-color:transparent}
+  .v-signal .src.on .led{background:var(--c)}
+  .v-signal .src.on .nm,.v-signal .src.on .ix{color:var(--c)}
+  .v-signal .src .act{font-size:13px;letter-spacing:.16em;color:var(--c);padding-right:12px}
+  .v-signal .chip{position:absolute;height:56px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:500;letter-spacing:.04em;color:var(--w)}
+  .v-signal .key{display:flex;align-items:center;gap:20px;position:absolute;left:24px;right:24px;height:52px;border-top:1px solid rgba(99,230,217,.14)}
+  .v-signal .key b{width:112px;height:32px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:4px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14px;font-weight:500;letter-spacing:.08em;color:var(--c)}
+  .v-signal .key span{font-size:20px;color:var(--w)}
+  .v-signal .dim{position:absolute;inset:0;opacity:.2}
+  .v-signal .panel{position:absolute;left:24px;right:24px;top:150px;height:384px;background:#000;border:1px solid var(--c);border-radius:4px;padding:24px}
+  .v-signal .read{position:absolute;font-size:28px;line-height:32px;color:var(--w);font-weight:500}
+  @keyframes signal-settle{from{opacity:.4;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @keyframes signal-creep{from{width:192px}to{width:198px}}
+  .v-signal [data-screen="volume"] .settle{animation:signal-settle .5s ease-out both}
+  .v-signal [data-screen="kodi-playing"] .creep{animation:signal-creep 60s linear both}
+  @media (prefers-reduced-motion:reduce){.v-signal .settle,.v-signal .creep{animation:none!important}}
+</style>
+<section class="variant v-signal" data-name="Signal" data-fonts="Space Grotesk + JetBrains Mono"
+         data-note="A hi-fi instrument face: VFD cyan segmented meters and mono readouts on pure black.">
+
+  <article class="screen" data-screen="receiver" data-label="Receiver">
+    <div class="status"><span class="mono t">21:14</span><span class="r"><svg class="ic" viewBox="0 0 24 24"><path d="M2 9a14 14 0 0 1 20 0M5.5 12.5a9 9 0 0 1 13 0M9 16a4 4 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".8"/></svg><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M21.5 10v4"/><rect x="4.5" y="9.5" width="6" height="5" fill="currentColor" stroke="none"/></svg><span class="mono t">50%</span></span></div>
+
+    <div class="abs mod btn" style="left:24px;right:24px;top:64px;height:72px;justify-content:space-between">
+      <span><span class="cap" style="display:block">Input</span><span style="font-size:28px;line-height:32px;font-weight:600;color:var(--c)">PLAYSTATION 5</span></span>
+      <span style="display:flex;align-items:center;gap:8px;color:var(--grey)"><span class="mono" style="font-size:18px">1/7</span><svg class="ic" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+    </div>
+
+    <div class="abs cap" style="left:24px;top:160px">Master volume</div>
+    <div class="abs vol mono" style="left:20px;top:178px">62</div>
+    <div class="abs" style="left:250px;top:226px;width:206px;text-align:right">
+      <div class="cap">Relative</div>
+      <div class="mono" style="font-size:30px;line-height:36px;color:var(--w)">−18.0 dB</div>
+      <div class="cap" style="margin-top:4px">Ref 80 = 0 dB</div>
+    </div>
+    <div class="abs bars" style="--b:6px;--p:9px;left:24px;top:352px;width:429px;height:44px"><i style="width:270px"></i></div>
+    <div class="ticks" style="--s:43.78px;left:24px;top:402px;width:429px"></div>
+    <span class="tl mono" style="left:24px;top:412px">0</span><span class="tl mono m" style="left:111.6px;top:412px">20</span><span class="tl mono m" style="left:199px;top:412px">40</span><span class="tl mono m" style="left:287px;top:412px">60</span><span class="tl mono m" style="left:374px;top:412px">80</span><span class="tl mono e" style="left:453px;top:412px">98</span>
+
+    <div class="abs mod btn" style="left:24px;right:24px;top:480px;height:72px;justify-content:space-between">
+      <span><span class="cap" style="display:block">Mode</span><span style="font-size:28px;line-height:32px;font-weight:600">DTS SURROUND</span></span>
+      <span class="cap lit">Auto</span>
+    </div>
+
+    <div class="abs mod btn" style="left:24px;top:640px;width:212px;height:72px"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg><span>Mute<span class="cap" style="display:block">Off</span></span></div>
+    <div class="abs mod btn" style="left:244px;top:640px;width:212px;height:72px"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.5 6.5a8 8 0 1 0 11 0"/></svg><span>Power<span class="cap lit" style="display:block">On</span></span></div>
+  </article>
+
+  <article class="screen" data-screen="inputs" data-label="Inputs">
+    <div class="status"><span class="mono t">21:14</span><span class="r"><svg class="ic" viewBox="0 0 24 24"><path d="M2 9a14 14 0 0 1 20 0M5.5 12.5a9 9 0 0 1 13 0M9 16a4 4 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".8"/></svg><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M21.5 10v4"/><rect x="4.5" y="9.5" width="6" height="5" fill="currentColor" stroke="none"/></svg><span class="mono t">50%</span></span></div>
+
+    <div class="abs cap" style="left:24px;top:64px">Source select</div>
+    <div class="abs cap mono" style="right:24px;top:64px">7 inputs</div>
+    <div class="src" style="top:92px"><span class="led"></span><span class="ix mono">01</span><span class="nm">ANDROID TV</span></div>
+    <div class="src" style="top:152px"><span class="led"></span><span class="ix mono">02</span><span class="nm">Bluetooth</span></div>
+    <div class="src" style="top:212px"><span class="led"></span><span class="ix mono">03</span><span class="nm">HEOS Music</span></div>
+    <div class="src" style="top:272px"><span class="led"></span><span class="ix mono">04</span><span class="nm">KODI</span></div>
+    <div class="src" style="top:332px"><span class="led"></span><span class="ix mono">05</span><span class="nm">NET</span></div>
+    <div class="src on" style="top:392px"><span class="led"></span><span class="ix mono">06</span><span class="nm">PLAYSTATION 5</span><span class="act">ACTIVE</span></div>
+    <div class="src" style="top:452px"><span class="led"></span><span class="ix mono">07</span><span class="nm">XBOX 360</span></div>
+
+    <div class="abs cap" style="left:24px;top:548px">Sound mode</div>
+    <div class="abs cap lit" style="right:24px;top:548px">DTS SURROUND</div>
+    <div class="chip mod" style="left:24px;top:576px;width:102px">MOVIE</div>
+    <div class="chip mod" style="left:134px;top:576px;width:102px">MUSIC</div>
+    <div class="chip mod" style="left:244px;top:576px;width:102px">GAME</div>
+    <div class="chip mod" style="left:354px;top:576px;width:102px">STEREO</div>
+    <div class="chip mod" style="left:24px;top:640px;width:212px">PURE DIRECT</div>
+  </article>
+
+  <article class="screen" data-screen="kodi-playing" data-label="Kodi · playing">
+    <div class="status"><span class="mono t">21:14</span><span class="r"><svg class="ic" viewBox="0 0 24 24"><path d="M2 9a14 14 0 0 1 20 0M5.5 12.5a9 9 0 0 1 13 0M9 16a4 4 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".8"/></svg><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M21.5 10v4"/><rect x="4.5" y="9.5" width="6" height="5" fill="currentColor" stroke="none"/></svg><span class="mono t">50%</span></span></div>
+
+    <div class="abs art" style="left:24px;top:68px"><div><span class="sun"></span><svg viewBox="0 0 112 70" preserveAspectRatio="none"><path d="M0 70V44l10-3 8 6 6-14 7 14 8-6 6 10 9-16 8 18 10-8 8 6 8-12 8 8V70z" fill="#050608"/></svg></div></div>
+    <div class="abs" style="left:152px;top:68px;width:304px">
+      <div class="cap lit">Now playing · KODI</div>
+      <div style="font-size:30px;line-height:34px;font-weight:600;margin-top:6px;white-space:nowrap">Blade Runner 2049</div>
+      <div class="mono" style="font-size:18px;color:var(--grey);margin-top:6px">2017 · 2 h 44 min</div>
+      <div class="cap" style="margin-top:14px">Audio</div>
+      <div class="mono" style="font-size:18px;line-height:22px">DTS-HD MA 7.1 · English</div>
+    </div>
+    <div class="abs cap" style="left:152px;top:210px">Subs <span class="mono" style="font-size:18px;letter-spacing:0;text-transform:none;color:var(--w);margin-left:8px">English</span></div>
+
+    <div class="abs mono" style="left:24px;top:256px;display:flex;align-items:baseline;gap:10px;white-space:nowrap"><span style="font-size:56px;line-height:56px;font-weight:500;color:var(--c)">01:12:08</span><span style="font-size:22px;color:var(--grey)">/ 02:44:00</span></div>
+    <div class="abs bars" style="--b:4px;--p:6px;left:24px;top:336px;width:432px;height:40px"><i class="creep" style="width:192px"></i><u style="position:absolute;left:189px;top:-6px;bottom:-6px;width:2px;background:var(--w)"></u></div>
+    <div class="ticks" style="--s:79.02px;left:24px;top:384px;width:432px"></div>
+    <span class="tl mono" style="left:24px;top:394px">0:00</span><span class="tl mono m" style="left:103px;top:394px">0:30</span><span class="tl mono m" style="left:182px;top:394px">1:00</span><span class="tl mono m" style="left:261px;top:394px">1:30</span><span class="tl mono m" style="left:340px;top:394px">2:00</span><span class="tl mono e" style="left:456px;top:394px">2:44</span>
+
+    <div class="abs" style="left:24px;top:440px"><div class="cap">Remaining</div><div class="read mono" style="position:static">01:31:52</div></div>
+    <div class="abs" style="left:190px;top:440px"><div class="cap">Ends</div><div class="read mono" style="position:static">22:47</div></div>
+    <div class="abs" style="left:340px;top:440px"><div class="cap">Volume</div><div class="read mono lit" style="position:static">62</div></div>
+
+    <div class="abs mod btn" style="left:24px;top:540px;width:212px;height:64px"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 11h4M13 11h4M7 15h2M11 15h6"/></svg>Subtitles</div>
+    <div class="abs mod btn" style="left:244px;top:540px;width:212px;height:64px"><svg class="ic" viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg>Audio</div>
+    <div class="abs mod btn" style="left:24px;top:612px;width:212px;height:64px"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Info</div>
+    <div class="abs mod btn" style="left:244px;top:612px;width:212px;height:64px"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Context menu</div>
+  </article>
+
+  <article class="screen" data-screen="kodi-browse" data-label="Kodi · browsing">
+    <div class="status"><span class="mono t">21:14</span><span class="r"><svg class="ic" viewBox="0 0 24 24"><path d="M2 9a14 14 0 0 1 20 0M5.5 12.5a9 9 0 0 1 13 0M9 16a4 4 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".8"/></svg><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M21.5 10v4"/><rect x="4.5" y="9.5" width="6" height="5" fill="currentColor" stroke="none"/></svg><span class="mono t">50%</span></span></div>
+
+    <div class="abs mod btn" style="left:24px;right:24px;top:64px;height:72px;justify-content:space-between">
+      <span><span class="cap" style="display:block">Input</span><span style="font-size:28px;line-height:32px;font-weight:600;color:var(--c)">KODI</span></span>
+      <span class="cap">Idle · nothing playing</span>
+    </div>
+
+    <div class="abs cap" style="left:24px;top:160px">Volume</div>
+    <div class="abs mono" style="left:22px;top:180px;font-size:96px;line-height:96px;letter-spacing:-.04em;color:var(--c);font-weight:500">62</div>
+    <div class="abs mono" style="right:24px;top:232px;font-size:24px;color:var(--w)">−18.0 dB</div>
+    <div class="abs bars" style="--b:6px;--p:9px;left:24px;top:296px;width:429px;height:24px"><i style="width:270px"></i></div>
+
+    <div class="abs cap" style="left:24px;top:348px">Hard keys in Kodi</div>
+    <div class="key" style="top:376px"><b>BACK</b><span>Back</span></div>
+    <div class="key" style="top:428px"><b>HOME</b><span>Kodi home</span></div>
+    <div class="key" style="top:480px"><b>MENU</b><span>Context menu</span></div>
+    <div class="key" style="top:532px"><b>CH +/−</b><span>Page up / down</span></div>
+
+    <div class="abs mod btn" style="left:24px;top:616px;width:212px;height:56px"><svg class="ic" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 10v10h12V10"/></svg>Home</div>
+    <div class="abs mod btn" style="left:244px;top:616px;width:212px;height:56px"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 10h4M17 10h4M3 14h4M17 14h4"/></svg>Videos</div>
+    <div class="abs mod btn" style="left:24px;top:680px;width:212px;height:56px"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>Info</div>
+    <div class="abs mod btn" style="left:244px;top:680px;width:212px;height:56px"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>Fullscreen</div>
+  </article>
+
+  <article class="screen" data-screen="volume" data-label="Volume overlay">
+    <div class="dim">
+      <div class="abs art" style="left:24px;top:68px"><div><span class="sun"></span><svg viewBox="0 0 112 70" preserveAspectRatio="none"><path d="M0 70V44l10-3 8 6 6-14 7 14 8-6 6 10 9-16 8 18 10-8 8 6 8-12 8 8V70z" fill="#050608"/></svg></div></div>
+      <div class="abs" style="left:152px;top:68px;width:304px">
+        <div class="cap lit">Now playing · KODI</div>
+        <div style="font-size:30px;line-height:34px;font-weight:600;margin-top:6px;white-space:nowrap">Blade Runner 2049</div>
+        <div class="mono" style="font-size:18px;color:var(--grey);margin-top:6px">2017 · 2 h 44 min</div>
+      </div>
+      <div class="abs mono" style="left:24px;top:256px;display:flex;align-items:baseline;gap:10px;white-space:nowrap"><span style="font-size:56px;line-height:56px;font-weight:500;color:var(--c)">01:12:08</span><span style="font-size:22px;color:var(--grey)">/ 02:44:00</span></div>
+      <div class="abs bars" style="--b:4px;--p:6px;left:24px;top:336px;width:432px;height:40px"><i style="width:192px"></i></div>
+      <div class="abs mod btn" style="left:24px;top:540px;width:212px;height:64px">Subtitles</div>
+      <div class="abs mod btn" style="left:244px;top:540px;width:212px;height:64px">Audio</div>
+    </div>
+
+    <div class="panel">
+      <div class="cap" style="display:flex;justify-content:space-between"><span>Volume</span><span class="mono lit">+2</span></div>
+      <div class="abs vol mono settle" style="left:20px;top:56px;width:384px;text-align:center;font-size:200px;line-height:190px">64</div>
+      <div class="abs mono" style="left:24px;right:24px;top:252px;display:flex;justify-content:space-between;font-size:24px;line-height:28px"><span style="color:var(--grey)">from 62</span><span>−16.0 dB</span></div>
+      <div class="abs bars" style="--b:6px;--p:8px;left:24px;top:296px;width:384px;height:40px"><i style="width:240px"></i><i class="w" style="left:240px;width:16px"></i></div>
+      <div class="ticks" style="--s:39.18px;left:24px;top:342px;width:384px"></div>
+      <span class="tl mono" style="left:24px;top:352px">0</span><span class="tl mono m" style="left:102px;top:352px">20</span><span class="tl mono m" style="left:181px;top:352px">40</span><span class="tl mono m" style="left:259px;top:352px">60</span><span class="tl mono m" style="left:337px;top:352px">80</span><span class="tl mono e" style="left:408px;top:352px">98</span>
+    </div>
+
+    <div class="abs mod" style="left:24px;right:24px;top:566px;height:68px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-color:rgba(99,230,217,.18);color:var(--grey)">
+      <span style="display:flex;align-items:center;gap:12px"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6"/></svg><span><span class="cap" style="display:block">If muted</span><span style="font-size:18px">MUTE</span></span></span>
+      <span style="display:flex;align-items:center;gap:14px"><span class="bars" style="--b:3px;--p:5px;width:100px;height:20px;display:block"></span><span class="mono" style="font-size:24px">––</span></span>
+    </div>
+  </article>
+
+  <article class="screen" data-screen="settings" data-label="Settings">
+    <div class="status"><span class="mono t">21:14</span><span class="r"><svg class="ic" viewBox="0 0 24 24"><path d="M2 9a14 14 0 0 1 20 0M5.5 12.5a9 9 0 0 1 13 0M9 16a4 4 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".8"/></svg><svg class="ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2"/><path d="M21.5 10v4"/><rect x="4.5" y="9.5" width="6" height="5" fill="currentColor" stroke="none"/></svg><span class="mono t">50%</span></span></div>
+
+    <div class="abs cap" style="left:24px;top:56px">System settings</div>
+    <div class="row" style="top:80px;height:72px"><span><span class="cap" style="display:block">WiFi</span><span class="n">HomeNetwork</span></span><span class="v" style="flex-direction:column;align-items:flex-end;gap:0"><span class="mono">192.168.1.50</span><span class="mono lit">−68 dBm</span></span></div>
+    <div class="row" style="top:152px;height:56px"><span class="n">Battery</span><span class="v"><span class="cap lit">Charging</span><span class="bars" style="--b:8px;--p:10px;width:100px;height:14px;display:block"><i style="width:50px"></i></span><span class="mono" style="width:56px;text-align:right">50 %</span></span></div>
+    <div class="row" style="top:208px;height:56px"><span class="n">Display brightness</span><span class="v"><span class="cap lit">Auto</span><span class="bars" style="--b:8px;--p:10px;width:100px;height:14px;display:block"><i style="width:90px"></i></span><span class="mono" style="width:56px;text-align:right">90 %</span></span></div>
+    <div class="row" style="top:264px;height:56px"><span class="n">Key backlight</span><span class="v"><span class="bars" style="--b:8px;--p:10px;width:100px;height:14px;display:block"><i style="width:50px"></i></span><span class="mono" style="width:56px;text-align:right">50 %</span></span></div>
+    <div class="row" style="top:320px;height:56px"><span class="n">Screen off after</span><span class="v mono">60 s</span></div>
+    <div class="row" style="top:376px;height:56px"><span class="n">Standby after</span><span class="v mono">3 min</span></div>
+    <div class="row" style="top:432px;height:56px"><span class="n">Haptics</span><span class="v"><span class="mono lit">ON</span></span></div>
+    <div class="row" style="top:488px;height:56px"><span class="n">Sounds</span><span class="v"><span class="bars" style="--b:8px;--p:10px;width:100px;height:14px;display:block"><i style="width:80px"></i></span><span class="mono" style="width:56px;text-align:right">80 %</span></span></div>
+
+    <div class="abs cap" style="left:24px;top:560px">Power</div>
+    <div class="abs mod btn" style="left:24px;top:584px;width:138px;height:56px;gap:8px;padding:0 12px;font-size:18px"><svg class="ic" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>Standby</div>
+    <div class="abs mod btn" style="left:171px;top:584px;width:138px;height:56px;gap:8px;padding:0 12px;font-size:18px"><svg class="ic" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8M20 4v4h-4"/></svg>Restart</div>
+    <div class="abs mod btn" style="left:318px;top:584px;width:138px;height:56px;gap:8px;padding:0 12px;font-size:18px"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.5 6.5a8 8 0 1 0 11 0"/></svg>Power off</div>
+
+    <div class="row" style="top:664px;height:56px"><span class="n">About · Remote 3</span><span class="v mono" style="color:var(--grey)">FW 2.8.4</span></div>
+  </article>
+</section>
+    </div>
+    <button type="button" class="nav" id="nav-next" aria-label="Next screen">›</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const stage = document.getElementById('stage');
+  const variants = [...stage.querySelectorAll('.variant')];
+  if (!variants.length) return;
+  const screens = [...variants[0].querySelectorAll('.screen')].map(s => s.dataset.label || s.dataset.screen);
+  const frames = [];
+
+  variants.forEach((v, vi) => {
+    [...v.querySelectorAll('.screen')].forEach((s, si) => {
+      const frame = document.createElement('figure');
+      frame.className = 'frame';
+      frame.tabIndex = 0;
+      const bezel = document.createElement('div');
+      bezel.className = 'bezel';
+      const cap = document.createElement('figcaption');
+      cap.textContent = v.dataset.name + ' · ' + (s.dataset.label || s.dataset.screen);
+      s.replaceWith(frame);
+      bezel.append(s);
+      frame.append(bezel, cap);
+      const open = () => { if (state.mode !== 'one') set({ v: vi, s: si, mode: 'one' }); };
+      frame.addEventListener('click', open);
+      frame.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
+      frames.push({ frame, vi, si });
+    });
+  });
+
+  const state = { v: 0, s: 0, mode: 'one' };
+  try {
+    const saved = JSON.parse(localStorage.getItem('view-round1') || '{}');
+    if (saved.v < variants.length) state.v = saved.v | 0;
+    if (saved.s < screens.length) state.s = saved.s | 0;
+    if (['one', 'variant', 'compare'].includes(saved.mode)) state.mode = saved.mode;
+  } catch (e) {}
+
+  const tabs = (host, labels, key) => labels.map((label, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.addEventListener('click', () => set({ [key]: i }));
+    host.append(b);
+    return b;
+  });
+  const vTabs = tabs(document.getElementById('variant-tabs'), variants.map(v => v.dataset.name), 'v');
+  const sTabs = tabs(document.getElementById('screen-tabs'), screens, 's');
+  const mTabs = [...document.querySelectorAll('#mode-tabs button')];
+  mTabs.forEach(b => b.addEventListener('click', () => set({ mode: b.dataset.mode })));
+
+  function fit() {
+    const w = stage.clientWidth;
+    let z;
+    if (state.mode === 'one') {
+      const room = window.innerHeight - stage.getBoundingClientRect().top - window.scrollY - 32;
+      z = Math.min(1, w / 482, Math.max(0.6, room / 802));
+    } else {
+      const want = state.mode === 'variant' ? 3 : variants.length;
+      const cols = w >= 1000 ? want : w >= 620 ? 2 : 1;
+      z = Math.min(1, (w - 20 * (cols - 1)) / (cols * 482));
+    }
+    stage.style.setProperty('--z', z.toFixed(3));
+  }
+
+  function render() {
+    document.body.dataset.mode = state.mode;
+    frames.forEach(({ frame, vi, si }) => {
+      frame.toggleAttribute('data-on-variant', vi === state.v);
+      frame.toggleAttribute('data-on-screen', si === state.s);
+    });
+    vTabs.forEach((b, i) => b.setAttribute('aria-pressed', i === state.v && state.mode !== 'compare'));
+    sTabs.forEach((b, i) => b.setAttribute('aria-pressed', i === state.s && state.mode !== 'variant'));
+    mTabs.forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === state.mode));
+    const v = variants[state.v];
+    const comparing = state.mode === 'compare';
+    document.getElementById('about-name').textContent = comparing ? screens[state.s] : v.dataset.name;
+    document.getElementById('about-fonts').textContent = comparing ? 'all variants' : v.dataset.fonts || '';
+    document.getElementById('about-note').textContent = comparing ? '' : v.dataset.note || '';
+    fit();
+  }
+
+  function set(patch) {
+    Object.assign(state, patch);
+    state.v = (state.v + variants.length) % variants.length;
+    state.s = (state.s + screens.length) % screens.length;
+    try { localStorage.setItem('view-round1', JSON.stringify(state)); } catch (e) {}
+    render();
+  }
+
+  document.getElementById('nav-prev').addEventListener('click', () => set({ s: state.s - 1 }));
+  document.getElementById('nav-next').addEventListener('click', () => set({ s: state.s + 1 }));
+  document.addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key;
+    if (k === 'ArrowRight') set({ s: state.s + 1 });
+    else if (k === 'ArrowLeft') set({ s: state.s - 1 });
+    else if (k === 'ArrowDown') set({ v: state.v + 1 });
+    else if (k === 'ArrowUp') set({ v: state.v - 1 });
+    else if (k === '1') set({ mode: 'one' });
+    else if (k === '2') set({ mode: 'variant' });
+    else if (k === '3') set({ mode: 'compare' });
+    else return;
+    e.preventDefault();
+  });
+
+  let swipe = null;
+  stage.addEventListener('pointerdown', e => { swipe = { x: e.clientX, y: e.clientY }; });
+  stage.addEventListener('pointerup', e => {
+    if (!swipe || state.mode !== 'one') return;
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+    swipe = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > 2 * Math.abs(dy)) set({ s: state.s + (dx < 0 ? 1 : -1) });
+  });
+
+  window.addEventListener('resize', fit);
+  render();
+})();
+</script>

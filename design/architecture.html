@@ -1,0 +1,192 @@
+<title>Remote 3 Signal Path</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&display=swap">
+<style>
+  /* Layout: one wide figure, left to right from the hand to the equipment, then the two routes spelled out. */
+  :root {
+    --ground: #f6f7f7;
+    --ink: #14181a;
+    --dim: #5d6569;
+    --line: #c9cfd2;
+    --panel: #ffffff;
+    --ours: #0f8f83;
+    --ours-soft: #d9f3ef;
+    --warn: #b4540a;
+    --font: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #000000;
+      --ink: #f1f3f3;
+      --dim: #8b9195;
+      --line: #2e3336;
+      --panel: #0c0d0e;
+      --ours: #63e6d9;
+      --ours-soft: #0d2b28;
+      --warn: #f0a35c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #000000;
+    --ink: #f1f3f3;
+    --dim: #8b9195;
+    --line: #2e3336;
+    --panel: #0c0d0e;
+    --ours: #63e6d9;
+    --ours-soft: #0d2b28;
+    --warn: #f0a35c;
+  }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font: 16px/1.5 var(--font);
+  }
+  .page {
+    max-width: 1120px;
+    margin-inline: auto;
+    padding-block: 32px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  h1 { font-size: 26px; font-weight: 600; margin: 0; text-wrap: balance; }
+  .lede { margin: 0; color: var(--dim); max-width: 65ch; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 12px; }
+  .scroll { overflow-x: auto; }
+  svg.map { display: block; width: 100%; min-width: 860px; height: auto; color: var(--ink); font-family: var(--font); }
+  figcaption { color: var(--dim); font-size: 14px; max-width: 75ch; }
+
+  .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.25; }
+  .ours { fill: var(--ours-soft); stroke: var(--ours); stroke-width: 1.75; }
+  .device { fill: none; stroke: var(--line); stroke-width: 1.25; stroke-dasharray: 5 5; }
+  .wire { stroke: currentColor; stroke-width: 1.4; fill: none; }
+  .head { fill: currentColor; }
+  .t { fill: currentColor; font-size: 14px; font-weight: 500; }
+  .s { fill: var(--dim); font-size: 12px; }
+  .a { fill: var(--dim); font-size: 11.5px; }
+  .tag { fill: var(--dim); font-size: 11.5px; letter-spacing: 0.08em; }
+  .ours-t { fill: var(--ours); }
+  .warn { fill: var(--warn); font-size: 11.5px; }
+
+  .routes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px 32px; }
+  .route h2 { font-size: 15px; font-weight: 600; margin: 0 0 6px; }
+  .route ol { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: center; font-size: 14px; }
+  .route li { display: flex; align-items: center; gap: 4px; }
+  .route li + li::before { content: "→"; color: var(--dim); }
+  .route .me { color: var(--ours); font-weight: 600; }
+  .route p { margin: 8px 0 0; color: var(--dim); font-size: 14px; max-width: 60ch; }
+</style>
+
+<div class="page">
+  <h1>How the custom UI reaches Kodi and the receiver</h1>
+  <p class="lede">The Remote 3 core stays at the centre. Our program replaces only the on-screen app: it reads the keys, talks to the core, and the core's existing integrations do the talking to Kodi and Home Assistant.</p>
+
+  <figure>
+    <div class="scroll">
+      <svg class="map" viewBox="0 0 1090 520" role="img" aria-label="Key presses go to our remote-ui, which exchanges commands and state with remote-core over a loopback WebSocket. The core's Kodi integration talks to Kodi, and its Home Assistant integration talks to Home Assistant, which controls the Denon receiver.">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path class="head" d="M0 1.5 L9 5 L0 8.5 Z"/>
+          </marker>
+        </defs>
+
+        <rect class="device" x="20" y="40" width="620" height="460" rx="14"/>
+        <text class="tag" x="36" y="64">INSIDE THE REMOTE 3</text>
+        <text class="tag" x="700" y="64">ON YOUR NETWORK</text>
+
+        <!-- column 1: hand, our UI, screen -->
+        <rect class="box" x="50" y="96" width="180" height="64" rx="8"/>
+        <text class="t" x="140" y="124" text-anchor="middle">Hard keys, touch slider</text>
+        <text class="s" x="140" y="143" text-anchor="middle">d-pad, volume, play…</text>
+
+        <rect class="ours" x="50" y="226" width="180" height="108" rx="8"/>
+        <text class="t ours-t" x="140" y="268" text-anchor="middle" font-size="17" font-weight="600">remote-ui</text>
+        <text class="s" x="140" y="290" text-anchor="middle">ours: Rust + Slint</text>
+        <text class="s" x="140" y="308" text-anchor="middle">replaces the stock app</text>
+
+        <rect class="box" x="50" y="408" width="180" height="64" rx="8"/>
+        <text class="t" x="140" y="436" text-anchor="middle">Touchscreen</text>
+        <text class="s" x="140" y="455" text-anchor="middle">480 × 800</text>
+
+        <line class="wire" x1="140" y1="160" x2="140" y2="224" marker-end="url(#arr)"/>
+        <text class="a" x="150" y="196">presses, read directly</text>
+        <line class="wire" x1="110" y1="334" x2="110" y2="406" marker-end="url(#arr)"/>
+        <text class="a" x="100" y="374" text-anchor="end">draws</text>
+        <line class="wire" x1="170" y1="408" x2="170" y2="336" marker-end="url(#arr)"/>
+        <text class="a" x="180" y="374">touch</text>
+
+        <!-- column 2: core -->
+        <rect class="box" x="330" y="196" width="150" height="168" rx="8"/>
+        <text class="t" x="405" y="262" text-anchor="middle" font-size="17" font-weight="600">remote-core</text>
+        <text class="s" x="405" y="284" text-anchor="middle">stock, closed</text>
+        <text class="s" x="405" y="302" text-anchor="middle">holds every entity</text>
+
+        <text class="a" x="280" y="232" text-anchor="middle">loopback</text>
+        <text class="a" x="280" y="246" text-anchor="middle">WebSocket</text>
+        <line class="wire" x1="230" y1="262" x2="328" y2="262" marker-end="url(#arr)"/>
+        <text class="a" x="280" y="278" text-anchor="middle">commands</text>
+        <line class="wire" x1="330" y1="306" x2="232" y2="306" marker-end="url(#arr)"/>
+        <text class="a" x="280" y="322" text-anchor="middle">state, changes</text>
+
+        <rect class="box" x="330" y="408" width="150" height="64" rx="8"/>
+        <text class="t" x="405" y="436" text-anchor="middle">Device hardware</text>
+        <text class="s" x="405" y="455" text-anchor="middle">Wi-Fi, battery, power</text>
+        <line class="wire" x1="405" y1="364" x2="405" y2="406" marker-end="url(#arr)"/>
+        <text class="a" x="415" y="390">owns</text>
+
+        <!-- column 3: integrations -->
+        <rect class="box" x="520" y="196" width="100" height="64" rx="8"/>
+        <text class="t" x="570" y="224" text-anchor="middle">Kodi</text>
+        <text class="s" x="570" y="243" text-anchor="middle">integration</text>
+
+        <rect class="box" x="520" y="300" width="100" height="64" rx="8"/>
+        <text class="t" x="570" y="328" text-anchor="middle">Home Asst.</text>
+        <text class="s" x="570" y="347" text-anchor="middle">integration</text>
+        <text class="warn" x="570" y="384" text-anchor="middle">receiver entity</text>
+        <text class="warn" x="570" y="399" text-anchor="middle">not added yet</text>
+
+        <line class="wire" x1="480" y1="228" x2="518" y2="228" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <line class="wire" x1="480" y1="332" x2="518" y2="332" marker-start="url(#arr)" marker-end="url(#arr)"/>
+
+        <!-- network side -->
+        <rect class="box" x="750" y="196" width="140" height="64" rx="8"/>
+        <text class="t" x="820" y="224" text-anchor="middle">Kodi</text>
+        <text class="s" x="820" y="243" text-anchor="middle">kodi-theater</text>
+
+        <rect class="box" x="750" y="300" width="140" height="64" rx="8"/>
+        <text class="t" x="820" y="328" text-anchor="middle">Home Assistant</text>
+        <text class="s" x="820" y="347" text-anchor="middle">theater_receiver</text>
+
+        <rect class="box" x="950" y="300" width="120" height="64" rx="8"/>
+        <text class="t" x="1010" y="328" text-anchor="middle">Denon receiver</text>
+        <text class="s" x="1010" y="347" text-anchor="middle">AVR-S760H</text>
+
+        <line class="wire" x1="620" y1="228" x2="748" y2="228" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <text class="a" x="695" y="218" text-anchor="middle">Kodi's own API</text>
+        <line class="wire" x1="620" y1="332" x2="748" y2="332" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <text class="a" x="695" y="322" text-anchor="middle">HA's API</text>
+        <line class="wire" x1="890" y1="332" x2="948" y2="332" marker-start="url(#arr)" marker-end="url(#arr)"/>
+        <text class="a" x="920" y="322" text-anchor="middle">Denon</text>
+        <text class="a" x="920" y="352" text-anchor="middle">plug-in</text>
+      </svg>
+    </div>
+    <figcaption>Only the highlighted box is new. Everything to its right already exists on your remote and network; the dashed outline is the remote itself. Double-headed arrows carry commands one way and state the other.</figcaption>
+  </figure>
+
+  <div class="routes">
+    <div class="route">
+      <h2>Pressing volume up</h2>
+      <ol><li>Volume key</li><li class="me">remote-ui</li><li>remote-core</li><li>Home Assistant integration</li><li>Home Assistant</li><li>Denon</li></ol>
+      <p>The new level travels back the same way and the number on screen updates. If Home Assistant is down, this route stops.</p>
+    </div>
+    <div class="route">
+      <h2>Pressing the d-pad</h2>
+      <ol><li>D-pad</li><li class="me">remote-ui</li><li>remote-core</li><li>Kodi integration</li><li>Kodi</li></ol>
+      <p>Title and playback position come back along this route, which is how the progress bar moves. It does not depend on Home Assistant.</p>
+    </div>
+  </div>
+</div>

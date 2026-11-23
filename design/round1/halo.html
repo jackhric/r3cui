@@ -1,0 +1,264 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap">
+<style>
+  .v-halo .screen { font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif; color: #F5F5F2; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; font-size: 18px; line-height: 1.2; }
+  .v-halo .screen svg { display: block; }
+  .v-halo .h-ic { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .v-halo .h-status { position: absolute; left: 0; right: 0; top: 0; height: 48px; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: 600; color: #F5F5F2; }
+  .v-halo .h-status .h-sr { display: flex; align-items: center; gap: 14px; color: #A8A59E; font-weight: 500; }
+  .v-halo .h-status .h-sr span { display: flex; align-items: center; gap: 6px; }
+  .v-halo .h-status .h-ic { width: 22px; height: 22px; }
+
+  .v-halo .h-ring { position: absolute; left: 70px; width: 340px; height: 340px; }
+  .v-halo .h-ring::before { content: ""; position: absolute; left: -110px; top: -110px; width: 560px; height: 560px; background: radial-gradient(circle at center, rgba(255,122,77,.20) 0, rgba(255,122,77,.07) 38%, rgba(255,122,77,0) 62%); }
+  .v-halo .h-ring.h-idle::before { background: radial-gradient(circle at center, rgba(255,122,77,.07) 0, rgba(255,122,77,0) 55%); }
+  .v-halo .h-ring svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .v-halo .h-ring-in { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .v-halo .h-lab { font-size: 13px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: #8E8A83; }
+  .v-halo .h-big { font-size: 150px; line-height: 150px; font-weight: 300; letter-spacing: -.02em; margin: 6px 0 8px; }
+  .v-halo .h-inname { font-size: 18px; font-weight: 700; letter-spacing: .1em; color: #F5F5F2; }
+  .v-halo .h-grey { color: #8E8A83; }
+
+  .v-halo .h-pill { position: absolute; height: 56px; border-radius: 999px; background: #121212; display: flex; align-items: center; gap: 12px; padding: 0 22px; font-size: 18px; font-weight: 600; box-sizing: border-box; }
+  .v-halo .h-pill .h-ic { color: #C9C6BF; }
+  .v-halo .h-pill.h-c { justify-content: center; }
+  .v-halo .h-circle { position: absolute; width: 80px; height: 80px; border-radius: 50%; background: #121212; display: flex; align-items: center; justify-content: center; }
+  .v-halo .h-circle .h-ic { width: 30px; height: 30px; color: #F5F5F2; }
+  .v-halo .h-dot { width: 12px; height: 12px; border-radius: 50%; background: #FF7A4D; box-shadow: 0 0 0 4px rgba(255,122,77,.22); flex: none; }
+  .v-halo .h-sp { flex: 1; }
+
+  .v-halo .h-mode { left: 28px; width: 424px; height: 68px; border-radius: 34px; padding: 0 28px; justify-content: space-between; }
+  .v-halo .h-mode .h-v { font-size: 22px; font-weight: 700; letter-spacing: .04em; display: block; margin-top: 4px; }
+
+  .v-halo .h-t { position: absolute; left: 0; right: 0; text-align: center; }
+  .v-halo .h-title { font-size: 30px; font-weight: 600; line-height: 40px; }
+
+  .v-halo .h-disc { position: absolute; left: 14px; top: 14px; width: 312px; height: 312px; border-radius: 50%; overflow: hidden; background: #0b1c20; }
+  .v-halo .h-disc svg { width: 312px; height: 312px; }
+  .v-halo .h-disc::after { content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: 50%; background: rgba(0,0,0,.58); }
+  .v-halo .h-elapsed { font-size: 54px; line-height: 60px; font-weight: 300; margin-top: 8px; }
+  .v-halo .h-ring-in.h-above { z-index: 2; }
+
+  .v-halo .h-chip { position: absolute; height: 56px; border-radius: 999px; background: #121212; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 18px; font-weight: 600; padding: 0 26px; box-sizing: border-box; }
+  .v-halo .h-chip .h-n { font-size: 26px; font-weight: 500; }
+  .v-halo .h-chip.h-inring { position: static; margin-top: 18px; height: 44px; padding: 0 20px; }
+
+  .v-halo .h-legend { position: absolute; left: 28px; right: 28px; top: 584px; display: flex; flex-direction: column; gap: 6px; }
+  .v-halo .h-lg { height: 30px; display: flex; align-items: center; gap: 18px; font-size: 18px; color: #C9C6BF; font-weight: 500; }
+  .v-halo .h-key { width: 104px; height: 30px; border-radius: 15px; background: #141414; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; letter-spacing: .14em; color: #F5F5F2; flex: none; }
+
+  .v-halo .h-list { position: absolute; left: 28px; right: 28px; display: flex; flex-direction: column; }
+  .v-halo .h-item { height: 60px; border-radius: 30px; background: #101010; display: flex; align-items: center; gap: 14px; padding: 0 26px; font-size: 20px; font-weight: 600; margin-bottom: 8px; box-sizing: border-box; color: #D8D5CE; }
+  .v-halo .h-item .h-rd { width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box; border: 2px solid rgba(255,255,255,.18); flex: none; }
+  .v-halo .h-item.h-on { background: #141414; color: #F5F5F2; box-shadow: inset 0 0 0 2px rgba(255,122,77,.55); }
+  .v-halo .h-item.h-on .h-rd { background: #FF7A4D; border-color: #FF7A4D; box-shadow: 0 0 0 4px rgba(255,122,77,.22); }
+  .v-halo .h-item .h-tag { margin-left: auto; font-size: 13px; font-weight: 700; letter-spacing: .16em; color: #FF7A4D; }
+  .v-halo .h-modes { position: absolute; left: 28px; right: 28px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .v-halo .h-md { height: 56px; border-radius: 28px; background: #101010; padding: 0 24px; display: flex; align-items: center; font-size: 18px; font-weight: 600; color: #D8D5CE; box-sizing: border-box; }
+
+  .v-halo .h-under { position: absolute; left: 0; top: 0; width: 480px; height: 800px; opacity: .22; }
+  .v-halo .h-veil { position: absolute; left: 0; top: 0; width: 480px; height: 800px; background: rgba(0,0,0,.55); }
+  .v-halo .h-vring { position: absolute; left: 40px; top: 22px; width: 400px; height: 400px; }
+  .v-halo .h-vring::before { content: ""; position: absolute; left: -120px; top: -120px; width: 640px; height: 640px; background: radial-gradient(circle at center, rgba(255,122,77,.34) 0, rgba(255,122,77,.12) 40%, rgba(255,122,77,0) 64%); animation: halo-breathe 2.4s ease-in-out infinite; }
+  .v-halo .h-vring svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .v-halo .h-vbig { font-size: 176px; line-height: 176px; font-weight: 300; letter-spacing: -.02em; margin: 4px 0 8px; animation: halo-settle .5s ease-out both; }
+  .v-halo .h-up { display: flex; align-items: center; gap: 6px; font-size: 20px; font-weight: 700; color: #FF9A6F; }
+  .v-halo .h-up .h-ic { width: 20px; height: 20px; }
+  .v-halo .h-mutebox { position: absolute; left: 0; right: 0; top: 496px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .v-halo .h-mutepill { width: 200px; height: 64px; border-radius: 32px; background: #121212; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 20px; font-weight: 600; color: #8E8A83; }
+
+  .v-halo .h-sl { position: absolute; left: 28px; font-size: 13px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: #8E8A83; }
+  .v-halo .h-row { height: 56px; border-radius: 28px; background: #101010; display: flex; align-items: center; gap: 12px; padding: 0 22px 0 26px; font-size: 18px; font-weight: 600; margin-bottom: 6px; box-sizing: border-box; }
+  .v-halo .h-row.h-tall { height: 72px; border-radius: 36px; }
+  .v-halo .h-row .h-val { margin-left: auto; color: #A8A59E; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+  .v-halo .h-row .h-val b { color: #F5F5F2; font-weight: 600; }
+  .v-halo .h-row small { display: block; font-size: 18px; font-weight: 500; color: #8E8A83; margin-top: 2px; }
+  .v-halo .h-mini { width: 32px; height: 32px; flex: none; }
+  .v-halo .h-tog { width: 56px; height: 32px; border-radius: 16px; background: #FF7A4D; position: relative; flex: none; }
+  .v-halo .h-tog::after { content: ""; position: absolute; right: 4px; top: 4px; width: 24px; height: 24px; border-radius: 50%; background: #0a0a0a; }
+  .v-halo .h-pw { position: absolute; top: 630px; width: 133px; height: 56px; border-radius: 28px; background: #121212; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; box-sizing: border-box; }
+
+  @keyframes halo-breathe { 0%,100% { opacity: .8; } 50% { opacity: 1; } }
+  @keyframes halo-settle { from { opacity: .4; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) {
+    .v-halo .h-vring::before, .v-halo .h-vbig { animation: none; }
+  }
+</style>
+<section class="variant v-halo" data-name="Halo" data-fonts="Manrope"
+         data-note="One large ember ring carries the screen (volume, film progress), echoing the round d-pad below, with soft pill controls on pure black.">
+
+  <article class="screen" data-screen="receiver" data-label="Receiver">
+    <div class="h-status"><span>21:14</span><div class="h-sr">
+      <span><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg></span>
+      <span><svg class="h-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M22 10.5v3"/><path d="M6 12h5"/></svg>50%</span></div></div>
+
+    <div class="h-ring" style="top:92px">
+      <svg viewBox="0 0 340 340">
+        <defs><linearGradient id="halo-ember-r" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB083"/><stop offset="1" stop-color="#FF7A4D"/></linearGradient></defs>
+        <circle cx="170" cy="170" r="164" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8"/>
+        <circle cx="170" cy="170" r="164" fill="none" stroke="url(#halo-ember-r)" stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="62 100" transform="rotate(-90 170 170)"/>
+        <circle cx="57.7" cy="289.5" r="7" fill="#F5F5F2"/>
+      </svg>
+      <div class="h-ring-in"><div class="h-lab">Volume</div><div class="h-big">62</div><div class="h-inname">PLAYSTATION 5</div></div>
+    </div>
+
+    <div class="h-pill h-mode" style="top:460px"><div><span class="h-lab">Sound mode</span><span class="h-v">DTS SURROUND</span></div><svg class="h-ic" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
+
+    <div class="h-pill" style="left:28px;top:552px;width:228px;height:80px;border-radius:40px;padding:0 28px"><span class="h-dot"></span>Inputs<span class="h-sp"></span><svg class="h-ic" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
+    <div class="h-circle" style="left:272px;top:552px"><svg class="h-ic" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 9.5a3.5 3.5 0 0 1 0 5M19 7a7 7 0 0 1 0 10"/></svg></div>
+    <div class="h-circle" style="left:372px;top:552px"><svg class="h-ic" viewBox="0 0 24 24"><path d="M12 3v8M6.4 6.8a8 8 0 1 0 11.2 0"/></svg></div>
+  </article>
+
+  <article class="screen" data-screen="inputs" data-label="Inputs">
+    <div class="h-status"><span>21:14</span><div class="h-sr">
+      <span><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg></span>
+      <span><svg class="h-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M22 10.5v3"/><path d="M6 12h5"/></svg>50%</span></div></div>
+    <div class="h-sl" style="top:58px">Input</div>
+    <div class="h-list" style="top:84px">
+      <div class="h-item"><span class="h-rd"></span>ANDROID TV</div>
+      <div class="h-item"><span class="h-rd"></span>Bluetooth</div>
+      <div class="h-item"><span class="h-rd"></span>HEOS Music</div>
+      <div class="h-item"><span class="h-rd"></span>KODI</div>
+      <div class="h-item"><span class="h-rd"></span>NET</div>
+      <div class="h-item h-on"><span class="h-rd"></span>PLAYSTATION 5<span class="h-tag">NOW</span></div>
+      <div class="h-item"><span class="h-rd"></span>XBOX 360</div>
+    </div>
+    <div class="h-sl" style="top:582px">Sound mode</div>
+    <div class="h-modes" style="top:610px">
+      <div class="h-md">MOVIE</div><div class="h-md">MUSIC</div><div class="h-md">GAME</div><div class="h-md">STEREO</div><div class="h-md">PURE DIRECT</div>
+    </div>
+  </article>
+
+  <article class="screen" data-screen="kodi-playing" data-label="Kodi · playing">
+    <div class="h-status"><span>21:14</span><div class="h-sr">
+      <span><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg></span>
+      <span><svg class="h-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M22 10.5v3"/><path d="M6 12h5"/></svg>50%</span></div></div>
+
+    <div class="h-ring" style="top:52px">
+      <div class="h-disc">
+        <svg viewBox="0 0 312 312">
+          <defs>
+            <linearGradient id="halo-sky-k" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B3A44"/><stop offset=".5" stop-color="#1F7C80"/><stop offset=".72" stop-color="#F08A4A"/><stop offset="1" stop-color="#3A1A10"/></linearGradient>
+            <radialGradient id="halo-sun-k" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFC98A"/><stop offset=".45" stop-color="#FF8A4C"/><stop offset="1" stop-color="#FF8A4C" stop-opacity="0"/></radialGradient>
+          </defs>
+          <rect width="312" height="312" fill="url(#halo-sky-k)"/>
+          <circle cx="170" cy="190" r="96" fill="url(#halo-sun-k)"/>
+          <circle cx="170" cy="190" r="34" fill="#FFB36E"/>
+          <path d="M0 222h30v-26h18v20h22v-48h20v30h26v-14h16v40h24v-18h30v-34h20v52h28v-24h22v36h36v-22h20v62H0z" fill="#0A1A1E"/>
+          <path d="M0 262h312v50H0z" fill="#06100F"/>
+        </svg>
+      </div>
+      <svg viewBox="0 0 340 340">
+        <defs><linearGradient id="halo-ember-k" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFB083"/><stop offset="1" stop-color="#FF7A4D"/></linearGradient></defs>
+        <circle cx="170" cy="170" r="164" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8"/>
+        <circle cx="170" cy="170" r="164" fill="none" stroke="url(#halo-ember-k)" stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="44 100" transform="rotate(-90 170 170)"/>
+        <circle cx="230.4" cy="322.5" r="7" fill="#F5F5F2"/>
+      </svg>
+      <div class="h-ring-in h-above"><div class="h-lab">Elapsed</div><div class="h-elapsed">1:12:08</div><div class="h-grey" style="margin-top:6px">of 2:44:00</div></div>
+    </div>
+
+    <div class="h-t h-title" style="top:400px">Blade Runner 2049</div>
+    <div class="h-t" style="top:442px;font-weight:500">2017 · 2 h 44 min</div>
+    <div class="h-t" style="top:470px;font-weight:600"><span style="color:#FF9A6F">1:31:52 left</span> <span class="h-grey">· ends 22:47</span></div>
+    <div class="h-t h-grey" style="top:498px;font-weight:500">DTS-HD MA 7.1 · English · Subs English</div>
+
+    <div class="h-pill" style="left:28px;top:548px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M7 11h4M13 11h4M7 15h7"/></svg>Subtitles</div>
+    <div class="h-pill" style="left:246px;top:548px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 9.5a3.5 3.5 0 0 1 0 5M19 7a7 7 0 0 1 0 10"/></svg>Audio</div>
+    <div class="h-pill" style="left:28px;top:616px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r=".6"/></svg>Info</div>
+    <div class="h-pill" style="left:246px;top:616px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/></svg>Context menu</div>
+
+    <div class="h-chip" style="left:150px;top:696px;width:180px"><span class="h-dot"></span><span class="h-lab">Vol</span><span class="h-n">62</span></div>
+  </article>
+
+  <article class="screen" data-screen="kodi-browse" data-label="Kodi · browsing">
+    <div class="h-status"><span>21:14</span><div class="h-sr">
+      <span><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg></span>
+      <span><svg class="h-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M22 10.5v3"/><path d="M6 12h5"/></svg>50%</span></div></div>
+
+    <div class="h-ring h-idle" style="top:52px">
+      <svg viewBox="0 0 340 340">
+        <circle cx="170" cy="170" r="164" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8"/>
+        <circle cx="170" cy="6" r="8" fill="#FF7A4D"/>
+      </svg>
+      <div class="h-ring-in"><div class="h-lab">Input</div><div style="font-size:72px;line-height:80px;font-weight:300;letter-spacing:.04em;margin-top:4px">KODI</div><div class="h-grey" style="font-weight:500">Nothing playing</div>
+        <div class="h-chip h-inring"><span class="h-lab">Vol</span><span class="h-n">62</span></div></div>
+    </div>
+
+    <div class="h-pill h-c" style="left:28px;top:412px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4z"/></svg>Home</div>
+    <div class="h-pill h-c" style="left:246px;top:412px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4-2.5z"/></svg>Videos</div>
+    <div class="h-pill h-c" style="left:28px;top:480px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r=".6"/></svg>Info</div>
+    <div class="h-pill h-c" style="left:246px;top:480px;width:206px"><svg class="h-ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>Fullscreen</div>
+
+    <div class="h-sl" style="top:556px">Hard keys here</div>
+    <div class="h-legend">
+      <div class="h-lg"><span class="h-key">BACK</span>Back</div>
+      <div class="h-lg"><span class="h-key">HOME</span>Kodi home</div>
+      <div class="h-lg"><span class="h-key">MENU</span>Context menu</div>
+      <div class="h-lg"><span class="h-key">CH + / −</span>Page up / down</div>
+    </div>
+  </article>
+
+  <article class="screen" data-screen="volume" data-label="Volume overlay">
+    <div class="h-under">
+      <div class="h-ring" style="top:52px">
+        <div class="h-disc">
+          <svg viewBox="0 0 312 312">
+            <defs>
+              <linearGradient id="halo-sky-u" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B3A44"/><stop offset=".5" stop-color="#1F7C80"/><stop offset=".72" stop-color="#F08A4A"/><stop offset="1" stop-color="#3A1A10"/></linearGradient>
+            </defs>
+            <rect width="312" height="312" fill="url(#halo-sky-u)"/>
+            <circle cx="170" cy="190" r="34" fill="#FFB36E"/>
+            <path d="M0 222h30v-26h18v20h22v-48h20v30h26v-14h16v40h24v-18h30v-34h20v52h28v-24h22v36h36v-22h20v62H0z" fill="#0A1A1E"/>
+          </svg>
+        </div>
+        <svg viewBox="0 0 340 340"><circle cx="170" cy="170" r="164" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8"/><circle cx="170" cy="170" r="164" fill="none" stroke="#FF7A4D" stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="44 100" transform="rotate(-90 170 170)"/></svg>
+      </div>
+      <div class="h-t h-title" style="top:400px">Blade Runner 2049</div>
+      <div class="h-t" style="top:442px">2017 · 2 h 44 min</div>
+      <div class="h-pill" style="left:28px;top:548px;width:206px">Subtitles</div>
+      <div class="h-pill" style="left:246px;top:548px;width:206px">Audio</div>
+      <div class="h-pill" style="left:28px;top:616px;width:206px">Info</div>
+      <div class="h-pill" style="left:246px;top:616px;width:206px">Context menu</div>
+    </div>
+    <div class="h-veil"></div>
+
+    <div class="h-vring">
+      <svg viewBox="0 0 400 400">
+        <defs><linearGradient id="halo-ember-v" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFC09A"/><stop offset="1" stop-color="#FF7A4D"/></linearGradient></defs>
+        <circle cx="200" cy="200" r="192" fill="#000" fill-opacity=".92"/>
+        <circle cx="200" cy="200" r="192" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="10"/>
+        <circle cx="200" cy="200" r="192" fill="none" stroke="url(#halo-ember-v)" stroke-width="10" stroke-linecap="round" pathLength="100" stroke-dasharray="64 100" transform="rotate(-90 200 200)"/>
+        <circle cx="52.1" cy="322.4" r="9" fill="#FFF6EE"/>
+      </svg>
+      <div class="h-ring-in"><div class="h-lab">Volume</div><div class="h-vbig">64</div>
+        <div class="h-up"><svg class="h-ic" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>from 62</div></div>
+    </div>
+
+    <div class="h-mutebox"><div class="h-lab">If muted</div><div class="h-mutepill"><svg class="h-ic" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>Muted</div></div>
+  </article>
+
+  <article class="screen" data-screen="settings" data-label="Settings">
+    <div class="h-status"><span>21:14</span><div class="h-sr">
+      <span><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg></span>
+      <span><svg class="h-ic" viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="3"/><path d="M22 10.5v3"/><path d="M6 12h5"/></svg>50%</span></div></div>
+    <div class="h-sl" style="top:56px">Settings</div>
+    <div class="h-list" style="top:84px">
+      <div class="h-row h-tall"><svg class="h-ic" viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19.5" r=".6"/></svg><div>HomeNetwork<small>−68 dBm · 192.168.1.50</small></div></div>
+      <div class="h-row">Battery<span class="h-val"><b>50 %</b> charging
+        <svg class="h-mini" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/><circle cx="18" cy="18" r="14" fill="none" stroke="#FF7A4D" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="50 100" transform="rotate(-90 18 18)"/></svg></span></div>
+      <div class="h-row">Display brightness<span class="h-val"><b>90 %</b> auto
+        <svg class="h-mini" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/><circle cx="18" cy="18" r="14" fill="none" stroke="#FF7A4D" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="90 100" transform="rotate(-90 18 18)"/></svg></span></div>
+      <div class="h-row">Key backlight<span class="h-val"><b>50 %</b>
+        <svg class="h-mini" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/><circle cx="18" cy="18" r="14" fill="none" stroke="#FF7A4D" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="50 100" transform="rotate(-90 18 18)"/></svg></span></div>
+      <div class="h-row">Screen off after<span class="h-val"><b>60 s</b></span></div>
+      <div class="h-row">Standby after<span class="h-val"><b>3 min</b></span></div>
+      <div class="h-row">Haptics<span class="h-val"><b>On</b><span class="h-tog"></span></span></div>
+      <div class="h-row">Sounds<span class="h-val"><b>80 %</b>
+        <svg class="h-mini" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/><circle cx="18" cy="18" r="14" fill="none" stroke="#FF7A4D" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="80 100" transform="rotate(-90 18 18)"/></svg></span></div>
+    </div>
+    <div class="h-sl" style="top:606px">Power</div>
+    <div class="h-pw" style="left:28px">Standby</div>
+    <div class="h-pw" style="left:173px">Restart</div>
+    <div class="h-pw" style="left:318px;color:#FF9A6F">Power off</div>
+    <div class="h-list" style="top:702px"><div class="h-row" style="margin:0">About<span class="h-val"><b>Remote 3</b> · firmware 2.8.4</span></div></div>
+  </article>
+</section>

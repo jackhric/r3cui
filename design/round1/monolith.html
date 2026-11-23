@@ -1,0 +1,155 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Inter+Tight:wght@200;300&display=swap">
+<style>
+  .v-monolith .screen { font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; color: #fff; font-weight: 300; font-variant-numeric: tabular-nums; }
+  .v-monolith .a { position: absolute; left: 32px; right: 32px; margin: 0; }
+  .v-monolith .r { position: absolute; left: 32px; right: 32px; height: 0; border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .rf { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .st { top: 24px; height: 24px; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: 400; letter-spacing: .02em; }
+  .v-monolith .st-r { display: flex; align-items: center; gap: 16px; color: #8c8c8c; font-size: 18px; }
+  .v-monolith .st-r span { display: flex; align-items: center; gap: 6px; }
+  .v-monolith svg { display: block; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: square; stroke-linejoin: miter; }
+  .v-monolith .lbl { font-size: 13px; line-height: 16px; letter-spacing: .16em; text-transform: uppercase; color: #8c8c8c; font-weight: 400; }
+  .v-monolith .disp { font-family: 'Inter Tight', 'Inter', 'Helvetica Neue', Arial, sans-serif; font-weight: 200; letter-spacing: -.03em; }
+  .v-monolith .t { font-family: 'Inter Tight', 'Inter', 'Helvetica Neue', Arial, sans-serif; font-weight: 300; letter-spacing: -.01em; }
+  .v-monolith .live { color: #FFF4E0; }
+  .v-monolith .grey { color: #8c8c8c; }
+  .v-monolith .dim { color: #5c5c5c; }
+  .v-monolith .row { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+  .v-monolith .btn { display: flex; align-items: center; gap: 14px; font-size: 18px; font-weight: 400; letter-spacing: .04em; }
+  .v-monolith .kv { display: flex; align-items: center; justify-content: space-between; font-size: 18px; }
+  .v-monolith .kv b { font-family: 'Inter Tight', 'Inter', Arial, sans-serif; font-weight: 300; font-size: 22px; color: #fff; }
+  .v-monolith .kv b i { font-style: normal; color: #8c8c8c; font-size: 18px; margin-left: 8px; }
+  .v-monolith .li { display: flex; align-items: center; height: 56px; font-size: 24px; }
+  .v-monolith .li em { font-style: normal; width: 48px; font-size: 13px; letter-spacing: .1em; color: #5c5c5c; font-weight: 400; }
+  .v-monolith .li span { margin-left: auto; font-size: 13px; letter-spacing: .16em; text-transform: uppercase; font-weight: 400; }
+  .v-monolith .modes { display: flex; flex-wrap: wrap; column-gap: 28px; font-size: 18px; letter-spacing: .06em; font-weight: 400; color: #8c8c8c; }
+  .v-monolith .modes div { height: 56px; display: flex; align-items: center; }
+  .v-monolith .art { height: 112px; overflow: hidden; }
+  .v-monolith .art svg { width: 416px; height: 112px; }
+  .v-monolith .bar { position: absolute; left: 0; right: 0; height: 3px; }
+  .v-monolith .bar::before { content: ""; position: absolute; left: 0; right: 0; top: 1px; border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .bar i { position: absolute; left: 0; top: 0; height: 3px; background: #FFF4E0; }
+  .v-monolith .keys { display: flex; align-items: center; height: 48px; font-size: 18px; border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .keys b { width: 104px; font-weight: 500; letter-spacing: .08em; font-size: 18px; }
+  .v-monolith .keys span { color: #8c8c8c; }
+  .v-monolith .grid2 { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 64px; }
+  .v-monolith .grid2 .btn { border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; height: 64px; }
+  .v-monolith .grid3 .btn { border-top: 1px solid rgba(255,255,255,.14); }
+  .v-monolith .scrim { position: absolute; inset: 0; background: #000; opacity: .0; }
+</style>
+<section class="variant v-monolith" data-name="Monolith" data-fonts="Inter + Inter Tight"
+         data-note="Swiss and severe: white and two greys on black, hairline rules, giant thin numerals, and a single warm white reserved for the one live element on each screen.">
+
+  <article class="screen" data-screen="receiver" data-label="Receiver">
+    <div class="a st"><span>21:14</span><div class="st-r">
+      <span><svg width="20" height="18" viewBox="0 0 20 18"><path d="M2 6.5a11 11 0 0 1 16 0M5 10a6.5 6.5 0 0 1 10 0M8.2 13.4a2 2 0 0 1 3.6 0"/></svg></span>
+      <span><svg width="26" height="14" viewBox="0 0 26 14"><rect x="1" y="1.5" width="21" height="11"/><path d="M24.5 5v4M4 5v4M7 5v4M10 5v4"/></svg>50%</span></div></div>
+    <div class="rf" style="top:64px"></div>
+    <div class="a lbl" style="top:80px">Volume</div>
+    <div class="a disp" style="top:96px;font-size:220px;line-height:220px;height:220px;margin-left:-8px">62</div>
+    <div class="r" style="top:340px"></div>
+    <div class="a row" style="top:340px;height:96px"><div class="lbl">Input</div><div class="t live" style="font-size:32px;line-height:36px">PLAYSTATION 5</div></div>
+    <div class="r" style="top:436px"></div>
+    <div class="a row" style="top:436px;height:96px"><div class="lbl">Sound mode</div><div class="t" style="font-size:32px;line-height:36px">DTS SURROUND</div></div>
+    <div class="r" style="top:532px"></div>
+    <div class="a lbl" style="top:548px">Denon AVR-S760H</div>
+    <div class="r" style="top:688px"></div>
+    <div class="a btn" style="top:688px;height:80px;width:176px;right:auto"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M3 9h4l6-5v16l-6-5H3zM17 9l5 6M22 9l-5 6"/></svg>MUTE</div>
+    <div class="a btn" style="top:688px;height:80px;left:256px;width:176px;right:auto"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 3v9M6.5 6.5a8 8 0 1 0 11 0"/></svg>POWER</div>
+  </article>
+
+  <article class="screen" data-screen="inputs" data-label="Inputs">
+    <div class="a st"><span>21:14</span><div class="st-r">
+      <span><svg width="20" height="18" viewBox="0 0 20 18"><path d="M2 6.5a11 11 0 0 1 16 0M5 10a6.5 6.5 0 0 1 10 0M8.2 13.4a2 2 0 0 1 3.6 0"/></svg></span>
+      <span><svg width="26" height="14" viewBox="0 0 26 14"><rect x="1" y="1.5" width="21" height="11"/><path d="M24.5 5v4M4 5v4M7 5v4M10 5v4"/></svg>50%</span></div></div>
+    <div class="rf" style="top:64px"></div>
+    <div class="a t" style="top:84px;font-size:56px;line-height:60px;height:60px">Inputs</div>
+    <div class="r" style="top:168px"></div>
+    <div class="a" style="top:168px;height:392px">
+      <div class="li"><em>01</em>ANDROID TV</div>
+      <div class="li" style="border-top:1px solid rgba(255,255,255,.14)"><em>02</em>Bluetooth</div>
+      <div class="li" style="border-top:1px solid rgba(255,255,255,.14)"><em>03</em>HEOS Music</div>
+      <div class="li" style="border-top:1px solid rgba(255,255,255,.14)"><em>04</em>KODI</div>
+      <div class="li" style="border-top:1px solid rgba(255,255,255,.14)"><em>05</em>NET</div>
+      <div class="li live" style="border-top:1px solid rgba(255,255,255,.14);font-weight:400"><em style="color:#FFF4E0">06</em>PLAYSTATION 5<span>Current</span></div>
+      <div class="li" style="border-top:1px solid rgba(255,255,255,.14)"><em>07</em>XBOX 360</div>
+    </div>
+    <div class="r" style="top:560px"></div>
+    <div class="a lbl" style="top:584px">Sound mode</div>
+    <div class="a modes" style="top:608px;height:112px"><div>MOVIE</div><div>MUSIC</div><div>GAME</div><div>STEREO</div><div>PURE DIRECT</div></div>
+  </article>
+
+  <article class="screen" data-screen="kodi-playing" data-label="Kodi · playing">
+    <div class="a st"><span>21:14</span><div class="st-r">
+      <span><svg width="20" height="18" viewBox="0 0 20 18"><path d="M2 6.5a11 11 0 0 1 16 0M5 10a6.5 6.5 0 0 1 10 0M8.2 13.4a2 2 0 0 1 3.6 0"/></svg></span>
+      <span><svg width="26" height="14" viewBox="0 0 26 14"><rect x="1" y="1.5" width="21" height="11"/><path d="M24.5 5v4M4 5v4M7 5v4M10 5v4"/></svg>50%</span></div></div>
+    <div class="rf" style="top:64px"></div>
+    <div class="a art" style="top:80px"><svg viewBox="0 0 416 112" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="monolith-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f3a40"/><stop offset=".6" stop-color="#2a6a6c"/><stop offset="1" stop-color="#d9803a"/></linearGradient></defs><rect width="416" height="112" fill="url(#monolith-sky)"/><circle cx="292" cy="78" r="26" fill="#f0a35a" opacity=".9"/><path d="M0 112V84l40-14 30 20 36-30 28 24 44-34 34 40 40-22 52 30 40-26 52 30v40z" fill="#0a1d22"/><path d="M0 112V98l60-10 70 12 80-14 90 14 116-10v22z" fill="#050b0d"/></svg></div>
+    <div class="a t" style="top:208px;font-size:40px;line-height:44px;height:44px;white-space:nowrap">Blade Runner 2049</div>
+    <div class="a grey" style="top:256px;font-size:18px;line-height:24px;display:flex;justify-content:space-between"><span>2017 · 2 h 44 min</span><span><span class="lbl">Vol</span>&nbsp; <span style="color:#fff">62</span></span></div>
+    <div class="a disp live" style="top:300px;font-size:112px;line-height:112px;height:112px;margin-left:-4px;white-space:nowrap">1:12:08</div>
+    <div class="bar" style="top:436px"><i style="width:44%"></i></div>
+    <div class="a grey" style="top:452px;font-size:18px;line-height:24px;display:flex;justify-content:space-between"><span>1:31:52 left</span><span>Ends 22:47</span></div>
+    <div class="a" style="top:516px;height:96px;font-size:18px">
+      <div class="keys"><b class="lbl" style="font-size:13px;font-weight:400;letter-spacing:.16em">AUDIO</b><span style="color:#fff">DTS-HD MA 7.1 · English</span></div>
+      <div class="keys" style="height:48px"><b class="lbl" style="font-size:13px;font-weight:400;letter-spacing:.16em">SUBTITLES</b><span style="color:#fff">English</span></div>
+    </div>
+    <div class="a grid2" style="top:640px;height:128px"><div class="btn">Subtitles</div><div class="btn">Audio</div><div class="btn">Info</div><div class="btn">Context menu</div></div>
+  </article>
+
+  <article class="screen" data-screen="kodi-browse" data-label="Kodi · browsing">
+    <div class="a st"><span>21:14</span><div class="st-r">
+      <span><svg width="20" height="18" viewBox="0 0 20 18"><path d="M2 6.5a11 11 0 0 1 16 0M5 10a6.5 6.5 0 0 1 10 0M8.2 13.4a2 2 0 0 1 3.6 0"/></svg></span>
+      <span><svg width="26" height="14" viewBox="0 0 26 14"><rect x="1" y="1.5" width="21" height="11"/><path d="M24.5 5v4M4 5v4M7 5v4M10 5v4"/></svg>50%</span></div></div>
+    <div class="rf" style="top:64px"></div>
+    <div class="a lbl" style="top:88px;right:auto;width:200px">Input</div>
+    <div class="a lbl" style="top:88px;left:256px">Volume</div>
+    <div class="a disp live" style="top:112px;right:auto;width:216px;font-size:88px;line-height:88px;height:88px">KODI</div>
+    <div class="a disp" style="top:112px;left:256px;font-size:88px;line-height:88px;height:88px">62</div>
+    <div class="a grey" style="top:212px;font-size:18px;line-height:24px">Nothing playing. Navigate on the TV.</div>
+    <div class="r" style="top:264px"></div>
+    <div class="a lbl" style="top:288px">Hard keys</div>
+    <div class="a" style="top:320px;height:192px">
+      <div class="keys"><b>BACK</b><span>Back</span></div>
+      <div class="keys"><b>HOME</b><span>Kodi home</span></div>
+      <div class="keys"><b>MENU</b><span>Context menu</span></div>
+      <div class="keys"><b>CH +/−</b><span>Page up / down</span></div>
+    </div>
+    <div class="a lbl" style="top:608px">Shortcuts</div>
+    <div class="a grid2" style="top:640px;height:128px"><div class="btn">Home</div><div class="btn">Videos</div><div class="btn">Info</div><div class="btn">Fullscreen</div></div>
+  </article>
+
+  <article class="screen" data-screen="volume" data-label="Volume overlay">
+    <div class="a art" style="top:80px;opacity:.16"><svg viewBox="0 0 416 112" preserveAspectRatio="xMidYMid slice"><rect width="416" height="112" fill="#2a6a6c"/><circle cx="292" cy="78" r="26" fill="#f0a35a"/><path d="M0 112V84l40-14 30 20 36-30 28 24 44-34 34 40 40-22 52 30 40-26 52 30v40z" fill="#0a1d22"/></svg></div>
+    <div class="a lbl" style="top:204px">Volume</div>
+    <div class="a disp live" style="top:224px;font-size:200px;line-height:200px;height:200px;margin-left:-8px">64</div>
+    <div class="a grey" style="top:432px;font-size:18px;line-height:24px">Up from 62</div>
+    <div class="bar" style="top:480px"><i style="width:64%"></i></div>
+    <div class="a t dim" style="top:560px;font-size:24px;line-height:28px;white-space:nowrap">Blade Runner 2049</div>
+    <div class="bar" style="top:604px;opacity:.35"><i style="width:44%;background:#fff"></i></div>
+    <div class="r" style="top:672px"></div>
+    <div class="a row" style="top:672px;height:96px"><div class="lbl">When muted</div><div class="t dim" style="font-size:32px;line-height:36px"><span style="text-decoration:line-through">64</span>&nbsp; MUTED</div></div>
+  </article>
+
+  <article class="screen" data-screen="settings" data-label="Settings">
+    <div class="a st"><span>21:14</span><div class="st-r">
+      <span><svg width="20" height="18" viewBox="0 0 20 18"><path d="M2 6.5a11 11 0 0 1 16 0M5 10a6.5 6.5 0 0 1 10 0M8.2 13.4a2 2 0 0 1 3.6 0"/></svg></span>
+      <span><svg width="26" height="14" viewBox="0 0 26 14"><rect x="1" y="1.5" width="21" height="11"/><path d="M24.5 5v4M4 5v4M7 5v4M10 5v4"/></svg>50%</span></div></div>
+    <div class="rf" style="top:64px"></div>
+    <div class="a t" style="top:80px;font-size:48px;line-height:52px;height:52px">Settings</div>
+    <div class="a" style="top:144px;height:464px">
+      <div class="kv" style="height:72px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">WiFi</span><div style="text-align:right"><b>HomeNetwork</b><div class="grey" style="font-size:18px;line-height:22px;margin-top:2px">−68 dBm · 192.168.1.50</div></div></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Battery</span><b>50 %<i>charging</i></b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Brightness</span><b>90 %<i>auto</i></b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Key backlight</span><b>50 %</b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Screen off after</span><b>60 s</b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Standby after</span><b>3 min</b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Haptics</span><b>On</b></div>
+      <div class="kv" style="height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">Sounds</span><b>80 %</b></div>
+    </div>
+    <div class="a lbl" style="top:624px">Power</div>
+    <div class="a grid3" style="top:640px;height:64px;"><div class="btn">Standby</div><div class="btn">Restart</div><div class="btn">Power off</div></div>
+    <div class="a kv" style="top:704px;height:56px;border-top:1px solid rgba(255,255,255,.14)"><span class="grey">About</span><b>Remote 3<i>firmware 2.8.4</i></b></div>
+  </article>
+</section>
