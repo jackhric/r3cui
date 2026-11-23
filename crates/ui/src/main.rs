@@ -598,7 +598,8 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         // An empty zone list means "all" to the core; when asleep it turns the keys off itself.
                         if !zones.is_empty() {
                             let core = core.clone();
-                            let zones: Vec<String> = zones.iter().map(u8::to_string).collect();
+                            // The core names them ZONE_1..ZONE_12; it accepts anything else without lighting anything.
+                            let zones: Vec<String> = zones.iter().map(|z| format!("ZONE_{z}")).collect();
                             tokio::spawn(async move {
                                 let cfg = json!({ "static_color": { "rgb": rgb, "zones": zones } });
                                 if let Err(e) = core.request("set_button_cfg", cfg).await {

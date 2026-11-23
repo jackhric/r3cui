@@ -21,7 +21,7 @@ pub fn observe(app: &AppWindow) -> (UiState, [u8; 3]) {
     (state, [accent.red(), accent.green(), accent.blue()])
 }
 
-/// Zone ids as reported by `/cfg/device/button_layout` on the UCR3.
+/// Zone numbers as reported by `/cfg/device/button_layout` on the UCR3, where zone n is named `ZONE_n`.
 pub mod zone {
     pub const HOME: u8 = 1;
     pub const VOLUME_UP_BACK: u8 = 2;
