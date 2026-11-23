@@ -1,0 +1,97 @@
+<title>Remote Settings Prototypes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@200;300;400;500;600&display=swap">
+<style>
+  /* Layout: a dark viewing room. Section 1 is one interactive keyboard panel beside a d-pad; sections 2 and 3 are rows of still panels. */
+  :root {
+    color-scheme: dark;
+    --room: #0b0b0d;
+    --bezel: #1d1d21;
+    --line: #26262b;
+    --ink: #f1f3f3;
+    --dim: #8b9195;
+    --faint: #53595d;
+    --accent: #e8343a;
+    --ok: #3ddc84;
+    --warn: #f0a35c;
+    --font: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  html, body { height: 100%; }
+  body { background: var(--room); color: var(--ink); font: 15px/1.5 var(--font); }
+  .page {
+    max-width: 1700px;
+    margin-inline: auto;
+    padding-block: 24px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+    --z: 1;
+  }
+  section { display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0; }
+  h2 { font-size: 18px; font-weight: 600; margin: 0; }
+  p { margin: 0; color: var(--dim); max-width: 70ch; }
+  .seg { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; align-self: flex-start; }
+  .seg button { font: 500 14px/1 var(--font); color: var(--dim); background: none; border: 0; border-radius: 7px; padding: 10px 13px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: #000; }
+  button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .bezel { border: 1px solid var(--bezel); border-radius: 14px; overflow: hidden; background: #000; line-height: 0; width: fit-content; }
+  .screen {
+    width: 480px; height: 800px; position: relative; overflow: hidden; background: #000; box-sizing: border-box;
+    zoom: var(--z); line-height: normal; color: var(--ink); font-family: var(--font); font-variant-numeric: tabular-nums;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 28px 24px; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 10px; width: calc(482px * var(--z)); }
+  figcaption { color: var(--dim); font-size: 14px; }
+  figcaption strong { color: var(--ink); font-weight: 600; display: block; font-size: 15px; }
+
+  /* keyboard section */
+  .kbwrap { display: flex; flex-wrap: wrap; gap: 24px 40px; align-items: center; }
+  #kb-stage .screen { display: none; }
+  #kb-stage .screen.on { display: block; }
+  .pad { display: grid; grid-template-columns: repeat(3, 72px); grid-template-rows: repeat(4, 72px); gap: 8px; touch-action: manipulation; }
+  .pad button {
+    font: 500 15px/1 var(--font); color: var(--ink); background: #141416; border: 1px solid var(--line); border-radius: 50%;
+    cursor: pointer; user-select: none; -webkit-user-select: none;
+  }
+  .pad button:active { background: var(--ink); color: #000; }
+  .pad .wide { grid-column: 1 / 4; border-radius: 14px; height: 56px; align-self: end; }
+  .pad .up { grid-column: 2; grid-row: 1; } .pad .left { grid-column: 1; grid-row: 2; } .pad .ok { grid-column: 2; grid-row: 2; }
+  .pad .right { grid-column: 3; grid-row: 2; } .pad .down { grid-column: 2; grid-row: 3; }
+  .hint { font-size: 13px; }
+
+  /* still panels, in the Quiet language */
+  .q * { box-sizing: border-box; }
+  .q .clock { position: absolute; left: 40px; top: 20px; font-size: 20px; }
+  .q .head { position: absolute; left: 0; right: 0; top: 64px; height: 104px; display: flex; align-items: center; gap: 16px; padding: 0 40px; font-size: 26px; font-weight: 500; }
+  .q .ic { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .q .r { position: absolute; left: 0; right: 0; height: 96px; display: flex; align-items: center; gap: 18px; padding: 0 40px; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 26px; color: rgba(241, 243, 243, 0.7); }
+  .q .r.first { border-top-color: transparent; }
+  .q .r.on { color: var(--ink); font-weight: 500; }
+  .q .r.on::before { content: ""; position: absolute; left: 0; top: 50%; margin-top: -20px; width: 4px; height: 40px; border-radius: 0 2px 2px 0; background: var(--accent); }
+  .q .r .n { flex: 1; }
+  .q .r .v { font-size: 22px; font-weight: 300; color: var(--dim); }
+  .q .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--ok); flex: none; }
+  .q .dot.bad { background: var(--accent); }
+  .q .dot.unk { background: var(--faint); }
+  .q .sig { display: flex; align-items: flex-end; gap: 3px; height: 22px; color: var(--dim); }
+  .q .sig i { width: 5px; border-radius: 2px; background: currentColor; }
+  .q .sig i.off { background: rgba(255, 255, 255, 0.14); }
+  .q .ctr { position: absolute; left: 0; right: 0; display: flex; align-items: center; justify-content: center; text-align: center; }
+  .q .bar { position: absolute; left: 40px; width: 400px; height: 14px; border-radius: 7px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+  .q .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 7px; background: var(--faint); }
+  .q .note { position: absolute; left: 40px; right: 40px; font-size: 22px; color: var(--dim); text-align: center; }
+  .q .pill { position: absolute; left: 40px; right: 40px; height: 64px; border-radius: 32px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 22px; background: #131314; color: var(--ink); }
+</style>
+
+<div class="page" id="page">
+  <section>
+    <h1>Typing a Wi-Fi password with the d-pad</h1>
+    <p>Three keyboards for the same job. Drive them with the pad beside the screen, with your arrow keys, Enter and Backspace, or by tapping the keys. The physical remote would use its d-pad, OK and BACK.</p>
+    <div class="seg" id="kb-tabs" role="group" aria-label="Keyboard"></div>
+    <p id="kb-note"></p>
+    <div class="kbwrap">
+      <div class="bezel" id="kb-stage">

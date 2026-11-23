@@ -1,0 +1,134 @@
+      </div>
+      <div>
+        <div class="pad" id="pad" aria-label="Remote d-pad">
+          <button type="button" class="up" data-k="up" aria-label="Up">▲</button>
+          <button type="button" class="left" data-k="left" aria-label="Left">◀</button>
+          <button type="button" class="ok" data-k="ok">OK</button>
+          <button type="button" class="right" data-k="right" aria-label="Right">▶</button>
+          <button type="button" class="down" data-k="down" aria-label="Down">▼</button>
+          <button type="button" class="wide" data-k="back">BACK</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Wi-Fi</h2>
+    <p>Reached from Menu → Wi-Fi. The list shows the network you are on and those nearby; choosing a locked one opens the keyboard above.</p>
+    <div class="row">
+      <figure>
+        <div class="bezel"><div class="screen q">
+          <span class="clock">21:14</span>
+          <div class="head"><svg class="ic" viewBox="0 0 24 24" style="width:28px;height:28px"><path d="M15 5l-7 7 7 7"/></svg>Wi-Fi</div>
+          <div class="r on" style="top:168px"><span class="n">HomeNetwork</span><span class="v">Connected</span><span class="sig"><i style="height:7px"></i><i style="height:12px"></i><i style="height:17px"></i><i class="off" style="height:22px"></i></span></div>
+          <div class="r" style="top:264px"><span class="n">Guest</span><svg class="ic" viewBox="0 0 24 24" style="color:var(--faint)"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span class="sig"><i style="height:7px"></i><i style="height:12px"></i><i style="height:17px"></i><i style="height:22px"></i></span></div>
+          <div class="r" style="top:360px"><span class="n">SmartHome</span><svg class="ic" viewBox="0 0 24 24" style="color:var(--faint)"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span class="sig"><i style="height:7px"></i><i style="height:12px"></i><i class="off" style="height:17px"></i><i class="off" style="height:22px"></i></span></div>
+          <div class="r" style="top:456px"><span class="n">Scan again</span></div>
+        </div></div>
+        <figcaption><strong>Network list</strong>Current network first, with signal. A lock marks networks that need a password.</figcaption>
+      </figure>
+      <figure>
+        <div class="bezel"><div class="screen q">
+          <span class="clock">21:14</span>
+          <div class="head"><svg class="ic" viewBox="0 0 24 24" style="width:28px;height:28px"><path d="M15 5l-7 7 7 7"/></svg>Guest</div>
+          <div class="ctr" style="top:300px;font-size:44px;font-weight:300">Couldn’t join</div>
+          <div class="note" style="top:376px">Check the password and try again.</div>
+          <div class="pill" style="top:500px;box-shadow:inset 0 0 0 4px var(--accent)">Try again</div>
+          <div class="pill" style="top:580px;color:var(--dim)">Stay on HomeNetwork</div>
+        </div></div>
+        <figcaption><strong>When joining fails</strong>Says what happened and what to do. The remote stays on its old network until a new one works.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>Status</h2>
+    <p>Reached from Menu → Status. One row per link in the chain, each with a dot and one word, updating live. When something the home screen depends on is down, the home screen says so itself.</p>
+    <div class="row">
+      <figure>
+        <div class="bezel"><div class="screen q">
+          <span class="clock">21:14</span>
+          <div class="head"><svg class="ic" viewBox="0 0 24 24" style="width:28px;height:28px"><path d="M15 5l-7 7 7 7"/></svg>Status</div>
+          <div class="r first" style="top:168px"><span class="dot"></span><span class="n">Wi-Fi</span><span class="v">HomeNetwork</span></div>
+          <div class="r" style="top:264px"><span class="dot"></span><span class="n">Home Assistant</span><span class="v">Connected</span></div>
+          <div class="r" style="top:360px"><span class="dot"></span><span class="n">Receiver</span><span class="v">On</span></div>
+          <div class="r" style="top:456px"><span class="dot"></span><span class="n">Kodi link</span><span class="v">Connected</span></div>
+          <div class="r" style="top:552px"><span class="dot"></span><span class="n">Kodi</span><span class="v">Playing</span></div>
+        </div></div>
+        <figcaption><strong>Everything working</strong>Receiver sits under Home Assistant because it is reached through it.</figcaption>
+      </figure>
+      <figure>
+        <div class="bezel"><div class="screen q">
+          <span class="clock">21:14</span>
+          <div class="head"><svg class="ic" viewBox="0 0 24 24" style="width:28px;height:28px"><path d="M15 5l-7 7 7 7"/></svg>Status</div>
+          <div class="r first" style="top:168px"><span class="dot"></span><span class="n">Wi-Fi</span><span class="v">HomeNetwork</span></div>
+          <div class="r on" style="top:264px"><span class="dot bad"></span><span class="n">Home Assistant</span><span class="v">Unreachable</span></div>
+          <div class="r" style="top:360px"><span class="dot unk"></span><span class="n">Receiver</span><span class="v">Unknown</span></div>
+          <div class="r" style="top:456px"><span class="dot"></span><span class="n">Kodi link</span><span class="v">Connected</span></div>
+          <div class="r" style="top:552px"><span class="dot"></span><span class="n">Kodi</span><span class="v">Idle</span></div>
+        </div></div>
+        <figcaption><strong>Home Assistant down</strong>The broken link is red; what depends on it goes grey and “Unknown”, so the cause is obvious.</figcaption>
+      </figure>
+      <figure>
+        <div class="bezel"><div class="screen q">
+          <span class="clock">21:14</span>
+          <div class="ctr" style="top:122px;height:130px;flex-direction:column;gap:14px;font-size:26px;font-weight:500;color:var(--faint)"><svg viewBox="0 0 24 24" width="56" height="56" fill="currentColor"><use href="#logo-playstation"/></svg>PLAYSTATION 5</div>
+          <div class="ctr" style="top:292px;height:190px;font-size:200px;font-weight:200;letter-spacing:-8px;color:var(--faint)">62</div>
+          <div class="bar" style="top:546px"><i style="width:62%"></i></div>
+          <div class="ctr" style="top:676px;gap:14px;font-size:22px;color:var(--ink)"><span class="dot bad"></span>Home Assistant unreachable</div>
+        </div></div>
+        <figcaption><strong>Warning on the home screen</strong>Volume and input go grey and the reason replaces the format badge. Tapping it opens Status.</figcaption>
+      </figure>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const page = document.getElementById('page');
+  const stage = document.getElementById('kb-stage');
+  const boards = [...stage.querySelectorAll('.screen')];
+  const slug = (el) => ([...el.classList].find((c) => c.startsWith('kb-')) || '').slice(3);
+  let active = 0;
+  try { active = Math.min(boards.length - 1, +localStorage.getItem('settings-kb') || 0); } catch (e) {}
+
+  const tabs = boards.map((b, i) => {
+    const t = document.createElement('button');
+    t.type = 'button';
+    t.textContent = b.dataset.name || slug(b);
+    t.addEventListener('click', () => show(i));
+    document.getElementById('kb-tabs').append(t);
+    return t;
+  });
+  function show(i) {
+    active = i;
+    boards.forEach((b, j) => b.classList.toggle('on', j === i));
+    tabs.forEach((t, j) => t.setAttribute('aria-pressed', j === i));
+    document.getElementById('kb-note').textContent = boards[i] ? boards[i].dataset.note || '' : '';
+    try { localStorage.setItem('settings-kb', i); } catch (e) {}
+  }
+  function send(name) {
+    const kb = boards[active] && window.KB && window.KB[slug(boards[active])];
+    if (kb) kb.key(name);
+  }
+  document.getElementById('pad').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) send(b.dataset.k);
+  });
+  const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'ok', Backspace: 'back' };
+  document.addEventListener('keydown', (e) => {
+    if (!map[e.key] || e.metaKey || e.ctrlKey || e.altKey) return;
+    e.preventDefault();
+    send(map[e.key]);
+  });
+
+  const fit = () => {
+    const w = page.clientWidth - 2;
+    const cols = w >= 1500 ? 3 : w >= 1000 ? 2 : 1;
+    page.style.setProperty('--z', Math.min(1, (w - 24 * (cols - 1)) / (cols * 482)).toFixed(3));
+  };
+  window.addEventListener('resize', fit);
+  fit();
+  if (boards.length) show(active);
+})();
+</script>

@@ -1,0 +1,193 @@
+<style>
+  .kb-qwerty{font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums;color:#F1F3F3;font-size:18px;line-height:24px}
+  .kb-qwerty *{box-sizing:border-box;margin:0}
+  .kb-qwerty .ic{width:24px;height:24px;stroke:currentColor;stroke-width:1.75;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .kb-qwerty .head{position:absolute;left:0;right:0;top:0;height:104px;display:flex;align-items:center;padding:0 40px;gap:16px}
+  .kb-qwerty .head .ic{width:28px;height:28px}
+  .kb-qwerty .head .back{display:flex;color:#F1F3F3;opacity:1}
+  .kb-qwerty .head .back.flash{animation:qwerty-flash .4s ease-out}
+  .kb-qwerty .head span{font-size:26px;font-weight:500}
+  .kb-qwerty .lbl{position:absolute;left:40px;top:128px;font-size:13px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#8B9195}
+  .kb-qwerty .field{position:absolute;left:40px;right:40px;top:158px;height:84px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:flex-end;overflow:hidden;white-space:pre}
+  .kb-qwerty .field .txt{font-size:40px;line-height:48px;font-weight:300;letter-spacing:.02em;color:#F1F3F3}
+  .kb-qwerty .field .caret{width:3px;height:40px;margin-left:3px;border-radius:2px;background:#E8343A;flex:none;animation:qwerty-blink 1.1s steps(1) infinite}
+  .kb-qwerty .count{position:absolute;left:40px;right:40px;top:252px;height:24px;font-size:18px;color:#53595D;display:flex;justify-content:space-between}
+  .kb-qwerty .count.ok{color:#8B9195}
+  .kb-qwerty .keys{position:absolute;left:0;top:0;width:480px;height:800px}
+  .kb-qwerty .k{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#121213;color:#F1F3F3;font-size:26px;line-height:32px;font-weight:400;cursor:pointer;user-select:none;transition:transform .08s}
+  .kb-qwerty .k.act{font-size:20px;font-weight:500;border-radius:16px;background:#161617}
+  .kb-qwerty .k.act.dim{color:#8B9195}
+  .kb-qwerty .k.on{background:#2A2A2C}
+  .kb-qwerty .k.join{color:#53595D}
+  .kb-qwerty .k.join.ready{color:#E8343A;font-weight:600}
+  .kb-qwerty .k.f{background:#E8343A;color:#000;transform:scale(1.12);z-index:2;font-weight:600}
+  .kb-qwerty .k.act.f{transform:scale(1.06)}
+  .kb-qwerty .k.join.f{opacity:.45}
+  .kb-qwerty .k.join.ready.f{opacity:1}
+  .kb-qwerty .k.f.dim{color:#000}
+  .kb-qwerty .busy{position:absolute;left:0;right:0;top:420px;height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px}
+  .kb-qwerty .busy[hidden]{display:none}
+  .kb-qwerty .busy .m{font-size:32px;line-height:40px;font-weight:300}
+  .kb-qwerty .busy .bar{position:relative;width:240px;height:14px;border-radius:7px;background:rgba(255,255,255,.14);overflow:hidden}
+  .kb-qwerty .busy .bar i{position:absolute;top:0;bottom:0;left:0;width:90px;border-radius:7px;background:#E8343A;animation:qwerty-run 1.1s ease-in-out infinite alternate}
+  @keyframes qwerty-blink{50%{opacity:0}}
+  @keyframes qwerty-flash{0%{color:#E8343A;transform:translateX(-6px)}100%{color:#F1F3F3;transform:none}}
+  @keyframes qwerty-run{from{left:0}to{left:150px}}
+  @media (prefers-reduced-motion:reduce){
+    .kb-qwerty .field .caret,.kb-qwerty .busy .bar i,.kb-qwerty .head .back.flash{animation:none}
+    .kb-qwerty .k{transition:none}
+  }
+</style>
+<article class="screen kb-qwerty" data-name="QWERTY" data-note="The familiar three-row layout with a larger action row beneath; d-pad wraps within rows and between the top row and the action row.">
+  <div class="head"><span class="back"><svg class="ic" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span><span>Guest</span></div>
+  <div class="lbl">Password</div>
+  <div class="field"><span class="txt"></span><i class="caret"></i></div>
+  <div class="count"><span class="need"></span><span class="num"></span></div>
+  <div class="keys"></div>
+  <div class="busy" hidden><span class="m">Joining…</span><span class="bar"><i></i></span></div>
+</article>
+<script>
+(() => {
+  const root = document.currentScript.previousElementSibling;
+  const q = s => root.querySelector(s);
+  const keysEl = q('.keys'), txt = q('.txt'), back = q('.back'), busy = q('.busy');
+  const need = q('.need'), num = q('.num'), count = q('.count');
+
+  const LOWER = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+  const SYM = ['1234567890', '@#$%&*-_/', '!?.,\'+='];
+  const KW = 44, KG = 3, KH = 56, RG = 8;
+  const ROW_TOP = [330, 394, 458], ACT_TOP = 548, ACT_H = 64;
+
+  let text = 'Bl4de', shift = false, sym = false, joining = false, timer = 0, flashT = 0;
+  let r = 1, c = 4;
+
+  const rows = [];
+  const mk = (cls, left, top, w, h) => {
+    const el = document.createElement('div');
+    el.className = 'k ' + cls;
+    el.style.cssText = `left:${left}px;top:${top}px;width:${w}px;height:${h}px`;
+    keysEl.appendChild(el);
+    return el;
+  };
+  LOWER.forEach((s, ri) => {
+    const n = s.length, w = n * KW + (n - 1) * KG, x0 = (480 - w) / 2;
+    rows.push([...s].map((_, i) => {
+      const left = x0 + i * (KW + KG);
+      return { el: mk('', left, ROW_TOP[ri], KW, KH), cx: left + KW / 2, type: 'ch', i };
+    }));
+  });
+  const specs = [['shift', 72], ['mode', 72], ['space', 132], ['del', 72], ['join', 92]];
+  let x = 12;
+  rows.push(specs.map(([type, w]) => {
+    const left = x; x += w + 4;
+    return { el: mk('act ' + type, left, ACT_TOP, w, ACT_H), cx: left + w / 2, type };
+  }));
+
+  const ICON_SHIFT = '<svg class="ic" viewBox="0 0 24 24"><path d="M12 5l7 8h-4v6H9v-6H5z"/></svg>';
+  const ICON_DEL = '<svg class="ic" viewBox="0 0 24 24"><path d="M9 6h11v12H9l-5-6z"/><path d="M12.5 9.5l4 5M16.5 9.5l-4 5"/></svg>';
+  rows[3][0].el.innerHTML = ICON_SHIFT;
+  rows[3][3].el.innerHTML = ICON_DEL;
+  rows[3][4].el.textContent = 'Join';
+
+  function charOf(k) {
+    const s = (sym ? SYM : LOWER)[rows.indexOf(rows.find(rw => rw.includes(k)))];
+    const ch = s[k.i];
+    return shift && !sym ? ch.toUpperCase() : ch;
+  }
+
+  function render() {
+    for (let ri = 0; ri < 3; ri++) rows[ri].forEach(k => { k.el.textContent = charOf(k); });
+    rows[3][1].el.textContent = sym ? 'abc' : '123';
+    rows[3][2].el.textContent = 'space';
+    rows[3][0].el.classList.toggle('on', shift && !sym);
+    rows[3][0].el.classList.toggle('dim', sym);
+    txt.textContent = text;
+    const ready = text.length >= 8;
+    rows[3][4].el.classList.toggle('ready', ready);
+    count.classList.toggle('ok', ready);
+    need.textContent = ready ? 'Ready to join' : 'At least 8 characters';
+    num.textContent = String(text.length);
+    rows.forEach((rw, ri) => rw.forEach((k, ci) => k.el.classList.toggle('f', ri === r && ci === c)));
+  }
+
+  function nearest(to) {
+    const cx = rows[r][c].cx;
+    let best = 0, bd = 1e9;
+    rows[to].forEach((k, i) => {
+      const d = Math.abs(k.cx - cx);
+      if (d < bd) { bd = d; best = i; }
+    });
+    return best;
+  }
+
+  function flashBack() {
+    back.classList.remove('flash');
+    void back.offsetWidth;
+    back.classList.add('flash');
+    clearTimeout(flashT);
+    flashT = setTimeout(() => back.classList.remove('flash'), 450);
+  }
+
+  function del() {
+    if (text.length) text = text.slice(0, -1);
+  }
+
+  function activate() {
+    const k = rows[r][c];
+    if (k.type === 'ch') {
+      text += charOf(k);
+      shift = false;
+    } else if (k.type === 'shift') {
+      if (!sym) shift = !shift;
+    } else if (k.type === 'mode') {
+      sym = !sym;
+      shift = false;
+    } else if (k.type === 'space') {
+      text += ' ';
+    } else if (k.type === 'del') {
+      del();
+    } else if (k.type === 'join') {
+      if (text.length < 8) return;
+      joining = true;
+      keysEl.hidden = true;
+      busy.hidden = false;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        joining = false;
+        keysEl.hidden = false;
+        busy.hidden = true;
+        render();
+      }, 1500);
+    }
+  }
+
+  rows.forEach((rw, ri) => rw.forEach((k, ci) => {
+    k.el.addEventListener('click', () => {
+      if (joining) return;
+      r = ri; c = ci;
+      activate();
+      render();
+    });
+  }));
+
+  render();
+
+  (window.KB = window.KB || {})['qwerty'] = {
+    key(name) {
+      if (joining) return;
+      if (name === 'left') c = (c + rows[r].length - 1) % rows[r].length;
+      else if (name === 'right') c = (c + 1) % rows[r].length;
+      else if (name === 'up' || name === 'down') {
+        const to = (r + (name === 'up' ? 3 : 1)) % 4;
+        c = nearest(to);
+        r = to;
+      }
+      else if (name === 'ok') activate();
+      else if (name === 'back') {
+        if (text.length) del(); else flashBack();
+      }
+      render();
+    },
+  };
+})();
+</script>

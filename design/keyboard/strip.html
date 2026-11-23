@@ -1,0 +1,196 @@
+<style>
+  .kb-strip{font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;font-variant-numeric:tabular-nums;color:#F1F3F3;font-size:18px;line-height:24px;--r:#E8343A;--t2:#8B9195;--t3:#53595D;--hair:rgba(255,255,255,.08)}
+  .kb-strip *{box-sizing:border-box;margin:0}
+  .kb-strip .hd{position:absolute;left:0;right:0;top:24px;height:72px;display:flex;align-items:center;padding:0 40px 0 28px;gap:12px}
+  .kb-strip .bk{width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:#F1F3F3;border-radius:24px}
+  .kb-strip .bk svg{width:28px;height:28px;stroke:currentColor;stroke-width:1.75;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .kb-strip .bk.flash{animation:strip-flash .5s ease-out}
+  .kb-strip .ttl{font-size:26px;line-height:32px;font-weight:500}
+  .kb-strip .lb{position:absolute;left:40px;right:40px;top:116px;height:20px;display:flex;justify-content:space-between;font-size:13px;line-height:20px;letter-spacing:.16em;color:var(--t2)}
+  .kb-strip .lb .ct{color:var(--t3);letter-spacing:.08em;transition:color .15s}
+  .kb-strip .lb .ct.ok{color:var(--t2)}
+  .kb-strip .lb .ct.nope{color:var(--r)}
+  .kb-strip .fld{position:absolute;left:40px;right:40px;top:142px;height:84px;border-radius:20px;background:#0E0E0F;overflow:hidden}
+  .kb-strip .tx{position:absolute;top:0;left:24px;height:84px;display:flex;align-items:center;white-space:pre;font-size:36px;font-weight:300;letter-spacing:.02em}
+  .kb-strip .cr{width:3px;height:44px;margin-left:3px;border-radius:2px;background:var(--r);animation:strip-blink 1.1s steps(1) infinite}
+  .kb-strip .zone{position:absolute;left:0;right:0;top:268px;height:140px}
+  .kb-strip .rw{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .16s ease-out}
+  .kb-strip .rw.on{opacity:1;pointer-events:auto}
+  .kb-strip .it{position:absolute;left:240px;top:0;width:90px;margin-left:-45px;height:140px;text-align:center;font-size:120px;line-height:140px;font-weight:200;color:#F1F3F3;transition:transform .18s ease-out,opacity .18s ease-out;cursor:pointer;white-space:nowrap}
+  .kb-strip .it.hid{pointer-events:none}
+  .kb-strip .a .it{width:200px;margin-left:-100px;font-size:68px;font-weight:300}
+  .kb-strip .it.dim{color:var(--t3)}
+  .kb-strip .bar{position:absolute;left:50%;top:424px;width:96px;height:14px;margin-left:-48px;border-radius:7px;background:var(--r);transition:width .18s ease-out,margin-left .18s ease-out,background .15s}
+  .kb-strip .bar.w{width:170px;margin-left:-85px}
+  .kb-strip .bar.dim{background:var(--t3)}
+  .kb-strip .lst{position:absolute;left:40px;right:40px;top:500px}
+  .kb-strip .li{position:relative;height:56px;display:flex;align-items:center;padding-left:24px;font-size:26px;font-weight:400;color:var(--t3);border-top:1px solid var(--hair);cursor:pointer;transition:color .15s}
+  .kb-strip .li:first-child{border-top-color:transparent}
+  .kb-strip .li.on{color:#F1F3F3;font-weight:500}
+  .kb-strip .li.on::before{content:"";position:absolute;left:-40px;top:50%;margin-top:-20px;width:4px;height:40px;border-radius:0 2px 2px 0;background:var(--r)}
+  .kb-strip .li small{margin-left:auto;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--t3);font-weight:400}
+  .kb-strip .jn{position:absolute;left:0;right:0;top:252px;bottom:0;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:36px;padding-bottom:60px}
+  .kb-strip .jn.on{display:flex}
+  .kb-strip .jn b{font-size:56px;line-height:64px;font-weight:200;letter-spacing:-.01em}
+  .kb-strip .jn .tr{position:relative;width:240px;height:14px;border-radius:7px;background:rgba(255,255,255,.14);overflow:hidden}
+  .kb-strip .jn .tr i{position:absolute;top:0;bottom:0;width:90px;border-radius:7px;background:var(--r);animation:strip-run 1.1s ease-in-out infinite alternate}
+  @keyframes strip-blink{50%{opacity:0}}
+  @keyframes strip-flash{0%{color:var(--r);transform:translateX(-6px)}100%{color:#F1F3F3;transform:none}}
+  @keyframes strip-run{from{left:0}to{left:150px}}
+  @media (prefers-reduced-motion:reduce){
+    .kb-strip .it,.kb-strip .rw,.kb-strip .bar{transition:none}
+    .kb-strip .cr,.kb-strip .bk.flash,.kb-strip .jn .tr i{animation:none}
+  }
+</style>
+<article class="screen kb-strip" data-name="Strip" data-note="One horizontal strip with the chosen character large in the centre; left and right turn it like a dial, up and down switch between five strips.">
+  <div class="hd"><span class="bk"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span><span class="ttl">Guest</span></div>
+  <div class="lb"><span>PASSWORD</span><span class="ct"></span></div>
+  <div class="fld"><span class="tx"><span class="t"></span><span class="cr"></span></span></div>
+  <div class="zone"></div>
+  <div class="bar"></div>
+  <div class="lst"></div>
+  <div class="jn"><b>Joining…</b><div class="tr"><i></i></div></div>
+</article>
+<script>
+(() => {
+  const root = document.currentScript.previousElementSibling;
+  const $ = (s) => root.querySelector(s);
+  const zone = $('.zone'), lst = $('.lst'), bar = $('.bar'), jn = $('.jn');
+  const tx = $('.tx'), tt = $('.t'), ct = $('.ct'), bk = $('.bk');
+
+  const chars = (s) => [...s].map((t) => ({ t }));
+  const ROWS = [
+    { label: 'abc', items: chars('abcdefghijklmnopqrstuvwxyz'), idx: 12 },
+    { label: 'ABC', items: chars('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), idx: 12 },
+    { label: '123', items: chars('0123456789'), idx: 5 },
+    { label: '#+=', items: chars('!@#$%&*-_.?/+=(),:;~'), idx: 10 },
+    { label: 'Edit', items: [{ t: 'Space', a: 'space' }, { t: 'Delete', a: 'del' }, { t: 'Join', a: 'join' }], idx: 1, act: true },
+  ];
+  const CH = { off: [0, 92, 150, 194, 226, 252], sc: [1, .52, .38, .3, .24, .2], op: [1, .5, .34, .22, .13, .07], vis: 5 };
+  const AC = { off: [0, 215], sc: [1, .5], op: [1, .45], vis: 1 };
+
+  let val = 'Bl4de', row = 0, joining = false, timer = 0, nopeTimer = 0;
+
+  ROWS.forEach((r, ri) => {
+    r.g = r.act ? AC : CH;
+    r.n = r.items.length;
+    r.half = Math.floor(r.n / 2);
+    r.d = [];
+    r.box = document.createElement('div');
+    r.box.className = 'rw' + (r.act ? ' a' : '');
+    r.els = r.items.map((it, i) => {
+      const e = document.createElement('div');
+      e.className = 'it';
+      e.textContent = it.t;
+      e.addEventListener('click', () => {
+        if (joining || ri !== row) return;
+        const d = r.d[i];
+        if (d === 0) activate();
+        else move(d);
+      });
+      r.box.appendChild(e);
+      return e;
+    });
+    zone.appendChild(r.box);
+    layout(r, 0, true);
+
+    const li = document.createElement('div');
+    li.className = 'li';
+    li.textContent = r.label;
+    if (r.act) { const s = document.createElement('small'); s.textContent = 'space · delete · join'; li.appendChild(s); }
+    li.addEventListener('click', () => { if (!joining) setRow(ri); });
+    lst.appendChild(li);
+    r.li = li;
+  });
+
+  function layout(r, s, init) {
+    const g = r.g, mv = Math.min(g.vis, r.half);
+    for (let i = 0; i < r.n; i++) {
+      const d = ((i - r.idx + r.n + r.half) % r.n) - r.half;
+      const ad = Math.abs(d), k = Math.min(ad, g.off.length - 1), e = r.els[i];
+      const jump = !init && r.d[i] - s !== d;
+      if (jump) e.style.transition = 'none';
+      e.style.transform = `translateX(${Math.sign(d) * g.off[k]}px) scale(${g.sc[k]})`;
+      e.style.opacity = ad <= mv ? g.op[k] : 0;
+      e.classList.toggle('hid', ad > mv);
+      r.d[i] = d;
+      if (jump) { void e.offsetWidth; e.style.transition = ''; }
+    }
+  }
+
+  function render() {
+    tt.textContent = val;
+    const w = tx.offsetWidth, cw = tx.parentNode.clientWidth - 48;
+    tx.style.left = (24 + Math.min(0, cw - w)) + 'px';
+    ct.textContent = val.length >= 8 ? val.length + ' characters' : val.length + ' / 8';
+    ct.classList.toggle('ok', val.length >= 8);
+    const join = ROWS[4].els[2];
+    join.classList.toggle('dim', val.length < 8);
+    const r = ROWS[row], cur = r.items[r.idx];
+    bar.classList.toggle('w', !!r.act);
+    bar.classList.toggle('dim', cur.a === 'join' && val.length < 8);
+  }
+
+  function setRow(i) {
+    row = i;
+    ROWS.forEach((r, ri) => {
+      r.box.classList.toggle('on', ri === row);
+      r.li.classList.toggle('on', ri === row);
+    });
+    render();
+  }
+
+  function move(s) {
+    const r = ROWS[row];
+    r.idx = (r.idx + s + r.n * 8) % r.n;
+    layout(r, s, false);
+    render();
+  }
+
+  function nope() {
+    ct.classList.add('nope');
+    clearTimeout(nopeTimer);
+    nopeTimer = setTimeout(() => ct.classList.remove('nope'), 500);
+  }
+
+  function activate() {
+    const cur = ROWS[row].items[ROWS[row].idx];
+    if (cur.a === 'del') val = val.slice(0, -1);
+    else if (cur.a === 'space') val += ' ';
+    else if (cur.a === 'join') {
+      if (val.length < 8) return nope();
+      joining = true;
+      jn.classList.add('on');
+      clearTimeout(timer);
+      timer = setTimeout(() => { joining = false; jn.classList.remove('on'); }, 1500);
+      return;
+    } else val += cur.t;
+    if (val.length > 63) val = val.slice(0, 63);
+    render();
+  }
+
+  function flash() {
+    bk.classList.remove('flash');
+    void bk.offsetWidth;
+    bk.classList.add('flash');
+  }
+
+  bk.addEventListener('click', flash);
+  setRow(0);
+
+  (window.KB = window.KB || {})['strip'] = {
+    key(name) {
+      if (joining) return;
+      if (name === 'left') move(-1);
+      else if (name === 'right') move(1);
+      else if (name === 'up') setRow((row + ROWS.length - 1) % ROWS.length);
+      else if (name === 'down') setRow((row + 1) % ROWS.length);
+      else if (name === 'ok') activate();
+      else if (name === 'back') {
+        if (val.length) { val = val.slice(0, -1); render(); }
+        else flash();
+      }
+    },
+  };
+})();
+</script>
