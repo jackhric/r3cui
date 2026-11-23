@@ -7,11 +7,16 @@ mod backlight;
 mod device;
 mod haptics;
 mod input;
+mod keyboard;
+mod net;
 mod shots;
 
 use input::{Button, Target};
 use serde_json::{json, Value};
 use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -22,6 +27,7 @@ slint::include_modules!();
 
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 const VOLUME_OVERLAY: Duration = Duration::from_millis(1800);
+const JOIN_TIMEOUT: Duration = Duration::from_secs(45);
 
 pub enum UiAction {
     Command(String),
@@ -29,6 +35,15 @@ pub enum UiAction {
     SelectSource(String),
     Power(String),
     PowerHeld,
+    WifiScan,
+    WifiJoin { ssid: String, hex: String, password: String },
+}
+
+/// Results of work that finishes later than the request that started it.
+enum Later {
+    Wifi(String, Vec<net::Network>),
+    Integrations(HashMap<String, bool>),
+    JoinDone(bool),
 }
 
 /// Everything the screen shows, independent of where it came from (core or demo).
@@ -47,6 +62,13 @@ pub struct Model {
     pub battery: i32,
     pub awake: bool,
     pub receiver_on: bool,
+    pub wifi_ssid: String,
+    pub wifi: Vec<net::Network>,
+    pub scanning: bool,
+    pub status: Vec<net::StatusLine>,
+    pub warning: String,
+    /// Demo only: pretend Home Assistant cannot be reached.
+    pub demo_ha_down: bool,
 }
 
 impl Model {
@@ -67,7 +89,25 @@ impl Model {
             battery: 50,
             awake: true,
             receiver_on: true,
+            wifi_ssid: "HomeNetwork".into(),
+            wifi: net::demo_networks("HomeNetwork"),
+            ..Default::default()
         }
+        .with_demo_health()
+    }
+
+    /// Demo only: derive the status rows from the rest of the model.
+    pub fn with_demo_health(mut self) -> Self {
+        let kodi = if self.title.is_empty() { "ON" } else if self.paused { "PAUSED" } else { "PLAYING" };
+        (self.status, self.warning) = net::health(net::Health {
+            wifi_ssid: &self.wifi_ssid,
+            home_assistant: Some(!self.demo_ha_down),
+            receiver: Some(if self.receiver_on { "ON" } else { "OFF" }),
+            kodi_link: Some(true),
+            kodi: Some(kodi),
+            on_kodi: self.on_kodi(),
+        });
+        self
     }
 
     /// With no receiver entity there is no input to follow, so the screen stays on Kodi.
@@ -89,6 +129,8 @@ fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let arg = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1));
     let frame = arg("--frame").map(|p| device::Device::load(p.as_ref())).transpose()?;
+    let (act_tx, mut act_rx) = mpsc::unbounded_channel();
+    wire_keyboard(&app, act_tx.clone());
     if let Some(dir) = arg("--shots") {
         return shots::run(app, dir.into(), frame);
     }
@@ -99,7 +141,6 @@ fn main() -> anyhow::Result<()> {
     }
 
     let weak = app.as_weak();
-    let (act_tx, mut act_rx) = mpsc::unbounded_channel();
     let send = |f: fn(String) -> UiAction| {
         let tx = act_tx.clone();
         move |s: SharedString| {
@@ -113,6 +154,18 @@ fn main() -> anyhow::Result<()> {
     app.on_haptic(|name| {
         if let Some(cue) = haptics::Cue::from_ui(&name) {
             haptics::play(cue);
+        }
+    });
+    app.on_wifi_scan({
+        let tx = act_tx.clone();
+        move || {
+            let _ = tx.send(UiAction::WifiScan);
+        }
+    });
+    app.on_wifi_join({
+        let tx = act_tx.clone();
+        move |ssid, hex, password| {
+            let _ = tx.send(UiAction::WifiJoin { ssid: ssid.into(), hex: hex.into(), password: password.into() });
         }
     });
     app.on_power_held({
@@ -158,6 +211,74 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The keyboard lives on the UI thread: every d-pad press must redraw at once, with no round trip.
+fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>) {
+    let kb = Rc::new(RefCell::new(keyboard::Keyboard::new()));
+    let weak = app.as_weak();
+    let after = Rc::new({
+        let kb = kb.clone();
+        move |outcome: keyboard::Outcome| {
+            let Some(app) = weak.upgrade() else { return };
+            let icons = app.global::<Icons>();
+            let cells: Vec<KeyCell> = kb
+                .borrow()
+                .cells()
+                .into_iter()
+                .map(|c| KeyCell {
+                    label: c.label.into(),
+                    icon: match c.kind {
+                        keyboard::Kind::Shift => icons.get_shift(),
+                        keyboard::Kind::Delete => icons.get_delete(),
+                        _ => SharedString::new(),
+                    },
+                    x: c.x,
+                    y: c.y,
+                    w: c.w,
+                    h: c.h,
+                    focused: c.focused,
+                    style: match c.style {
+                        keyboard::Style::Char => 0,
+                        keyboard::Style::Action => 1,
+                        keyboard::Style::ActionOn => 2,
+                        keyboard::Style::JoinDim => 3,
+                        keyboard::Style::JoinReady => 4,
+                    },
+                })
+                .collect();
+            app.set_kb_keys(ModelRc::new(VecModel::from(cells)));
+            app.set_kb_text(kb.borrow().text().into());
+            match outcome {
+                keyboard::Outcome::Stay => {}
+                keyboard::Outcome::Leave => app.invoke_back(),
+                keyboard::Outcome::Join(password) => {
+                    let target = app.get_wifi_target();
+                    app.set_join_state(1);
+                    let _ = tx.send(UiAction::WifiJoin { ssid: target.ssid.into(), hex: target.ssid_hex.into(), password });
+                }
+            }
+        }
+    });
+    after(keyboard::Outcome::Stay);
+    app.on_kb_reset({
+        let (kb, after) = (kb.clone(), after.clone());
+        move || {
+            kb.borrow_mut().reset();
+            after(keyboard::Outcome::Stay);
+        }
+    });
+    app.on_kb_nav({
+        let (kb, after) = (kb.clone(), after.clone());
+        move |name| {
+            let outcome = kb.borrow_mut().key(&name);
+            after(outcome);
+        }
+    });
+    app.on_kb_tap(move |index| {
+        let outcome = kb.borrow_mut().tap(index.max(0) as usize);
+        after(outcome);
+    });
+}
+
 /// The interface colour. Callable at any time from the UI thread.
 pub fn set_accent(app: &AppWindow, color: slint::Color) {
     app.global::<Theme>().set_accent(color);
@@ -174,7 +295,6 @@ pub fn parse_color(s: &str) -> Option<slint::Color> {
 }
 
 pub fn apply_demo_settings(app: &AppWindow) {
-    app.set_wifi_name("HomeNetwork".into());
     app.set_haptics("On".into());
     app.set_screen_off_after("60 s".into());
     app.set_sleep_after("3 min".into());
@@ -189,6 +309,12 @@ struct Session {
     battery: i32,
     poster_url: String,
     awake: bool,
+    wifi_ssid: String,
+    wifi: Vec<net::Network>,
+    scanning: bool,
+    integrations: HashMap<String, bool>,
+    /// The network id of a join in progress, and when it started.
+    joining: Option<(Option<i64>, Instant)>,
 }
 
 impl Session {
@@ -249,10 +375,30 @@ impl Session {
         let state = attr_str(screen, "state");
         let paused = state != "PLAYING";
         let position = if paused { self.position } else { self.position + self.position_at.elapsed().as_secs_f64() };
+        let link = |e: Option<&Value>| {
+            let id = e?.get("integration_id")?.as_str()?;
+            self.integrations.get(id).copied()
+        };
+        let source = attr_str(receiver, "source");
+        let receiver_state = receiver.map(|r| attr_str(Some(r), "state"));
+        let (status, warning) = net::health(net::Health {
+            wifi_ssid: &self.wifi_ssid,
+            home_assistant: link(receiver),
+            receiver: receiver_state.as_deref(),
+            kodi_link: link(screen),
+            kodi: screen.is_some().then_some(state.as_str()),
+            on_kodi: source.is_empty() || source.eq_ignore_ascii_case("kodi"),
+        });
         Model {
+            wifi_ssid: self.wifi_ssid.clone(),
+            wifi: self.wifi.clone(),
+            scanning: self.scanning,
+            status,
+            warning,
+            demo_ha_down: false,
             volume: attr_f64(volume_from, "volume").round() as i32,
             muted: volume_from.and_then(|e| e.pointer("/attributes/muted")).and_then(Value::as_bool).unwrap_or(false),
-            source: attr_str(receiver, "source"),
+            source,
             sources: receiver
                 .and_then(|e| e.pointer("/attributes/source_list"))
                 .and_then(Value::as_array)
@@ -292,11 +438,18 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         position_at: Instant::now(),
         battery,
         poster_url: String::new(),
+        wifi_ssid: String::new(),
+        wifi: Vec::new(),
+        scanning: false,
+        integrations: HashMap::new(),
+        joining: None,
         awake: is_awake(power.get("mode").and_then(Value::as_str)),
         screen,
         entities,
     };
     load_settings(weak, &core).await;
+    (session.wifi_ssid, session.wifi) = net::wifi(&core).await;
+    session.integrations = net::integrations(&core).await;
     session.sync_poster(weak);
     session.position = attr_f64(session.target(Target::Screen), "media_position");
     tracing::info!(screen = ?session.screen, volume = ?session.volume, "targets");
@@ -308,16 +461,72 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     while actions.try_recv().is_ok() {}
 
     let overlay = Arc::new(AtomicU64::new(0));
+    let (later_tx, mut later_rx) = mpsc::unbounded_channel::<Later>();
+    let refresh_wifi = |delay: Duration| {
+        let (core, tx) = (core.clone(), later_tx.clone());
+        tokio::spawn(async move {
+            tokio::time::sleep(delay).await;
+            let (ssid, networks) = net::wifi(&core).await;
+            let _ = tx.send(Later::Wifi(ssid, networks));
+        });
+    };
     let mut tick = tokio::time::interval(Duration::from_secs(1));
+    let mut ticks = 0u64;
     loop {
         tokio::select! {
-            _ = tick.tick() => render(weak, &session.model()),
+            _ = tick.tick() => {
+                ticks += 1;
+                if ticks % 5 == 0 {
+                    let (core, tx) = (core.clone(), later_tx.clone());
+                    tokio::spawn(async move {
+                        let _ = tx.send(Later::Integrations(net::integrations(&core).await));
+                    });
+                }
+                if session.joining.is_some_and(|(_, since)| since.elapsed() > JOIN_TIMEOUT) {
+                    let _ = later_tx.send(Later::JoinDone(false));
+                }
+                render(weak, &session.model());
+            }
+            Some(later) = later_rx.recv() => {
+                match later {
+                    Later::Wifi(ssid, networks) => {
+                        (session.wifi_ssid, session.wifi, session.scanning) = (ssid, networks, false);
+                    }
+                    Later::Integrations(map) => session.integrations = map,
+                    Later::JoinDone(ok) => {
+                        if session.joining.take().is_some() {
+                            finish_join(weak, ok);
+                            refresh_wifi(Duration::from_millis(500));
+                        }
+                    }
+                }
+                render(weak, &session.model());
+            }
             ev = events.recv() => {
                 let Some(ev) = ev else { break };
                 tracing::debug!(msg = %ev.msg, cat = ?ev.cat, data = %ev.data, "event");
                 if ev.msg == "power_mode_change" {
                     session.awake = is_awake(ev.data.get("mode").and_then(Value::as_str));
                     render(weak, &session.model());
+                }
+                if ev.msg == "wifi_change" {
+                    let event = ev.data.get("event").and_then(Value::as_str).unwrap_or_default();
+                    let id = ev.data.get("id").and_then(Value::as_i64);
+                    if let Some((ours, _)) = session.joining {
+                        // A NETWORK_NOT_FOUND without our id is only a scan notice, not the outcome.
+                        let outcome = match event {
+                            "CONNECTED" => Some(true),
+                            "WRONG_KEY" => Some(false),
+                            "NETWORK_NOT_FOUND" if id.is_some() && id == ours => Some(false),
+                            _ => None,
+                        };
+                        if let Some(ok) = outcome {
+                            let _ = later_tx.send(Later::JoinDone(ok));
+                        }
+                    }
+                    if matches!(event, "SCAN_COMPLETED" | "CONNECTED" | "DISCONNECTED") {
+                        refresh_wifi(Duration::ZERO);
+                    }
                 }
                 if ev.msg == "entity_change" && session.apply_change(&ev.data) {
                     session.sync_poster(weak);
@@ -336,6 +545,34 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     UiAction::PowerHeld => {
                         let on = session.model().receiver_on;
                         (Target::Volume, if on { "off" } else { "on" }.to_string(), Value::Null)
+                    }
+                    UiAction::WifiScan => {
+                        session.scanning = true;
+                        render(weak, &session.model());
+                        let core = core.clone();
+                        tokio::spawn(async move {
+                            let _ = core.request("wifi_scan_start", json!({})).await;
+                        });
+                        // SCAN_COMPLETED normally brings the results sooner; this covers a missed event.
+                        refresh_wifi(Duration::from_secs(6));
+                        continue;
+                    }
+                    UiAction::WifiJoin { ssid, hex, password } => {
+                        let mut network = if hex.is_empty() { json!({ "ssid": ssid }) } else { json!({ "ssid_hex": hex }) };
+                        if !password.is_empty() {
+                            network["password"] = json!(password);
+                        }
+                        session.joining = Some((None, Instant::now()));
+                        match core.request("add_wifi_network", network).await {
+                            Ok(r) if (200..300).contains(&r.code) => {
+                                session.joining = Some((r.data.get("id").and_then(Value::as_i64), Instant::now()));
+                            }
+                            other => {
+                                tracing::warn!("joining {ssid} could not start: {other:?}");
+                                let _ = later_tx.send(Later::JoinDone(false));
+                            }
+                        }
+                        continue;
                     }
                     UiAction::Key(text) => match Button::from_key(&text) {
                         Some(b) => {
@@ -366,6 +603,17 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     Ok(())
 }
 
+/// Leave the keyboard for the network list, or for the failure page.
+fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
+    ui(weak, move |app| {
+        if app.get_page() != 6 {
+            return;
+        }
+        app.set_join_state(if ok { 0 } else { 2 });
+        app.invoke_go(if ok { 5 } else { 8 }, 0);
+    });
+}
+
 /// Plain HTTP only: Kodi serves its artwork from its own web server on the LAN.
 fn fetch_poster(url: &str) -> anyhow::Result<image::RgbaImage> {
     use std::io::Read;
@@ -380,16 +628,13 @@ async fn load_settings(weak: &slint::Weak<AppWindow>, core: &coreapi::Core) {
     let get = |msg: &'static str| async move {
         core.request(msg, json!({})).await.ok().filter(|r| (200..300).contains(&r.code)).map(|r| r.data)
     };
-    let (wifi, display, haptic, power) =
-        tokio::join!(get("get_wifi_status"), get("get_display_cfg"), get("get_haptic_cfg"), get("get_power_saving_cfg"));
+    let (display, haptic, power) = tokio::join!(get("get_display_cfg"), get("get_haptic_cfg"), get("get_power_saving_cfg"));
     let secs = |v: &Option<Value>, key: &str| v.as_ref().and_then(|v| v.get(key)).and_then(Value::as_i64).map(duration_label);
-    let ssid = wifi.as_ref().and_then(|v| v.get("ssid")).and_then(Value::as_str).unwrap_or_default().to_string();
     let brightness = display.as_ref().and_then(|v| v.get("brightness")).and_then(Value::as_i64);
     let auto = display.as_ref().and_then(|v| v.get("auto_brightness")).and_then(Value::as_bool);
     let haptics = haptic.as_ref().and_then(|v| v.get("enabled")).and_then(Value::as_bool);
     let (screen_off, sleep) = (secs(&power, "display_off_sec"), secs(&power, "standby_sec"));
     ui(weak, move |app| {
-        app.set_wifi_name(ssid.into());
         if let Some(b) = brightness {
             app.set_brightness(b as i32);
         }
@@ -416,6 +661,17 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
     let title = m.title.clone();
     set_status(weak, true, String::new());
     let overlay = Arc::new(AtomicU64::new(0));
+    let (later_tx, mut later_rx) = mpsc::unbounded_channel::<Later>();
+    let after = |delay: u64, later: Later| {
+        let tx = later_tx.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(delay)).await;
+            let _ = tx.send(later);
+        });
+    };
+    // The first try at a new network fails, so the failure page can be seen; the second works.
+    let mut tried = String::new();
+    let mut joining = String::new();
     let mut tick = tokio::time::interval(Duration::from_secs(1));
     loop {
         tokio::select! {
@@ -424,7 +680,32 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                     m.position = (m.position + 1.0).min(m.duration);
                 }
             }
+            Some(later) = later_rx.recv() => match later {
+                Later::Wifi(_, networks) => (m.wifi, m.scanning) = (networks, false),
+                Later::Integrations(_) => {}
+                Later::JoinDone(ok) => {
+                    if ok {
+                        m.wifi_ssid = std::mem::take(&mut joining);
+                        m.wifi = net::demo_networks(&m.wifi_ssid);
+                        m.wifi.sort_by_key(|n| !n.connected);
+                    }
+                    finish_join(weak, ok);
+                }
+            },
             Some(action) = actions.recv() => match action {
+                UiAction::WifiScan => {
+                    m.scanning = true;
+                    let mut found = net::demo_networks(&m.wifi_ssid);
+                    found.sort_by_key(|n| !n.connected);
+                    after(1400, Later::Wifi(m.wifi_ssid.clone(), found));
+                }
+                UiAction::WifiJoin { ssid, .. } => {
+                    let ok = tried == ssid;
+                    tried = ssid.clone();
+                    joining = ssid;
+                    after(1800, Later::JoinDone(ok));
+                }
+                UiAction::Key(text) if text == "x" => m.demo_ha_down = !m.demo_ha_down,
                 UiAction::SelectSource(name) => m.source = name,
                 UiAction::Command(cmd) => tracing::info!("kodi command {cmd}"),
                 UiAction::Power(what) => tracing::info!("power action {what}"),
@@ -443,6 +724,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                 },
             },
         }
+        m = m.with_demo_health();
         render(weak, &m);
     }
 }
@@ -552,6 +834,23 @@ pub fn apply(app: &AppWindow, m: &Model) {
     let (brand, label) = format_badge(&m.sound_mode);
     app.set_format_brand(brand.into());
     app.set_format_label(label.into());
+
+    app.set_wifi_name(m.wifi_ssid.as_str().into());
+    let wifi: Vec<WifiRow> = m
+        .wifi
+        .iter()
+        .map(|n| WifiRow { ssid: (&n.ssid).into(), ssid_hex: (&n.hex).into(), secured: n.secured, bars: n.bars, connected: n.connected })
+        .collect();
+    if app.get_wifi_rows().iter().ne(wifi.iter().cloned()) {
+        app.set_wifi_rows(ModelRc::new(VecModel::from(wifi)));
+    }
+    app.set_wifi_scanning(m.scanning);
+    let status: Vec<StatusRow> =
+        m.status.iter().map(|s| StatusRow { label: s.label.into(), value: (&s.value).into(), level: s.level }).collect();
+    if app.get_status_rows().iter().ne(status.iter().cloned()) {
+        app.set_status_rows(ModelRc::new(VecModel::from(status)));
+    }
+    app.set_home_warning(m.warning.as_str().into());
 
     app.set_kodi(m.on_kodi());
     app.set_media_title(m.title.as_str().into());

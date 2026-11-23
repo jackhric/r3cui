@@ -6,7 +6,7 @@ use crate::backlight::{self, UiState};
 use crate::device::{self, Device};
 use crate::{apply, apply_demo_settings, parse_color, set_accent, AppWindow, Model, Theme, UiAction};
 use anyhow::Context;
-use slint::ComponentHandle;
+use slint::{ComponentHandle, Model as _};
 use std::cell::RefCell;
 use std::io::Write;
 use std::path::PathBuf;
@@ -34,6 +34,9 @@ fn accent(app: &AppWindow) -> [u8; 3] {
 }
 
 type Step = (&'static str, fn(&AppWindow, &mut Model));
+
+/// D-pad presses that type a plausible password, wandering over all four rows.
+const TYPING: &[&str] = &["ok", "right", "ok", "up", "ok", "left", "left", "ok", "down", "down", "ok", "right", "right", "ok", "up", "ok", "up", "right", "ok", "ok"];
 
 const STEPS: &[Step] = &[
     ("01-receiver", |_, _| {}),
@@ -72,6 +75,29 @@ const STEPS: &[Step] = &[
         app.set_volume_overlay(false);
         m.receiver_on = false;
     }),
+    ("14-wifi", |app, m| {
+        m.receiver_on = true;
+        app.invoke_go(5, 1);
+    }),
+    ("15-keyboard", |app, _| {
+        app.set_wifi_target(app.get_wifi_rows().row_data(1).unwrap_or_default());
+        app.invoke_kb_reset();
+        app.invoke_go(6, 0);
+        for k in TYPING {
+            app.invoke_kb_nav((*k).into());
+        }
+    }),
+    ("16-joining", |app, _| app.set_join_state(1)),
+    ("17-join-failed", |app, _| {
+        app.set_join_state(2);
+        app.invoke_go(8, 0);
+    }),
+    ("18-status", |app, _| {
+        app.set_join_state(0);
+        app.invoke_go(7, 0);
+    }),
+    ("19-status-ha-down", |_, m| m.demo_ha_down = true),
+    ("20-home-warning", |app, _| app.invoke_go(0, 0)),
 ];
 
 pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::Result<()> {
@@ -104,6 +130,8 @@ pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::R
             Some((_, step)) => {
                 let mut m = model.borrow_mut();
                 step(&app, &mut m);
+                let updated = m.clone().with_demo_health();
+                *m = updated;
                 apply(&app, &m);
                 next += 1;
             }
@@ -190,8 +218,38 @@ fn hold_script() -> Vec<(u64, Act)> {
     ]
 }
 
+/// Menu → Wi-Fi → pick a network → type its password with the d-pad → a failed join, a retry
+/// that works, then the status page with Home Assistant down and the warning on the home screen.
+fn wifi_script() -> Vec<(u64, Act)> {
+    let mut steps: Vec<(u64, Act)> = vec![
+        (1200, ui(|a| a.invoke_go(2, 0))),
+        (800, ui(|a| a.invoke_activate(0))),
+        (2400, ui(|a| a.invoke_move(1))),
+        (700, ui(|a| a.invoke_activate(1))),
+        (900, ui(|_| {})),
+    ];
+    for k in TYPING {
+        steps.push((260, Box::new(move |a: &AppWindow, _: &Tx| a.invoke_kb_nav((*k).into()))));
+    }
+    steps.extend([
+        (700, ui(|a| a.invoke_kb_tap(30))),
+        (3400, ui(|a| a.invoke_activate(0))),
+        (1100, ui(|a| a.invoke_kb_tap(30))),
+        (3600, ui(|a| a.invoke_back())),
+        (700, ui(|a| a.invoke_activate(4))),
+        (1800, key("x")),
+        (2200, ui(|a| a.invoke_back())),
+        (600, ui(|a| a.invoke_back())),
+        (2600, ui(|_| {})),
+    ]);
+    steps
+}
+
 /// (pause before the step in ms, what happens)
 fn script(name: Option<&str>) -> Vec<(u64, Act)> {
+    if name == Some("wifi") {
+        return wifi_script();
+    }
     if name == Some("power") {
         return power_script();
     }
