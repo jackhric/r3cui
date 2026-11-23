@@ -8,6 +8,9 @@ use std::sync::OnceLock;
 #[derive(Debug, Default)]
 pub struct Settings {
     pub accent: Option<String>,
+    /// Device only: "femtovg" (GLES2, the default) or "software".
+    #[cfg_attr(not(feature = "device"), allow(dead_code))]
+    pub renderer: Option<String>,
     /// Receiver inputs to leave out of the input list, compared without regard to case.
     pub hidden_sources: Vec<String>,
 }
@@ -40,6 +43,7 @@ fn parse(text: &str) -> Result<Settings, String> {
     let v: Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
     Ok(Settings {
         accent: v.get("accent").and_then(Value::as_str).map(String::from),
+        renderer: v.get("renderer").and_then(Value::as_str).map(String::from),
         hidden_sources: v
             .get("hidden_sources")
             .and_then(Value::as_array)

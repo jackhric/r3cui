@@ -19,13 +19,22 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 ureq = { version = "2", default-features = false }
 
-# Desktop spike (milestone 1): winit + FemtoVG so it runs on the workstation.
-# Device build (milestone 3+): swap `backend-winit` for `backend-linuxkms` and add `renderer-femtovg`
-# (GLES2) / `renderer-software`; consider the `dlopen` story for cross-compiling. See docs/plan.md.
+# `desktop` (default) runs in a window on the workstation. `device` renders straight to the
+# remote's display through KMS; libinput is left out because the device has none, and
+# evdev_input.rs reads the touchscreen and keys itself.
 [dependencies.slint]
-version = "1.8"
+version = "1.19"
 default-features = false
-features = ["compat-1-2", "backend-winit", "renderer-femtovg", "std"]
+features = ["compat-1-18", "std"]
+
+[dependencies.evdev]
+version = "0.12"
+optional = true
+
+[features]
+default = ["desktop"]
+desktop = ["slint/backend-winit", "slint/renderer-femtovg"]
+device = ["slint/backend-linuxkms", "slint/renderer-femtovg", "slint/renderer-software", "slint/software-renderer-path", "dep:evdev"]
 
 [build-dependencies]
-slint-build = "1.8"
+slint-build = "1.19"

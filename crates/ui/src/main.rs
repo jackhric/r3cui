@@ -5,6 +5,8 @@
 
 mod backlight;
 mod device;
+#[cfg(feature = "device")]
+mod evdev_input;
 mod haptics;
 mod input;
 mod keyboard;
@@ -122,9 +124,14 @@ impl Model {
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_ansi(cfg!(not(feature = "device")))
         .init();
 
+    #[cfg(feature = "device")]
+    select_device_renderer();
     let app = AppWindow::new()?;
+    #[cfg(feature = "device")]
+    evdev_input::start(&app);
     let accent = std::env::var("UC_ACCENT").ok().or_else(|| settings::get().accent.clone());
     if let Some(accent) = accent.as_deref().and_then(parse_color) {
         set_accent(&app, accent);
@@ -213,6 +220,23 @@ fn main() -> anyhow::Result<()> {
 
     app.run()?;
     Ok(())
+}
+
+/// GLES2 first; if the GPU path cannot start, draw in software so there is still a picture.
+/// `"renderer": "software"` in settings.json skips straight to the fallback.
+#[cfg(feature = "device")]
+fn select_device_renderer() {
+    let wanted = settings::get().renderer.as_deref().unwrap_or("femtovg");
+    for renderer in [wanted, "software"] {
+        let selected = slint::BackendSelector::new().backend_name("linuxkms".into()).renderer_name(renderer.into()).select();
+        match selected {
+            Ok(()) => {
+                tracing::info!("display: linuxkms with the {renderer} renderer");
+                return;
+            }
+            Err(e) => tracing::warn!("linuxkms with {renderer} failed: {e}"),
+        }
+    }
 }
 
 /// The keyboard lives on the UI thread: every d-pad press must redraw at once, with no round trip.
@@ -434,7 +458,8 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     // A desktop build looks at a remote that is usually asleep on its dock, so it only follows
     // the remote's power state when asked to.
     let follow_power = std::env::var("UC_MODEL").is_ok_and(|m| m == "UCR3") || std::env::var_os("UC_FOLLOW_POWER").is_some();
-    let is_awake = |mode: Option<&str>| !follow_power || mode.is_none_or(|m| m == "NORMAL");
+    // IDLE only dims the display; treating it as asleep would black out a screen still in use.
+    let is_awake = |mode: Option<&str>| !follow_power || !matches!(mode, Some("LOW_POWER" | "SUSPEND"));
     let screen = pick_entity("UC_SCREEN_ENTITY", &entities, |_| true);
     let mut session = Session {
         volume: pick_entity("UC_VOLUME_ENTITY", &entities, |e| has_feature(e, "volume_up_down")),
