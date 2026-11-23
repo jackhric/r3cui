@@ -5,16 +5,21 @@
 //! until we type them against `core-api`'s AsyncAPI spec. See `docs/core-ws-protocol.md`.
 
 use anyhow::{anyhow, Context, Result};
+use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
 
 pub struct Config {
     pub url: String,
     pub token: String,
+    /// `user:password` sent as HTTP Basic auth on the upgrade request. The core accepts the
+    /// web-configurator PIN this way from the LAN, which is how a desktop build reaches a real remote.
+    pub basic_auth: Option<String>,
 }
 
 impl Config {
@@ -23,15 +28,21 @@ impl Config {
     pub fn from_env() -> Result<Self> {
         let url =
             std::env::var("UC_SOCKET_URL").unwrap_or_else(|_| "ws://127.0.0.1:8080/ws".to_string());
+        let basic_auth = std::env::var("UC_BASIC_AUTH").ok();
         let token = match std::env::var("UC_TOKEN_PATH") {
             Ok(path) => std::fs::read_to_string(&path)
                 .with_context(|| format!("reading token file {path}"))?
                 .trim()
                 .to_string(),
-            Err(_) => std::env::var("UC_TOKEN")
-                .map_err(|_| anyhow!("set UC_TOKEN_PATH (device) or UC_TOKEN (dev)"))?,
+            Err(_) => match (std::env::var("UC_TOKEN"), &basic_auth) {
+                (Ok(token), _) => token,
+                (Err(_), Some(_)) => String::new(),
+                (Err(_), None) => {
+                    return Err(anyhow!("set UC_TOKEN_PATH (device), UC_TOKEN or UC_BASIC_AUTH (dev)"))
+                }
+            },
         };
-        Ok(Self { url, token })
+        Ok(Self { url, token, basic_auth })
     }
 }
 
@@ -47,6 +58,17 @@ pub struct Response {
     pub msg: String,
     pub code: i64,
     pub data: Value,
+}
+
+impl Response {
+    pub fn ok(self) -> Result<Self> {
+        if (200..300).contains(&self.code) {
+            Ok(self)
+        } else {
+            let detail = self.data.get("message").and_then(Value::as_str).unwrap_or_default();
+            Err(anyhow!("{} failed: code {} {detail}", self.msg, self.code))
+        }
+    }
 }
 
 struct Out {
@@ -71,8 +93,27 @@ impl Core {
         rx.await.map_err(|_| anyhow!("no response to {msg}"))
     }
 
-    pub async fn get_entities(&self) -> Result<Response> {
-        self.request("get_entities", json!({})).await
+    /// All configured entities, following the server's pagination to the end.
+    pub async fn get_entities(&self) -> Result<Vec<Value>> {
+        const LIMIT: usize = 100;
+        let mut all = Vec::new();
+        for page in 1.. {
+            let resp = self
+                .request("get_entities", json!({ "paging": { "page": page, "limit": LIMIT } }))
+                .await?
+                .ok()?;
+            let items = match resp.data.get("entities") {
+                Some(Value::Array(a)) => a.clone(),
+                _ => return Err(anyhow!("get_entities: no `entities` array in {}", resp.msg)),
+            };
+            let total = resp.data.pointer("/paging/count").and_then(Value::as_u64).unwrap_or(0);
+            let got = items.len();
+            all.extend(items);
+            if got < LIMIT || all.len() as u64 >= total {
+                break;
+            }
+        }
+        Ok(all)
     }
 
     pub async fn execute_entity_command(
@@ -92,7 +133,12 @@ impl Core {
 /// Connect, authenticate, subscribe to all events, and spawn the I/O task.
 /// Returns the handle plus the stream of incoming events.
 pub async fn connect(cfg: Config) -> Result<(Core, mpsc::Receiver<Event>)> {
-    let (ws, _) = tokio_tungstenite::connect_async(&cfg.url)
+    let mut request = cfg.url.as_str().into_client_request().with_context(|| format!("bad url {}", cfg.url))?;
+    if let Some(basic) = &cfg.basic_auth {
+        let value = format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(basic));
+        request.headers_mut().insert("Authorization", value.parse().context("auth header")?);
+    }
+    let (ws, _) = tokio_tungstenite::connect_async(request)
         .await
         .with_context(|| format!("ws connect {}", cfg.url))?;
     let (mut write, mut read) = ws.split();
@@ -110,7 +156,7 @@ pub async fn connect(cfg: Config) -> Result<(Core, mpsc::Receiver<Event>)> {
         // New sessions default to "all", but ask explicitly so behaviour is independent of that.
         let sub = json!({"kind":"req","id":next_id,"msg":"subscribe_events","msg_data":{}});
         next_id += 1;
-        let _ = write.send(Message::Text(sub.to_string().into())).await;
+        let _ = write.send(Message::Text(sub.to_string())).await;
 
         loop {
             tokio::select! {
@@ -119,7 +165,7 @@ pub async fn connect(cfg: Config) -> Result<(Core, mpsc::Receiver<Event>)> {
                     next_id += 1;
                     pending.insert(rid, out.reply);
                     let frame = json!({"kind":"req","id":rid,"msg":out.msg,"msg_data":out.data});
-                    if write.send(Message::Text(frame.to_string().into())).await.is_err() {
+                    if write.send(Message::Text(frame.to_string())).await.is_err() {
                         break;
                     }
                 }
@@ -199,7 +245,7 @@ async fn authenticate(write: &mut Writer, read: &mut Reader, token: &str) -> Res
                     match v.get("msg").and_then(Value::as_str) {
                         Some("auth_required") => {
                             let frame = json!({"kind":"req","id":1,"msg":"auth","msg_data":{"token":token}});
-                            write.send(Message::Text(frame.to_string().into())).await
+                            write.send(Message::Text(frame.to_string())).await
                                 .map_err(|e| anyhow!("send auth: {e}"))?;
                         }
                         Some("authentication") => {

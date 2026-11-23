@@ -6,7 +6,6 @@ members = ["crates/coreapi", "crates/ui"]
 version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0-only"
-repository = "ucr3-ui"
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "fs"] }

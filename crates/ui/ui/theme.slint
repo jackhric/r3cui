@@ -1,0 +1,240 @@
+// `accent` is the one interface colour. It is in-out so Rust can change it at runtime:
+// `app.global::<Theme>().set_accent(color)`.
+export global Theme {
+    in-out property <color> accent: #E8343A;
+    // Fixed meanings, independent of the accent: red turns off, green turns on.
+    out property <color> off: #E8343A;
+    out property <color> on: #3DDC84;
+    out property <color> bg: #000000;
+    out property <color> text: #F1F3F3;
+    out property <color> text-dim: #F1F3F3B3;
+    out property <color> t2: #8B9195;
+    out property <color> t3: #53595D;
+    out property <color> track: #FFFFFF24;
+    out property <color> hair: #FFFFFF14;
+    out property <duration> page-time: 280ms;
+}
+
+// 24x24 stroked glyphs.
+export global Icons {
+    out property <string> menu: "M4 7h16M4 12h16M4 17h16";
+    out property <string> right: "M9 5l7 7-7 7";
+    out property <string> left: "M15 5l-7 7 7 7";
+    out property <string> check: "M5 12.5l4.5 4.5L19 7.5";
+    out property <string> subtitles: "M6 5h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3zM7 12h3M13 12h4M7 15.5h6";
+    out property <string> audio: "M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4";
+    out property <string> speaker: "M4 9.5h3.5L12 6v12l-4.5-3.5H4zM16 9.5a3.5 3.5 0 0 1 0 5";
+    out property <string> power: "M12 3v9M6.3 6.6a8 8 0 1 0 11.4 0";
+    out property <string> muted: "M4 9.5h3.5L12 6v12l-4.5-3.5H4zM16 9.5l5 5M21 9.5l-5 5";
+}
+
+export component Glyph inherits Path {
+    in property <color> tint: Theme.t2;
+    in property <length> size: 24px;
+    width: self.size;
+    height: self.size;
+    viewbox-width: 24;
+    viewbox-height: 24;
+    fill: transparent;
+    stroke: self.tint;
+    stroke-width: self.size * 1.75 / 24;
+    stroke-line-cap: round;
+    stroke-line-join: round;
+}
+
+export component Logo inherits Path {
+    in property <color> tint: Theme.text;
+    in property <length> size: 32px;
+    width: self.size;
+    height: self.size;
+    viewbox-width: 24;
+    viewbox-height: 24;
+    fill: self.tint;
+    stroke: transparent;
+}
+
+// The one instrument: a thick bar. Volume, film progress and sliders all use it.
+export component Bar inherits Rectangle {
+    in property <float> value;
+    in property <color> tint: Theme.accent;
+    in property <bool> handle: false;
+    property <float> v: clamp(root.value, 0, 1);
+
+    width: 400px;
+    height: 14px;
+    border-radius: 7px;
+    background: Theme.track;
+
+    Rectangle {
+        x: 0;
+        width: root.v <= 0 ? 0px : max(14px, root.width * root.v);
+        border-radius: 7px;
+        background: root.tint;
+        animate width { duration: 160ms; easing: ease-out; }
+        animate background { duration: 200ms; }
+    }
+    if root.handle: Rectangle {
+        x: root.width * root.v - 16px;
+        width: 32px;
+        height: 32px;
+        border-radius: 16px;
+        background: Theme.text;
+        animate x { duration: 160ms; easing: ease-out; }
+    }
+}
+
+export component StatusBar inherits Rectangle {
+    in property <string> clock;
+    in property <int> battery;
+    in property <bool> show-menu: true;
+    callback menu();
+
+    x: 0;
+    y: 0;
+    width: 480px;
+    height: 64px;
+
+    Text {
+        x: 40px;
+        text: root.clock;
+        font-size: 20px;
+        color: Theme.text;
+    }
+    cell := Rectangle {
+        x: root.show-menu ? 364px : 410px;
+        width: 26px;
+        height: 14px;
+        border-radius: 4px;
+        border-width: 1.75px;
+        border-color: Theme.t2;
+        Rectangle {
+            x: 3.5px;
+            width: 19px * clamp(root.battery, 0, 100) / 100;
+            height: 7px;
+            border-radius: 1.5px;
+            background: Theme.t2;
+        }
+    }
+    Rectangle {
+        x: cell.x + 28px;
+        width: 2px;
+        height: 5px;
+        border-radius: 1px;
+        background: Theme.t2;
+    }
+    if root.show-menu: TouchArea {
+        x: 400px;
+        width: 72px;
+        height: 60px;
+        clicked => { root.menu(); }
+        Glyph { commands: Icons.menu; }
+    }
+}
+
+export component ListRow inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <string> icon;
+    in property <bool> focused;
+    in property <bool> chevron;
+    in property <bool> checked;
+    in property <bool> divider: true;
+    callback tapped();
+
+    x: 0;
+    width: 480px;
+    height: 112px;
+
+    if root.divider: Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.hair;
+    }
+    Rectangle {
+        x: 0;
+        width: 4px;
+        height: 40px;
+        border-radius: 2px;
+        background: Theme.accent;
+        opacity: root.focused ? 1 : 0;
+        animate opacity { duration: 140ms; }
+    }
+    if root.icon != "": Logo {
+        x: 40px;
+        commands: root.icon;
+        tint: root.focused ? Theme.text : Theme.t2;
+    }
+    Text {
+        x: root.icon != "" ? 96px : 40px;
+        text: root.label;
+        font-size: 26px;
+        font-weight: root.focused ? 500 : 400;
+        color: root.focused ? Theme.text : Theme.text-dim;
+        animate color { duration: 140ms; }
+    }
+    Text {
+        x: 0;
+        width: root.chevron || root.checked ? 402px : 440px;
+        horizontal-alignment: right;
+        text: root.value;
+        font-size: 22px;
+        font-weight: 300;
+        color: Theme.t2;
+    }
+    if root.chevron: Glyph {
+        x: 416px;
+        commands: Icons.right;
+        tint: Theme.t3;
+    }
+    if root.checked: Glyph {
+        x: 416px;
+        commands: Icons.check;
+        tint: Theme.text;
+    }
+    TouchArea {
+        clicked => { root.tapped(); }
+    }
+}
+
+export component PageHeader inherits Rectangle {
+    in property <string> title;
+    callback back();
+
+    x: 0;
+    y: 64px;
+    width: 480px;
+    height: 104px;
+
+    Glyph {
+        x: 40px;
+        size: 28px;
+        commands: Icons.left;
+        tint: Theme.text;
+    }
+    Text {
+        x: 84px;
+        text: root.title;
+        font-size: 26px;
+        font-weight: 500;
+        color: Theme.text;
+    }
+    TouchArea {
+        clicked => { root.back(); }
+    }
+}
+
+// A full-screen page that fades and slides by its depth in the navigation stack.
+export component Page inherits Rectangle {
+    in property <int> depth;
+    in property <int> current-depth;
+    in property <bool> active;
+
+    y: 0;
+    width: 480px;
+    height: 800px;
+    x: root.active ? 0px : (root.depth > root.current-depth ? 56px : -56px);
+    opacity: root.active ? 1 : 0;
+    visible: self.opacity > 0;
+    animate x { duration: Theme.page-time; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+    animate opacity { duration: Theme.page-time; easing: ease-out; }
+}

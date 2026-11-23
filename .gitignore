@@ -8,3 +8,9 @@ packaging/out/
 secrets/
 *.pin
 ws-token
+
+# Manufacturer product photo used only for local previews; not ours to redistribute.
+design/device/
+
+# Generated previews (stills and recordings); they include the manufacturer photo.
+design/poc-shots/

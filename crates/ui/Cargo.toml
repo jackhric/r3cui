@@ -15,6 +15,9 @@ serde_json.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+ureq = { version = "2", default-features = false }
 
 # Desktop spike (milestone 1): winit + FemtoVG so it runs on the workstation.
 # Device build (milestone 3+): swap `backend-winit` for `backend-linuxkms` and add `renderer-femtovg`

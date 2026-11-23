@@ -1,62 +1,856 @@
-// Milestone-1 placeholder screen: 480x800 portrait, a status line and a live entity list.
-// Replace with the real UI once the protocol path is proven.
+import "fonts/HankenGrotesk-200.ttf";
+import "fonts/HankenGrotesk-300.ttf";
+import "fonts/HankenGrotesk-400.ttf";
+import "fonts/HankenGrotesk-500.ttf";
+import { Theme, Icons, Glyph, Logo, Bar, StatusBar, ListRow, PageHeader, Page } from "theme.slint";
+import { Logos } from "logos.slint";
 
-struct EntityRow {
+export { Theme, Logos }
+
+export struct SourceRow {
     name: string,
-    kind: string,
+    icon: string,
+}
+
+component FormatBadge inherits HorizontalLayout {
+    in property <string> brand;
+    in property <string> label;
+    alignment: center;
+    spacing: 14px;
+    height: 40px;
+    if root.brand == "dolby" || root.brand == "dts": Logo {
+        size: 36px;
+        commands: root.brand == "dolby" ? Logos.dolby : Logos.dts;
+    }
+    Text {
+        text: root.label;
+        font-size: 22px;
+        color: Theme.t2;
+        vertical-alignment: center;
+    }
+}
+
+component VolumeChip inherits HorizontalLayout {
+    in property <int> volume;
+    in property <bool> muted;
+    in property <length> size: 24px;
+    alignment: center;
+    spacing: 10px;
+    VerticalLayout {
+        alignment: center;
+        Glyph {
+            size: root.size * 0.9;
+            commands: root.muted ? Icons.muted : Icons.speaker;
+        }
+    }
+    Text {
+        text: root.volume;
+        font-size: root.size;
+        font-weight: 300;
+        color: Theme.t2;
+        vertical-alignment: center;
+    }
+}
+
+component VolumeReadout inherits Rectangle {
+    in property <int> volume;
+    in property <string> volume-db;
+    in property <bool> muted;
+    in property <length> top;
+
+    width: 480px;
+    Text {
+        y: root.top;
+        width: 480px;
+        height: 190px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        text: root.volume;
+        font-size: 200px;
+        font-weight: 200;
+        letter-spacing: -8px;
+        color: root.muted ? Theme.t3 : Theme.text;
+        animate color { duration: 200ms; }
+    }
+    Text {
+        y: root.top + 194px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: root.volume-db;
+        font-size: 26px;
+        font-weight: 300;
+        color: root.muted ? Theme.t3 : Theme.t2;
+    }
+    Bar {
+        x: 40px;
+        y: root.top + 254px;
+        value: root.volume / 100;
+        tint: root.muted ? Theme.t3 : Theme.accent;
+    }
+}
+
+component ActionButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    callback tapped();
+    width: 240px;
+    height: 72px;
+    HorizontalLayout {
+        alignment: center;
+        spacing: 12px;
+        opacity: touch.pressed ? 0.5 : 1;
+        VerticalLayout {
+            alignment: center;
+            Glyph { commands: root.icon; }
+        }
+        Text {
+            text: root.label;
+            font-size: 22px;
+            color: Theme.text;
+            vertical-alignment: center;
+        }
+    }
+    touch := TouchArea {
+        clicked => { root.tapped(); }
+    }
+}
+
+// Shown until the real poster from Kodi is wired in.
+component PosterStandIn inherits Rectangle {
+    in property <string> title;
+    background: @linear-gradient(180deg, #06252c 0%, #0f4a50 40%, #b8602b 72%, #2a1208 100%);
+    Rectangle {
+        y: parent.height * 0.26;
+        width: parent.width * 0.56;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: @radial-gradient(circle, #ffb26b 0%, #e57b36 50%, #e57b3600 72%);
+    }
+    Rectangle {
+        y: parent.height * 0.62;
+        height: parent.height * 0.38;
+        background: @linear-gradient(180deg, #05060800 0%, #050608 45%, #050608 100%);
+    }
+    Text {
+        y: parent.height * 0.8;
+        width: parent.width - 24px;
+        horizontal-alignment: center;
+        wrap: word-wrap;
+        text: root.title;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 2.6px;
+        color: Theme.text;
+    }
 }
 
 export component AppWindow inherits Window {
     title: "remote-ui";
     width: 480px;
     height: 800px;
-    background: #101014;
+    background: Theme.bg;
+    default-font-family: "Hanken Grotesk";
+    forward-focus: keys;
 
-    in property <string> status: "connecting…";
-    in property <[EntityRow]> entities: [];
+    // False while the remote is idle or asleep: the screen closes down to the bar and goes dark.
+    in property <bool> awake: true;
+    in property <bool> receiver-on: true;
+    in property <bool> connected: false;
+    in property <string> status: "Connecting…";
+    in property <string> clock;
+    in property <int> battery: 100;
 
-    VerticalLayout {
-        padding: 12px;
-        spacing: 8px;
+    in property <int> volume;
+    in property <string> volume-db;
+    in property <bool> muted;
+    in property <bool> volume-overlay;
+    in property <string> source;
+    in property <string> source-icon;
+    in property <[SourceRow]> sources;
+    in property <int> source-index;
+    in property <string> format-brand;
+    in property <string> format-label;
 
-        Text {
-            text: "UCR3 custom UI";
-            color: #ffffff;
-            font-size: 20px;
-            font-weight: 700;
+    // True while the receiver is on the Kodi input: the home page becomes the Kodi remote.
+    in property <bool> kodi;
+    in property <string> media-title;
+    in property <image> poster;
+    in property <float> progress;
+    in property <string> time-left;
+    in property <string> ends-at;
+    in property <string> media-format-brand;
+    in property <string> media-format-label;
+
+    in property <string> wifi-name;
+    in-out property <int> brightness: 90;
+    in-out property <bool> auto-brightness: true;
+    in property <string> screen-off-after;
+    in property <string> haptics;
+    in property <string> sleep-after;
+
+    // 0 home, 1 inputs, 2 menu, 3 menu/display, 4 menu/power
+    in-out property <int> page: 0;
+    in-out property <int> focus-index: 0;
+
+    // A command id for the Kodi entity.
+    callback command(string);
+    // Raw key text; mapped to a hard button in Rust (desktop stand-in for evdev).
+    callback key(string);
+    callback select-source(string);
+    callback power-action(string);
+    // The physical power key, held: switch the receiver on or off. A short press does nothing.
+    callback power-held();
+    // "hold-start", "hold-cancel" or "complete": cues for the haptic motor.
+    callback haptic(string);
+
+    out property <bool> power-overlay: root.power-holding || root.power-latched;
+    out property <bool> power-turning-off: true;
+    property <bool> power-holding;
+    property <bool> power-latched;
+    // Stays set through the fade-out so the label does not flip back while disappearing.
+    property <bool> power-completed;
+    property <float> hold: 0;
+    property <color> power-tint: root.power-turning-off ? Theme.off : Theme.on;
+
+    property <int> depth: root.page == 0 ? 0 : root.page <= 2 ? 1 : 2;
+    property <int> home-view: !root.receiver-on ? 3 : !root.kodi ? 0 : root.media-title != "" ? 1 : 2;
+    property <duration> fade: 260ms;
+
+    public function go(p: int, f: int) {
+        root.focus-index = f;
+        root.page = p;
+    }
+    public function back() {
+        if (root.page == 3) {
+            root.go(2, 1);
+        } else if (root.page == 4) {
+            root.go(2, 3);
+        } else {
+            root.go(0, 0);
         }
-        Text {
-            text: root.status;
-            color: #8a8a94;
-            font-size: 13px;
-        }
-
-        Rectangle { height: 1px; background: #26262e; }
-
-        ListView {
-            for row in root.entities: Rectangle {
-                height: 44px;
-                background: touch.has-hover ? #1b1b22 : transparent;
-                touch := TouchArea {}
-                HorizontalLayout {
-                    padding-left: 4px;
-                    padding-right: 4px;
-                    spacing: 8px;
-                    Text {
-                        text: row.name;
-                        color: #e8e8ee;
-                        font-size: 15px;
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
-                    }
-                    Text {
-                        text: row.kind;
-                        color: #6f6f7a;
-                        font-size: 12px;
-                        vertical-alignment: center;
-                    }
-                }
+    }
+    function row-count() -> int {
+        root.page == 1 ? root.sources.length : root.page == 2 ? 5 : root.page == 3 ? 3 : 4
+    }
+    public function move(d: int) {
+        root.focus-index = max(0, min(root.row-count() - 1, root.focus-index + d));
+    }
+    public function activate(i: int) {
+        root.focus-index = i;
+        if (root.page == 1) {
+            root.select-source(root.sources[i].name);
+            root.go(0, 0);
+        } else if (root.page == 2) {
+            if (i == 1) {
+                root.go(3, 0);
+            } else if (i == 3) {
+                root.go(4, 0);
+            }
+        } else if (root.page == 3) {
+            if (i == 1) {
+                root.auto-brightness = !root.auto-brightness;
+            }
+        } else if (root.page == 4) {
+            if (i == 0) {
+                root.power-action("STANDBY");
+            } else if (i == 1) {
+                root.power-action("RESTART");
+            } else if (i == 2) {
+                root.power-action("POWER_OFF");
             }
         }
     }
+
+    property <float> wake: root.awake ? 1 : 0;
+    animate wake { duration: 650ms; easing: ease-in-out; }
+    // Smoothed again so the fade and zoom ease at both ends.
+    property <float> reveal: root.wake * root.wake * (3 - 2 * root.wake);
+
+    keys := FocusScope {
+        transform-scale: 0.8 + 0.2 * root.reveal;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+        opacity: root.reveal;
+        key-pressed(event) => {
+            if (event.text == "p" || event.text == "P") {
+                if (!event.repeat && !root.power-latched) {
+                    root.power-turning-off = root.receiver-on;
+                    root.power-completed = false;
+                    root.power-holding = true;
+                    root.haptic("hold-start");
+                }
+                return accept;
+            }
+            if (root.page != 0) {
+                if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    root.back();
+                    return accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    root.move(-1);
+                    return accept;
+                }
+                if (event.text == Key.DownArrow) {
+                    root.move(1);
+                    return accept;
+                }
+                if (event.text == Key.Return) {
+                    root.activate(root.focus-index);
+                    return accept;
+                }
+                if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
+                    if (root.page == 3 && root.focus-index == 0) {
+                        root.brightness = max(5, min(100, root.brightness + (event.text == Key.LeftArrow ? -5 : 5)));
+                    } else if (event.text == Key.LeftArrow) {
+                        root.back();
+                    }
+                    return accept;
+                }
+            }
+            root.key(event.text);
+            return accept;
+        }
+
+        key-released(event) => {
+            if ((event.text == "p" || event.text == "P") && root.power-holding) {
+                root.power-holding = false;
+                root.haptic("hold-cancel");
+            }
+            return accept;
+        }
+        Timer {
+            interval: 1200ms;
+            running: root.power-holding;
+            triggered => {
+                root.power-holding = false;
+                root.power-latched = true;
+                root.power-completed = true;
+                root.power-held();
+                root.haptic("complete");
+            }
+        }
+        Timer {
+            interval: 900ms;
+            running: root.power-latched;
+            triggered => { root.power-latched = false; }
+        }
+
+        // Home
+        Page {
+            depth: 0;
+            current-depth: root.depth;
+            active: root.page == 0;
+
+            // Receiver
+            Rectangle {
+                opacity: root.home-view == 0 ? 1 : 0;
+                visible: self.opacity > 0;
+                animate opacity { duration: root.fade; }
+
+                VerticalLayout {
+                    y: 122px;
+                    height: 130px;
+                    alignment: center;
+                    spacing: 14px;
+                    HorizontalLayout {
+                        alignment: center;
+                        Logo {
+                            size: 56px;
+                            commands: root.source-icon;
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 8px;
+                        Text {
+                            text: root.source;
+                            font-size: 26px;
+                            font-weight: 500;
+                            color: Theme.text;
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            Glyph {
+                                size: 20px;
+                                commands: Icons.right;
+                                tint: Theme.t3;
+                            }
+                        }
+                    }
+                }
+                TouchArea {
+                    y: 100px;
+                    height: 170px;
+                    clicked => { root.go(1, root.source-index); }
+                }
+                VolumeReadout {
+                    y: 0;
+                    height: 800px;
+                    top: 292px;
+                    volume: root.volume;
+                    volume-db: root.volume-db;
+                    muted: root.muted;
+                }
+                FormatBadge {
+                    y: 690px;
+                    brand: root.format-brand;
+                    label: root.format-label;
+                }
+            }
+
+            // Kodi, playing
+            Rectangle {
+                opacity: root.home-view == 1 ? 1 : 0;
+                visible: self.opacity > 0;
+                animate opacity { duration: root.fade; }
+
+                Rectangle {
+                    x: 132px;
+                    y: 68px;
+                    width: 216px;
+                    height: 324px;
+                    border-radius: 10px;
+                    clip: true;
+                    if root.poster.width == 0: PosterStandIn {
+                        title: root.media-title;
+                    }
+                    if root.poster.width > 0: Image {
+                        source: root.poster;
+                        width: 100%;
+                        height: 100%;
+                        image-fit: cover;
+                    }
+                }
+                Text {
+                    y: 408px;
+                    x: 24px;
+                    width: 432px;
+                    height: 36px;
+                    horizontal-alignment: center;
+                    overflow: elide;
+                    text: root.media-title;
+                    font-size: 30px;
+                    font-weight: 500;
+                    color: Theme.text;
+                }
+                Bar {
+                    x: 40px;
+                    y: 468px;
+                    value: root.progress;
+                }
+                Text {
+                    x: 40px;
+                    y: 494px;
+                    height: 56px;
+                    vertical-alignment: center;
+                    text: root.time-left;
+                    font-size: 44px;
+                    font-weight: 300;
+                    letter-spacing: -0.9px;
+                    color: Theme.text;
+                }
+                Text {
+                    x: 40px;
+                    y: 504px;
+                    width: 400px;
+                    height: 44px;
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                    text: root.ends-at;
+                    font-size: 22px;
+                    color: Theme.t2;
+                }
+                FormatBadge {
+                    y: 580px;
+                    brand: root.media-format-brand;
+                    label: root.media-format-label;
+                }
+                ActionButton {
+                    x: 0;
+                    y: 644px;
+                    icon: Icons.subtitles;
+                    label: "Subtitles";
+                    tapped => { root.command("subtitle"); }
+                }
+                ActionButton {
+                    x: 240px;
+                    y: 644px;
+                    icon: Icons.audio;
+                    label: "Audio";
+                    tapped => { root.command("audio_track"); }
+                }
+                VolumeChip {
+                    y: 736px;
+                    height: 32px;
+                    volume: root.volume;
+                    muted: root.muted;
+                }
+            }
+
+            // Kodi, browsing
+            Rectangle {
+                opacity: root.home-view == 2 ? 1 : 0;
+                visible: self.opacity > 0;
+                animate opacity { duration: root.fade; }
+
+                Logo {
+                    y: 364px;
+                    size: 72px;
+                    commands: Logos.kodi;
+                    tint: Theme.t2;
+                }
+                VolumeChip {
+                    y: 700px;
+                    height: 40px;
+                    size: 32px;
+                    volume: root.volume;
+                    muted: root.muted;
+                }
+            }
+
+            // Receiver off
+            Rectangle {
+                opacity: root.home-view == 3 ? 1 : 0;
+                visible: self.opacity > 0;
+                animate opacity { duration: root.fade; }
+
+                Glyph {
+                    y: 340px;
+                    size: 72px;
+                    commands: Icons.power;
+                    tint: Theme.t3;
+                }
+                Text {
+                    y: 436px;
+                    width: 480px;
+                    horizontal-alignment: center;
+                    text: "Off";
+                    font-size: 26px;
+                    color: Theme.t2;
+                }
+            }
+
+            StatusBar {
+                clock: root.clock;
+                battery: root.battery;
+                menu => { root.go(2, 0); }
+            }
+            if !root.connected: Text {
+                y: 772px;
+                width: 480px;
+                horizontal-alignment: center;
+                text: root.status;
+                font-size: 14px;
+                color: Theme.t3;
+                overflow: elide;
+            }
+        }
+
+        // Inputs
+        Page {
+            depth: 1;
+            current-depth: root.depth;
+            active: root.page == 1;
+            property <length> row-h: min(100px, 700px / max(1, root.sources.length));
+
+            StatusBar {
+                clock: root.clock;
+                battery: root.battery;
+                menu => { root.go(2, 0); }
+            }
+            for row[i] in root.sources: ListRow {
+                y: 68px + i * parent.row-h;
+                height: parent.row-h;
+                divider: i > 0;
+                label: row.name;
+                icon: row.icon;
+                focused: i == root.focus-index;
+                checked: i == root.source-index;
+                tapped => { root.activate(i); }
+            }
+        }
+
+        // Menu
+        Page {
+            depth: 1;
+            current-depth: root.depth;
+            active: root.page == 2;
+
+            StatusBar {
+                clock: root.clock;
+                battery: root.battery;
+                show-menu: false;
+            }
+            PageHeader {
+                title: "Menu";
+                back => { root.back(); }
+            }
+            ListRow {
+                y: 168px;
+                label: "Wi-Fi";
+                value: root.wifi-name;
+                chevron: true;
+                focused: root.focus-index == 0;
+                tapped => { root.activate(0); }
+            }
+            ListRow {
+                y: 280px;
+                label: "Display";
+                value: root.brightness + "%";
+                chevron: true;
+                focused: root.focus-index == 1;
+                tapped => { root.activate(1); }
+            }
+            ListRow {
+                y: 392px;
+                label: "Sound & haptics";
+                value: root.haptics;
+                chevron: true;
+                focused: root.focus-index == 2;
+                tapped => { root.activate(2); }
+            }
+            ListRow {
+                y: 504px;
+                label: "Power";
+                chevron: true;
+                focused: root.focus-index == 3;
+                tapped => { root.activate(3); }
+            }
+            ListRow {
+                y: 616px;
+                label: "About";
+                chevron: true;
+                focused: root.focus-index == 4;
+                tapped => { root.activate(4); }
+            }
+        }
+
+        // Menu / Display
+        Page {
+            depth: 2;
+            current-depth: root.depth;
+            active: root.page == 3;
+
+            StatusBar {
+                clock: root.clock;
+                battery: root.battery;
+                show-menu: false;
+            }
+            PageHeader {
+                title: "Display";
+                back => { root.back(); }
+            }
+            Rectangle {
+                x: 0;
+                y: 168px;
+                width: 4px;
+                height: 40px;
+                border-radius: 2px;
+                background: Theme.accent;
+                opacity: root.focus-index == 0 ? 1 : 0;
+                animate opacity { duration: 140ms; }
+            }
+            Text {
+                x: 40px;
+                y: 172px;
+                text: "Brightness";
+                font-size: 26px;
+                font-weight: root.focus-index == 0 ? 500 : 400;
+                color: root.focus-index == 0 ? Theme.text : Theme.text-dim;
+            }
+            Text {
+                x: 40px;
+                y: 176px;
+                width: 400px;
+                horizontal-alignment: right;
+                text: root.brightness + "%";
+                font-size: 22px;
+                font-weight: 300;
+                color: Theme.t2;
+            }
+            Bar {
+                x: 40px;
+                y: 250px;
+                value: root.brightness / 100;
+                handle: true;
+            }
+            TouchArea {
+                x: 24px;
+                y: 220px;
+                width: 432px;
+                height: 74px;
+                function set() {
+                    root.focus-index = 0;
+                    root.brightness = max(5, min(100, round((self.mouse-x - 16px) / 400px * 100)));
+                }
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down) {
+                        self.set();
+                    }
+                }
+                moved => {
+                    if (self.pressed) {
+                        self.set();
+                    }
+                }
+            }
+            ListRow {
+                y: 328px;
+                height: 104px;
+                label: "Auto brightness";
+                focused: root.focus-index == 1;
+                tapped => { root.activate(1); }
+                Rectangle {
+                    x: 384px;
+                    width: 56px;
+                    height: 32px;
+                    border-radius: 16px;
+                    background: root.auto-brightness ? Theme.text : Theme.track;
+                    animate background { duration: 160ms; }
+                    Rectangle {
+                        x: root.auto-brightness ? 28px : 4px;
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 12px;
+                        background: root.auto-brightness ? Theme.bg : Theme.t2;
+                        animate x { duration: 160ms; easing: ease-out; }
+                    }
+                }
+            }
+            ListRow {
+                y: 432px;
+                height: 104px;
+                label: "Screen off after";
+                value: root.screen-off-after;
+                chevron: true;
+                focused: root.focus-index == 2;
+                tapped => { root.activate(2); }
+            }
+        }
+
+        // Menu / Power
+        Page {
+            depth: 2;
+            current-depth: root.depth;
+            active: root.page == 4;
+
+            StatusBar {
+                clock: root.clock;
+                battery: root.battery;
+                show-menu: false;
+            }
+            PageHeader {
+                title: "Power";
+                back => { root.back(); }
+            }
+            ListRow {
+                y: 168px;
+                label: "Standby";
+                focused: root.focus-index == 0;
+                tapped => { root.activate(0); }
+            }
+            ListRow {
+                y: 280px;
+                label: "Restart";
+                focused: root.focus-index == 1;
+                tapped => { root.activate(1); }
+            }
+            ListRow {
+                y: 392px;
+                label: "Power off";
+                focused: root.focus-index == 2;
+                tapped => { root.activate(2); }
+            }
+            ListRow {
+                y: 504px;
+                label: "Sleep after";
+                value: root.sleep-after;
+                chevron: true;
+                focused: root.focus-index == 3;
+                tapped => { root.activate(3); }
+            }
+        }
+
+        // Volume overlay, over everything except the receiver page (which already shows it).
+        Rectangle {
+            property <bool> shown: root.volume-overlay && root.receiver-on && !(root.page == 0 && root.home-view == 0);
+            background: Theme.bg;
+            opacity: self.shown ? 1 : 0;
+            visible: self.opacity > 0;
+            animate opacity { duration: 180ms; easing: ease-out; }
+
+            Glyph {
+                y: 198px;
+                size: 52px;
+                commands: Icons.muted;
+                opacity: root.muted ? 1 : 0;
+                animate opacity { duration: 160ms; }
+            }
+            VolumeReadout {
+                y: 0;
+                height: 800px;
+                top: 270px;
+                volume: root.volume;
+                volume-db: root.volume-db;
+                muted: root.muted;
+            }
+        }
+    }
+
+    // Hold-to-power overlay: the symbol fills and a wash of the same colour rises behind it.
+    Rectangle {
+        background: Theme.bg;
+        opacity: root.power-overlay ? 1 : 0;
+        animate opacity { duration: 240ms; easing: ease-out; }
+
+        Rectangle {
+            x: 0;
+            y: parent.height * (1 - root.hold);
+            width: parent.width;
+            height: parent.height * root.hold;
+            background: @linear-gradient(0deg, root.power-tint.with-alpha(0.38) 0%, root.power-tint.with-alpha(0) 100%);
+        }
+        Glyph {
+            y: 290px;
+            size: 176px;
+            commands: Icons.power;
+            tint: Theme.t3;
+        }
+        Rectangle {
+            x: 152px;
+            y: 290px + 176px * (1 - root.hold);
+            width: 176px;
+            height: 176px * root.hold;
+            clip: true;
+            Glyph {
+                x: 0;
+                y: -176px * (1 - root.hold);
+                size: 176px;
+                commands: Icons.power;
+                tint: root.power-tint;
+            }
+        }
+        Text {
+            y: 560px;
+            width: 480px;
+            horizontal-alignment: center;
+            text: root.power-completed ? (root.power-turning-off ? "Off" : "On") : (root.power-turning-off ? "Hold to turn off" : "Hold to turn on");
+            font-size: 26px;
+            font-weight: 300;
+            color: root.power-completed ? Theme.text : Theme.t2;
+        }
+    }
+
+    states [
+        filling when root.power-holding || root.power-latched: {
+            root.hold: 1;
+            in {
+                animate root.hold { duration: 1200ms; easing: ease-in-out; }
+            }
+            out {
+                animate root.hold { duration: 420ms; easing: ease-in-out; }
+            }
+        }
+    ]
+
+    if !root.awake: TouchArea { }
 }
