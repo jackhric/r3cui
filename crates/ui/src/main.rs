@@ -9,6 +9,7 @@ mod haptics;
 mod input;
 mod keyboard;
 mod net;
+mod settings;
 mod shots;
 
 use input::{Button, Target};
@@ -78,8 +79,10 @@ impl Model {
             muted: false,
             source: "PLAYSTATION 5".into(),
             sources: ["ANDROID TV", "Bluetooth", "HEOS Music", "KODI", "NET", "PLAYSTATION 5", "XBOX 360"]
+                .into_iter()
+                .filter(|s| !settings::get().hides(s))
                 .map(String::from)
-                .to_vec(),
+                .collect(),
             sound_mode: "DOLBY DIGITAL".into(),
             title: "Blade Runner 2049".into(),
             paused: false,
@@ -122,7 +125,8 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     let app = AppWindow::new()?;
-    if let Some(accent) = std::env::var("UC_ACCENT").ok().as_deref().and_then(parse_color) {
+    let accent = std::env::var("UC_ACCENT").ok().or_else(|| settings::get().accent.clone());
+    if let Some(accent) = accent.as_deref().and_then(parse_color) {
         set_accent(&app, accent);
     }
 
@@ -402,7 +406,7 @@ impl Session {
             sources: receiver
                 .and_then(|e| e.pointer("/attributes/source_list"))
                 .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(Value::as_str).filter(|s| *s != "Source").map(String::from).collect())
+                .map(|a| a.iter().filter_map(Value::as_str).filter(|s| !settings::get().hides(s)).map(String::from).collect())
                 .unwrap_or_default(),
             sound_mode: attr_str(receiver, "sound_mode"),
             title: attr_str(screen, "media_title"),

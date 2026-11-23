@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the installable custom-UI archive: release.json at root + the binary at bin/remote-ui.
+# Build the installable custom-UI archive: release.json at root, the binary at bin/remote-ui, settings in config/.
 # Usage: pack.sh <path-to-aarch64-remote-ui-binary>
 # Output: packaging/out/remote-ui.tar.gz
 set -euo pipefail
@@ -15,8 +15,11 @@ cp "$HERE/release.json" "$STAGE/release.json"
 cp "$BIN" "$STAGE/bin/remote-ui"
 chmod +x "$STAGE/bin/remote-ui"
 
+# settings.json: the remote exposes this directory to the UI as UC_CONFIG_HOME.
+cp -r "$HERE/../config" "$STAGE/config"
+
 # No symlinks (the installer strips them); keep it a plain tar.
-tar -C "$STAGE" -czf "$OUT/remote-ui.tar.gz" release.json bin/remote-ui
+tar -C "$STAGE" -czf "$OUT/remote-ui.tar.gz" release.json bin/remote-ui config
 echo "wrote $OUT/remote-ui.tar.gz"
 echo
 echo "Install (⚠ writes permanent void_warranty flag):"
