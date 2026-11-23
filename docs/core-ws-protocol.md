@@ -45,7 +45,7 @@ Server pings every 10 s, closes after ~30 s silence. There's also an app-level `
 |---|---|
 | Events | `subscribe_events` (new session is auto-subscribed to `all`), `unsubscribe_events`, `get_event_channels`. Channels: `entities`, `entity_<type>`, `activity_groups`, `battery_status`, `wifi`, `network`, `integrations`, `software_updates`, `docks`, `configuration`, `profiles`, `bt`, `assistant` |
 | Profiles/pages | `get_active_profile`, `get_profiles`, `switch_profile`, `get_pages`, `get_groups` |
-| Entities | `get_entities` (paginated/filterable), `get_entity`, `get_entity_types`, `get_entity_commands`, `execute_entity_command` (`{entity_id, cmd_id, params}`), `browse_media`, `search_media`; live updates via `entity_change` event |
+| Entities | `get_entities` (filterable; paginated via `msg_data.paging: {page, limit}`, default limit **10**, max 100; response carries `paging: {count, limit, page}`), `get_entity`, `get_entity_types`, `get_entity_commands`, `execute_entity_command` (`{entity_id, cmd_id, params}`), `browse_media`, `search_media`; live updates via `entity_change` event |
 | Activities | Activities are entities (`entity_activity`); start/stop via `execute_entity_command`; progress via `entity_change`. Button mappings via `get_activity_button_mappings`-style messages (`button_mapping` data) |
 | Battery | `get_battery_charger`; event `battery_status` (`cat:REMOTE`) |
 | WiFi/net | `get_network_state`; events `wifi_change`, `network_change` |

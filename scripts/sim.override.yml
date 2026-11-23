@@ -1,0 +1,29 @@
+# Host 8080 is often taken on a dev workstation (e.g. Steam's CEF debug port), so remap.
+services:
+  core-simulator:
+    ports: !override
+      - "127.0.0.1:${SIM_PORT:-8090}:8080"
+
+  # The core reaches these over the compose network; nothing needs to be exposed beyond localhost.
+  integration-hass:
+    ports: !reset []
+
+  hassio:
+    privileged: !reset false
+    ports: !override
+      - "127.0.0.1:${HASS_PORT:-8123}:8123"
+
+  # Community Kodi driver (albaintor/integration-kodi), started only by `sim.sh kodi`. Upstream runs
+  # it with host networking for discovery/WoL; on the compose network it works with a manually
+  # entered Kodi address.
+  integration-kodi:
+    image: albator78/kodi-integration:latest
+    container_name: integration-kodi
+    profiles: ["kodi"]
+    environment:
+      - UC_INTEGRATION_HTTP_PORT=9090
+      - UC_CONFIG_HOME=/app/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./integration-kodi:/app/config
