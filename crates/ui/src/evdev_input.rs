@@ -40,6 +40,7 @@ fn key_text(code: u16) -> Option<SharedString> {
         167 => text("r"),                        // RECORD
         139 | 62 | 127 => text("m"),             // MENU, F4, COMPOSE
         116 => text("p"),                        // POWER
+        61 | 217 | 248 | 582 => text("v"),         // F3, SEARCH, MICMUTE, VOICECOMMAND: the voice key
         _ => None,
     }
 }
@@ -111,7 +112,8 @@ fn read(mut device: Device, is_touch: bool, weak: slint::Weak<AppWindow>) {
                         1 => WindowEvent::KeyPressed { text },
                         _ => WindowEvent::KeyPressRepeated { text },
                     }),
-                    None if value == 1 => tracing::info!("unmapped key code {code}"),
+                    // 143 is the wake signal from the power and motion sensors, not a key.
+                    None if value == 1 && code != 143 => tracing::info!("unmapped key code {code}"),
                     None => {}
                 }
             } else if kind == EventType::ABSOLUTE && is_touch {

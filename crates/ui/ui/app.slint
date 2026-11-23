@@ -411,6 +411,13 @@ export component AppWindow inherits Window {
                 }
                 return accept;
             }
+            // The voice key is the input switcher, from anywhere.
+            if (event.text == "v" || event.text == "V") {
+                if (!event.repeat && root.page != 6) {
+                    root.go(root.page == 1 ? 0 : 1, root.source-index);
+                }
+                return accept;
+            }
             if (root.page == 6) {
                 if (root.join-state != 1) {
                     root.kb-nav(event.text == Key.UpArrow ? "up" : event.text == Key.DownArrow ? "down" : event.text == Key.LeftArrow ? "left" : event.text == Key.RightArrow ? "right" : event.text == Key.Return ? "ok" : event.text == Key.Backspace || event.text == Key.Escape ? "back" : "");
@@ -690,6 +697,32 @@ export component AppWindow inherits Window {
                 clock: root.clock;
                 battery: root.battery;
                 menu => { root.go(2, 0); }
+            }
+            // On the Kodi views the current input sits in the status line; tapping it opens the list.
+            if root.home-view != 0 && root.home-view != 3 && root.sources.length > 0: TouchArea {
+                x: 150px;
+                y: 0;
+                width: 180px;
+                height: 64px;
+                clicked => { root.go(1, root.source-index); }
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 6px;
+                    Text {
+                        text: root.source;
+                        font-size: 18px;
+                        color: Theme.t2;
+                        vertical-alignment: center;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Glyph {
+                            size: 16px;
+                            commands: Icons.right;
+                            tint: Theme.t3;
+                        }
+                    }
+                }
             }
             if !root.connected: Text {
                 y: 772px;

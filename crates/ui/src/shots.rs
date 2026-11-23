@@ -2,9 +2,9 @@
 //! plays a scripted session and pipes frames to ffmpeg. With `--frame <photo>` both show the UI
 //! inside the remote with its keys lit.
 
-use crate::backlight::{self, UiState};
+use crate::backlight;
 use crate::device::{self, Device};
-use crate::{apply, apply_demo_settings, parse_color, set_accent, AppWindow, Model, Theme, UiAction};
+use crate::{apply, apply_demo_settings, parse_color, set_accent, AppWindow, Model, UiAction};
 use anyhow::Context;
 use slint::{ComponentHandle, Model as _};
 use std::cell::RefCell;
@@ -15,22 +15,10 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedSender;
 
-fn ui_state(app: &AppWindow) -> UiState {
-    UiState {
-        awake: app.get_awake(),
-        power_hold: app.get_power_overlay().then(|| app.get_power_turning_off()),
-        receiver_on: app.get_receiver_on(),
-        page: app.get_page(),
-        kodi: app.get_kodi(),
-        playing: !app.get_media_title().is_empty(),
-        volume_overlay: app.get_volume_overlay(),
-        muted: app.get_muted(),
-    }
-}
-
-fn accent(app: &AppWindow) -> [u8; 3] {
-    let c = app.global::<Theme>().get_accent();
-    [c.red(), c.green(), c.blue()]
+/// Lit zones and their colour for what the window is showing.
+fn keys(app: &AppWindow) -> (&'static [u8], [u8; 3]) {
+    let (state, accent) = backlight::observe(app);
+    (backlight::zones(state), backlight::colour(state, accent))
 }
 
 type Step = (&'static str, fn(&AppWindow, &mut Model));
@@ -118,7 +106,7 @@ pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::R
             let saved = app.window().take_snapshot().map_err(anyhow::Error::from).and_then(|buf| {
                 match &mut frame {
                     Some(device) => device
-                        .compose(buf.as_bytes(), (buf.width(), buf.height()), backlight::zones(ui_state(&app)), backlight::colour(ui_state(&app), accent(&app)), f32::MAX)
+                        .compose(buf.as_bytes(), (buf.width(), buf.height()), keys(&app).0, keys(&app).1, f32::MAX)
                         .save(&path)?,
                     None => image::save_buffer(&path, buf.as_bytes(), buf.width(), buf.height(), image::ColorType::Rgba8)?,
                 }
@@ -155,7 +143,7 @@ pub fn snap(app: &AppWindow, path: PathBuf, mut frame: Option<Device>) -> slint:
         let saved = app.window().take_snapshot().map_err(anyhow::Error::from).and_then(|buf| {
             match &mut frame {
                 Some(device) => device
-                    .compose(buf.as_bytes(), (buf.width(), buf.height()), backlight::zones(ui_state(&app)), backlight::colour(ui_state(&app), accent(&app)), f32::MAX)
+                    .compose(buf.as_bytes(), (buf.width(), buf.height()), keys(&app).0, keys(&app).1, f32::MAX)
                     .save(&path)?,
                 None => image::save_buffer(&path, buf.as_bytes(), buf.width(), buf.height(), image::ColorType::Rgba8)?,
             }
@@ -336,7 +324,7 @@ pub fn record(app: &AppWindow, tx: Tx, mut device: Device, out: PathBuf, which: 
         if let Ok(buf) = app.window().take_snapshot() {
             let dt = last_frame.elapsed().as_secs_f32();
             last_frame = Instant::now();
-            let frame = device.compose(buf.as_bytes(), (buf.width(), buf.height()), backlight::zones(ui_state(&app)), backlight::colour(ui_state(&app), accent(&app)), dt);
+            let frame = device.compose(buf.as_bytes(), (buf.width(), buf.height()), keys(&app).0, keys(&app).1, dt);
             if let Some(pipe) = &mut pipe {
                 let _ = pipe.write_all(frame.as_raw());
             }

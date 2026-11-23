@@ -40,6 +40,8 @@ pub enum UiAction {
     PowerHeld,
     WifiScan,
     WifiJoin { ssid: String, hex: String, password: String },
+    /// Light these key zones in this colour.
+    Backlight(Vec<u8>, [u8; 3]),
 }
 
 /// Results of work that finishes later than the request that started it.
@@ -210,6 +212,23 @@ fn main() -> anyhow::Result<()> {
         app.invoke_go(page, 0);
     }
     let _snap = arg("--snap").map(|out| shots::snap(&app, out.into(), device::Device::load_opt(arg("--frame"))));
+    // The window is the source of truth for what is on screen, so the key backlight follows it
+    // from here; the core is only told when the answer changes.
+    let _backlight = {
+        let (weak, tx) = (app.as_weak(), act_tx.clone());
+        let mut last = (Vec::new(), [0u8; 3]);
+        let timer = slint::Timer::default();
+        timer.start(slint::TimerMode::Repeated, Duration::from_millis(150), move || {
+            let Some(app) = weak.upgrade() else { return };
+            let (state, accent) = backlight::observe(&app);
+            let now = (backlight::zones(state).to_vec(), backlight::colour(state, accent));
+            if now != last {
+                last = now.clone();
+                let _ = tx.send(UiAction::Backlight(now.0, now.1));
+            }
+        });
+        timer
+    };
     let _recording = match record {
         Some(out) => {
             let device = frame.ok_or_else(|| anyhow::anyhow!("--record needs --frame <remote photo>"))?;
@@ -575,6 +594,20 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         let on = session.model().receiver_on;
                         (Target::Volume, if on { "off" } else { "on" }.to_string(), Value::Null)
                     }
+                    UiAction::Backlight(zones, rgb) => {
+                        // An empty zone list means "all" to the core; when asleep it turns the keys off itself.
+                        if !zones.is_empty() {
+                            let core = core.clone();
+                            let zones: Vec<String> = zones.iter().map(u8::to_string).collect();
+                            tokio::spawn(async move {
+                                let cfg = json!({ "static_color": { "rgb": rgb, "zones": zones } });
+                                if let Err(e) = core.request("set_button_cfg", cfg).await {
+                                    tracing::debug!("backlight: {e:#}");
+                                }
+                            });
+                        }
+                        continue;
+                    }
                     UiAction::WifiScan => {
                         session.scanning = true;
                         render(weak, &session.model());
@@ -734,6 +767,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                     joining = ssid;
                     after(1800, Later::JoinDone(ok));
                 }
+                UiAction::Backlight(..) => continue,
                 UiAction::Key(text) if text == "x" => m.demo_ha_down = !m.demo_ha_down,
                 UiAction::SelectSource(name) => m.source = name,
                 UiAction::Command(cmd) => tracing::info!("kodi command {cmd}"),

@@ -2,6 +2,25 @@
 //! a chosen set of zones (`set_button_cfg` → `static_color: {rgb, zones}`), so the policy is
 //! "which zones", with the colour following the interface accent.
 
+use crate::{AppWindow, Theme};
+use slint::ComponentHandle;
+
+/// What the window is showing right now, and the interface accent. UI thread only.
+pub fn observe(app: &AppWindow) -> (UiState, [u8; 3]) {
+    let accent = app.global::<Theme>().get_accent();
+    let state = UiState {
+        awake: app.get_awake(),
+        power_hold: app.get_power_overlay().then(|| app.get_power_turning_off()),
+        receiver_on: app.get_receiver_on(),
+        page: app.get_page(),
+        kodi: app.get_kodi(),
+        playing: !app.get_media_title().is_empty(),
+        volume_overlay: app.get_volume_overlay(),
+        muted: app.get_muted(),
+    };
+    (state, [accent.red(), accent.green(), accent.blue()])
+}
+
 /// Zone ids as reported by `/cfg/device/button_layout` on the UCR3.
 pub mod zone {
     pub const HOME: u8 = 1;
