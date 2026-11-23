@@ -48,9 +48,11 @@ pub fn start(app: &AppWindow) {
     let mut found = 0;
     for (path, device) in evdev::enumerate() {
         let name = device.name().unwrap_or("?").to_string();
-        let axes = device.supported_absolute_axes();
-        let is_touch = axes.is_some_and(|a| a.iter().any(|x| x.0 == ABS_MT_POSITION_X || x.0 == ABS_X))
-            && Some(path.as_os_str()) != std::env::var_os("UC_TOUCHSLIDER_DEV_PATH").as_deref();
+        // The slider below the screen also has X/Y axes and must not be mistaken for the panel.
+        let lower = name.to_lowercase();
+        let is_touch = (device.properties().contains(evdev::PropType::DIRECT) || lower.contains("touchscreen"))
+            && !lower.contains("slider")
+            && device.supported_absolute_axes().is_some_and(|a| a.iter().any(|x| x.0 == ABS_MT_POSITION_X || x.0 == ABS_X));
         let keys = device.supported_keys().map_or(0, |k| k.iter().count());
         tracing::info!("input {}: {name:?}, touch={is_touch}, keys={keys}", path.display());
         if !is_touch && keys == 0 {
