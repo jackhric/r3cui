@@ -1,0 +1,72 @@
+# Theater wrapper for the remote: a media player whose input list is whatever the Denon itself
+# shows (Setup > Inputs > Hide Sources), with no input names written down anywhere.
+#
+# Install as a Home Assistant package: put this file in /config/packages/ and make sure
+# configuration.yaml has
+#
+#   homeassistant:
+#     packages: !include_dir_named packages
+#
+# then check the configuration and restart Home Assistant.
+
+# Ask the receiver which sources are shown and what they are called. Home Assistant's Denon
+# integration does not expose this, and adds entries of its own (NET, Source).
+rest:
+  - resource: http://denon-avr.local:8080/goform/AppCommand.xml
+    method: POST
+    headers:
+      Content-Type: text/xml
+    payload: >-
+      <?xml version="1.0" encoding="utf-8"?>
+      <tx>
+      <cmd id="1">GetDeletedSource</cmd>
+      <cmd id="1">GetRenameSource</cmd>
+      </tx>
+    scan_interval: 300
+    sensor:
+      - name: Theater Receiver Sources Raw
+        unique_id: theater_receiver_sources_raw
+        value_template: "{{ value_json.rx.cmd | count }}"
+        json_attributes_path: "$.rx"
+        json_attributes:
+          - cmd
+
+template:
+  - sensor:
+      - name: Theater Inputs
+        unique_id: theater_inputs
+        state: "{{ (this.attributes.source_list | default([])) | count }}"
+        attributes:
+          # Shown sources (use = 1), by the names given to them on the receiver.
+          source_list: >-
+            {% set cmd = state_attr('sensor.theater_receiver_sources_raw', 'cmd') or [] %}
+            {% set shown = (cmd | selectattr('functiondelete', 'defined') | map(attribute='functiondelete.list') | first | default([]))
+               | selectattr('use', 'eq', '1') | map(attribute='name') | list %}
+            {% set names = cmd | selectattr('functionrename', 'defined') | map(attribute='functionrename.list') | first | default([]) %}
+            {{ names | selectattr('name', 'in', shown) | map(attribute='rename') | map('trim') | list }}
+
+media_player:
+  - platform: universal
+    name: Theater
+    unique_id: theater_wrapper
+    device_class: receiver
+    children:
+      - media_player.theater_receiver
+    attributes:
+      source_list: sensor.theater_inputs|source_list
+    commands:
+      # Needed explicitly: with the receiver off there is no active child to pass these to.
+      turn_on:
+        action: media_player.turn_on
+        target:
+          entity_id: media_player.theater_receiver
+      turn_off:
+        action: media_player.turn_off
+        target:
+          entity_id: media_player.theater_receiver
+      select_source:
+        action: media_player.select_source
+        target:
+          entity_id: media_player.theater_receiver
+        data:
+          source: "{{ source }}"
