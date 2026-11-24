@@ -37,6 +37,8 @@ const description = 'A simplified, single-purpose Unfolded Circle Remote 3 inter
     <Footer repo={repo} download={download} />
 
     <script>
+      addEventListener('load', () => setTimeout(() => document.documentElement.classList.add('loaded'), 0), { once: true });
+
       for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-copy]')) {
         const input = document.getElementById(button.dataset.copy!) as HTMLInputElement | null;
         input?.addEventListener('focus', () => input.select());
@@ -88,7 +90,10 @@ const description = 'A simplified, single-purpose Unfolded Circle Remote 3 inter
 <style is:global>
   @layer base {
     * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; scrollbar-gutter: stable; }
+    /* Smooth scrolling only once the page has loaded: set from the start, it also animated the browser restoring the
+       scroll position after a refresh, which looked like the page jumping. */
+    html { scrollbar-gutter: stable; }
+    html.loaded { scroll-behavior: smooth; }
     body {
       margin: 0; background: var(--background); color: var(--foreground);
       font: 16px/1.6 'Plus Jakarta Sans Variable', system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, sans-serif;
