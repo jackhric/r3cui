@@ -243,7 +243,7 @@ pub struct Ha {
     pub colour: Option<Rgb>,
     /// A named group of keys to light in place of the screen's own choice.
     pub fixed: Option<&'static [Zone]>,
-    /// The per-key lights that are on. In `Custom` mode, if any is on, exactly these are shown.
+    /// The per-key lights that are on. In `Custom` mode each overrides its own zone.
     pub zones: [Option<Rgb>; 12],
 }
 
@@ -319,20 +319,20 @@ pub fn frame_for(s: UiState, accent: Rgb) -> Frame {
         return Frame::OFF;
     }
     let custom = s.ha.mode == Mode::Custom;
-    let frame = if custom && s.ha.zones.iter().any(Option::is_some) {
-        // Per-key lights are an exact request: what is on is lit, what is off is dark.
-        Zone::ALL.iter().fold(Frame::OFF, |f, &z| match s.ha.zones[z.index()] {
-            Some(colour) => f.light(&[z], colour),
-            None => f,
-        })
-    } else {
-        let keys = in_use(s, accent);
-        let keys = match s.ha.colour.filter(|_| custom) {
-            Some(colour) => keys.recolour(accent, colour),
-            None => keys,
-        };
-        keys.over(UNDERLAY)
+    let keys = in_use(s, accent);
+    let keys = match s.ha.colour.filter(|_| custom) {
+        Some(colour) => keys.recolour(accent, colour),
+        None => keys,
     };
+    let mut frame = keys.over(UNDERLAY);
+    if custom {
+        // Each per-key light that is on overrides just its own zone.
+        for zone in Zone::ALL {
+            if let Some(colour) = s.ha.zones[zone.index()] {
+                frame = frame.light(&[zone], colour);
+            }
+        }
+    }
     // The power key shows red or green while it is held, whatever else is going on.
     match s.power_hold {
         Some(turning_off) => frame.light(&[Zone::ChannelUpPower], if turning_off { Rgb::RED } else { Rgb::GREEN }),
@@ -424,13 +424,16 @@ mod tests {
     }
 
     #[test]
-    fn per_key_lights_are_shown_exactly() {
+    fn per_key_lights_override_only_their_own_zone() {
         let mut zones = [None; 12];
         zones[Zone::Home.index()] = Some(Rgb(1, 2, 3));
-        zones[Zone::VoiceNext.index()] = Some(Rgb(9, 9, 9));
+        zones[Zone::VolumeDown.index()] = Some(Rgb(9, 9, 9));
         let ha = Ha { mode: Mode::Custom, zones, ..Ha::default() };
         let f = frame_for(UiState { ha, ..state() }, ACCENT);
-        assert_eq!((f.get(Zone::Home), f.get(Zone::VoiceNext)), (Rgb(1, 2, 3), Rgb(9, 9, 9)));
-        assert_eq!(f.get(Zone::VolumeDown), Rgb::OFF, "no underlay: this mode is an exact request");
+        assert_eq!((f.get(Zone::Home), f.get(Zone::VolumeDown)), (Rgb(1, 2, 3), Rgb(9, 9, 9)));
+        assert_eq!(f.get(Zone::MutePrevious), ACCENT, "keys in use keep the screen's colour");
+        assert_eq!(f.get(Zone::DpadUp), UNDERLAY);
+        let follow = Ha { mode: Mode::Follow, zones, ..Ha::default() };
+        assert_eq!(frame_for(UiState { ha: follow, ..state() }, ACCENT), frame_for(state(), ACCENT));
     }
 }
