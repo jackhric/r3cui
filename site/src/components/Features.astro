@@ -64,12 +64,6 @@ const lights = [
           <div class="remote">
             <img src={f.clip.poster} alt="" width="544" height="1084" loading="lazy" decoding="async" />
             <video muted loop playsinline preload="none" width="544" height="1084" data-webm={f.clip.webm} data-mp4={f.clip.mp4}></video>
-            <div class="veil" hidden>
-              <img class="frost" src={f.clip.poster} alt="" width="544" height="1084" loading="lazy" decoding="async" />
-              <button type="button" class="play" aria-label={`Play the ${f.title} clip`}>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" /></svg>Play clip
-              </button>
-            </div>
           </div>
         </div>
       </article>
@@ -92,23 +86,10 @@ const lights = [
 </section>
 
 <script>
-  import probeUrl from '../assets/autoplay-probe.mp4?url';
-
   // Each card's remote shows its still until its row is the one in focus (nearest the middle of the screen); then the
   // clip crossfades in and the remote rises. Scrolling another row into focus pauses it again.
   const still = matchMedia('(prefers-reduced-motion: reduce)');
 
-  // Whether this browser lets a muted, inline clip play without a tap. Asked once, with a one-frame silent video, so
-  // the Play clip overlay depends on the browser's autoplay rule (iPhone Low Power Mode, an autoplay setting) and not on
-  // whether one particular play attempt failed during a scroll or while a clip was loading.
-  const autoplayBlocked: Promise<boolean> = (async () => {
-    const probe = document.createElement('video');
-    probe.muted = true; probe.playsInline = true; probe.setAttribute('muted', ''); probe.setAttribute('playsinline', '');
-    probe.src = probeUrl;
-    try { await probe.play(); probe.pause(); return false; }
-    catch (e) { return (e as DOMException).name === 'NotAllowedError'; }
-    finally { probe.removeAttribute('src'); probe.load(); }
-  })();
   function start(card: HTMLElement) {
     const video = card.querySelector('video');
     if (!video || still.matches) return;
@@ -121,29 +102,12 @@ const lights = [
         video.append(source);
       }
       video.addEventListener('playing', () => video.classList.add('live'));
-      // The clip's real state, for the CSS that keeps the Play clip overlay off a playing clip.
-      video.addEventListener('playing', () => { video.dataset.playing = ''; card.querySelector<HTMLElement>('.veil')!.hidden = true; });
-      for (const ev of ['pause', 'ended', 'emptied'] as const) video.addEventListener(ev, () => delete video.dataset.playing);
       video.load();
     }
-    // Autoplay refused (iPhone Low Power Mode, or the browser's setting): frost the screen behind a Play clip button.
-    // Only when the browser blocks autoplay outright, and the clip is still not playing a moment later.
-    video.play().catch(async e => {
-      if (!(await autoplayBlocked)) {
-        // Autoplay is allowed, so this attempt just lost a race (a scroll, a clip still loading): try again while in focus.
-        setTimeout(() => { if (card.classList.contains('in-focus') && video.paused) video.play().catch(() => {}); }, 400);
-        return;
-      }
-      if ((e as DOMException).name !== 'NotAllowedError') return;
-      setTimeout(() => { if (video.paused && !video.dataset.playing) card.querySelector<HTMLElement>('.veil')!.hidden = false; }, 350);
-    });
-  }
-  for (const veil of document.querySelectorAll<HTMLElement>('#features .veil')) {
-    veil.querySelector('button')!.addEventListener('click', () => {
-      const video = veil.parentElement!.querySelector('video')!;
-      veil.classList.add('gone');
-      video.play().catch(() => {});
-      setTimeout(() => { veil.hidden = true; veil.classList.remove('gone'); }, 450);
+    // A refused attempt (a scroll, a clip still loading) gets one retry while in focus. If the browser blocks autoplay
+    // outright, the still stays.
+    video.play().catch(() => {
+      setTimeout(() => { if (card.classList.contains('in-focus') && video.paused) video.play().catch(() => {}); }, 400);
     });
   }
   const stop = (card: HTMLElement) => card.querySelector('video')?.pause();
@@ -334,31 +298,6 @@ const lights = [
     .lights-card:hover .remote { box-shadow: 0 16px 36px rgb(0 0 0 / 0.28); }
   }
   .remote img, .remote video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
-  /* Autoplay blocked: the remote's screen (480x800 at 32,25 on the 544x2352 photo) frosts over, blurred and grained,
-     behind a Play clip button at its centre. */
-  .veil {
-    position: absolute; left: 5.882%; top: 1.063%; width: 88.235%; height: 34.014%; z-index: 2; display: grid; place-items: center;
-    border-radius: 3px; overflow: hidden; transition: opacity 0.45s ease;
-  }
-  /* The blur is a copy of the still lined up under the screen and blurred itself (backdrop-filter can't see through the
-     remote's own compositing layer). It spans the remote's width (1/0.88235 of the screen) from the remote's top-left. */
-  .veil .frost {
-    position: absolute; left: -6.667%; top: -3.125%; width: 113.333%; height: auto; max-width: none; aspect-ratio: 544 / 1084;
-    filter: blur(9px) saturate(1.1) brightness(0.78); scale: 1.04;
-  }
-  .veil::before { content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit; opacity: 0.75; pointer-events: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.9 -0.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-  .veil.gone { opacity: 0; pointer-events: none; }
-  /* Never over a clip that is playing, whatever the script last decided. */
-  .remote:has(video[data-playing]) .veil { display: none !important; }
-  .play {
-    position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; padding: 10px 16px 10px 13px;
-    border-radius: 999px; border: 0; cursor: pointer; font: 600 0.9rem/1 inherit; font-family: inherit; color: #fff;
-    background: rgb(20 20 20 / 0.62); backdrop-filter: blur(10px) saturate(1.3);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.24), 0 6px 18px rgb(0 0 0 / 0.35); transition: scale 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-  }
-  .play svg { width: 16px; height: 16px; fill: currentColor; }
-  .play:hover { scale: 1.05; }
-  .play:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
   /* Card media is the top of the remote only: pinned to its top at its own shape, the rest is below the card's edge. */
   .card:not(.lights-card) .remote :is(img, video) { inset: 0 0 auto; height: auto; aspect-ratio: 544 / 1084; }
   .remote video { opacity: 0; transition: opacity 0.5s ease; }
