@@ -279,9 +279,6 @@ export component AppWindow inherits Window {
     in property <[StatusRow]> status-rows;
     // Non-empty when something the home screen depends on is unreachable.
     in property <string> home-warning;
-    // Key backlight wishes from Home Assistant: 0 follow the screen, 1 custom colour, 2 off.
-    in property <int> keys-mode;
-    in property <color> keys-color;
     in property <[KeyCell]> kb-keys;
     in property <string> kb-text;
 

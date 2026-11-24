@@ -47,6 +47,8 @@ pub enum UiAction {
 enum Later {
     Wifi(String, Vec<net::Network>),
     Integrations(HashMap<String, bool>),
+    /// The core's current list of configured entities.
+    Entities(Vec<Value>),
     JoinDone(bool),
 }
 
@@ -71,7 +73,7 @@ pub struct Model {
     pub scanning: bool,
     pub status: Vec<net::StatusLine>,
     pub warning: String,
-    pub keys: backlight::Wish,
+    pub keys: backlight::Ha,
     /// Demo only: pretend Home Assistant cannot be reached.
     pub demo_ha_down: bool,
 }
@@ -415,34 +417,39 @@ impl Session {
         });
     }
 
-    /// What the Home Assistant helpers ask of the key backlight. Without the mode helper, the
-    /// light alone decides: on means its colour, off means follow the screen.
-    fn keys_wish(&self) -> backlight::Wish {
-        use backlight::{Rgb, Wish};
+    /// What the Home Assistant helpers ask of the key backlight. Without the mode helper the
+    /// lights alone decide: any of them on means their colours, all off means follow the screen.
+    fn keys(&self) -> backlight::Ha {
+        use backlight::{Ha, Mode, Rgb, Zone};
         let cfg = settings::get();
         let ending = |suffix: &str| self.entities.iter().find(|e| !suffix.is_empty() && entity_id(e).ends_with(suffix));
-        let light = ending(&cfg.keys_light);
-        let lit = light.is_some_and(|l| attr_str(Some(l), "state") == "ON");
-        let colour = || {
-            let (h, s, v) = (attr_f64(light, "hue"), attr_f64(light, "saturation") / 255.0, attr_f64(light, "brightness") / 255.0);
+        let colour = |light: Option<&Value>| {
+            let light = light.filter(|l| attr_str(Some(l), "state") == "ON")?;
+            let (h, s, v) = (
+                attr_f64(Some(light), "hue"),
+                attr_f64(Some(light), "saturation") / 255.0,
+                attr_f64(Some(light), "brightness") / 255.0,
+            );
             // HSV to RGB, with the light's brightness as the value.
             let f = |n: f64| {
                 let k = (n + h / 60.0) % 6.0;
                 ((v - v * s * k.min(4.0 - k).clamp(0.0, 1.0)) * 255.0).round() as u8
             };
-            Rgb(f(5.0), f(3.0), f(1.0))
+            Some(Rgb(f(5.0), f(3.0), f(1.0)))
         };
-        let mode = ending(&cfg.keys_mode).map(|m| {
-            let m = attr_str(Some(m), "current_option");
-            if m.is_empty() { attr_str(ending(&cfg.keys_mode), "state") } else { m }
-        });
-        match mode.as_deref().map(str::to_lowercase).as_deref() {
-            Some("off") => Wish::Off,
-            Some("custom") if light.is_some() => Wish::Custom(colour()),
-            Some(_) => Wish::Follow,
-            None if lit => Wish::Custom(colour()),
-            None => Wish::Follow,
+        let mut zones = [None; 12];
+        for zone in Zone::ALL {
+            zones[zone.index()] = colour(ending(&format!("{}{}", cfg.keys_zone_prefix, zone.slug())));
         }
+        let all = colour(ending(&cfg.keys_light));
+        let option = |suffix: &str| attr_str(ending(suffix), "current_option").to_lowercase();
+        let mode = match option(&cfg.keys_mode).as_str() {
+            "off" => Mode::Off,
+            "custom" => Mode::Custom,
+            "" if all.is_some() || zones.iter().any(Option::is_some) => Mode::Custom,
+            _ => Mode::Follow,
+        };
+        Ha { mode, colour: all, fixed: backlight::preset(&option(&cfg.keys_zones)), zones }
     }
 
     fn model(&self) -> Model {
@@ -467,7 +474,7 @@ impl Session {
             on_kodi: source.is_empty() || source.eq_ignore_ascii_case("kodi"),
         });
         Model {
-            keys: self.keys_wish(),
+            keys: self.keys(),
             wifi_ssid: self.wifi_ssid.clone(),
             wifi: self.wifi.clone(),
             scanning: self.scanning,
@@ -562,6 +569,15 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         let _ = tx.send(Later::Integrations(net::integrations(&core).await));
                     });
                 }
+                // Entities shared with the remote after startup only show up by asking again.
+                if ticks % 20 == 0 {
+                    let (core, tx) = (core.clone(), later_tx.clone());
+                    tokio::spawn(async move {
+                        if let Ok(entities) = core.get_entities().await {
+                            let _ = tx.send(Later::Entities(entities));
+                        }
+                    });
+                }
                 if session.joining.is_some_and(|(_, since)| since.elapsed() > JOIN_TIMEOUT) {
                     let _ = later_tx.send(Later::JoinDone(false));
                 }
@@ -573,6 +589,14 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         (session.wifi_ssid, session.wifi, session.scanning) = (ssid, networks, false);
                     }
                     Later::Integrations(map) => session.integrations = map,
+                    Later::Entities(entities) => {
+                        for e in entities {
+                            if session.entity(entity_id(&e)).is_none() {
+                                tracing::info!("new entity {}", entity_id(&e));
+                                session.entities.push(e);
+                            }
+                        }
+                    }
                     Later::JoinDone(ok) => {
                         if session.joining.take().is_some() {
                             finish_join(weak, ok);
@@ -766,7 +790,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
             }
             Some(later) = later_rx.recv() => match later {
                 Later::Wifi(_, networks) => (m.wifi, m.scanning) = (networks, false),
-                Later::Integrations(_) => {}
+                Later::Integrations(_) | Later::Entities(_) => {}
                 Later::JoinDone(ok) => {
                     if ok {
                         m.wifi_ssid = std::mem::take(&mut joining);
@@ -903,14 +927,7 @@ pub fn apply(app: &AppWindow, m: &Model) {
         }
     }
     app.set_awake(m.awake);
-    let (mode, colour) = match m.keys {
-        backlight::Wish::Follow => (0, backlight::Rgb::OFF),
-        backlight::Wish::Custom(c) => (1, c),
-        backlight::Wish::Off => (2, backlight::Rgb::OFF),
-    };
-    app.set_keys_mode(mode);
-    app.set_keys_color(slint::Color::from_rgb_u8(colour.0, colour.1, colour.2));
-    app.set_receiver_on(m.receiver_on);
+    backlight::set_ha(m.keys);
     app.set_battery(m.battery);
     app.set_volume(m.volume);
     app.set_volume_db(volume_db(m.volume).into());

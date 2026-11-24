@@ -5,7 +5,9 @@
 //! - An update (`set_button_cfg` → `static_color: {rgb, zones}`) paints only the zones it names.
 //!   Every other zone keeps what it had, so each zone can hold its own colour, and turning a zone
 //!   off means painting it black.
-//! - Some zones share keys, and light from a zone bleeds into its neighbours' keycaps.
+//! - Some zones share keys, and light from a zone bleeds into its neighbours' keycaps. A lit key
+//!   beside a dark one therefore looks like a fault, so keys that are not in use are given a
+//!   soft white ([`UNDERLAY`]) instead of being switched off.
 //!
 //! How to use it:
 //!
@@ -17,11 +19,14 @@
 //! A [`Frame`] is the whole keypad: one colour per zone. [`Backlight::show`] can be called as often
 //! as you like; only the zones that differ from what is already showing are repainted, grouped
 //! into one update per colour, and a newer frame replaces one that has not been sent yet.
+//!
+//! [`frame_for`] is the policy that turns what is on screen, plus any wishes from Home Assistant
+//! ([`Ha`]), into a frame.
 
 use crate::{AppWindow, Theme};
 use serde_json::json;
 use slint::ComponentHandle;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,6 +34,7 @@ pub struct Rgb(pub u8, pub u8, pub u8);
 
 impl Rgb {
     pub const OFF: Rgb = Rgb(0, 0, 0);
+    pub const WHITE: Rgb = Rgb(255, 255, 255);
     pub const RED: Rgb = Rgb(0xE8, 0x34, 0x3A);
     pub const GREEN: Rgb = Rgb(0x3D, 0xDC, 0x84);
 
@@ -41,7 +47,14 @@ impl Rgb {
     pub fn is_off(self) -> bool {
         self == Rgb::OFF
     }
+
+    fn peak(self) -> f32 {
+        self.0.max(self.1).max(self.2) as f32
+    }
 }
+
+/// What keys that are not in use show: soft enough to recede, bright enough to hide the bleed.
+pub const UNDERLAY: Rgb = Rgb(77, 77, 77);
 
 /// The zones as the UCR3 reports them in `/cfg/device/button_layout`; several cover two or more keys.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,19 +97,43 @@ impl Zone {
     fn core_name(self) -> String {
         format!("ZONE_{}", self as u8)
     }
+
+    /// How the zone is spelled at the end of its Home Assistant light's entity id.
+    pub fn slug(self) -> &'static str {
+        match self {
+            Zone::Home => "home",
+            Zone::VolumeUpBack => "volume_up_and_back",
+            Zone::DpadUp => "d_pad_up",
+            Zone::ChannelUpPower => "channel_up_and_power",
+            Zone::DpadLeft => "d_pad_left",
+            Zone::DpadRight => "d_pad_right",
+            Zone::DpadDown => "d_pad_down",
+            Zone::VolumeDown => "volume_down",
+            Zone::ChannelDown => "channel_down",
+            Zone::MutePrevious => "mute_and_previous",
+            Zone::RecordMenuStopPlay => "record_menu_stop_play",
+            Zone::VoiceNext => "voice_and_next",
+        }
+    }
 }
 
 pub const DPAD: &[Zone] = &[Zone::DpadUp, Zone::DpadLeft, Zone::DpadRight, Zone::DpadDown];
 pub const VOLUME: &[Zone] = &[Zone::VolumeUpBack, Zone::VolumeDown];
 pub const TRANSPORT: &[Zone] = &[Zone::MutePrevious, Zone::RecordMenuStopPlay, Zone::VoiceNext];
 
-/// Pairs of zones whose light visibly spills into each other's keys. A lit zone next to a dark one
-/// looks like a fault, so [`Frame::spill`] gives the dark neighbour a faint share of the colour.
-/// Fill this in from what is seen on the device.
-const BLEED: &[(Zone, Zone)] = &[];
-
-/// How bright a dark neighbour is made, as a fraction of the lit zone beside it.
-const SPILL: f32 = 0.18;
+/// Named key groups Home Assistant can ask for. `None` means "whichever keys the screen would light".
+pub fn preset(name: &str) -> Option<&'static [Zone]> {
+    use Zone::*;
+    match name.trim().to_lowercase().as_str() {
+        "all keys" => Some(&Zone::ALL),
+        "d-pad" => Some(DPAD),
+        "volume" => Some(&[VolumeUpBack, VolumeDown, MutePrevious]),
+        "transport" => Some(TRANSPORT),
+        "d-pad and volume" => Some(&[DpadUp, DpadLeft, DpadRight, DpadDown, VolumeUpBack, VolumeDown, MutePrevious]),
+        "power" => Some(&[ChannelUpPower]),
+        _ => None,
+    }
+}
 
 /// The whole keypad: one colour per zone, black for off.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -119,24 +156,18 @@ impl Frame {
 
     /// The same pattern of lit and dimmed zones in another colour.
     pub fn recolour(mut self, from: Rgb, to: Rgb) -> Self {
-        let peak = |c: Rgb| c.0.max(c.1).max(c.2) as f32;
         for c in self.0.iter_mut().filter(|c| !c.is_off()) {
-            *c = to.dim(if peak(from) > 0.0 { peak(*c) / peak(from) } else { 1.0 });
+            *c = to.dim(if from.peak() > 0.0 { c.peak() / from.peak() } else { 1.0 });
         }
         self
     }
 
-    /// Give each dark zone that sits beside a lit one a faint share of its colour (see [`BLEED`]).
-    pub fn spill(self) -> Self {
-        let mut out = self;
-        for &(a, b) in BLEED {
-            for (lit, dark) in [(a, b), (b, a)] {
-                if !self.get(lit).is_off() && self.get(dark).is_off() {
-                    out.0[dark.index()] = self.get(lit).dim(SPILL);
-                }
-            }
+    /// Fill every zone that is off with `colour`.
+    pub fn over(mut self, colour: Rgb) -> Self {
+        for c in self.0.iter_mut().filter(|c| c.is_off()) {
+            *c = colour;
         }
-        out
+        self
     }
 }
 
@@ -194,18 +225,36 @@ impl Backlight {
     }
 }
 
-/// What Home Assistant wants from the keys. The screen still decides which keys matter.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Wish {
-    /// Colour and keys both follow the screen.
+pub enum Mode {
+    /// The screen decides the keys and their colour.
     #[default]
     Follow,
-    /// The keys the screen would light, in this colour (already scaled by its brightness).
-    Custom(Rgb),
+    /// Home Assistant's lights decide the colour (and, with the per-key lights, the keys).
+    Custom,
     Off,
 }
 
-/// What decides the keys: a snapshot of what the window is showing.
+/// What Home Assistant asks of the keys, read from its helper entities.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Ha {
+    pub mode: Mode,
+    /// The "all keys" light, when it is on: the colour for whichever keys are in use.
+    pub colour: Option<Rgb>,
+    /// A named group of keys to light in place of the screen's own choice.
+    pub fixed: Option<&'static [Zone]>,
+    /// The per-key lights that are on. In `Custom` mode, if any is on, exactly these are shown.
+    pub zones: [Option<Rgb>; 12],
+}
+
+static HA: Mutex<Option<Ha>> = Mutex::new(None);
+
+/// Record Home Assistant's latest wishes; the next frame takes them into account.
+pub fn set_ha(ha: Ha) {
+    *HA.lock().unwrap_or_else(|e| e.into_inner()) = Some(ha);
+}
+
+/// What decides the keys: a snapshot of what the window is showing, plus Home Assistant's wishes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UiState {
     pub awake: bool,
@@ -218,7 +267,7 @@ pub struct UiState {
     pub playing: bool,
     pub volume_overlay: bool,
     pub muted: bool,
-    pub wish: Wish,
+    pub ha: Ha,
 }
 
 /// UI thread only.
@@ -233,24 +282,13 @@ pub fn observe(app: &AppWindow) -> (UiState, Rgb) {
         playing: !app.get_media_title().is_empty(),
         volume_overlay: app.get_volume_overlay(),
         muted: app.get_muted(),
-        wish: match app.get_keys_mode() {
-            1 => {
-                let c = app.get_keys_color();
-                Wish::Custom(Rgb(c.red(), c.green(), c.blue()))
-            }
-            2 => Wish::Off,
-            _ => Wish::Follow,
-        },
+        ha: HA.lock().unwrap_or_else(|e| e.into_inner()).unwrap_or_default(),
     };
     (state, Rgb(accent.red(), accent.green(), accent.blue()))
 }
 
-/// The policy: which keys are lit, and in what colour, for what is on screen. Keys that do
-/// something right now are lit in the accent; the power key shows red or green when it matters.
-pub fn frame_for(s: UiState, accent: Rgb) -> Frame {
-    if !s.awake || s.wish == Wish::Off {
-        return Frame::OFF;
-    }
+/// The keys that do something on this screen, in the accent, on an otherwise dark keypad.
+fn in_use(s: UiState, accent: Rgb) -> Frame {
     let volume = |frame: Frame| {
         if s.muted {
             // Muted: the mute key is the one to press; volume still works but steps back.
@@ -259,27 +297,47 @@ pub fn frame_for(s: UiState, accent: Rgb) -> Frame {
             frame.light(VOLUME, accent).light(&[Zone::MutePrevious], accent)
         }
     };
-    let base = if s.page != 0 {
+    if let Some(zones) = s.ha.fixed {
+        Frame::OFF.light(zones, accent)
+    } else if s.page != 0 {
         Frame::OFF.light(DPAD, accent).light(&[Zone::Home, Zone::VolumeUpBack], accent)
     } else if !s.receiver_on {
         // Everything is off; the power key is the only way forward.
-        Frame::OFF.light(&[Zone::ChannelUpPower], Rgb::GREEN.dim(0.4))
+        Frame::OFF.light(&[Zone::ChannelUpPower], Rgb::GREEN)
     } else if s.volume_overlay || !s.kodi {
         volume(Frame::OFF)
     } else if s.playing {
         volume(Frame::OFF.light(TRANSPORT, accent))
     } else {
         volume(Frame::OFF.light(DPAD, accent).light(&[Zone::Home, Zone::RecordMenuStopPlay], accent))
+    }
+}
+
+/// The policy: every key's colour for what is on screen and what Home Assistant asked for.
+pub fn frame_for(s: UiState, accent: Rgb) -> Frame {
+    if !s.awake || s.ha.mode == Mode::Off {
+        return Frame::OFF;
+    }
+    let custom = s.ha.mode == Mode::Custom;
+    let frame = if custom && s.ha.zones.iter().any(Option::is_some) {
+        // Per-key lights are an exact request: what is on is lit, what is off is dark.
+        Zone::ALL.iter().fold(Frame::OFF, |f, &z| match s.ha.zones[z.index()] {
+            Some(colour) => f.light(&[z], colour),
+            None => f,
+        })
+    } else {
+        let keys = in_use(s, accent);
+        let keys = match s.ha.colour.filter(|_| custom) {
+            Some(colour) => keys.recolour(accent, colour),
+            None => keys,
+        };
+        keys.over(UNDERLAY)
     };
-    let base = match s.wish {
-        Wish::Custom(colour) => base.recolour(accent, colour),
-        _ => base,
-    };
-    let frame = match s.power_hold {
-        Some(turning_off) => base.light(&[Zone::ChannelUpPower], if turning_off { Rgb::RED } else { Rgb::GREEN }),
-        None => base,
-    };
-    frame.spill()
+    // The power key shows red or green while it is held, whatever else is going on.
+    match s.power_hold {
+        Some(turning_off) => frame.light(&[Zone::ChannelUpPower], if turning_off { Rgb::RED } else { Rgb::GREEN }),
+        None => frame,
+    }
 }
 
 #[cfg(test)]
@@ -289,7 +347,17 @@ mod tests {
     const ACCENT: Rgb = Rgb(10, 20, 30);
 
     fn state() -> UiState {
-        UiState { awake: true, power_hold: None, receiver_on: true, page: 0, kodi: false, playing: false, volume_overlay: false, muted: false, wish: Wish::Follow }
+        UiState {
+            awake: true,
+            power_hold: None,
+            receiver_on: true,
+            page: 0,
+            kodi: false,
+            playing: false,
+            volume_overlay: false,
+            muted: false,
+            ha: Ha::default(),
+        }
     }
 
     #[test]
@@ -310,6 +378,14 @@ mod tests {
     }
 
     #[test]
+    fn keys_not_in_use_get_the_soft_white_underlay() {
+        let f = frame_for(state(), ACCENT);
+        assert_eq!(f.get(Zone::VolumeDown), ACCENT);
+        assert_eq!(f.get(Zone::DpadUp), UNDERLAY);
+        assert_eq!(f.get(Zone::Home), UNDERLAY);
+    }
+
+    #[test]
     fn asleep_is_dark_and_the_power_hold_is_coloured() {
         assert_eq!(frame_for(UiState { awake: false, ..state() }, ACCENT), Frame::OFF);
         let holding = frame_for(UiState { power_hold: Some(true), ..state() }, ACCENT);
@@ -318,18 +394,43 @@ mod tests {
     }
 
     #[test]
-    fn home_assistant_can_recolour_or_darken_the_keys() {
-        let custom = frame_for(UiState { muted: true, wish: Wish::Custom(Rgb(0, 0, 200)), ..state() }, ACCENT);
-        assert_eq!(custom.get(Zone::MutePrevious), Rgb(0, 0, 200));
-        assert_eq!(custom.get(Zone::VolumeDown), Rgb(0, 0, 53), "dimmed keys stay dimmed, in the new colour");
-        assert_eq!(custom.get(Zone::Home), Rgb::OFF);
-        assert_eq!(frame_for(UiState { wish: Wish::Off, ..state() }, ACCENT), Frame::OFF);
-    }
-
-    #[test]
     fn muted_dims_volume_but_not_mute() {
         let f = frame_for(UiState { muted: true, ..state() }, ACCENT);
         assert_eq!(f.get(Zone::MutePrevious), ACCENT);
         assert_eq!(f.get(Zone::VolumeDown), ACCENT.dim(0.25));
+    }
+
+    #[test]
+    fn home_assistant_can_recolour_or_darken_the_keys() {
+        let ha = Ha { mode: Mode::Custom, colour: Some(Rgb(0, 0, 200)), ..Ha::default() };
+        let custom = frame_for(UiState { muted: true, ha, ..state() }, ACCENT);
+        assert_eq!(custom.get(Zone::MutePrevious), Rgb(0, 0, 200));
+        assert_eq!(custom.get(Zone::VolumeDown), Rgb(0, 0, 53), "dimmed keys stay dimmed, in the new colour");
+        assert_eq!(custom.get(Zone::Home), UNDERLAY);
+        let off = Ha { mode: Mode::Off, ..Ha::default() };
+        assert_eq!(frame_for(UiState { ha: off, ..state() }, ACCENT), Frame::OFF);
+        let ignored = Ha { mode: Mode::Follow, colour: Some(Rgb(0, 0, 200)), ..Ha::default() };
+        assert_eq!(frame_for(UiState { ha: ignored, ..state() }, ACCENT), frame_for(state(), ACCENT));
+    }
+
+    #[test]
+    fn a_preset_replaces_the_screens_choice_of_keys() {
+        let ha = Ha { fixed: preset("D-pad"), ..Ha::default() };
+        let f = frame_for(UiState { ha, ..state() }, ACCENT);
+        assert_eq!(f.get(Zone::DpadLeft), ACCENT);
+        assert_eq!(f.get(Zone::VolumeDown), UNDERLAY);
+        assert_eq!(preset("Screen keys"), None);
+        assert_eq!(preset("all keys").map(<[Zone]>::len), Some(12));
+    }
+
+    #[test]
+    fn per_key_lights_are_shown_exactly() {
+        let mut zones = [None; 12];
+        zones[Zone::Home.index()] = Some(Rgb(1, 2, 3));
+        zones[Zone::VoiceNext.index()] = Some(Rgb(9, 9, 9));
+        let ha = Ha { mode: Mode::Custom, zones, ..Ha::default() };
+        let f = frame_for(UiState { ha, ..state() }, ACCENT);
+        assert_eq!((f.get(Zone::Home), f.get(Zone::VoiceNext)), (Rgb(1, 2, 3), Rgb(9, 9, 9)));
+        assert_eq!(f.get(Zone::VolumeDown), Rgb::OFF, "no underlay: this mode is an exact request");
     }
 }
