@@ -34,9 +34,10 @@ const GOLDEN = 0.618034;
  */
 export function riverColumns(count: number): Column[] {
   return Array.from({ length: count }, (_, i) => {
-    const start = (i * 2) % clips.length;
+    const start = (i * 3) % clips.length;
     // About half the remotes in each column are the dark grey finish.
-    const order = [...clips.slice(start), ...clips.slice(0, start)].map((c, k) => (noise(i * 31 + k, 10) < 0.5 ? c.dark : c.light));
+    // Six per column keeps the page light; neighbouring columns start further along, so every clip appears.
+    const order = [...clips.slice(start), ...clips.slice(0, start)].slice(0, 6).map((c, k) => (noise(i * 31 + k, 10) < 0.5 ? c.dark : c.light));
     // As a fraction of one tile plus its gap; the CSS turns it into pixels for the tile size in use.
     // Speeds step by a second irrational ratio, so the columns slide past each other without falling into step.
     const speed = 110 + ((i * 0.754877) % 1) * 40;
