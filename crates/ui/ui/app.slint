@@ -326,7 +326,8 @@ export component AppWindow inherits Window {
     property <bool> home-down;
     property <bool> home-used;
     property <bool> home-rumbling;
-    property <int> home-view: !root.receiver-on ? 3 : !root.kodi ? 0 : root.media-title != "" ? 1 : 2;
+    // 1 Kodi is playing, 2 the input's mark (every input, Kodi included, when idle), 3 receiver off
+    property <int> home-view: !root.receiver-on ? 3 : root.kodi && root.media-title != "" ? 1 : 2;
     property <duration> fade: 260ms;
 
     public function go(p: int, f: int) {
@@ -545,69 +546,6 @@ export component AppWindow inherits Window {
             current-depth: root.depth;
             active: root.page == 0;
 
-            // Receiver
-            Rectangle {
-                opacity: root.home-view == 0 ? 1 : 0;
-                visible: self.opacity > 0;
-                animate opacity { duration: root.fade; }
-
-                VerticalLayout {
-                    y: 122px;
-                    height: 130px;
-                    alignment: center;
-                    spacing: 14px;
-                    HorizontalLayout {
-                        alignment: center;
-                        Logo {
-                            size: 56px;
-                            commands: root.source-icon;
-                        }
-                    }
-                    HorizontalLayout {
-                        alignment: center;
-                        spacing: 8px;
-                        Text {
-                            text: root.source;
-                            font-size: 26px;
-                            font-weight: 500;
-                            color: Theme.text;
-                        }
-                        VerticalLayout {
-                            alignment: center;
-                            Glyph {
-                                size: 20px;
-                                commands: Icons.right;
-                                tint: Theme.t3;
-                            }
-                        }
-                    }
-                }
-                TouchArea {
-                    mouse-cursor: Theme.cursor;
-                    y: 100px;
-                    height: 170px;
-                    clicked => { root.go(1, root.source-index); }
-                }
-                VolumeReadout {
-                    y: 0;
-                    height: 800px;
-                    top: 292px;
-                    volume: root.volume;
-                    volume-db: root.volume-db;
-                    muted: root.muted || root.home-warning != "";
-                }
-                if root.home-warning == "": FormatBadge {
-                    y: 690px;
-                    brand: root.format-brand;
-                    label: root.format-label;
-                }
-                if root.home-warning != "": WarningRow {
-                    y: 682px;
-                    message: root.home-warning;
-                    tapped => { root.go(7, 0); }
-                }
-            }
-
             // Kodi, playing
             Rectangle {
                 opacity: root.home-view == 1 ? 1 : 0;
@@ -702,7 +640,7 @@ export component AppWindow inherits Window {
                 }
             }
 
-            // Kodi, browsing
+            // The current input, shown as its mark. Kodi while browsing looks the same as any other.
             Rectangle {
                 opacity: root.home-view == 2 ? 1 : 0;
                 visible: self.opacity > 0;
@@ -711,11 +649,28 @@ export component AppWindow inherits Window {
                 Logo {
                     y: 330px;
                     size: 140px;
-                    commands: Logos.kodi;
+                    commands: root.source == "" ? Logos.kodi : root.source-icon;
                     tint: Theme.t2-muted;
                 }
+                // An input with no mark of its own needs its name to be told apart.
+                if root.source != "" && root.source-icon == Logos.generic: Text {
+                    y: 490px;
+                    width: 480px;
+                    horizontal-alignment: center;
+                    text: root.source;
+                    font-size: 26px;
+                    color: Theme.t2;
+                }
+                if root.sources.length > 0: TouchArea {
+                    mouse-cursor: Theme.cursor;
+                    x: 140px;
+                    y: 300px;
+                    width: 200px;
+                    height: 200px;
+                    clicked => { root.go(1, root.source-index); }
+                }
                 if root.home-warning != "": WarningRow {
-                    y: 500px;
+                    y: 540px;
                     message: root.home-warning;
                     tapped => { root.go(7, 0); }
                 }
@@ -755,9 +710,9 @@ export component AppWindow inherits Window {
                 battery: root.battery;
                 menu => { root.go(2, 0); }
             }
-            // On the Kodi views the current input's mark sits in the middle of the status line;
-            // tapping it opens the list.
-            if root.home-view != 0 && root.home-view != 3 && root.sources.length > 0: TouchArea {
+            // While something plays, the input's mark moves up into the status line; tapping it
+            // opens the list. On the idle screen the large mark already says it.
+            if root.home-view == 1 && root.sources.length > 0: TouchArea {
                 mouse-cursor: Theme.cursor;
                 x: 190px;
                 y: 0;
@@ -1278,9 +1233,9 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Volume overlay, over everything except the receiver page (which already shows it).
+        // Volume overlay, over everything.
         Rectangle {
-            property <bool> shown: root.volume-overlay && root.receiver-on && !(root.page == 0 && root.home-view == 0);
+            property <bool> shown: root.volume-overlay && root.receiver-on;
             background: Theme.bg;
             opacity: self.shown ? 1 : 0;
             visible: self.opacity > 0;
