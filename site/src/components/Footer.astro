@@ -9,7 +9,7 @@ import appleSvg from '../assets/brands/apple.svg?raw';
 import linuxSvg from '../assets/brands/linux.svg?raw';
 import windowsSvg from '../assets/brands/windows.svg?raw';
 
-const mark = (svg: string) => svg.replace(/<title>.*?<\/title>/, '').replace('<svg', '<svg aria-hidden="true" fill="currentColor"');
+const mark = (svg: string, name: string) => svg.replace(/<title>.*?<\/title>/, '').replace('<svg', `<svg aria-hidden="true" fill="currentColor" data-mark="${name}"`);
 
 interface Props { repo: string; download: string }
 const { repo, download } = Astro.props;
@@ -17,8 +17,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const latest = `${repo}/releases/latest/download`;
 // The script asks for the remote's address and PIN, shows the warranty warning and installs the latest release.
 const commands = [
-  { id: 'unix', label: 'macOS / Linux', marks: [mark(appleSvg), mark(linuxSvg)], shell: 'Terminal', cmd: `curl -fsSLO ${latest}/install.sh && sh install.sh` },
-  { id: 'windows', label: 'Windows', marks: [mark(windowsSvg)], shell: 'Command Prompt', cmd: `curl.exe -fsSLO ${latest}/install.bat && install.bat` },
+  { id: 'unix', label: 'macOS / Linux', marks: [mark(appleSvg, 'apple'), mark(linuxSvg, 'linux')], shell: 'Terminal', cmd: `curl -fsSLO ${latest}/install.sh && sh install.sh` },
+  { id: 'windows', label: 'Windows', marks: [mark(windowsSvg, 'windows')], shell: 'Command Prompt', cmd: `curl.exe -fsSLO ${latest}/install.bat && install.bat` },
 ];
 ---
 
@@ -125,6 +125,8 @@ const commands = [
   }
   .marks { display: inline-flex; gap: 4px; }
   .marks :global(svg) { width: 15px; height: 15px; display: block; }
+  /* The Apple mark's weight sits low in its box (its centroid is 9% below centre), so it is raised to look centred. */
+  .marks :global([data-mark='apple']) { translate: 0 -0.09em; }
   .os button[aria-selected='true'] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
   .os button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   /* Copy: a clipboard that turns into a check once the command is on the clipboard. */
