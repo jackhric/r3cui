@@ -17,7 +17,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
-ureq = { version = "2", default-features = false }
+ureq = { version = "3", default-features = false }
 
 # `desktop` (default) runs in a window on the workstation. `device` renders straight to the
 # remote's display through KMS; libinput is left out because the device has none, and
