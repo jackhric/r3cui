@@ -111,39 +111,43 @@ const lights = [
   const lightsCard = document.querySelector<HTMLElement>('#features .lights-card');
   if (lightsCard && !still.matches) {
     const remotes = [...lightsCard.querySelectorAll<HTMLElement>('.lights .remote')];
-    // --lift raises a remote and --hot lights its halo; both live on the <li> so the halo can read them.
-    const liftAt = (x: number) => {
+    // --lift raises a remote and --hot lights its halo; both live on the <li> so the halo can read them. `reach` is
+    // how far the ripple spreads, in remote widths.
+    const liftAt = (x: number, reach = 2.4) => {
       for (const r of remotes) {
         const box = r.getBoundingClientRect();
-        const away = Math.abs(x - (box.left + box.width / 2)) / (box.width * 2.4);
+        const away = Math.abs(x - (box.left + box.width / 2)) / (box.width * reach);
         const lift = Math.max(0, 1 - away * away).toFixed(3);
         r.parentElement!.style.setProperty('--lift', lift);
         r.parentElement!.style.setProperty('--hot', lift);
       }
     };
-    const raiseAll = () => remotes.forEach(r => { r.parentElement!.style.setProperty('--lift', '1'); r.parentElement!.style.removeProperty('--hot'); });
+    const settle = () => remotes.forEach(r => { r.parentElement!.style.removeProperty('--lift'); r.parentElement!.style.removeProperty('--hot'); });
     if (matchMedia('(hover: hover)').matches) {
       lightsCard.addEventListener('pointermove', e => liftAt(e.clientX));
-      lightsCard.addEventListener('pointerleave', () => remotes.forEach(r => { r.parentElement!.style.removeProperty('--lift'); r.parentElement!.style.removeProperty('--hot'); }));
+      lightsCard.addEventListener('pointerleave', settle);
     } else {
-      // Touch: a finger down or dragging sideways ripples the row (vertical swipes still scroll, see touch-action),
-      // and lifting it settles every remote back up. On first sight a wave runs across once, as a hint.
+      // Touch: the remotes rest lowered, as with a mouse away. A finger anywhere on the row (a tap, a sideways drag, or
+      // a scroll passing over it) lifts the nearest remote, and letting go eases them back down. Touch events rather
+      // than pointer events, because iOS cancels pointer events once a gesture turns into a scroll.
       lightsCard.classList.add('touch');
-      const track = (e: PointerEvent) => { if (e.pointerType !== 'mouse') liftAt(e.clientX); };
-      lightsCard.addEventListener('pointerdown', track);
-      lightsCard.addEventListener('pointermove', track);
-      for (const end of ['pointerup', 'pointercancel'] as const) lightsCard.addEventListener(end, () => setTimeout(raiseAll, 450));
+      let timer = 0;
+      const follow = (e: TouchEvent) => { clearTimeout(timer); const t = e.touches[0]; if (t) liftAt(t.clientX, 1.3); };
+      lightsCard.addEventListener('touchstart', follow, { passive: true });
+      lightsCard.addEventListener('touchmove', follow, { passive: true });
+      for (const end of ['touchend', 'touchcancel'] as const) lightsCard.addEventListener(end, () => { clearTimeout(timer); timer = window.setTimeout(settle, 700); }, { passive: true });
+      // On first sight a wave runs across once, as a hint that the row responds.
       const wave = () => {
-        const first = remotes[0].getBoundingClientRect(), last = remotes.at(-1)!.getBoundingClientRect();
+        const first = remotes[0].getBoundingClientRect(), last = remotes[remotes.length - 1].getBoundingClientRect();
         const from = first.left, to = last.right, t0 = performance.now(), length = 1400;
         const step = (now: number) => {
           const k = Math.min(1, (now - t0) / length);
-          liftAt(from + (to - from) * k);
-          if (k < 1) requestAnimationFrame(step); else setTimeout(raiseAll, 250);
+          liftAt(from + (to - from) * k, 1.3);
+          if (k < 1) requestAnimationFrame(step); else setTimeout(settle, 300);
         };
         requestAnimationFrame(step);
       };
-      new IntersectionObserver(([e], io) => { if (e.isIntersecting) { io.disconnect(); setTimeout(wave, 300); } }, { threshold: 0.6 }).observe(lightsCard);
+      new IntersectionObserver(([e], io) => { if (e.isIntersecting) { io.disconnect(); setTimeout(wave, 300); } }, { threshold: 0.4 }).observe(lightsCard);
     }
   }
 
