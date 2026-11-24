@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <b>A simplified <a href="https://www.unfoldedcircle.com/">Unfolded Circle Remote 3</a> interface for your big ass home theater setup</b>
+  A simplified <a href="https://www.unfoldedcircle.com/">Unfolded Circle Remote 3</a> interface for your big ass home theater setup
 </p>
 
 <p align="center">
