@@ -779,6 +779,16 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             v.push((3600, ui(|_| {})));
             v
         }
+        // The audio picker, then the subtitle picker, held long enough to read their track names.
+        "site-tracks" => vec![
+            (900, tap_at(348.0, 746.0)),
+            (1600, ui(|a| a.invoke_move(1))),
+            (900, press("\n")),
+            (1500, tap_at(132.0, 746.0)),
+            (1500, ui(|a| a.invoke_move(1))),
+            (1000, ui(|a| a.invoke_activate(a.get_focus_index()))),
+            (1800, ui(|_| {})),
+        ],
         "site-playing" => vec![
             (1200, tap_at(240.0, 584.0)),
             (1300, tap_at(240.0, 584.0)),
