@@ -21,7 +21,7 @@ const install = `curl -u 'web-configurator:<PIN>' 'http://<IP>/api/system/instal
           <li>
             <span class="where"><b>1</b>Download the latest release</span>
             <div class="buttons">
-              <Button href={download} variant="default" class="select-none">Download remote-ui.tar.gz</Button>
+              <Button href={download} target="_blank" rel="noopener" variant="default" class="select-none">Download remote-ui.tar.gz</Button>
               <Button href={`${base}/docs/getting-started/`} variant="outline" class="select-none">Read the guide</Button>
             </div>
           </li>
@@ -53,9 +53,9 @@ const install = `curl -u 'web-configurator:<PIN>' 'http://<IP>/api/system/instal
   <nav aria-label="Project links">
     <a href={`${base}/docs/`}>Docs</a>
     <a href={`${base}/docs/faq/`}>FAQ</a>
-    <a href={repo}><Icon name="github" class="inline size-4 -mt-0.5 mr-1" />GitHub</a>
-    <a href={`${repo}/releases`}>Releases</a>
-    <a href={`${repo}/blob/main/LICENSE`}>GPL-3.0 License</a>
+    <a href={repo} target="_blank" rel="noopener"><Icon name="github" class="inline size-4 -mt-0.5 mr-1" />GitHub</a>
+    <a href={`${repo}/releases`} target="_blank" rel="noopener">Releases</a>
+    <a href={`${repo}/blob/main/LICENSE`} target="_blank" rel="noopener">GPL-3.0 License</a>
   </nav>
   <p class="small">Not made by or affiliated with Unfolded Circle.</p>
 </footer>

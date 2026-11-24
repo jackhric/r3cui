@@ -1,77 +1,89 @@
 ---
-import { Badge } from '@/components/starwind/badge';
-import { Card } from '@/components/starwind/card';
-import Glyph from './Glyph.astro';
 import ring from '../assets/one-ring.webp?url';
+import Glyph from './Glyph.astro';
 
-const card = 'bento-card group relative gap-0 px-6 py-[22px] rounded-2xl max-[600px]:p-5';
-const inputs = ['Kodi', 'PlayStation 5', 'Xbox 360', 'Android TV'];
-const lights = [
-  { name: 'Kodi', colour: '#E8343A' },
-  { name: 'PlayStation', colour: '#2E7BFF' },
-  { name: 'Xbox', colour: '#4CD137' },
-  { name: 'Android', colour: '#2ED9E6' },
-];
+const clips = import.meta.glob<string>('../assets/clips/*.{webm,mp4,webp}', { query: '?url', import: 'default', eager: true });
+const clip = (name: string) => ({
+  webm: clips[`../assets/clips/${name}.webm`],
+  mp4: clips[`../assets/clips/${name}.mp4`],
+  poster: clips[`../assets/clips/${name}.webp`],
+});
+
+const features = [
+  { glyph: 'play', title: 'Deep Kodi integration', wide: true, clip: clip('playing'),
+    text: "What's playing, front and center: the poster, the time left and the controls. Switch audio tracks and subtitles, and browse your movies and shows as a wall of posters." },
+  { glyph: 'simple', title: 'Dead nuts simple', clip: clip('menu'),
+    text: 'A single-purpose remote frontend. No activities to build, no pages to arrange. It does the theater and nothing else.' },
+  { glyph: 'input', title: 'Easy input switching', clip: clip('inputs'),
+    text: 'Every input on your receiver, a tap away.' },
+  { glyph: 'volume', title: 'Global volume', clip: clip('matrix-volume'),
+    text: 'The touch slider under the screen and the volume keys drive your receiver, wherever you are in the UI.' },
+  { glyph: 'light', title: 'Reactive backlighting', clip: clip('ts-switch'),
+    text: "The buttons light up to match your input and what's playing." },
+] as const;
 ---
 
 <section id="features" class="features">
   <h2>
-    <a class="one-ring" href="https://www.youtube.com/watch?v=GI_fvDOUCu8" title="One ring to rule them all">
+    <a class="one-ring" href="https://www.youtube.com/watch?v=GI_fvDOUCu8" target="_blank" rel="noopener" title="One ring to rule them all">
       <img src={ring} alt="The One Ring" width="51" height="48" />
     </a>
     One frontend to rule them all
   </h2>
-  <div class="grid">
-    <Card class={`${card} col-span-2 max-[600px]:col-span-1`}>
-      <div class="lead">
-        <div class="text">
-          <span class="mark"><Glyph name="play" /></span>
-          <h3>Deep Kodi integration</h3>
-          <p>What's playing, front and center: the poster, the time left and the controls. Switch audio tracks and
-            subtitles, and browse your movies and shows as a wall of posters.</p>
+  <div class="bento">
+    {features.map(f => (
+      <article class:list={['card', { wide: 'wide' in f && f.wide }]} tabindex="0">
+        <div class="copy">
+          <span class="mark"><Glyph name={f.glyph} /></span>
+          <h3>{f.title}</h3>
+          <p>{f.text}</p>
         </div>
-        <ol class="flow" aria-label="What the remote shows">
-          <li><b>Now playing</b><span>poster, progress and controls</span></li>
-          <li><b>Audio and subtitles</b><span>pick a track in one tap</span></li>
-          <li><b>Library</b><span>movies and shows as posters</span></li>
-        </ol>
-      </div>
-    </Card>
-
-    <Card class={card}>
-      <span class="mark"><Glyph name="simple" /></span>
-      <h3>Dead nuts simple</h3>
-      <p>A single-purpose remote frontend. No activities to build, no pages to arrange. It does the theater and
-        nothing else.</p>
-    </Card>
-
-    <Card class={card}>
-      <span class="mark"><Glyph name="input" /></span>
-      <h3>Easy input switching</h3>
-      <p>Every input on your receiver, a tap away.</p>
-      <ul class="chips" aria-label="Example inputs">
-        {inputs.map(c => <li><Badge variant="secondary" size="sm" class="font-semibold select-none">{c}</Badge></li>)}
-      </ul>
-    </Card>
-
-    <Card class={card}>
-      <span class="mark"><Glyph name="volume" /></span>
-      <h3>Global volume</h3>
-      <p>The touch slider under the screen and the volume keys drive your receiver, wherever you are in the UI.</p>
-      <pre class="panel" aria-hidden="true"><span class="dim">volume</span>  <span class="out">62</span>  <span class="dim">-18 dB</span>
-<span class="dim">slider</span>  ▁▂▃▄▅▆▇</pre>
-    </Card>
-
-    <Card class={card}>
-      <span class="mark"><Glyph name="light" /></span>
-      <h3>Reactive backlighting</h3>
-      <p>The buttons light up to match your input and what's playing.</p>
-      <ul class="swatches" aria-label="Button colours by input">
-        {lights.map(l => <li><i style={`background:${l.colour};color:${l.colour}`}></i>{l.name}</li>)}
-      </ul>
-    </Card>
+        <div class="crop" aria-hidden="true">
+          <div class="remote">
+            <img src={f.clip.poster} alt="" width="200" height="864" loading="lazy" decoding="async" />
+            <video muted loop playsinline preload="none" width="200" height="864" data-webm={f.clip.webm} data-mp4={f.clip.mp4}></video>
+          </div>
+        </div>
+      </article>
+    ))}
   </div>
 </section>
+
+<script>
+  // Each card's remote shows its still until the card is hovered or focused; then the clip crossfades in, and it pauses
+  // again on leaving. Without hover (phones), a card plays while it is mostly on screen.
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  function start(card: HTMLElement) {
+    const video = card.querySelector('video');
+    if (!video || still.matches) return;
+    if (!video.dataset.loaded) {
+      video.dataset.loaded = '1';
+      for (const [type, key] of [['video/webm', 'webm'], ['video/mp4', 'mp4']] as const) {
+        const source = document.createElement('source');
+        source.type = type;
+        source.src = video.dataset[key]!;
+        video.append(source);
+      }
+      video.addEventListener('playing', () => video.classList.add('live'));
+      video.load();
+    }
+    video.play().catch(() => {});
+  }
+  const stop = (card: HTMLElement) => card.querySelector('video')?.pause();
+
+  const cards = [...document.querySelectorAll<HTMLElement>('#features .card')];
+  if (matchMedia('(hover: hover)').matches) {
+    for (const card of cards) {
+      card.addEventListener('pointerenter', () => start(card));
+      card.addEventListener('pointerleave', () => stop(card));
+      card.addEventListener('focus', () => start(card));
+      card.addEventListener('blur', () => stop(card));
+    }
+  } else {
+    const io = new IntersectionObserver(es => es.forEach(e => (e.isIntersecting ? start : stop)(e.target as HTMLElement)), { threshold: 0.6 });
+    cards.forEach(c => io.observe(c));
+  }
+</script>
 
 <style>
   h2 {
@@ -81,88 +93,57 @@ const lights = [
   .one-ring { display: inline-flex; flex: none; transition: rotate 0.4s ease, scale 0.4s ease; }
   .one-ring img { height: 1.6em; width: auto; filter: drop-shadow(0 3px 8px rgb(180 120 20 / 0.35)); }
   .one-ring:hover { rotate: -12deg; scale: 1.08; }
-  @media (prefers-reduced-motion: reduce) { .one-ring { transition: none; } }
   .features { padding-block: 32px 56px; }
-  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 
-  /* Only translate and opacity change on hover, so the browser composites it on the GPU instead of repainting a blurred box-shadow every frame. */
-  .grid :global(.bento-card) { transition: translate 0.15s ease-in-out; will-change: translate; }
-  .grid :global(.bento-card)::after {
-    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
-    box-shadow: 0 0 0 1px var(--feature-hover-ring), 0 18px 40px -14px var(--feature-hover-shadow);
-    transition: opacity 0.15s ease-in-out;
+  .bento { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .card {
+    position: relative; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px;
+    background: var(--card); border: 1px solid var(--border); outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
-  @media (hover: hover) {
-    .grid :global(.bento-card:hover) { translate: 0 -4px; }
-    .grid :global(.bento-card:hover)::after { opacity: 1; }
-  }
-
-  .lead { display: flex; gap: 28px; align-items: center; }
-  .text { flex: 1 1 260px; min-width: 0; }
+  .card:hover, .card:focus-visible { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); box-shadow: 0 18px 40px -18px var(--feature-hover-shadow); }
+  .card:focus-visible { box-shadow: 0 0 0 2px var(--primary); }
+  .copy { padding: 22px 22px 16px; }
   .mark {
-    display: inline-grid; place-items: center; width: 42px; height: 42px; margin-bottom: 14px; border-radius: 12px;
-    color: var(--feature-mark-fg); background: var(--feature-mark-bg); border: 1px solid var(--border);
+    display: inline-grid; place-items: center; width: 40px; height: 40px; margin-bottom: 14px; border-radius: 11px;
+    color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent);
   }
-  .mark :global(svg) { width: 22px; height: 22px; }
-
-  h3 { margin: 0 0 6px; padding-right: 32px; font-size: 1.05rem; }
-  .text h3 { font-size: 1.3rem; letter-spacing: -0.01em; }
-  .title { color: inherit; text-decoration: none; outline: none; }
-  .title::after { content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
-  .inline-link { position: relative; z-index: 2; }
+  .mark :global(svg) { width: 21px; height: 21px; }
+  h3 { margin: 0 0 6px; font-size: 1.12rem; letter-spacing: -0.01em; }
   p { margin: 0; color: var(--muted-foreground); }
-  code { font: 0.92em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--foreground); }
-  .key { margin-top: 14px; color: var(--muted-foreground); font-size: 0.9rem; }
 
-  .flow {
-    flex: 0 1 250px; list-style: none; margin: 0; padding: 4px 0 4px 2px; display: grid; gap: 18px; position: relative;
+  /* The remote rises from the card's bottom edge and is cut there, like the install card's: the crop is shorter
+     than the remote and pinned to the bottom. */
+  .crop { position: relative; height: 276px; margin-top: auto; padding-top: 18px; display: flex; justify-content: center; flex: none; }
+  .remote {
+    position: relative; width: 96px; aspect-ratio: 200 / 864; flex: none; overflow: hidden;
+    border-radius: 2% 2% 15% 15% / 0.46% 0.46% 3.5% 3.5%; box-shadow: 0 20px 40px -10px rgb(0 0 0 / 0.35);
+    transition: translate 0.3s ease;
   }
-  .flow::before {
-    content: ''; position: absolute; left: 13px; top: 18px; bottom: 18px; width: 2px;
-    background: var(--border);
-  }
-  .flow li { position: relative; padding-left: 40px; display: grid; gap: 1px; line-height: 1.35; }
-  .flow li::before {
-    content: ''; position: absolute; left: 7px; top: 0.35em; width: 10px; height: 10px; border-radius: 50%;
-    background: var(--feature-flow); outline: 4px solid var(--card);
-  }
-  .flow b { font-weight: 700; }
-  .flow span { color: var(--muted-foreground); font-size: 0.92rem; }
+  .card:hover .remote, .card:focus-visible .remote { translate: 0 -6px; }
+  .remote img, .remote video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  .remote video { opacity: 0; transition: opacity 0.5s ease; }
+  .remote video:global(.live) { opacity: 1; }
 
-  .chips { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-  .swatches { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.88rem; color: var(--muted-foreground); }
-  .swatches li { display: flex; align-items: center; gap: 6px; }
-  .swatches i { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }
-
-  .panel {
-    margin: auto 0 0; padding: 10px 12px; border-radius: 10px; overflow: hidden; white-space: pre;
-    font: 0.74rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    background: var(--feature-panel-bg); border: 1px solid var(--feature-panel-border); color: var(--feature-panel-text);
-    user-select: none; -webkit-user-select: none;
-  }
-  p:has(+ .panel) { margin-bottom: 16px; }
-  .panel .dim { color: var(--feature-panel-dim); }
-  .panel .out { color: var(--feature-panel-accent); }
-
-  .go {
-    position: absolute; top: 20px; right: 20px; width: 22px; height: 22px; pointer-events: none;
-    fill: none; stroke: var(--feature-arrow); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;
-    transition: translate 0.15s ease-in-out;
-  }
-  .grid :global(.bento-card:hover) .go, .grid :global(.bento-card:focus-within) .go { translate: 2px -2px; }
+  /* The wide card: text beside a larger remote, the text setting the height (contain: size keeps the remote from
+     growing the card). */
+  .card.wide { grid-column: span 2; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+  .card.wide .copy { padding: 26px; align-self: center; }
+  .card.wide h3 { font-size: 1.3rem; }
+  .card.wide .crop { contain: size; height: auto; min-height: 380px; margin: 0; padding-top: 26px; }
+  .card.wide .remote { width: 150px; }
 
   @media (max-width: 900px) {
-    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .text { flex-basis: 220px; }
+    .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 600px) {
-    .grid { grid-template-columns: minmax(0, 1fr); }
-    .lead { flex-direction: column; align-items: stretch; gap: 20px; }
-    .text, .flow { flex-basis: auto; }
+    .bento { grid-template-columns: minmax(0, 1fr); }
+    .card.wide { grid-column: span 1; display: flex; }
+    .card.wide .copy { padding: 22px 22px 16px; }
+    .card.wide .crop { contain: none; min-height: 0; height: 300px; padding-top: 20px; }
+    .card.wide .remote { width: 104px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .grid :global(.bento-card) { transition: none; translate: none !important; }
-    .grid :global(.bento-card)::after { transition: none; }
-    .go { transition: none; }
+    .one-ring, .card, .remote, .remote video { transition: none; }
   }
 </style>
