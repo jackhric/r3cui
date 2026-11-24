@@ -6,6 +6,7 @@ import Features from '../components/Features.astro';
 import Footer from '../components/Footer.astro';
 import Hero from '../components/hero/Hero.astro';
 import Seo from '../components/Seo.astro';
+import Statistics from '../components/Statistics.astro';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const repo = 'https://github.com/jackhric/r3cui';
@@ -20,6 +21,7 @@ const description = 'A simplified, single-purpose Unfolded Circle Remote 3 inter
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <Seo title={title} description={description} />
+    <Statistics />
     <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
     <meta name="color-scheme" content="light dark" />
     <script is:inline>
