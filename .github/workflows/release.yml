@@ -72,6 +72,8 @@ jobs:
         with:
           name: remote-ui
           path: release
+      # The install and uninstall scripts ride along, so the one-line install can fetch them from the release.
+      - run: cp install.sh install.bat uninstall.sh uninstall.bat release/
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: release/*
