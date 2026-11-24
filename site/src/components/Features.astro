@@ -305,27 +305,18 @@ const lights = [
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-self: stretch;
   }
   .lights li { position: relative; display: flex; justify-content: center; }
-  /* A faint halo in the remote's key colour fades in behind it as the pointer lifts it (--hot, set by the script). */
+  /* A faint halo in the remote's key colour fades in around its keypad as the pointer lifts it (--hot, set by the script). */
   .lights li::before {
-    content: ''; position: absolute; left: 50%; top: 34%; width: 170%; height: 80%; translate: -50% 0; pointer-events: none;
+    content: ''; position: absolute; left: 50%; top: 52%; width: 170%; height: 60%; translate: -50% 0; pointer-events: none;
     background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) var(--halo, 50%), transparent), color-mix(in srgb, var(--glow) calc(var(--halo, 50%) * 0.3), transparent) 55%, transparent);
     opacity: var(--hot, 0); transition: opacity 0.18s ease-out;
   }
   /* Light mode and touch screens get a stronger halo: a pale card washes it out, and a phone's small remotes need more. */
-  :root:not([data-theme='dark']) .lights li::before { --halo: 85%; }
+  :root:not([data-theme='dark']) .lights li::before { --halo: 65%; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .lights li::before { --halo: 50%; } }
-  .lights-card.touch .lights li::before { --halo: 100%; width: 250%; height: 95%; top: 24%; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .lights-card.touch .lights li::before { --halo: 85%; } }
-  :root[data-theme='dark'] .lights-card.touch .lights li::before { --halo: 85%; }
-  /* Where the halo is boosted, the lifted remote also glows at its own edge, so the colour reads all round it. */
-  .lights-card.touch .lights .remote,
-  :root:not([data-theme='dark']) .lights .remote {
-    box-shadow: 0 10px 26px rgb(0 0 0 / 0.18),
-      0 0 calc(var(--hot, 0) * 26px) calc(var(--hot, 0) * 3px) color-mix(in srgb, var(--glow) calc(var(--hot, 0) * 55%), transparent);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme='light']) .lights-card:not(.touch) .lights .remote { box-shadow: 0 10px 26px rgb(0 0 0 / 0.18); }
-  }
+  .lights-card.touch .lights li::before { --halo: 70%; width: 190%; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .lights-card.touch .lights li::before { --halo: 60%; } }
+  :root[data-theme='dark'] .lights-card.touch .lights li::before { --halo: 60%; }
   .lights .remote { width: min(140px, 100%); }
   /* Each remote rises by its own --lift, set from how close the pointer is (see the script), so they ripple as it moves. */
   /* Short and eased out, so the lift follows the pointer closely. The card, not the list, clips the remotes, so their
