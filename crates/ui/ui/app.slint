@@ -755,26 +755,19 @@ export component AppWindow inherits Window {
                 battery: root.battery;
                 menu => { root.go(2, 0); }
             }
-            // On the Kodi views the current input sits in the middle of the status line as its mark,
-            // with a chevron beneath it; tapping it opens the list.
+            // On the Kodi views the current input's mark sits in the middle of the status line;
+            // tapping it opens the list.
             if root.home-view != 0 && root.home-view != 3 && root.sources.length > 0: TouchArea {
                 mouse-cursor: Theme.cursor;
                 x: 190px;
                 y: 0;
                 width: 100px;
-                height: 68px;
+                height: 64px;
                 clicked => { root.go(1, root.source-index); }
                 Logo {
-                    y: 12px;
-                    size: 30px;
+                    size: 32px;
                     commands: root.source-icon;
                     tint: Theme.t2;
-                }
-                Glyph {
-                    y: 46px;
-                    size: 16px;
-                    commands: Icons.down;
-                    tint: Theme.t3;
                 }
             }
             if !root.connected: Text {
