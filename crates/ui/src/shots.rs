@@ -33,7 +33,26 @@ const STEPS: &[Step] = &[
         app.invoke_go(0, 0);
         m.source = "KODI".into();
     }),
-    ("04-kodi-browsing", |_, m| m.title.clear()),
+    ("03b-audio", |app, m| {
+        app.set_picker(0);
+        app.invoke_go(9, 0);
+        let (rows, current) = crate::demo_tracks(m, 0, 1);
+        crate::show_tracks(&app.as_weak(), rows, current);
+    }),
+    ("03c-subtitles", |app, m| {
+        app.set_picker(1);
+        app.invoke_go(9, 0);
+        let (rows, current) = crate::demo_tracks(m, 1, 1);
+        crate::show_tracks(&app.as_weak(), rows, current);
+    }),
+    ("03d-paused", |app, m| {
+        app.invoke_go(0, 0);
+        m.paused = true;
+    }),
+    ("04-kodi-browsing", |_, m| {
+        m.paused = false;
+        m.title.clear();
+    }),
     ("05-volume", |app, m| {
         m.title = Model::demo().title;
         m.volume = 64;
@@ -46,6 +65,9 @@ const STEPS: &[Step] = &[
         m.volume = 62;
         app.invoke_go(2, 1);
     }),
+    ("07b-menu-playstation", |_, m| m.source = "PLAYSTATION 5".into()),
+    ("07c-menu-xbox", |_, m| m.source = "XBOX 360".into()),
+    ("07d-menu-kodi", |_, m| m.source = "KODI".into()),
     ("08-menu-display", |app, _| app.invoke_go(3, 0)),
     ("09-menu-power", |app, _| app.invoke_go(4, 0)),
     ("10-playstation", |app, m| {
@@ -81,6 +103,15 @@ const STEPS: &[Step] = &[
     }),
     ("19-status-ha-down", |_, m| m.demo_ha_down = true),
     ("20-home-warning", |app, _| app.invoke_go(0, 0)),
+    ("21-charging", |_, m| {
+        m.demo_ha_down = false;
+        m.charging = true;
+    }),
+    ("22-charging-home", |app, _| app.set_charge_card(false)),
+    ("23-charging-kodi", |_, m| {
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+    }),
 ];
 
 pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::Result<()> {
@@ -89,6 +120,7 @@ pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::R
     app.set_connected(true);
     let model = Rc::new(RefCell::new(Model::demo()));
     apply(&app, &model.borrow());
+    let _lava = crate::animate_lava(&app);
 
     let timer = slint::Timer::default();
     let weak = app.as_weak();
@@ -240,8 +272,119 @@ fn home_script() -> Vec<(u64, Act)> {
     vec![(300, kodi), (1800, ui(down)), (120, ui(up)), (1500, ui(down)), (900, ui(up)), (2200, ui(down)), (120, ui(up)), (1800, ui(|_| {}))]
 }
 
+/// A finger on the strip below the screen, run through the real gesture logic: `path` is
+/// positions 0..1 sampled every 30 ms, then the finger lifts.
+fn swipe(path: Vec<f32>) -> Act {
+    Box::new(move |_, tx| {
+        let (tx, path) = (tx.clone(), path.clone());
+        std::thread::spawn(move || {
+            let mut strip = crate::slider::Slider::default();
+            let t0 = Instant::now();
+            let mut send = |touch, pos, at: Instant| {
+                if let Some(g) = strip.feed(touch, pos, at) {
+                    let _ = tx.send(UiAction::Slider(g));
+                }
+            };
+            for (i, pos) in path.iter().enumerate() {
+                std::thread::sleep(Duration::from_millis(30));
+                send(true, *pos, t0 + Duration::from_millis(30 * i as u64));
+            }
+            send(false, *path.last().unwrap_or(&0.0), t0 + Duration::from_millis(30 * path.len() as u64));
+        });
+    })
+}
+
+fn tap_strip() -> Act {
+    swipe(vec![0.5, 0.5])
+}
+
+fn press(text: &'static str) -> Act {
+    Box::new(move |a, _| {
+        use slint::platform::WindowEvent;
+        a.window().dispatch_event(WindowEvent::KeyPressed { text: text.into() });
+        a.window().dispatch_event(WindowEvent::KeyReleased { text: text.into() });
+    })
+}
+
+/// Kodi playing: skip back and forward, pause, the slider for volume and a double tap to mute,
+/// then the audio and subtitle pickers.
+fn media_script() -> Vec<(u64, Act)> {
+    let kodi: Act = Box::new(|_, tx| {
+        let _ = tx.send(UiAction::SelectSource("KODI".into()));
+    });
+    let tap = |x: f32, y: f32| -> Act {
+        Box::new(move |a, _| {
+            use slint::platform::{PointerEventButton, WindowEvent};
+            let position = slint::LogicalPosition::new(x, y);
+            let button = PointerEventButton::Left;
+            a.window().dispatch_event(WindowEvent::PointerMoved { position });
+            a.window().dispatch_event(WindowEvent::PointerPressed { position, button });
+            a.window().dispatch_event(WindowEvent::PointerReleased { position, button });
+            a.window().dispatch_event(WindowEvent::PointerExited);
+        })
+    };
+    vec![
+        (300, kodi),
+        (1800, tap(116.0, 580.0)),
+        (700, tap(116.0, 580.0)),
+        (900, tap(364.0, 580.0)),
+        (1000, tap(240.0, 584.0)),
+        (1400, tap(240.0, 584.0)),
+        // Slide right for louder, then back down a little.
+        (1200, swipe((0..24).map(|i| 0.3 + i as f32 * 0.012).collect())),
+        (1400, swipe((0..14).map(|i| 0.6 - i as f32 * 0.01).collect())),
+        // Double tap: mute, and again to unmute.
+        (1600, tap_strip()),
+        (180, tap_strip()),
+        (1800, tap_strip()),
+        (180, tap_strip()),
+        (2000, tap(348.0, 746.0)),
+        (1300, ui(|a| a.invoke_move(1))),
+        (500, press("\n")),
+        (1500, tap(132.0, 746.0)),
+        (1300, ui(|a| a.invoke_move(1))),
+        (500, ui(|a| a.invoke_activate(a.get_focus_index()))),
+        (1800, ui(|_| {})),
+    ]
+}
+
+/// On the charger: the battery screen, then the countdown to dark, then a touch to wake.
+fn charge_script() -> Vec<(u64, Act)> {
+    vec![
+        (1200, key("c")),
+        (3500, ui(|_| {})),
+        // Nothing touched for ten seconds after it was put down: dark.
+        (8500, ui(|_| {})),
+        (2000, press("+")),
+        (2500, ui(|_| {})),
+    ]
+}
+
+/// The menu's background, through the input colours.
+fn lava_script() -> Vec<(u64, Act)> {
+    let source = |name: &'static str| -> Act {
+        Box::new(move |_, tx| {
+            let _ = tx.send(UiAction::SelectSource(name.into()));
+        })
+    };
+    vec![
+        (200, source("KODI")),
+        (400, ui(|a| a.invoke_go(2, 0))),
+        (4500, source("PLAYSTATION 5")),
+        (4000, source("XBOX 360")),
+        (4000, source("ANDROID TV")),
+        (4000, ui(|_| {})),
+    ]
+}
+
 /// (pause before the step in ms, what happens)
 fn script(name: Option<&str>) -> Vec<(u64, Act)> {
+    match name {
+        Some("media") => return media_script(),
+        Some("charge") => return charge_script(),
+        Some("lava") => return lava_script(),
+        _ => {}
+    }
     if name == Some("home") {
         return home_script();
     }

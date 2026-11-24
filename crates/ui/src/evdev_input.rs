@@ -2,7 +2,8 @@
 //! evdev here and handed to the window as ordinary pointer and key events. Keys are translated to
 //! the same key text the desktop build uses, so everything downstream is shared.
 
-use crate::AppWindow;
+use crate::{AppWindow, UiAction};
+use tokio::sync::mpsc::UnboundedSender;
 use evdev::{Device, EventType};
 use slint::platform::{Key, PointerEventButton, WindowEvent};
 use slint::{ComponentHandle, LogicalPosition, SharedString};
@@ -45,7 +46,7 @@ fn key_text(code: u16) -> Option<SharedString> {
     }
 }
 
-pub fn start(app: &AppWindow) {
+pub fn start(app: &AppWindow, tx: UnboundedSender<UiAction>) {
     let mut found = 0;
     for (path, device) in evdev::enumerate() {
         let name = device.name().unwrap_or("?").to_string();
@@ -56,8 +57,8 @@ pub fn start(app: &AppWindow) {
             && device.supported_absolute_axes().is_some_and(|a| a.iter().any(|x| x.0 == ABS_MT_POSITION_X || x.0 == ABS_X));
         if lower.contains("slider") {
             tracing::info!("input {}: {name:?} (touch slider)", path.display());
-            let weak = app.as_weak();
-            std::thread::spawn(move || read_slider(device, weak));
+            let (weak, tx) = (app.as_weak(), tx.clone());
+            std::thread::spawn(move || read_slider(device, weak, tx));
             continue;
         }
         let keys = device.supported_keys().map_or(0, |k| k.iter().count());
@@ -74,20 +75,13 @@ pub fn start(app: &AppWindow) {
     }
 }
 
-/// The capacitive slider below the screen. For now this only shows what it reports, so the
-/// hardware can be explored: every axis it sends, and the position along its length.
-fn read_slider(mut device: Device, weak: slint::Weak<AppWindow>) {
+/// The capacitive strip below the screen: slide for volume, double-tap to mute.
+fn read_slider(mut device: Device, weak: slint::Weak<AppWindow>, tx: UnboundedSender<UiAction>) {
     let ranges = device.get_abs_state().ok();
     let max_of = |code: u16| ranges.as_ref().map(|r| r[code as usize].maximum).filter(|m| *m > 0);
-    let axes: Vec<String> = device
-        .supported_absolute_axes()
-        .map(|a| a.iter().map(|x| format!("{:#04x} max {:?}", x.0, max_of(x.0))).collect())
-        .unwrap_or_default();
-    tracing::info!("slider axes: {}", axes.join(", "));
-
+    let mut gestures = crate::slider::Slider::default();
     let mut values: std::collections::BTreeMap<u16, i32> = Default::default();
     let mut touching = false;
-    let mut logged = 0;
     loop {
         let events = match device.fetch_events() {
             Ok(events) => events.collect::<Vec<_>>(),
@@ -98,10 +92,6 @@ fn read_slider(mut device: Device, weak: slint::Weak<AppWindow>) {
         };
         for ev in events {
             let (kind, code, value) = (ev.event_type(), ev.code(), ev.value());
-            if logged < 60 && kind != EventType::SYNCHRONIZATION {
-                logged += 1;
-                tracing::info!("slider event type {:?} code {code:#05x} value {value}", kind);
-            }
             if kind == EventType::KEY {
                 touching = value != 0;
             } else if kind == EventType::ABSOLUTE {
@@ -114,23 +104,37 @@ fn read_slider(mut device: Device, weak: slint::Weak<AppWindow>) {
                 // Whichever position axis it uses, the first one reported is the length of the strip.
                 let position = [ABS_X, ABS_MT_POSITION_X, ABS_Y, ABS_MT_POSITION_Y]
                     .into_iter()
-                    .find_map(|c| Some(*values.get(&c)? as f32 / max_of(c).unwrap_or(300) as f32));
-                let raw = values.iter().map(|(c, v)| format!("{c:#04x}={v}")).collect::<Vec<_>>().join("  ");
-                let (weak, touch, pos) = (weak.clone(), touching, position.unwrap_or(0.0).clamp(0.0, 1.0));
-                let _ = slint::invoke_from_event_loop(move || {
-                    if let Some(app) = weak.upgrade() {
-                        crate::frames::kick();
-                        app.set_slider_touch(touch);
-                        app.set_slider_pos(pos);
-                        app.set_slider_raw(raw.into());
-                    }
-                });
+                    .find_map(|c| Some(*values.get(&c)? as f32 / max_of(c).unwrap_or(479) as f32))
+                    .unwrap_or(0.0)
+                    .clamp(0.0, 1.0);
+                if touching {
+                    activity(&weak);
+                }
+                if let Some(g) = gestures.feed(touching, position, std::time::Instant::now()) {
+                    let _ = tx.send(UiAction::Slider(g));
+                }
             }
         }
     }
 }
 
+/// Input wakes a screen resting on the charger; the touch or key that does so is still delivered,
+/// and the window decides whether it only wakes.
+fn activity(weak: &slint::Weak<AppWindow>) {
+    crate::poke();
+    let weak = weak.clone();
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(app) = weak.upgrade() {
+            crate::frames::kick();
+            if app.get_resting() {
+                app.set_resting(false);
+            }
+        }
+    });
+}
+
 fn send(weak: &slint::Weak<AppWindow>, event: WindowEvent) {
+    crate::poke();
     let weak = weak.clone();
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(app) = weak.upgrade() {

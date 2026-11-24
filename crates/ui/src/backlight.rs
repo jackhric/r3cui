@@ -129,7 +129,7 @@ pub struct UiState {
 pub fn observe(app: &AppWindow) -> (UiState, Rgb) {
     let accent = app.global::<Theme>().get_accent();
     let state = UiState {
-        awake: app.get_awake(),
+        awake: app.get_lit(),
         receiver_on: app.get_receiver_on(),
         power_hold: app.get_power_overlay().then(|| app.get_power_turning_off()),
         ha: HA.lock().unwrap_or_else(|e| e.into_inner()).unwrap_or_default(),

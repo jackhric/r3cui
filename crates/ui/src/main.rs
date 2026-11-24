@@ -12,9 +12,12 @@ mod frames;
 mod haptics;
 mod input;
 mod keyboard;
+mod kodi;
+mod lava;
 mod net;
 mod settings;
 mod shots;
+mod slider;
 
 use input::{Button, Target};
 use serde_json::{json, Value};
@@ -33,6 +36,9 @@ slint::include_modules!();
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 const VOLUME_OVERLAY: Duration = Duration::from_millis(1800);
 const JOIN_TIMEOUT: Duration = Duration::from_secs(45);
+const SLIDER_HOLD: Duration = Duration::from_secs(3);
+/// On the charger, the screen and keys go dark after this long without a touch or key.
+const CHARGER_REST: Duration = Duration::from_secs(10);
 
 pub enum UiAction {
     Command(String),
@@ -43,6 +49,11 @@ pub enum UiAction {
     WifiScan,
     WifiJoin { ssid: String, hex: String, password: String },
     Backlight(backlight::Keys),
+    Seek(i32),
+    /// 0 audio, 1 subtitles
+    OpenPicker(i32),
+    PickTrack(i32, i32),
+    Slider(slider::Gesture),
 }
 
 /// Results of work that finishes later than the request that started it.
@@ -52,6 +63,8 @@ enum Later {
     /// The core's current list of configured entities.
     Entities(Vec<Value>),
     JoinDone(bool),
+    /// Kodi's subtitle streams, as (stream index or None for off, label), and which is on.
+    Subtitles(Vec<(Option<i64>, String)>, usize),
 }
 
 /// Everything the screen shows, independent of where it came from (core or demo).
@@ -67,7 +80,13 @@ pub struct Model {
     pub duration: f64,
     pub position: f64,
     pub media_format: String,
+    pub media_sub: String,
+    /// Kodi's audio streams as it names them, and the one playing.
+    pub audio_tracks: Vec<String>,
+    pub audio_track: String,
     pub battery: i32,
+    /// On the dock or a cable.
+    pub charging: bool,
     pub awake: bool,
     pub receiver_on: bool,
     pub wifi_ssid: String,
@@ -92,12 +111,14 @@ impl Model {
                 .map(String::from)
                 .collect(),
             sound_mode: "DOLBY DIGITAL".into(),
-            title: "Blade Runner 2049".into(),
+            title: "Mad Max: Fury Road".into(),
             paused: false,
-            duration: 9840.0,
-            position: 4328.0,
-            media_format: "DTS HD MA 7.1".into(),
-            battery: 50,
+            duration: 7200.0,
+            position: 2788.0,
+            media_format: "DTS-HD MA 7.1".into(),
+            audio_tracks: vec!["English DTS-HD MA 7.1 - DTS-HD MA 7.1".into(), "English Commentary - AAC-LC stereo".into(), "French - Dolby Digital 5.1".into()],
+            audio_track: "English DTS-HD MA 7.1 - DTS-HD MA 7.1".into(),
+            battery: 81,
             awake: true,
             receiver_on: true,
             wifi_ssid: "HomeNetwork".into(),
@@ -144,8 +165,6 @@ fn main() -> anyhow::Result<()> {
     app.global::<Theme>().set_touch_only(cfg!(feature = "device"));
     #[cfg(feature = "device")]
     frames::install(&app);
-    #[cfg(feature = "device")]
-    evdev_input::start(&app);
     // UC_ACCENT pins one colour; without it the colour follows the input (see `apply`).
     if let Some(accent) = std::env::var("UC_ACCENT").ok().as_deref().and_then(parse_color) {
         set_accent(&app, accent);
@@ -155,6 +174,8 @@ fn main() -> anyhow::Result<()> {
     let arg = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1));
     let frame = arg("--frame").map(|p| device::Device::load(p.as_ref())).transpose()?;
     let (act_tx, mut act_rx) = mpsc::unbounded_channel();
+    #[cfg(feature = "device")]
+    evdev_input::start(&app, act_tx.clone());
     wire_keyboard(&app, act_tx.clone());
     if let Some(dir) = arg("--shots") {
         return shots::run(app, dir.into(), frame);
@@ -193,6 +214,25 @@ fn main() -> anyhow::Result<()> {
             let _ = tx.send(UiAction::WifiJoin { ssid: ssid.into(), hex: hex.into(), password: password.into() });
         }
     });
+    app.on_seek({
+        let tx = act_tx.clone();
+        move |by| {
+            let _ = tx.send(UiAction::Seek(by));
+        }
+    });
+    app.on_open_picker({
+        let tx = act_tx.clone();
+        move |kind| {
+            let _ = tx.send(UiAction::OpenPicker(kind));
+        }
+    });
+    app.on_pick_track({
+        let tx = act_tx.clone();
+        move |kind, i| {
+            let _ = tx.send(UiAction::PickTrack(kind, i));
+        }
+    });
+    app.on_activity(poke);
     app.on_power_held({
         let tx = act_tx.clone();
         move || {
@@ -241,6 +281,8 @@ fn main() -> anyhow::Result<()> {
         });
         timer
     };
+    let _rest = rest_on_charger(&app);
+    let _lava = animate_lava(&app);
     let _recording = match record {
         Some(out) => {
             let device = frame.ok_or_else(|| anyhow::anyhow!("--record needs --frame <remote photo>"))?;
@@ -251,6 +293,51 @@ fn main() -> anyhow::Result<()> {
 
     app.run()?;
     Ok(())
+}
+
+static LAST_INPUT: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
+
+/// A key or touch: the charger's countdown to dark starts over.
+pub fn poke() {
+    *LAST_INPUT.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
+}
+
+fn since_input() -> Duration {
+    LAST_INPUT.lock().unwrap_or_else(|e| e.into_inner()).map_or(Duration::MAX, |t| t.elapsed())
+}
+
+/// On the charger nobody is holding the remote, so the screen and keys go dark soon. The core's
+/// own display timeout still applies on top of this.
+fn rest_on_charger(app: &AppWindow) -> slint::Timer {
+    let weak = app.as_weak();
+    let timer = slint::Timer::default();
+    timer.start(slint::TimerMode::Repeated, Duration::from_millis(500), move || {
+        let Some(app) = weak.upgrade() else { return };
+        // Typing a Wi-Fi password is slow; never black out the keyboard.
+        let busy = app.get_page() == 6 || app.get_power_overlay();
+        if app.get_charging() && app.get_lit() && !busy && since_input() >= CHARGER_REST {
+            app.set_resting(true);
+            app.set_charge_card(false);
+        }
+    });
+    timer
+}
+
+/// Redraws the menu's background while the menu is on screen, at a calm 20 fps.
+pub fn animate_lava(app: &AppWindow) -> slint::Timer {
+    let weak = app.as_weak();
+    let start = Instant::now();
+    let timer = slint::Timer::default();
+    timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
+        let Some(app) = weak.upgrade() else { return };
+        if !app.get_lava_on() {
+            return;
+        }
+        let a = app.global::<Theme>().get_accent();
+        let colours = lava::palette((a.red(), a.green(), a.blue()), settings::get().lava.unwrap_or(1.0));
+        app.set_lava(slint::Image::from_rgb8(lava::render(start.elapsed().as_secs_f32() * 0.6, colours)));
+    });
+    timer
 }
 
 /// What the system says about the panel, once, for diagnosing display behaviour from the logs.
@@ -376,6 +463,15 @@ pub fn parse_color(s: &str) -> Option<slint::Color> {
 }
 
 pub fn apply_demo_settings(app: &AppWindow) {
+    // Artwork for the demo's film, from local files, so previews show the real layout.
+    let art = |var: &str| image::open(std::env::var_os(var)?).map_err(|e| tracing::warn!("{var}: {e}")).ok();
+    let poster = art("UC_DEMO_POSTER");
+    if let Some(p) = &poster {
+        app.set_poster(slint::Image::from_rgba8(poster_pixels(p)));
+    }
+    if let Some(b) = art("UC_DEMO_FANART").or(poster) {
+        app.set_backdrop(slint::Image::from_rgba8(backdrop_pixels(&b)));
+    }
     app.set_haptics("On".into());
     app.set_screen_off_after("60 s".into());
     app.set_sleep_after("3 min".into());
@@ -434,6 +530,12 @@ struct Session {
     title: StableTitle,
     /// The network id of a join in progress, and when it started.
     joining: Option<(Option<i64>, Instant)>,
+    /// What each row of the subtitle picker selects.
+    subtitle_ids: Vec<Option<i64>>,
+    /// The level the slider last asked for. The receiver takes a moment to report it back, and
+    /// steps taken meanwhile must build on what was asked, not on the stale report.
+    slider_volume: Option<(i32, Instant)>,
+    charging: bool,
 }
 
 impl Session {
@@ -468,7 +570,8 @@ impl Session {
         true
     }
 
-    /// Fetch the artwork whenever Kodi reports a different image URL.
+    /// Fetch the artwork whenever Kodi reports a different image URL: the poster, and behind it
+    /// the item's backdrop (the poster again when it has none), blurred.
     fn sync_poster(&mut self, weak: &slint::Weak<AppWindow>) {
         let url = attr_str(self.target(Target::Screen), "media_image_url");
         if url == self.poster_url {
@@ -477,14 +580,27 @@ impl Session {
         self.poster_url = url.clone();
         let weak = weak.clone();
         tokio::task::spawn_blocking(move || {
-            let poster = if url.is_empty() { None } else { fetch_poster(&url).map_err(|e| tracing::warn!("poster {url}: {e:#}")).ok() };
+            let poster = (!url.is_empty()).then(|| fetch_image(&url).map_err(|e| tracing::warn!("poster {url}: {e:#}")).ok()).flatten();
+            let fanart = kodi::base(&url)
+                .and_then(|base| kodi::playing(&base).map_err(|e| tracing::info!("kodi json-rpc: {e:#}")).ok())
+                .map(|p| p.fanart)
+                .filter(|f| !f.is_empty())
+                .and_then(|f| fetch_image(&f).map_err(|e| tracing::warn!("fanart {f}: {e:#}")).ok());
+            let backdrop = fanart.as_ref().or(poster.as_ref()).map(backdrop_pixels);
+            let poster = poster.as_ref().map(poster_pixels);
             ui(&weak, move |app| {
-                app.set_poster(match poster {
-                    Some(img) => slint::Image::from_rgba8(slint::SharedPixelBuffer::clone_from_slice(img.as_raw(), img.width(), img.height())),
-                    None => slint::Image::default(),
-                });
+                app.set_poster(poster.map(slint::Image::from_rgba8).unwrap_or_default());
+                app.set_backdrop(backdrop.map(slint::Image::from_rgba8).unwrap_or_default());
             });
         });
+    }
+
+    /// The level the next slider step starts from.
+    fn volume_base(&self) -> i32 {
+        match self.slider_volume {
+            Some((v, at)) if at.elapsed() < SLIDER_HOLD => v,
+            _ => attr_f64(self.target(Target::Volume).or(self.target(Target::Screen)), "volume").round() as i32,
+        }
     }
 
     /// What the Home Assistant helpers ask of the key backlight. Without the mode helper the
@@ -552,7 +668,10 @@ impl Session {
             status,
             warning,
             demo_ha_down: false,
-            volume: attr_f64(volume_from, "volume").round() as i32,
+            volume: match self.slider_volume {
+                Some((v, at)) if at.elapsed() < SLIDER_HOLD => v,
+                _ => attr_f64(volume_from, "volume").round() as i32,
+            },
             muted: volume_from.and_then(|e| e.pointer("/attributes/muted")).and_then(Value::as_bool).unwrap_or(false),
             source,
             sources: receiver
@@ -568,7 +687,15 @@ impl Session {
             duration: attr_f64(screen, "media_duration"),
             position,
             media_format: audio_format(&attr_str(screen, "sound_mode")),
+            media_sub: episode(&attr_str(screen, "media_type"), &attr_str(screen, "media_artist")),
+            audio_tracks: screen
+                .and_then(|e| e.pointer("/attributes/sound_mode_list"))
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
+                .unwrap_or_default(),
+            audio_track: attr_str(screen, "sound_mode"),
             battery: self.battery,
+            charging: self.charging,
             awake: self.awake,
             receiver_on: receiver.is_none_or(|r| attr_str(Some(r), "state") != "OFF"),
         }
@@ -584,7 +711,10 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     tracing::info!(entities = entities.len(), "get_entities");
 
     let power = core.request("get_power_mode", json!({})).await.map(|r| r.data).unwrap_or(Value::Null);
-    let battery = power.pointer("/battery/capacity").and_then(Value::as_i64).unwrap_or(100) as i32;
+    let charger = core.request("get_battery_charger", json!({})).await.map(|r| r.data).unwrap_or(Value::Null);
+    tracing::info!(%power, %charger, "power");
+    let battery = power.pointer("/battery/capacity").or(charger.get("capacity")).and_then(Value::as_i64).unwrap_or(100) as i32;
+    let charging = on_power(&power).or_else(|| on_power(&charger)).unwrap_or(false);
     // A desktop build looks at a remote that is usually asleep on its dock, so it only follows
     // the remote's power state when asked to.
     let follow_power = std::env::var("UC_MODEL").is_ok_and(|m| m == "UCR3") || std::env::var_os("UC_FOLLOW_POWER").is_some();
@@ -602,6 +732,9 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         scanning: false,
         integrations: HashMap::new(),
         joining: None,
+        subtitle_ids: Vec::new(),
+        slider_volume: None,
+        charging,
         title: StableTitle::default(),
         awake: is_awake(power.get("mode").and_then(Value::as_str)),
         screen,
@@ -673,6 +806,11 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                             }
                         }
                     }
+                    Later::Subtitles(rows, current) => {
+                        session.subtitle_ids = rows.iter().map(|r| r.0).collect();
+                        let labels: Vec<String> = rows.into_iter().map(|r| r.1).collect();
+                        show_tracks(weak, labels.iter().map(|l| (l.clone(), String::new())).collect(), current);
+                    }
                     Later::JoinDone(ok) => {
                         if session.joining.take().is_some() {
                             finish_join(weak, ok);
@@ -687,6 +825,18 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                 tracing::debug!(msg = %ev.msg, cat = ?ev.cat, data = %ev.data, "event");
                 if ev.msg == "power_mode_change" {
                     session.awake = is_awake(ev.data.get("mode").and_then(Value::as_str));
+                    if let Some(on) = on_power(&ev.data) {
+                        session.charging = on;
+                    }
+                    render(weak, &session.model());
+                }
+                if ev.msg == "battery_status" {
+                    if let Some(c) = ev.data.get("capacity").and_then(Value::as_i64) {
+                        session.battery = c as i32;
+                    }
+                    if let Some(on) = on_power(&ev.data) {
+                        session.charging = on;
+                    }
                     render(weak, &session.model());
                 }
                 if ev.msg == "wifi_change" {
@@ -730,6 +880,57 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     UiAction::Backlight(wanted) => {
                         keys.show(wanted);
                         continue;
+                    }
+                    UiAction::Seek(by) => {
+                        let m = session.model();
+                        let to = (m.position + by as f64).clamp(0.0, m.duration.max(0.0));
+                        (session.position, session.position_at) = (to, Instant::now());
+                        render(weak, &session.model());
+                        (Target::Screen, "seek".to_string(), json!({ "media_position": to.round() as i64 }))
+                    }
+                    UiAction::OpenPicker(0) => {
+                        let m = session.model();
+                        let current = m.audio_tracks.iter().position(|t| *t == m.audio_track).unwrap_or(usize::MAX);
+                        show_tracks(weak, m.audio_tracks.iter().map(|t| split_track(t)).collect(), current);
+                        continue;
+                    }
+                    UiAction::OpenPicker(_) => {
+                        show_tracks(weak, Vec::new(), usize::MAX);
+                        let Some(base) = kodi::base(&session.poster_url) else { continue };
+                        let tx = later_tx.clone();
+                        tokio::task::spawn_blocking(move || match kodi::playing(&base) {
+                            Ok(p) => {
+                                let mut rows = vec![(None, "Off".to_string())];
+                                rows.extend(p.subtitles.into_iter().map(|(i, l)| (Some(i), l)));
+                                let _ = tx.send(Later::Subtitles(rows, p.subtitle.map_or(0, |i| i + 1)));
+                            }
+                            Err(e) => tracing::warn!("subtitles: {e:#}"),
+                        });
+                        continue;
+                    }
+                    UiAction::PickTrack(0, i) => {
+                        let Some(mode) = session.model().audio_tracks.get(i as usize).cloned() else { continue };
+                        (Target::Screen, "select_sound_mode".to_string(), json!({ "mode": mode }))
+                    }
+                    UiAction::PickTrack(_, i) => {
+                        let (Some(base), Some(id)) = (kodi::base(&session.poster_url), session.subtitle_ids.get(i as usize).copied()) else { continue };
+                        tokio::task::spawn_blocking(move || {
+                            if let Err(e) = kodi::set_subtitle(&base, id) {
+                                tracing::warn!("set subtitle: {e:#}");
+                            }
+                        });
+                        continue;
+                    }
+                    UiAction::Slider(slider::Gesture::Steps(n)) => {
+                        let v = (session.volume_base() + n).clamp(0, MAX_VOLUME);
+                        session.slider_volume = Some((v, Instant::now()));
+                        flash_volume(weak, &overlay);
+                        render(weak, &session.model());
+                        (Target::Volume, "volume".to_string(), json!({ "volume": v }))
+                    }
+                    UiAction::Slider(slider::Gesture::DoubleTap) => {
+                        flash_volume(weak, &overlay);
+                        (Target::Volume, "mute_toggle".to_string(), Value::Null)
                     }
                     UiAction::WifiScan => {
                         session.scanning = true;
@@ -788,6 +989,61 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     Ok(())
 }
 
+/// The Denon tops out at 98 (+18 dB).
+const MAX_VOLUME: i32 = 98;
+
+/// Whether the remote is on its charger, from any message that says.
+fn on_power(v: &Value) -> Option<bool> {
+    v.get("power_supply").or_else(|| v.pointer("/battery/power_supply")).and_then(Value::as_bool)
+}
+
+/// "French VF - AAC-LC stereo" → ("French VF", "AAC-LC stereo")
+fn split_track(t: &str) -> (String, String) {
+    match t.split_once(" - ") {
+        Some((name, codec)) => (name.trim().to_string(), codec.split('(').next().unwrap_or_default().trim().to_string()),
+        None => (t.to_string(), String::new()),
+    }
+}
+
+/// "S1E4" for an episode → "Season 1 · Episode 4"
+fn episode(media_type: &str, artist: &str) -> String {
+    if !media_type.eq_ignore_ascii_case("episode") {
+        return String::new();
+    }
+    let up = artist.to_uppercase();
+    let Some((s, e)) = up.strip_prefix('S').and_then(|r| r.split_once('E')) else { return String::new() };
+    match (s.parse::<u32>(), e.parse::<u32>()) {
+        (Ok(s), Ok(e)) => format!("Season {s} · Episode {e}"),
+        _ => String::new(),
+    }
+}
+
+pub fn demo_tracks(m: &Model, kind: i32, subtitle: usize) -> (Vec<(String, String)>, usize) {
+    if kind == 0 {
+        let current = m.audio_tracks.iter().position(|t| *t == m.audio_track).unwrap_or(usize::MAX);
+        (m.audio_tracks.iter().map(|t| split_track(t)).collect(), current)
+    } else {
+        let rows = ["Off", "English", "English SDH", "French · Forced"].map(|l| (l.to_string(), String::new()));
+        (rows.to_vec(), subtitle)
+    }
+}
+
+/// Fill the picker. `current` beyond the list marks none.
+pub fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, String)>, current: usize) {
+    ui(weak, move |app| {
+        let rows: Vec<TrackRow> = rows
+            .into_iter()
+            .enumerate()
+            .map(|(i, (label, detail))| TrackRow { label: label.into(), detail: detail.into(), current: i == current })
+            .collect();
+        let focus = rows.iter().position(|r| r.current).unwrap_or(0) as i32;
+        app.set_tracks(ModelRc::new(VecModel::from(rows)));
+        if app.get_page() == 9 {
+            app.set_focus_index(focus);
+        }
+    });
+}
+
 /// Leave the keyboard for the network list, or for the failure page.
 fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
     ui(weak, move |app| {
@@ -800,12 +1056,35 @@ fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
 }
 
 /// Plain HTTP only: Kodi serves its artwork from its own web server on the LAN.
-fn fetch_poster(url: &str) -> anyhow::Result<image::RgbaImage> {
+fn fetch_image(url: &str) -> anyhow::Result<image::DynamicImage> {
     use std::io::Read;
     let mut bytes = Vec::new();
-    ureq::get(url).timeout(Duration::from_secs(8)).call()?.into_reader().take(16 << 20).read_to_end(&mut bytes)?;
-    let img = image::load_from_memory(&bytes)?;
-    Ok(img.resize_to_fill(432, 648, image::imageops::FilterType::Triangle).to_rgba8())
+    ureq::get(url).timeout(Duration::from_secs(8)).call()?.into_reader().take(24 << 20).read_to_end(&mut bytes)?;
+    Ok(image::load_from_memory(&bytes)?)
+}
+
+type Pixels = slint::SharedPixelBuffer<slint::Rgba8Pixel>;
+
+fn pixels(img: image::RgbaImage) -> Pixels {
+    Pixels::clone_from_slice(img.as_raw(), img.width(), img.height())
+}
+
+pub fn poster_pixels(img: &image::DynamicImage) -> Pixels {
+    pixels(img.resize_to_fill(384, 576, image::imageops::FilterType::Triangle).to_rgba8())
+}
+
+/// Small, blurred, darker and a little greyer, so it sits behind the controls. The window scales
+/// it up smoothly, which softens it further.
+pub fn backdrop_pixels(img: &image::DynamicImage) -> Pixels {
+    let small = img.resize_to_fill(96, 160, image::imageops::FilterType::Triangle).to_rgba8();
+    let mut soft = image::imageops::blur(&small, 5.0);
+    for p in soft.pixels_mut() {
+        let [r, g, b, _] = p.0;
+        let grey = 0.3 * r as f32 + 0.59 * g as f32 + 0.11 * b as f32;
+        let mix = |c: u8| ((c as f32 * 0.7 + grey * 0.3) * 0.75) as u8;
+        p.0 = [mix(r), mix(g), mix(b), 255];
+    }
+    pixels(soft)
 }
 
 /// The menu's current values. Each is optional: a core that lacks a message just leaves a blank.
@@ -857,6 +1136,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
     // The first try at a new network fails, so the failure page can be seen; the second works.
     let mut tried = String::new();
     let mut joining = String::new();
+    let mut demo_subtitle = 1usize;
     let mut tick = tokio::time::interval(Duration::from_secs(1));
     loop {
         tokio::select! {
@@ -867,7 +1147,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
             }
             Some(later) = later_rx.recv() => match later {
                 Later::Wifi(_, networks) => (m.wifi, m.scanning) = (networks, false),
-                Later::Integrations(_) | Later::Entities(_) => {}
+                Later::Integrations(_) | Later::Entities(_) | Later::Subtitles(..) => {}
                 Later::JoinDone(ok) => {
                     if ok {
                         m.wifi_ssid = std::mem::take(&mut joining);
@@ -891,6 +1171,28 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                     after(1800, Later::JoinDone(ok));
                 }
                 UiAction::Backlight(..) => continue,
+                UiAction::Seek(by) => m.position = (m.position + by as f64).clamp(0.0, m.duration),
+                UiAction::OpenPicker(kind) => {
+                    let (rows, current) = demo_tracks(&m, kind, demo_subtitle);
+                    show_tracks(weak, rows, current);
+                }
+                UiAction::PickTrack(0, i) => {
+                    if let Some(t) = m.audio_tracks.get(i as usize) {
+                        m.audio_track = t.clone();
+                        m.media_format = audio_format(t);
+                    }
+                }
+                UiAction::PickTrack(_, i) => demo_subtitle = i as usize,
+                UiAction::Slider(slider::Gesture::Steps(n)) => {
+                    m.volume = (m.volume + n).clamp(0, MAX_VOLUME);
+                    m.muted = false;
+                    flash_volume(weak, &overlay);
+                }
+                UiAction::Slider(slider::Gesture::DoubleTap) => {
+                    m.muted = !m.muted;
+                    flash_volume(weak, &overlay);
+                }
+                UiAction::Key(text) if text == "c" => m.charging = !m.charging,
                 UiAction::Key(text) if text == "x" => m.demo_ha_down = !m.demo_ha_down,
                 UiAction::SelectSource(name) => m.source = name,
                 UiAction::Command(cmd) => tracing::info!("kodi command {cmd}"),
@@ -1023,6 +1325,16 @@ pub fn apply(app: &AppWindow, m: &Model) {
     app.set_awake(m.awake);
     backlight::set_ha(m.keys);
     app.set_battery(m.battery);
+    if m.charging != app.get_charging() {
+        // Put on the charger: show the battery, and start counting down to dark from now.
+        app.set_charge_card(m.charging);
+        if m.charging {
+            poke();
+        } else {
+            app.set_resting(false);
+        }
+    }
+    app.set_charging(m.charging);
     app.set_volume(m.volume);
     app.set_volume_db(volume_db(m.volume).into());
     app.set_muted(m.muted);
@@ -1039,9 +1351,6 @@ pub fn apply(app: &AppWindow, m: &Model) {
         app.set_sources(ModelRc::new(VecModel::from(rows)));
     }
     app.set_source_index(current);
-    let (brand, label) = format_badge(&m.sound_mode);
-    app.set_format_brand(brand.into());
-    app.set_format_label(label.into());
 
     app.set_wifi_name(m.wifi_ssid.as_str().into());
     let wifi: Vec<WifiRow> = m
@@ -1062,19 +1371,18 @@ pub fn apply(app: &AppWindow, m: &Model) {
 
     app.set_kodi(m.on_kodi());
     app.set_media_title(m.title.as_str().into());
+    app.set_media_sub(m.media_sub.as_str().into());
+    app.set_paused(m.paused);
     let left = (m.duration - m.position).max(0.0);
-    app.set_progress(if m.duration > 0.0 { (m.position / m.duration) as f32 } else { 0.0 });
-    app.set_time_left(if m.duration > 0.0 { time_left(left).into() } else { SharedString::new() });
-    app.set_ends_at(if m.paused {
-        "paused".into()
-    } else if m.duration > 0.0 {
-        let end = now + chrono::Duration::seconds(left as i64);
-        end.format("ends %H:%M").to_string().into()
-    } else {
-        SharedString::new()
-    });
-    let (brand, label) = format_badge(&m.media_format);
-    app.set_media_format_brand(brand.into());
+    let known = m.duration > 0.0;
+    app.set_progress(if known { (m.position / m.duration) as f32 } else { 0.0 });
+    app.set_elapsed(if known { clock(m.position).into() } else { SharedString::new() });
+    app.set_time_left(if known { format!("−{}", clock(left)).into() } else { SharedString::new() });
+    app.set_ends_at(if known { (now + chrono::Duration::seconds(left as i64)).format("ends %H:%M").to_string().into() } else { SharedString::new() });
+    let (logo, label) = codec_badge(&m.media_format);
+    let (commands, width) = codec_logo(&logos, logo);
+    app.set_media_format_logo(commands);
+    app.set_media_format_logo_width(width);
     app.set_media_format_label(label.into());
 }
 
@@ -1087,12 +1395,13 @@ fn volume_db(volume: i32) -> String {
     }
 }
 
-fn time_left(secs: f64) -> String {
-    let mins = (secs / 60.0).round() as i64;
-    if mins >= 60 {
-        format!("{}:{:02} left", mins / 60, mins % 60)
+/// 4328 → "1:12:08", 548 → "9:08"
+fn clock(secs: f64) -> String {
+    let s = secs.max(0.0).round() as i64;
+    if s >= 3600 {
+        format!("{}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
     } else {
-        format!("{mins} min left")
+        format!("{}:{:02}", s / 60, s % 60)
     }
 }
 
@@ -1104,7 +1413,7 @@ fn audio_format(sound_mode: &str) -> String {
 }
 
 /// "DOLBY DIGITAL" → ("dolby", "Digital"): the logo carries the brand, the label the rest.
-fn format_badge(mode: &str) -> (&'static str, String) {
+fn codec_badge(mode: &str) -> (&'static str, String) {
     let upper = mode.trim().to_uppercase();
     let (brand, rest) = if let Some(r) = upper.strip_prefix("DOLBY") {
         ("dolby", r)
@@ -1127,6 +1436,15 @@ fn format_badge(mode: &str) -> (&'static str, String) {
         .collect::<Vec<_>>()
         .join(" ");
     (brand, label)
+}
+
+/// A codec logo's path and its viewbox width at height 24.
+fn codec_logo(logos: &Logos, id: &str) -> (SharedString, f32) {
+    match id {
+        "dolby" => (logos.get_dolby(), 24.0),
+        "dts" => (logos.get_dts(), 24.0),
+        _ => (SharedString::new(), 24.0),
+    }
 }
 
 fn source_logo(logos: &Logos, name: &str) -> SharedString {
@@ -1186,13 +1504,16 @@ mod tests {
     fn formats() {
         assert_eq!(volume_db(62), "−18 dB");
         assert_eq!(volume_db(80), "0 dB");
-        assert_eq!(time_left(5512.0), "1:32 left");
-        assert_eq!(time_left(600.0), "10 min left");
-        assert_eq!(format_badge("DOLBY DIGITAL"), ("dolby", "Digital".to_string()));
-        assert_eq!(format_badge("DTS HD MA 7.1"), ("dts", "HD MA 7.1".to_string()));
-        assert_eq!(format_badge("STEREO"), ("", "Stereo".to_string()));
+        assert_eq!(clock(4328.0), "1:12:08");
+        assert_eq!(clock(548.0), "9:08");
+        assert_eq!(episode("episode", "S1E4"), "Season 1 · Episode 4");
+        assert_eq!(episode("movie", "English - English"), "");
+        assert_eq!(split_track("French VF - AAC-LC stereo"), ("French VF".into(), "AAC-LC stereo".into()));
+        assert_eq!(codec_badge("DOLBY DIGITAL"), ("dolby", "Digital".to_string()));
+        assert_eq!(codec_badge("DTS HD MA 7.1"), ("dts", "HD MA 7.1".to_string()));
+        assert_eq!(codec_badge("STEREO"), ("", "Stereo".to_string()));
         assert_eq!(audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)"), "DTS-HD MA 5.1");
-        assert_eq!(format_badge(&audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)")), ("dts", "HD MA 5.1".to_string()));
+        assert_eq!(codec_badge(&audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)")), ("dts", "HD MA 5.1".to_string()));
         assert_eq!(audio_format(""), "");
     }
 

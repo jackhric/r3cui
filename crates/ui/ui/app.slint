@@ -2,14 +2,20 @@ import "fonts/HankenGrotesk-200.ttf";
 import "fonts/HankenGrotesk-300.ttf";
 import "fonts/HankenGrotesk-400.ttf";
 import "fonts/HankenGrotesk-500.ttf";
-import { Theme, Icons, Glyph, Logo, Bar, StatusBar, ListRow, PageHeader, Page } from "theme.slint";
+import { Theme, Icons, Marks, Glyph, Logo, Bar, StatusBar, ListRow, PageHeader, Page } from "theme.slint";
 import { Logos } from "logos.slint";
 
-export { Theme, Logos, Icons }
+export { Theme, Logos, Icons, Marks }
 
 export struct SourceRow {
     name: string,
     icon: string,
+}
+
+export struct TrackRow {
+    label: string,
+    detail: string,
+    current: bool,
 }
 
 export struct WifiRow {
@@ -97,15 +103,25 @@ component Pill inherits Rectangle {
     }
 }
 
+// A codec's logo and the rest of its name. `logo-width` is the logo's viewbox width at height 24.
 component FormatBadge inherits HorizontalLayout {
-    in property <string> brand;
+    in property <string> logo;
+    in property <float> logo-width: 24;
     in property <string> label;
+    in property <length> size: 30px;
     alignment: center;
-    spacing: 14px;
+    spacing: 12px;
     height: 40px;
-    if root.brand == "dolby" || root.brand == "dts": Logo {
-        size: 36px;
-        commands: root.brand == "dolby" ? Logos.dolby : Logos.dts;
+    if root.logo != "": VerticalLayout {
+        alignment: center;
+        Path {
+            width: root.size * root.logo-width / 24;
+            height: root.size;
+            viewbox-width: root.logo-width;
+            viewbox-height: 24;
+            commands: root.logo;
+            fill: Theme.text;
+        }
     }
     Text {
         text: root.label;
@@ -174,19 +190,20 @@ component VolumeReadout inherits Rectangle {
     }
 }
 
-component ActionButton inherits Rectangle {
+component TrackButton inherits Rectangle {
     in property <string> icon;
     in property <string> label;
     callback tapped();
-    width: 240px;
-    height: 72px;
+    width: 200px;
+    height: 60px;
+    border-radius: 30px;
+    background: touch.pressed ? #FFFFFF26 : #FFFFFF12;
     HorizontalLayout {
         alignment: center;
         spacing: 12px;
-        opacity: touch.pressed ? 0.5 : 1;
         VerticalLayout {
             alignment: center;
-            Glyph { commands: root.icon; }
+            Glyph { commands: root.icon; tint: Theme.text; }
         }
         Text {
             text: root.label;
@@ -194,6 +211,30 @@ component ActionButton inherits Rectangle {
             color: Theme.text;
             vertical-alignment: center;
         }
+    }
+    touch := TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { root.tapped(); }
+    }
+}
+
+component SkipButton inherits Rectangle {
+    in property <bool> back;
+    callback tapped();
+    width: 64px;
+    height: 64px;
+    opacity: touch.pressed ? 0.5 : 1;
+    Glyph {
+        size: 64px;
+        commands: root.back ? Icons.skip-back : Icons.skip-forward;
+        tint: Theme.text;
+    }
+    Text {
+        y: 22px;
+        text: "10";
+        font-size: 17px;
+        font-weight: 500;
+        color: Theme.text;
     }
     touch := TouchArea {
         mouse-cursor: Theme.cursor;
@@ -254,8 +295,6 @@ export component AppWindow inherits Window {
     in property <string> source-icon;
     in property <[SourceRow]> sources;
     in property <int> source-index;
-    in property <string> format-brand;
-    in property <string> format-label;
 
     // True while the receiver is on the Kodi input: the home page becomes the Kodi remote.
     in property <bool> kodi;
@@ -264,8 +303,24 @@ export component AppWindow inherits Window {
     in property <float> progress;
     in property <string> time-left;
     in property <string> ends-at;
-    in property <string> media-format-brand;
+    in property <image> backdrop;
+    in property <string> media-sub;
+    in property <bool> paused;
+    in property <string> elapsed;
+    in property <string> media-format-logo;
+    in property <float> media-format-logo-width: 24;
     in property <string> media-format-label;
+    // The audio or subtitle picker: 0 audio, 1 subtitles.
+    in-out property <int> picker;
+    in property <[TrackRow]> tracks;
+    // The menu's animated background.
+    in property <image> lava;
+    out property <bool> lava-on: root.page == 2 && root.lit;
+    in property <bool> charging;
+    // On the charger the screen and keys go dark after a short while; any input brings them back.
+    in-out property <bool> resting;
+    in-out property <bool> charge-card;
+    out property <bool> lit: root.awake && !root.resting;
 
     in property <string> wifi-name;
     in-out property <int> brightness: 90;
@@ -282,14 +337,11 @@ export component AppWindow inherits Window {
     in property <[StatusRow]> status-rows;
     // Non-empty when something the home screen depends on is unreachable.
     in property <string> home-warning;
-    // Raw touch-slider readout, for testing the hardware.
-    in property <bool> slider-touch;
-    in property <float> slider-pos;
-    in property <string> slider-raw;
     in property <[KeyCell]> kb-keys;
     in property <string> kb-text;
 
-    // 0 home, 1 inputs, 2 menu, 3 display, 4 power, 5 wi-fi, 6 password, 7 status, 8 join failed
+    // 0 home, 1 inputs, 2 menu, 3 display, 4 power, 5 wi-fi, 6 password, 7 status, 8 join failed,
+    // 9 audio or subtitle picker
     in-out property <int> page: 0;
     in-out property <int> focus-index: 0;
 
@@ -310,6 +362,12 @@ export component AppWindow inherits Window {
     callback power-held();
     // "hold-start", "hold-cancel" or "complete": cues for the haptic motor.
     callback haptic(string);
+    // Seconds to jump, back (negative) or forward.
+    callback seek(int);
+    callback open-picker(int);
+    callback pick-track(int, int);
+    // Any key or touch: restarts the charger's countdown to dark.
+    callback activity();
 
     out property <bool> power-overlay: root.power-holding || root.power-latched;
     out property <bool> power-turning-off: true;
@@ -343,6 +401,8 @@ export component AppWindow inherits Window {
             root.go(2, 0);
         } else if (root.page == 7) {
             root.go(2, 4);
+        } else if (root.page == 9) {
+            root.go(0, 0);
         } else if (root.page == 6 || root.page == 8) {
             root.join-state = 0;
             root.go(5, 0);
@@ -351,7 +411,7 @@ export component AppWindow inherits Window {
         }
     }
     function row-count() -> int {
-        root.page == 1 ? root.sources.length : root.page == 2 ? 6 : root.page == 3 ? 3 : root.page == 4 ? 4 : root.page == 5 ? root.wifi-rows.length + 1 : root.page == 8 ? 2 : 1
+        root.page == 1 ? root.sources.length : root.page == 2 ? 6 : root.page == 3 ? 3 : root.page == 4 ? 4 : root.page == 5 ? root.wifi-rows.length + 1 : root.page == 8 ? 2 : root.page == 9 ? root.tracks.length : 1
     }
     public function move(d: int) {
         root.focus-index = max(0, min(root.row-count() - 1, root.focus-index + d));
@@ -390,6 +450,11 @@ export component AppWindow inherits Window {
                     root.wifi-join(root.wifi-target.ssid, root.wifi-target.ssid-hex, "");
                 }
             }
+        } else if (root.page == 9) {
+            if (i < root.tracks.length) {
+                root.pick-track(root.picker, i);
+            }
+            root.go(0, 0);
         } else if (root.page == 8) {
             root.join-state = 0;
             root.go(i == 0 ? 6 : 5, 0);
@@ -404,7 +469,7 @@ export component AppWindow inherits Window {
         }
     }
 
-    property <float> wake: root.awake ? 1 : 0;
+    property <float> wake: root.lit ? 1 : 0;
     animate wake { duration: 650ms; easing: ease-in-out; }
     // Smoothed again so the fade and zoom ease at both ends.
     property <float> reveal: root.wake * root.wake * (3 - 2 * root.wake);
@@ -414,6 +479,12 @@ export component AppWindow inherits Window {
         transform-origin: { x: self.width / 2, y: self.height / 2 };
         opacity: root.reveal;
         key-pressed(event) => {
+            root.activity();
+            if (root.resting || root.charge-card) {
+                root.resting = false;
+                root.charge-card = false;
+                return accept;
+            }
             if (event.text == "p" || event.text == "P") {
                 if (!event.repeat && !root.power-latched) {
                     root.power-turning-off = root.receiver-on;
@@ -552,91 +623,161 @@ export component AppWindow inherits Window {
                 visible: self.opacity > 0;
                 animate opacity { duration: root.fade; }
 
+                // The backdrop arrives already blurred and darkened; the scrim fades it into black
+                // where the controls sit.
+                Image {
+                    width: 480px;
+                    height: 800px;
+                    source: root.backdrop;
+                    image-fit: cover;
+                    opacity: 0.8;
+                }
                 Rectangle {
-                    x: 132px;
-                    y: 68px;
-                    width: 216px;
-                    height: 324px;
-                    border-radius: 10px;
-                    clip: true;
-                    if root.poster.width == 0: PosterStandIn {
-                        title: root.media-title;
-                    }
-                    if root.poster.width > 0: Image {
-                        source: root.poster;
-                        width: 100%;
-                        height: 100%;
-                        image-fit: cover;
+                    background: @linear-gradient(180deg, #00000066 0%, #00000022 26%, #000000B0 52%, #000000 74%);
+                }
+
+                Rectangle {
+                    x: 144px;
+                    y: 84px;
+                    width: 192px;
+                    height: 288px;
+                    border-radius: 12px;
+                    drop-shadow-blur: 28px;
+                    drop-shadow-color: #000000CC;
+                    drop-shadow-offset-y: 10px;
+                    background: #111;
+                    Rectangle {
+                        border-radius: 12px;
+                        clip: true;
+                        if root.poster.width == 0: PosterStandIn {
+                            title: root.media-title;
+                        }
+                        if root.poster.width > 0: Image {
+                            source: root.poster;
+                            width: 100%;
+                            height: 100%;
+                            image-fit: cover;
+                        }
                     }
                 }
                 Text {
-                    y: 408px;
+                    y: 392px;
                     x: 24px;
                     width: 432px;
                     height: 36px;
                     horizontal-alignment: center;
                     overflow: elide;
                     text: root.media-title;
-                    font-size: 30px;
+                    font-size: 28px;
                     font-weight: 500;
                     color: Theme.text;
                 }
+                Text {
+                    y: 430px;
+                    width: 480px;
+                    horizontal-alignment: center;
+                    text: root.media-sub;
+                    font-size: 18px;
+                    color: Theme.t2;
+                }
                 Bar {
                     x: 40px;
-                    y: 468px;
+                    y: 470px;
                     value: root.progress;
                 }
                 Text {
                     x: 40px;
                     y: 494px;
-                    height: 56px;
-                    vertical-alignment: center;
-                    text: root.time-left;
-                    font-size: 44px;
-                    font-weight: 300;
-                    letter-spacing: -0.9px;
-                    color: Theme.text;
+                    text: root.elapsed;
+                    font-size: 18px;
+                    font-weight: 400;
+                    color: Theme.t2;
                 }
                 Text {
                     x: 40px;
-                    y: 504px;
+                    y: 494px;
                     width: 400px;
-                    height: 44px;
                     horizontal-alignment: right;
-                    vertical-alignment: center;
-                    text: root.ends-at;
-                    font-size: 22px;
+                    text: root.paused ? root.time-left + "  ·  paused" : root.time-left + "  ·  " + root.ends-at;
+                    font-size: 18px;
                     color: Theme.t2;
                 }
-                if root.home-warning == "": FormatBadge {
-                    y: 580px;
-                    brand: root.media-format-brand;
-                    label: root.media-format-label;
+
+                SkipButton {
+                    x: 84px;
+                    y: 548px;
+                    back: true;
+                    tapped => { root.seek(-10); }
+                }
+                Rectangle {
+                    x: 198px;
+                    y: 542px;
+                    width: 84px;
+                    height: 84px;
+                    border-radius: 42px;
+                    background: Theme.accent;
+                    opacity: play-touch.pressed ? 0.6 : 1;
+                    Path {
+                        x: root.paused ? 30px : 26px;
+                        width: 32px;
+                        height: 32px;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
+                        commands: root.paused ? Marks.play : Marks.pause;
+                        fill: Theme.bg;
+                    }
+                    play-touch := TouchArea {
+                        mouse-cursor: Theme.cursor;
+                        clicked => { root.command("play_pause"); }
+                    }
+                }
+                SkipButton {
+                    x: 332px;
+                    y: 548px;
+                    back: false;
+                    tapped => { root.seek(10); }
+                }
+
+                if root.home-warning == "": HorizontalLayout {
+                    y: 656px;
+                    height: 40px;
+                    alignment: center;
+                    spacing: 18px;
+                    FormatBadge {
+                        logo: root.media-format-logo;
+                        logo-width: root.media-format-logo-width;
+                        label: root.media-format-label;
+                    }
+                    if root.media-format-label != "" || root.media-format-logo != "": Text {
+                        text: "·";
+                        font-size: 22px;
+                        color: Theme.t3;
+                        vertical-alignment: center;
+                    }
+                    VolumeChip {
+                        volume: root.volume;
+                        muted: root.muted;
+                        size: 22px;
+                    }
                 }
                 if root.home-warning != "": WarningRow {
-                    y: 572px;
+                    y: 648px;
                     message: root.home-warning;
                     tapped => { root.go(7, 0); }
                 }
-                ActionButton {
-                    x: 0;
-                    y: 644px;
+                TrackButton {
+                    x: 32px;
+                    y: 716px;
                     icon: Icons.subtitles;
                     label: "Subtitles";
-                    tapped => { root.command("subtitle"); }
+                    tapped => { root.picker = 1; root.go(9, 0); root.open-picker(1); }
                 }
-                ActionButton {
-                    x: 240px;
-                    y: 644px;
+                TrackButton {
+                    x: 248px;
+                    y: 716px;
                     icon: Icons.audio;
                     label: "Audio";
-                    tapped => { root.command("audio_track"); }
-                }
-                VolumeChip {
-                    y: 736px;
-                    height: 32px;
-                    volume: root.volume;
-                    muted: root.muted;
+                    tapped => { root.picker = 0; root.go(9, 0); root.open-picker(0); }
                 }
             }
 
@@ -708,6 +849,7 @@ export component AppWindow inherits Window {
             StatusBar {
                 clock: root.clock;
                 battery: root.battery;
+                charging: root.charging;
                 menu => { root.go(2, 0); }
             }
             // While something plays, the input's mark moves up into the status line; tapping it
@@ -746,6 +888,7 @@ export component AppWindow inherits Window {
             StatusBar {
                 clock: root.clock;
                 battery: root.battery;
+                charging: root.charging;
                 menu => { root.go(2, 0); }
             }
             for row[i] in root.sources: ListRow {
@@ -766,9 +909,17 @@ export component AppWindow inherits Window {
             current-depth: root.depth;
             active: root.page == 2;
 
+            Image {
+                width: 480px;
+                height: 800px;
+                source: root.lava;
+                image-fit: fill;
+                image-rendering: pixelated;
+            }
             StatusBar {
                 clock: root.clock;
                 battery: root.battery;
+                charging: root.charging;
                 show-menu: false;
             }
             PageHeader {
@@ -837,6 +988,7 @@ export component AppWindow inherits Window {
             StatusBar {
                 clock: root.clock;
                 battery: root.battery;
+                charging: root.charging;
                 show-menu: false;
             }
             PageHeader {
@@ -941,6 +1093,7 @@ export component AppWindow inherits Window {
             StatusBar {
                 clock: root.clock;
                 battery: root.battery;
+                charging: root.charging;
                 show-menu: false;
             }
             PageHeader {
@@ -984,6 +1137,7 @@ export component AppWindow inherits Window {
             StatusBar {
                 clock: root.clock;
                 battery: root.battery;
+                charging: root.charging;
                 show-menu: false;
             }
             PageHeader {
@@ -1144,6 +1298,7 @@ export component AppWindow inherits Window {
             StatusBar {
                 clock: root.clock;
                 battery: root.battery;
+                charging: root.charging;
                 show-menu: false;
             }
             PageHeader {
@@ -1233,6 +1388,67 @@ export component AppWindow inherits Window {
             }
         }
 
+        // Audio or subtitle tracks
+        Page {
+            depth: 2;
+            current-depth: root.depth;
+            active: root.page == 9;
+            property <length> row-h: min(96px, 620px / max(1, root.tracks.length));
+
+            StatusBar {
+                clock: root.clock;
+                battery: root.battery;
+                charging: root.charging;
+                show-menu: false;
+            }
+            PageHeader {
+                title: root.picker == 0 ? "Audio" : "Subtitles";
+                back => { root.back(); }
+            }
+            if root.tracks.length == 0: Text {
+                y: 220px;
+                width: 480px;
+                horizontal-alignment: center;
+                text: "Loading…";
+                font-size: 22px;
+                color: Theme.t2;
+            }
+            for row[i] in root.tracks: ListRow {
+                y: 168px + i * parent.row-h;
+                height: parent.row-h;
+                divider: i > 0;
+                label: "";
+                trailing: 48px;
+                focused: i == root.focus-index;
+                tapped => { root.activate(i); }
+                // Name above, codec below: long stream names would otherwise run into the codec.
+                Text {
+                    x: 40px;
+                    y: row.detail == "" ? (parent.height - self.height) / 2 : parent.height / 2 - 30px;
+                    width: 340px;
+                    overflow: elide;
+                    text: row.label;
+                    font-size: 26px;
+                    font-weight: i == root.focus-index ? 500 : 400;
+                    color: i == root.focus-index ? Theme.text : Theme.text-dim;
+                }
+                if row.detail != "": Text {
+                    x: 40px;
+                    y: parent.height / 2 + 6px;
+                    width: 340px;
+                    overflow: elide;
+                    text: row.detail;
+                    font-size: 18px;
+                    color: Theme.t2;
+                }
+                if row.current: Glyph {
+                    x: 404px;
+                    commands: Icons.check;
+                    tint: Theme.accent;
+                }
+            }
+        }
+
         // Volume overlay, over everything.
         Rectangle {
             property <bool> shown: root.volume-overlay && root.receiver-on;
@@ -1256,6 +1472,58 @@ export component AppWindow inherits Window {
                 volume-db: root.volume-db;
                 muted: root.muted;
             }
+        }
+    }
+
+    // Holding home: a ring fills around the current input's mark, and the input list opens when
+    // it closes, timed with the rumble.
+    property <bool> home-holding: root.home-down && root.home-rumbling && !root.home-used;
+    property <float> home-hold: 0;
+    property <float> ring: min(root.home-hold, 0.9999);
+    Rectangle {
+        background: #000000E6;
+        opacity: root.home-holding ? 1 : 0;
+        visible: self.opacity > 0;
+        animate opacity { duration: 140ms; easing: ease-out; }
+        Path {
+            x: 120px;
+            y: 240px;
+            width: 240px;
+            height: 240px;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: "M12 1.5A10.5 10.5 0 1 1 11.999 1.5";
+            fill: transparent;
+            stroke: Theme.track;
+            stroke-width: 10px;
+        }
+        Path {
+            x: 120px;
+            y: 240px;
+            width: 240px;
+            height: 240px;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: "M12 1.5A10.5 10.5 0 " + (root.ring > 0.5 ? "1" : "0") + " 1 " + (12 + 10.5 * sin(root.ring * 360deg)) + " " + (12 - 10.5 * cos(root.ring * 360deg));
+            fill: transparent;
+            stroke: Theme.accent;
+            stroke-width: 10px;
+            stroke-line-cap: round;
+        }
+        Logo {
+            y: 312px;
+            size: 96px;
+            commands: root.source == "" ? Logos.kodi : root.source-icon;
+            tint: Theme.text;
+        }
+        Text {
+            y: 516px;
+            width: 480px;
+            horizontal-alignment: center;
+            text: "Inputs";
+            font-size: 26px;
+            font-weight: 300;
+            color: Theme.t2;
         }
     }
 
@@ -1304,6 +1572,12 @@ export component AppWindow inherits Window {
     }
 
     states [
+        homing when root.home-holding: {
+            root.home-hold: 1;
+            in {
+                animate root.home-hold { duration: 490ms; easing: linear; }
+            }
+        }
         filling when root.power-holding || root.power-latched: {
             root.hold: 1;
             in {
@@ -1315,28 +1589,82 @@ export component AppWindow inherits Window {
         }
     ]
 
-    // Slider test readout: shown while the slider below the screen is touched.
+    // Charging: the battery, full screen, until the first touch or key.
     Rectangle {
-        y: 716px;
-        height: 84px;
         background: Theme.bg;
-        opacity: root.slider-touch ? 1 : 0;
-        animate opacity { duration: 160ms; }
+        opacity: root.charge-card && root.lit ? 1 : 0;
+        visible: self.opacity > 0;
+        animate opacity { duration: 300ms; easing: ease-in-out; }
+        Rectangle {
+            x: 122px;
+            y: 300px;
+            width: 220px;
+            height: 104px;
+            border-radius: 26px;
+            border-width: 5px;
+            border-color: #FFFFFF59;
+            Rectangle {
+                x: 11px;
+                y: 11px;
+                width: (parent.width - 22px) * clamp(root.battery, 4, 100) / 100;
+                height: parent.height - 22px;
+                border-radius: 16px;
+                background: Theme.good;
+            }
+            Path {
+                width: 64px;
+                height: 84px;
+                viewbox-width: 24;
+                viewbox-height: 24;
+                commands: Marks.bolt;
+                fill: Theme.text;
+                stroke: Theme.bg;
+                stroke-width: 4px;
+            }
+        }
+        Rectangle {
+            x: 346px;
+            y: 334px;
+            width: 12px;
+            height: 36px;
+            border-radius: 6px;
+            background: #FFFFFF59;
+        }
         Text {
-            y: 8px;
+            y: 436px;
             width: 480px;
             horizontal-alignment: center;
-            text: root.slider-raw;
-            font-size: 18px;
+            text: root.battery + "%";
+            font-size: 64px;
+            font-weight: 200;
+            color: Theme.text;
+        }
+        Text {
+            y: 520px;
+            width: 480px;
+            horizontal-alignment: center;
+            text: root.battery >= 100 ? "Charged" : "Charging";
+            font-size: 22px;
             color: Theme.t2;
         }
-        Bar {
-            x: 40px;
-            y: 48px;
-            value: root.slider-pos;
-            handle: true;
+        TouchArea {
+            mouse-cursor: Theme.cursor;
+            clicked => {
+                root.charge-card = false;
+                root.activity();
+            }
         }
     }
 
     if !root.awake: TouchArea { mouse-cursor: Theme.cursor; }
+    // The first touch after resting only wakes the screen.
+    if root.awake && root.resting: TouchArea {
+        mouse-cursor: Theme.cursor;
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down) {
+                root.resting = false;
+                root.activity();
+            }
+        }
+    }
 }

@@ -22,6 +22,8 @@ pub struct Settings {
     pub keys_mode: String,
     /// Receiver inputs to leave out of the input list, compared without regard to case.
     pub hidden_sources: Vec<String>,
+    /// How strongly the menu's lava background shows, 0 (off) to 1.
+    pub lava: Option<f32>,
 }
 
 impl Settings {
@@ -84,6 +86,7 @@ fn parse(text: &str) -> Result<Settings, String> {
             .and_then(Value::as_array)
             .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
             .unwrap_or_default(),
+        lava: v.get("lava").and_then(Value::as_f64).map(|x| x.clamp(0.0, 1.0) as f32),
     })
 }
 
