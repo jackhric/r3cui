@@ -104,10 +104,13 @@ component Pill inherits Rectangle {
     }
 }
 
-// A codec's logo and the rest of its name. `logo-width` is the logo's viewbox width at height 24.
+// A codec's logo and the rest of its name. The logo is drawn from the part of its viewbox that
+// `logo-top`, `logo-width` and `logo-height` mark out, `size` tall.
 component FormatBadge inherits HorizontalLayout {
     in property <string> logo;
     in property <float> logo-width: 24;
+    in property <float> logo-top: 0;
+    in property <float> logo-height: 24;
     in property <string> label;
     in property <length> size: 30px;
     alignment: center;
@@ -116,10 +119,11 @@ component FormatBadge inherits HorizontalLayout {
     if root.logo != "": VerticalLayout {
         alignment: center;
         Path {
-            width: root.size * root.logo-width / 24;
+            width: root.size * root.logo-width / root.logo-height;
             height: root.size;
+            viewbox-y: root.logo-top;
             viewbox-width: root.logo-width;
-            viewbox-height: 24;
+            viewbox-height: root.logo-height;
             commands: root.logo;
             fill: Theme.text;
         }
@@ -310,6 +314,9 @@ export component AppWindow inherits Window {
     in property <string> elapsed;
     in property <string> media-format-logo;
     in property <float> media-format-logo-width: 24;
+    in property <float> media-format-logo-top: 0;
+    in property <float> media-format-logo-height: 24;
+    in property <length> media-format-logo-size: 30px;
     in property <string> media-format-label;
     // The audio or subtitle picker: 0 audio, 1 subtitles.
     in-out property <int> picker;
@@ -798,6 +805,9 @@ export component AppWindow inherits Window {
                             FormatBadge {
                                 logo: root.media-format-logo;
                                 logo-width: root.media-format-logo-width;
+                        logo-top: root.media-format-logo-top;
+                        logo-height: root.media-format-logo-height;
+                        size: root.media-format-logo-size;
                                 label: root.media-format-label;
                             }
                             if root.media-format-label != "" || root.media-format-logo != "": Text {

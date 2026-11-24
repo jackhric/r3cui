@@ -1474,9 +1474,12 @@ fn apply_now(app: &AppWindow, m: &Model) {
     app.set_time_left(if known { format!("−{}", clock(left)).into() } else { SharedString::new() });
     app.set_ends_at(if known { (now + chrono::Duration::seconds(left as i64)).format("ends %H:%M").to_string().into() } else { SharedString::new() });
     let (logo, label) = codec_badge(&m.media_format);
-    let (commands, width) = codec_logo(app, logo);
-    app.set_media_format_logo(commands);
-    app.set_media_format_logo_width(width);
+    let mark = codec_logo(app, logo);
+    app.set_media_format_logo(mark.path);
+    app.set_media_format_logo_top(mark.top);
+    app.set_media_format_logo_width(mark.width);
+    app.set_media_format_logo_height(mark.height);
+    app.set_media_format_logo_size(mark.size);
     app.set_media_format_label(label.into());
 }
 
@@ -1514,32 +1517,34 @@ fn codec_badge(stream: &str) -> (&'static str, String) {
     let has = |words: &[&str]| words.iter().any(|w| s.contains(w));
     let ch = channels(&s);
     let with = |prefix: &str| [prefix, ch.as_str()].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join(" ");
+    // Dolby and DTS show only their marks; the label names the format.
     if has(&["atmos"]) {
-        return ("dolby-atmos", with(if has(&["truehd", "true hd"]) { "TrueHD" } else if has(&["dd+", "ddp", "eac3", "e-ac-3", "digital plus"]) { "DD+" } else { "" }));
+        let carrier = if has(&["truehd", "true hd"]) { "TrueHD Atmos" } else if has(&["dd+", "ddp", "eac3", "e-ac-3", "digital plus"]) { "Digital Plus Atmos" } else { "Atmos" };
+        return ("dolby", with(carrier));
     }
     if has(&["dts:x", "dtsx", "dts-x", " ma x ", "dts x "]) {
-        return ("dts-x", with(if has(&["imax"]) { "IMAX" } else { "" }));
+        return ("dts", with(if has(&["imax"]) { "X IMAX" } else { "X" }));
     }
     if has(&["dts-hd ma", "dtshd ma", "dts-hd master", "dts hd ma", "dts ma ", "dts-ma"]) {
-        return ("dts-hd", with("Master Audio"));
+        return ("dts", with("HD MA"));
     }
     if has(&["dts-hd hra", "dtshd hra", "dts-hd high", "dts hd hra", "hra "]) {
-        return ("dts-hd", with("High Res"));
+        return ("dts", with("HD HRA"));
     }
     if has(&["dts-hd", "dtshd", "dts hd"]) {
-        return ("dts-hd", ch);
+        return ("dts", with("HD"));
     }
     if has(&[" dts", "dts ", " dca "]) {
         return ("dts", with(if has(&["dts-es", "dts es"]) { "ES" } else if has(&["96/24", "96 24"]) { "96/24" } else if has(&["express"]) { "Express" } else { "" }));
     }
     if has(&["truehd", "true hd", " mlp "]) {
-        return ("dolby-truehd", ch);
+        return ("dolby", with("TrueHD"));
     }
     if has(&["dd+", " ddp", "eac3", "e-ac-3", "digital plus"]) {
-        return ("dolby-digital-plus", ch);
+        return ("dolby", with("Digital Plus"));
     }
     if has(&[" ac3", " ac-3", "dolby digital", " dd "]) {
-        return ("dolby-digital", ch);
+        return ("dolby", with("Digital"));
     }
     if has(&[" flac"]) {
         return ("flac", ch);
@@ -1582,24 +1587,29 @@ fn channels(s: &str) -> String {
     }
 }
 
-/// A codec logo's path and its viewbox width at height 24.
-fn codec_logo(app: &AppWindow, id: &str) -> (SharedString, f32) {
+struct CodecLogo {
+    path: SharedString,
+    /// The part of the viewbox the mark fills: top, width, height.
+    top: f32,
+    width: f32,
+    height: f32,
+    /// How tall it is drawn, in logical pixels.
+    size: f32,
+}
+
+fn codec_logo(app: &AppWindow, id: &str) -> CodecLogo {
     let c = app.global::<Codecs>();
+    let lockup = |path: SharedString, width: f32| CodecLogo { path, top: 0.0, width, height: 24.0, size: 30.0 };
     match id {
-        "dolby-atmos" => (c.get_dolby_atmos(), 172.17),
-        "dolby-truehd" => (c.get_dolby_truehd(), 95.9),
-        "dolby-digital" => (c.get_dolby_digital(), 95.49),
-        "dolby-digital-plus" => (c.get_dolby_digital_plus(), 99.73),
-        "dts-hd" => (c.get_dts_hd(), 103.12),
-        "dts-x" => (c.get_dts_x(), 67.47),
-        "flac" => (c.get_flac(), 49.63),
-        "opus" => (c.get_opus(), 42.19),
-        "alac" => (c.get_alac(), 44.99),
-        "mp3" => (c.get_mp3(), 47.89),
-        "aac" => (c.get_aac(), 23.91),
-        "imax" => (c.get_imax(), 126.68),
-        "dts" => (app.global::<Logos>().get_dts(), 24.0),
-        _ => (SharedString::new(), 24.0),
+        // The simple-icons marks sit in a 24x24 box with empty space above and below.
+        "dolby" => CodecLogo { path: app.global::<Logos>().get_dolby(), top: 3.56, width: 24.0, height: 16.88, size: 20.0 },
+        "dts" => CodecLogo { path: app.global::<Logos>().get_dts(), top: 7.12, width: 24.0, height: 9.76, size: 17.0 },
+        "flac" => lockup(c.get_flac(), 49.63),
+        "opus" => lockup(c.get_opus(), 42.19),
+        "alac" => lockup(c.get_alac(), 44.99),
+        "mp3" => lockup(c.get_mp3(), 47.89),
+        "aac" => lockup(c.get_aac(), 23.91),
+        _ => lockup(SharedString::new(), 24.0),
     }
 }
 
@@ -1666,17 +1676,17 @@ mod tests {
         assert_eq!(episode("movie", "English - English"), "");
         assert_eq!(split_track("French VF - AAC-LC stereo"), ("French VF".into(), "AAC-LC stereo".into()));
         let badge = |s: &str| { let (l, t) = codec_badge(s); (l, t) };
-        assert_eq!(badge("DTS-HD MA 7.1"), ("dts-hd", "Master Audio 7.1".to_string()));
-        assert_eq!(badge("TrueHD Atmos 7.1"), ("dolby-atmos", "TrueHD 7.1".to_string()));
-        assert_eq!(badge("Truehd_Atmos 8 channels"), ("dolby-atmos", "TrueHD 7.1".to_string()));
-        assert_eq!(badge("DD+ 5.1"), ("dolby-digital-plus", "5.1".to_string()));
-        assert_eq!(badge("Dolby Digital 5.1"), ("dolby-digital", "5.1".to_string()));
+        assert_eq!(badge("DTS-HD MA 7.1"), ("dts", "HD MA 7.1".to_string()));
+        assert_eq!(badge("TrueHD Atmos 7.1"), ("dolby", "TrueHD Atmos 7.1".to_string()));
+        assert_eq!(badge("Truehd_Atmos 8 channels"), ("dolby", "TrueHD Atmos 7.1".to_string()));
+        assert_eq!(badge("DD+ 5.1"), ("dolby", "Digital Plus 5.1".to_string()));
+        assert_eq!(badge("Dolby Digital 5.1"), ("dolby", "Digital 5.1".to_string()));
         assert_eq!(badge("AAC-LC stereo"), ("aac", "Stereo".to_string()));
-        assert_eq!(badge("DTS:X 7.1"), ("dts-x", "7.1".to_string()));
+        assert_eq!(badge("DTS:X 7.1"), ("dts", "X 7.1".to_string()));
         assert_eq!(badge("Pcm_S24Le 2 channels"), ("", "PCM Stereo".to_string()));
         assert_eq!(badge("FLAC 2.0"), ("flac", "Stereo".to_string()));
         assert_eq!(audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)"), "DTS-HD MA 5.1");
-        assert_eq!(codec_badge(&audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)")), ("dts-hd", "Master Audio 5.1".to_string()));
+        assert_eq!(codec_badge(&audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)")), ("dts", "HD MA 5.1".to_string()));
         assert_eq!(audio_format(""), "");
     }
 
