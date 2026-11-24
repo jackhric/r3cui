@@ -148,8 +148,10 @@ component VolumeChip inherits HorizontalLayout {
     spacing: 10px;
     VerticalLayout {
         alignment: center;
+        // The speaker fills only the middle half of its 24-unit box; this size makes it as tall as
+        // the number's capitals.
         Glyph {
-            size: root.size * 0.9;
+            size: root.size * 1.3;
             commands: root.muted ? Icons.muted : Icons.speaker;
         }
     }
