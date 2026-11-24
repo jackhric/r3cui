@@ -22,6 +22,10 @@ const description = 'A simplified, single-purpose Unfolded Circle Remote 3 inter
     <Seo title={title} description={description} />
     <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
     <meta name="color-scheme" content="light dark" />
+    <script is:inline>
+      // Before paint: an explicit light or dark choice (shared with the docs) applies at once; "auto" follows the system.
+      try { const t = localStorage.getItem('starlight-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}
+    </script>
   </head>
   <body>
     <Hero repo={repo} />

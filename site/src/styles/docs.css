@@ -10,7 +10,7 @@
 :root[data-theme='dark'] {
   --sl-color-accent-low: oklch(0.3 0.07 25);
   --sl-color-accent: oklch(0.7 0.17 25);
-  --sl-color-accent-high: oklch(0.9 0 0);
+  --sl-color-accent-high: oklch(0.8 0.13 25);
   --sl-color-white: oklch(0.97 0 0);
   --sl-color-gray-1: oklch(0.92 0 0);
   --sl-color-gray-2: oklch(0.82 0 0);
