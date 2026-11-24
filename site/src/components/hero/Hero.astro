@@ -250,10 +250,10 @@ const columns = riverColumns(15);
   }
   .lens canvas { position: absolute; pointer-events: none; }
   .lens :global(.logo) { display: block; width: var(--logo-w); height: auto; }
-  /* A small outlined beta banner over the r: its left-most corner lines up with where the r begins and its top-right
-     corner with the top of the 3. Sized from the logo's width so it keeps its place at every size. */
+  /* A small outlined beta banner over the r, placed by hand in the placement tool. Sized and placed from the logo's
+     width so it keeps its place at every size. */
   .beta {
-    position: absolute; z-index: 1; left: calc(var(--logo-w) * 0.0849); top: calc(var(--logo-w) * 0.0634);
+    position: absolute; z-index: 1; left: calc(var(--logo-w) * 0.0628); top: calc(var(--logo-w) * 0.0441);
     translate: -50% -50%; rotate: -28deg; --f: calc(var(--logo-w) * 0.036);
     padding: calc(var(--f) * 0.31) calc(var(--f) * 0.61) calc(var(--f) * 0.31) calc(var(--f) * 0.72);
     display: grid; place-items: center; border-radius: calc(var(--f) * 0.22); pointer-events: none;
