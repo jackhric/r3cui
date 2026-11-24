@@ -2,7 +2,6 @@
 import { Button } from '@/components/starwind/button';
 import Icon from '../Icon.astro';
 import Logo from '../Logo.astro';
-import mask from '../../assets/remote-mask.png?url';
 import { riverColumns } from './river';
 
 interface Props { repo: string }
@@ -16,7 +15,7 @@ const columns = riverColumns(15);
 <section class="hero">
   <div class="stage" aria-hidden="true">
     <div class="glow"></div>
-    <div class="river" style={`--mask:url(${mask})`}>
+    <div class="river">
       {columns.map((col, ci) => (
         <div class="column" style={col.style}>
           <div class="flow">
@@ -106,12 +105,14 @@ const columns = riverColumns(15);
 
   // Decoding is the hero's main cost, so at most MAX_PLAYING clips run, only those on screen; the rest show
   // their poster. Nothing downloads until the page has loaded and gone idle.
-  const MAX_PLAYING = 12;
+  // Phones decode far fewer at once, and none while the page is being scrolled.
+  const MAX_PLAYING = matchMedia('(max-width: 760px), (pointer: coarse)').matches ? 5 : 12;
+  let scrolling = 0;
   const visible = new Set<HTMLVideoElement>();
   const playing = new Set<HTMLVideoElement>();
   function schedule() {
     for (const v of playing) if (!visible.has(v) || document.hidden) { v.pause(); playing.delete(v); }
-    if (document.hidden) return;
+    if (document.hidden || scrolling) return;
     for (const v of visible) {
       if (playing.size >= MAX_PLAYING) break;
       if (playing.has(v)) continue;
@@ -135,6 +136,11 @@ const columns = riverColumns(15);
     else addEventListener('load', idle, { once: true });
   }
   document.addEventListener('visibilitychange', schedule);
+  addEventListener('scroll', () => {
+    if (!scrolling) for (const v of playing) { v.pause(); playing.delete(v); }
+    clearTimeout(scrolling);
+    scrolling = window.setTimeout(() => { scrolling = 0; schedule(); }, 250);
+  }, { passive: true });
 
   // Off screen the hero costs nothing: the river and the clips pause.
   const hero = document.querySelector<HTMLElement>('.hero')!;
@@ -150,7 +156,7 @@ const columns = riverColumns(15);
     position: relative; overflow: hidden; isolation: isolate; color: var(--hero-text); background: var(--hero-bg);
     min-height: min(58vh, 540px); display: flex; flex-direction: column;
   }
-  .stage { position: absolute; inset: 0; user-select: none; -webkit-user-select: none; pointer-events: none; }
+  .stage { position: absolute; inset: 0; contain: strict; user-select: none; -webkit-user-select: none; pointer-events: none; }
   .glow {
     position: absolute; left: 50%; top: 50%; width: 110%; height: 160%; translate: -50% -50%;
     background: radial-gradient(closest-side, var(--hero-glow), color-mix(in srgb, var(--hero-glow) 30%, transparent) 55%, transparent 75%);
@@ -174,11 +180,13 @@ const columns = riverColumns(15);
     display: grid; gap: 22px; will-change: transform;
     animation: drift var(--speed, 120s) linear infinite;
   }
-  /* Video can't carry the photo's transparent corners everywhere, so each tile is cut to the remote's
-     own outline instead. The poster sits underneath and the video fades in over it once playing. */
+  /* Video can't carry the photo's transparent corners everywhere, so each tile is clipped to the remote's
+     outline: a rounded rectangle, tight at the top and rounder at the bottom (measured from the photo). A
+     rounded clip costs the GPU next to nothing, where an image mask on every tile was redrawn each frame.
+     The poster sits underneath and the video fades in over it once playing. */
   .tile {
-    position: relative; width: var(--tile); aspect-ratio: 200 / 864;
-    -webkit-mask: var(--mask) center / 100% 100% no-repeat; mask: var(--mask) center / 100% 100% no-repeat;
+    position: relative; width: var(--tile); aspect-ratio: 200 / 864; overflow: hidden;
+    border-radius: 2% 2% 15% 15% / 0.46% 0.46% 3.5% 3.5%;
   }
   .tile img, .tile video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
   .tile video { opacity: 0; transition: opacity 0.7s ease; }
@@ -229,6 +237,9 @@ const columns = riverColumns(15);
 
   @media (max-width: 760px) {
     .top nav > a:not(.docs) { display: none; }
+    /* Phones: only the middle columns reach the screen, and a live blur over moving video is too heavy. */
+    .column:nth-child(-n + 4), .column:nth-child(n + 12) { display: none; }
+    .top nav { backdrop-filter: none; background: color-mix(in srgb, var(--hero-bg) 88%, transparent); }
     .river { gap: 16px; }
     .column { --tile: 80px; --gap: 16px; }
     .flow { gap: 16px; }
