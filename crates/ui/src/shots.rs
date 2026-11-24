@@ -779,6 +779,18 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             v.push((3600, ui(|_| {})));
             v
         }
+        // Kodi's library on the wall while a helper steps Kodi across to a film and plays it (about 11 s), then the
+        // audio and subtitle pickers.
+        "site-kodi" => vec![
+            (11000, ui(|_| {})),
+            (900, tap_at(348.0, 746.0)),
+            (1500, ui(|a| a.invoke_move(1))),
+            (900, press("\n")),
+            (1400, tap_at(132.0, 746.0)),
+            (1400, ui(|a| a.invoke_move(1))),
+            (900, ui(|a| a.invoke_activate(a.get_focus_index()))),
+            (1600, ui(|_| {})),
+        ],
         // The audio picker, then the subtitle picker, held long enough to read their track names.
         "site-tracks" => vec![
             (900, tap_at(348.0, 746.0)),
