@@ -56,7 +56,14 @@ const STEPS: &[Step] = &[
     ("05-volume", |app, m| {
         m.title = Model::demo().title;
         m.volume = 64;
-        app.set_volume_overlay(true);
+        // Blur Now playing, not the stage it replaces, so wait out the switch first.
+        let weak = app.as_weak();
+        slint::Timer::single_shot(Duration::from_millis(900), move || {
+            if let Some(app) = weak.upgrade() {
+                crate::capture(&app, 1);
+                app.set_volume_overlay(true);
+            }
+        });
     }),
     ("06-muted", |_, m| m.muted = true),
     ("07-menu", |app, m| {
@@ -779,7 +786,12 @@ pub fn record(app: &AppWindow, tx: Tx, mut device: Device, out: PathBuf, which: 
         .args(["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24"])
         .args(["-s", &format!("{}x{}", device::WIDTH, device::HEIGHT)])
         .args(["-use_wallclock_as_timestamps", "1", "-i", "-"])
-        .args(["-vf", "fps=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-movflags", "+faststart"])
+        .args(["-vf", "fps=30"])
+        // A `.png` pattern such as `frames/%04d.png` keeps every frame lossless, for stills.
+        .args(match out.extension().and_then(|e| e.to_str()) {
+            Some("png") => &[][..],
+            _ => &["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-movflags", "+faststart"][..],
+        })
         .arg(&out)
         .stdin(Stdio::piped())
         .spawn()
