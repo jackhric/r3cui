@@ -68,14 +68,25 @@ screen was installed. That record stays even if you go back to the original UI.
 - A computer on the same network as the remote
 - Your remote's IP address and web configurator PIN. You can find both in the remote's settings
 
-### 1. Download
+### Install
 
-Download `remote-ui.tar.gz` from the [Releases](https://github.com/jackhric/r3cui/releases) page
+On macOS or Linux, run this in a terminal and answer its questions:
 
-### 2. Install
+```sh
+curl -fsSLO https://github.com/jackhric/r3cui/releases/latest/download/install.sh && sh install.sh
+```
 
-Open a terminal in the folder with the file and run this command. Put your PIN and IP address in
-place of `<PIN>` and `<IP>`
+On Windows, download [`install.bat`](https://github.com/jackhric/r3cui/releases/latest/download/install.bat) and
+double-click it.
+
+The script asks for your remote's IP address and PIN, shows the warranty warning, then downloads the latest
+release and installs it. Wait for the remote to show the new screen. If it does not, restart the remote
+
+<details>
+<summary>Install by hand instead</summary>
+
+Download `remote-ui.tar.gz` from the [Releases](https://github.com/jackhric/r3cui/releases) page, open a terminal in
+the folder with the file and run this command. Put your PIN and IP address in place of `<PIN>` and `<IP>`
 
 ```sh
 curl -u 'web-configurator:<PIN>' \
@@ -83,21 +94,27 @@ curl -u 'web-configurator:<PIN>' \
   --form 'file=@remote-ui.tar.gz'
 ```
 
-### 3. Wait
-
-Wait for the remote to show the new screen. If it does not, restart the remote
+</details>
 
 ## Go back to the original UI
 
-```sh
-curl -u 'web-configurator:<PIN>' -X PUT 'http://<IP>/api/system/install/ui?enable=false'
-```
-
-To remove r3cui completely:
+Run `uninstall.sh` (macOS or Linux) or `uninstall.bat` (Windows), from the same
+[release](https://github.com/jackhric/r3cui/releases/latest). It asks whether to switch back to the original UI, which
+keeps r3cui installed, or to remove r3cui completely:
 
 ```sh
-curl -u 'web-configurator:<PIN>' -X DELETE 'http://<IP>/api/system/install/ui'
+curl -fsSLO https://github.com/jackhric/r3cui/releases/latest/download/uninstall.sh && sh uninstall.sh
 ```
+
+<details>
+<summary>By hand</summary>
+
+```sh
+curl -u 'web-configurator:<PIN>' -X PUT 'http://<IP>/api/system/install/ui?enable=false'   # original UI
+curl -u 'web-configurator:<PIN>' -X DELETE 'http://<IP>/api/system/install/ui'             # remove r3cui
+```
+
+</details>
 
 If r3cui fails to start many times in a row, the remote goes back to the original UI by itself
 
