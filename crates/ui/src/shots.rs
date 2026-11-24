@@ -732,6 +732,110 @@ fn picker_script() -> Vec<(u64, Act)> {
     s
 }
 
+fn tap_at(x: f32, y: f32) -> Act {
+    Box::new(move |a, _| {
+        use slint::platform::{PointerEventButton, WindowEvent};
+        let position = slint::LogicalPosition::new(x, y);
+        let button = PointerEventButton::Left;
+        a.window().dispatch_event(WindowEvent::PointerMoved { position });
+        a.window().dispatch_event(WindowEvent::PointerPressed { position, button });
+        a.window().dispatch_event(WindowEvent::PointerReleased { position, button });
+        a.window().dispatch_event(WindowEvent::PointerExited);
+    })
+}
+
+/// Short clips for the website's hero, 6 to 9 seconds each after a settling lead-in (`SITE_LEAD`
+/// ms, trimmed when the clip is encoded). Each starts from a known input so the keys fade in from it.
+pub const SITE_LEAD: u64 = 2500;
+
+fn site_script(name: &str) -> Vec<(u64, Act)> {
+    let source = |name: &'static str| -> Act {
+        Box::new(move |_, tx| {
+            let _ = tx.send(UiAction::SelectSource(name.into()));
+        })
+    };
+    use slint::platform::WindowEvent;
+    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "p".into() });
+    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "p".into() });
+    let mut s: Vec<(u64, Act)> = vec![(300, source("KODI")), (SITE_LEAD - 300, ui(|_| {}))];
+    s.extend(match name {
+        "site-inputs" => vec![
+            (900, ui(|a| a.invoke_go(1, a.get_source_index()))),
+            (700, ui(|a| a.invoke_move(1))),
+            (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
+            (2300, ui(|a| a.invoke_go(1, a.get_source_index()))),
+            (700, ui(|a| a.invoke_move(1))),
+            (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
+            (2400, ui(|_| {})),
+        ],
+        "site-playing" => vec![
+            (1200, tap_at(240.0, 584.0)),
+            (1300, tap_at(240.0, 584.0)),
+            (1300, tap_at(348.0, 746.0)),
+            (1100, ui(|a| a.invoke_move(1))),
+            (600, press("\n")),
+            (1300, tap_at(132.0, 746.0)),
+            (1100, ui(|a| a.invoke_move(1))),
+            (600, ui(|a| a.invoke_activate(a.get_focus_index()))),
+            (1500, ui(|_| {})),
+        ],
+        "site-volume" => vec![
+            (1000, swipe((0..26).map(|i| 0.3 + i as f32 * 0.014).collect())),
+            (1500, swipe((0..20).map(|i| 0.66 - i as f32 * 0.012).collect())),
+            (1500, tap_strip()),
+            (180, tap_strip()),
+            (1600, tap_strip()),
+            (180, tap_strip()),
+            (1800, ui(|_| {})),
+        ],
+        "site-power" => vec![
+            (1000, ui(down)),
+            (1500, ui(up)),
+            (2200, ui(down)),
+            (1500, ui(up)),
+            (2200, ui(|_| {})),
+        ],
+        "site-menu" => vec![
+            (900, ui(|a| a.invoke_go(2, 0))),
+            (700, ui(|a| a.invoke_move(1))),
+            (600, ui(|a| a.invoke_activate(1))),
+            (800, ui(|a| a.set_brightness(70))),
+            (500, ui(|a| a.set_brightness(45))),
+            (600, ui(|a| a.set_brightness(90))),
+            (900, ui(|a| a.invoke_back())),
+            (600, ui(|a| a.invoke_move(1))),
+            (350, ui(|a| a.invoke_move(1))),
+            (600, ui(|a| a.invoke_activate(3))),
+            (1300, ui(|a| a.invoke_back())),
+            (800, ui(|a| a.invoke_back())),
+            (1200, ui(|_| {})),
+        ],
+        "site-library" => {
+            let movies = Rc::new(shelf("movies"));
+            let want = std::env::var("UC_DEMO_FOCUS").unwrap_or_default().to_lowercase();
+            let focus = movies.items.iter().position(|i| !want.is_empty() && i.title.to_lowercase().contains(&want)).unwrap_or(0) as i32;
+            let load: Act = Box::new(move |app, _| {
+                app.set_lib_heading("MOVIES".into());
+                app.set_lib_count(movies.count.clone().into());
+                app.set_lib_items(Rc::new(slint::VecModel::from(movies.items.clone())).into());
+                app.set_lib_focus((focus - 3).max(0));
+            });
+            let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
+            vec![
+                (100, load),
+                (600, key("s")),
+                (1500, ui(|a| crate::library_stage(a, 4))),
+                (1600, step(1)),
+                (700, step(1)),
+                (700, step(1)),
+                (2600, ui(|_| {})),
+            ]
+        }
+        _ => return Vec::new(),
+    });
+    s
+}
+
 fn lava_script() -> Vec<(u64, Act)> {
     let source = |name: &'static str| -> Act {
         Box::new(move |_, tx| {
@@ -761,6 +865,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         Some("wall") => return wall_script(),
         Some("feature") => return feature_script(),
         Some("walls") => return walls_script(),
+        Some(n) if n.starts_with("site-") => return site_script(n),
         _ => {}
     }
     if name == Some("home") {
@@ -819,7 +924,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
 pub fn record(app: &AppWindow, tx: Tx, mut device: Device, out: PathBuf, which: Option<&str>) -> anyhow::Result<slint::Timer> {
     let mut ffmpeg = Command::new("ffmpeg")
         .args(["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba"])
-        .args(["-s", &format!("{}x{}", device::WIDTH, device::HEIGHT)])
+        .args(["-s", &format!("{}x{}", device::WIDTH, device.height())])
         .args(["-use_wallclock_as_timestamps", "1", "-i", "-"])
         .args(["-vf", "fps=30"])
         // A `.png` pattern such as `frames/%04d.png` keeps every frame lossless, for stills.

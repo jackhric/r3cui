@@ -234,7 +234,9 @@ fn main() -> anyhow::Result<()> {
         return shots::run(app, dir.into(), frame);
     }
     let record = arg("--record");
-    let demo = record.is_some() || args.iter().any(|a| a == "--demo") || std::env::var_os("UC_DEMO").is_some();
+    // Recordings play the demo unless `--live` asks for the core's real state.
+    let live = args.iter().any(|a| a == "--live");
+    let demo = (record.is_some() && !live) || args.iter().any(|a| a == "--demo") || std::env::var_os("UC_DEMO").is_some();
     if demo {
         apply_demo_settings(&app);
     }

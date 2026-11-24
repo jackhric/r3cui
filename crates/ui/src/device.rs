@@ -7,7 +7,6 @@ use image::RgbaImage;
 use std::path::Path;
 
 pub const WIDTH: u32 = 544;
-pub const HEIGHT: u32 = 1800;
 const SCREEN: (u32, u32) = (32, 25);
 const SCREEN_SIZE: (u32, u32) = (480, 800);
 /// The photo is the 462px-wide product shot scaled so its screen is 480px wide.
@@ -59,15 +58,20 @@ pub struct Device {
 }
 
 impl Device {
+    pub fn height(&self) -> u32 {
+        self.base.height()
+    }
+
     pub fn load_opt(path: Option<&String>) -> Option<Self> {
         path.and_then(|p| Self::load(p.as_ref()).map_err(|e| tracing::warn!("{e:#}")).ok())
     }
 
     pub fn load(path: &Path) -> anyhow::Result<Self> {
         let base = image::open(path).with_context(|| format!("opening {}", path.display()))?.to_rgba8();
+        // Any height from the keypad down: the README frames a crop, the site the whole remote.
         anyhow::ensure!(
-            base.dimensions() == (WIDTH, HEIGHT),
-            "{} must be {WIDTH}x{HEIGHT}, got {:?}",
+            base.width() == WIDTH && base.height() >= 1800,
+            "{} must be {WIDTH} wide and at least 1800 tall, got {:?}",
             path.display(),
             base.dimensions()
         );
