@@ -251,15 +251,29 @@ fn main() -> anyhow::Result<()> {
         let lab = lab.clone();
         move || {
             let Some(app) = weak.upgrade() else { return };
-            let rows: Vec<Choice> =
-                lab.borrow().rows().into_iter().map(|(label, value)| Choice { label: label.into(), value: value.into(), ..Default::default() }).collect();
+            let lab = lab.borrow();
+            let rows: Vec<Choice> = lab
+                .rows()
+                .into_iter()
+                .map(|r| Choice { label: r.label.into(), detail: r.detail.into(), value: r.value.into(), chevron: r.opens, ..Default::default() })
+                .collect();
+            app.set_lab_title(lab.title().into());
             app.set_lab_rows(ModelRc::new(VecModel::from(rows)));
         }
     };
     show_lab();
-    app.on_lab_pick(move |i| {
-        lab.borrow_mut().pick(i as usize);
+    app.on_lab_pick({
+        let (lab, show_lab) = (lab.clone(), show_lab.clone());
+        move |i| {
+            let moved = lab.borrow_mut().pick(i as usize);
+            show_lab();
+            moved
+        }
+    });
+    app.on_lab_back(move || {
+        let focus = lab.borrow_mut().back();
         show_lab();
+        focus.map_or(-1, |f| f as i32)
     });
     app.on_wifi_scan({
         let tx = act_tx.clone();

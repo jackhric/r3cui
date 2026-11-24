@@ -374,7 +374,7 @@ export component ChoiceList inherits Rectangle {
         Text {
             x: parent.lead;
             y: row.detail == "" ? (parent.height - self.height) / 2 : parent.height / 2 - 30px;
-            width: parent.edge - parent.lead - (row.value == "" ? 0px : 120px);
+            width: parent.edge - parent.lead - (row.value == "" ? 0px : 150px);
             overflow: elide;
             text: row.label;
             transform-origin: { x: 0, y: self.height / 2 };
@@ -387,7 +387,7 @@ export component ChoiceList inherits Rectangle {
         if row.detail != "": Text {
             x: parent.lead;
             y: parent.height / 2 + 6px;
-            width: parent.edge - parent.lead;
+            width: parent.edge - parent.lead - (row.value == "" ? 0px : 150px);
             overflow: elide;
             text: row.detail;
             font-size: 18px;

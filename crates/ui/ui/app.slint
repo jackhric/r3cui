@@ -360,7 +360,11 @@ export component AppWindow inherits Window {
     // 9 audio or subtitle picker, 10 feedback lab
     in-out property <int> page: 0;
     in property <[Choice]> lab-rows;
-    callback lab-pick(int);
+    in property <string> lab-title: "Feedback lab";
+    // True when the pick opened another lab screen.
+    callback lab-pick(int) -> bool;
+    // The row to focus after going back within the lab, or -1 to leave the lab.
+    callback lab-back() -> int;
     in-out property <int> focus-index: 0;
 
     // A command id for the Kodi entity.
@@ -456,7 +460,12 @@ export component AppWindow inherits Window {
     public function back() {
         root.haptic("back");
         if (root.page == 10) {
-            root.go(2, 5);
+            let focus = root.lab-back();
+            if (focus < 0) {
+                root.go(2, 5);
+            } else {
+                root.focus-index = focus;
+            }
         } else if (root.page == 3) {
             root.go(2, 1);
         } else if (root.page == 4) {
@@ -490,7 +499,10 @@ export component AppWindow inherits Window {
             root.haptic("select");
         }
         if (root.page == 10) {
-            root.lab-pick(i);
+            if (root.lab-pick(i)) {
+                root.haptic("select");
+                root.focus-index = 0;
+            }
         } else if (root.page == 1) {
             root.select-source(root.sources[i].name);
             root.go(0, 0);
@@ -1337,7 +1349,7 @@ export component AppWindow inherits Window {
                 current-depth: root.depth;
                 active: root.page == 10;
                 ChoiceList {
-                    title: "Feedback lab";
+                    title: root.lab-title;
                     rows: root.lab-rows;
                     focused-row: root.focus-index;
                     pick(i) => { root.activate(i); }
