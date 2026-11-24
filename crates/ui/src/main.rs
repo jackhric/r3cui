@@ -405,6 +405,8 @@ struct StageKey {
     receiver_on: bool,
     playing: bool,
     source: String,
+    /// The poster wall, standing in for the idle stage.
+    library: bool,
 }
 
 thread_local!(static STAGE: RefCell<Option<StageKey>> = const { RefCell::new(None) });
@@ -412,7 +414,45 @@ thread_local!(static STAGE: RefCell<Option<StageKey>> = const { RefCell::new(Non
 /// Apply `change`, and if it moved the window to a different main stage while the stage is in
 /// view, blur through from the old one to the new.
 fn stage_change(app: &AppWindow, m: &Model, change: impl FnOnce()) {
-    let key = StageKey { receiver_on: m.receiver_on, playing: m.on_kodi() && !m.title.is_empty(), source: m.source.clone() };
+    let playing = m.on_kodi() && !m.title.is_empty();
+    let key = StageKey { receiver_on: m.receiver_on, playing, source: m.source.clone(), library: app.get_lib_mode() > 0 && !playing };
+    swap_stage(app, key, change);
+}
+
+/// Show or hide the poster wall, blurring across like any other change of stage.
+pub fn library_stage(app: &AppWindow, mode: i32) {
+    if app.get_lib_mode() == mode {
+        return;
+    }
+    let Some(mut key) = STAGE.with(|s| s.borrow().clone()) else {
+        app.set_lib_mode(mode);
+        return;
+    };
+    key.library = mode > 0 && !key.playing;
+    swap_stage(app, key, || {
+        app.set_lib_mode(mode);
+        if mode > 0 {
+            app.invoke_hold_library();
+        }
+    });
+    if mode > 0 {
+        // Under way as the old stage's blur clears, rather than hidden beneath it.
+        reveal_library(app, Duration::from_millis(250));
+    }
+}
+
+/// Play the wall's entrance from the start after `delay` (at the soonest, the next frame).
+pub fn reveal_library(app: &AppWindow, delay: Duration) {
+    app.invoke_hold_library();
+    let weak = app.as_weak();
+    slint::Timer::single_shot(delay, move || {
+        if let Some(app) = weak.upgrade() {
+            app.invoke_run_library();
+        }
+    });
+}
+
+fn swap_stage(app: &AppWindow, key: StageKey, change: impl FnOnce()) {
     let before = STAGE.with(|s| s.replace(Some(key.clone())));
     let visible = app.get_page() == 0 && app.get_lit() && app.get_capturing() == 0;
     if before.is_none() || before.as_ref() == Some(&key) || !visible {

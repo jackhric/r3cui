@@ -619,6 +619,24 @@ fn library_script() -> Vec<(u64, Act)> {
     s
 }
 
+/// Into the poster wall from the idle home screen and back, as the live wall does it.
+fn wall_script() -> Vec<(u64, Act)> {
+    let movies = Rc::new(shelf("movies"));
+    let load: Act = {
+        let shelf = movies.clone();
+        Box::new(move |app, tx| {
+            let _ = tx.send(UiAction::SelectSource("KODI".into()));
+            app.set_lib_heading("MOVIES".into());
+            app.set_lib_count(shelf.count.clone().into());
+            app.set_lib_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
+            app.set_lib_focus(4);
+        })
+    };
+    let wall = |on: bool| -> Act { Box::new(move |app, _| crate::library_stage(app, if on { 4 } else { 0 })) };
+    let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
+    vec![(300, load), (600, key("s")), (1500, wall(true)), (2200, step(1)), (500, step(3)), (900, wall(false)), (1600, wall(true)), (2200, ui(|a| crate::reveal_library(a, Duration::ZERO))), (2200, ui(|_| {}))]
+}
+
 /// The subtitle picker with a long list: walk down past the screen and back.
 fn picker_script() -> Vec<(u64, Act)> {
     let open: Act = Box::new(|app, _| {
@@ -665,6 +683,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         Some("switch") => return switch_script(),
         Some("library") => return library_script(),
         Some("picker") => return picker_script(),
+        Some("wall") => return wall_script(),
         _ => {}
     }
     if name == Some("home") {

@@ -6,7 +6,10 @@ import { Theme } from "theme.slint";
 export struct LibItem {
     poster: image,
     title: string,
+    // Year, runtime and the like; then the rating, drawn after a star, then the certificate.
     meta: string,
+    rating: string,
+    tail: string,
     genre: string,
     plot: string,
     detail: string,
@@ -68,6 +71,29 @@ component PosterTile inherits Rectangle {
         opacity: root.loaded ? 1 : 0;
         animate opacity { duration: 220ms; }
     }
+}
+
+// The details line: the font has no star, so the rating's star is drawn.
+component MetaLine inherits HorizontalLayout {
+    in property <LibItem> item;
+    in property <length> size: 15px;
+    in property <color> tint: Theme.t2;
+    spacing: 0;
+    Text { text: root.item.meta; font-size: root.size; color: root.tint; vertical-alignment: center; }
+    if root.item.rating != "": Text { text: " · "; font-size: root.size; color: root.tint; vertical-alignment: center; }
+    if root.item.rating != "": VerticalLayout {
+        alignment: center;
+        Path {
+            width: root.size * 0.85;
+            height: root.size * 0.85;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: "M12 2.6l2.9 6 6.5.8-4.8 4.5 1.2 6.5L12 17.2l-5.8 3.2 1.2-6.5L2.6 9.4l6.5-.8z";
+            fill: root.tint;
+        }
+    }
+    if root.item.rating != "": Text { text: " " + root.item.rating; font-size: root.size; color: root.tint; vertical-alignment: center; }
+    if root.item.tail != "": Text { text: " · " + root.item.tail; font-size: root.size; color: root.tint; vertical-alignment: center; }
 }
 
 component River inherits Rectangle {
@@ -135,7 +161,7 @@ component Card inherits Rectangle {
         spacing: 8px;
         alignment: start;
         Text { text: root.item.title; font-size: 24px; font-weight: 600; color: Theme.text; wrap: word-wrap; }
-        Text { text: root.item.meta; font-size: 15px; color: Theme.t2; }
+        MetaLine { item: root.item; alignment: start; }
         Text { text: root.item.genre; font-size: 14px; color: Theme.t2; }
         Rectangle { height: 4px; }
         Rectangle {
@@ -171,6 +197,21 @@ export component Library inherits Rectangle {
     animate pos { duration: 320ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
     property <LibItem> current: root.items.length == 0 ? { } : root.items[root.at];
     background: #000000;
+
+    // The wall's entrance: tiles fade and rise in along the diagonals, top left first. `hold`
+    // puts them out of sight; `run`, a moment later, plays the entrance. Two steps, because a
+    // property animation starts from what was last drawn.
+    property <float> entrance: 1;
+    property <bool> entering;
+    animate entrance { duration: root.entering ? 1300ms : 0ms; easing: linear; }
+    public function hold() {
+        root.entering = false;
+        root.entrance = 0;
+    }
+    public function run() {
+        root.entering = true;
+        root.entrance = 1;
+    }
 
     // 1: the river on its own, behind the menu's name.
     if root.mode == 1 || root.mode == 2 || root.mode == 5: River {
@@ -238,7 +279,7 @@ export component Library inherits Rectangle {
             spacing: 8px;
             alignment: start;
             Text { text: root.current.title; font-size: 26px; font-weight: 600; color: Theme.text; horizontal-alignment: center; wrap: word-wrap; }
-            Text { text: root.current.meta; font-size: 15px; color: Theme.t2; horizontal-alignment: center; }
+            MetaLine { item: root.current; alignment: center; }
             Text { text: root.current.genre; font-size: 14px; color: Theme.t3; horizontal-alignment: center; }
             Rectangle {
                 visible: root.current.progress > 0;
@@ -270,14 +311,21 @@ export component Library inherits Rectangle {
             transform-origin: { x: self.width / 2, y: self.height / 2 };
             transform-scale: self.on ? 1.07 : 1;
             animate transform-scale { duration: 200ms; easing: ease-out; }
+            property <float> diagonal: max(0, floor(i / 3) - floor(parent.scroll) + 1) + mod(i, 3);
+            property <float> t: clamp((root.entrance * 1300ms - 80ms - self.diagonal * 55ms) / 420ms, 0, 1);
+            property <float> e: 1 - pow(1 - self.t, 3);
             Rectangle {
-                border-radius: 0;
                 clip: true;
+                opacity: cell.e;
+                y: (1 - cell.e) * 22px;
+                transform-origin: { x: self.width / 2, y: self.height / 2 };
+                transform-scale: 0.92 + 0.08 * cell.e;
                 PosterTile { poster: it.poster; title: it.title; }
                 Rectangle { background: #000000; opacity: cell.on ? 0 : 0.5; animate opacity { duration: 200ms; } }
             }
             Rectangle {
                 visible: parent.on;
+                opacity: cell.e;
                 x: -3px;
                 y: -3px;
                 width: parent.width + 6px;
@@ -291,7 +339,7 @@ export component Library inherits Rectangle {
         Text { x: 24px; y: 92px; text: root.heading; font-size: 15px; font-weight: 600; color: Theme.t2; letter-spacing: 1.5px; }
         Text { x: 24px; y: 92px; width: root.width - 48px; text: root.count; font-size: 15px; color: Theme.t3; horizontal-alignment: right; }
         Text { x: 24px; y: 124px; width: root.width - 48px; text: root.current.title; font-size: 24px; font-weight: 600; color: Theme.text; overflow: elide; }
-        Text { x: 24px; y: 160px; width: root.width - 48px; text: root.current.meta; font-size: 15px; color: Theme.t2; overflow: elide; }
+        MetaLine { x: 24px; y: 160px; height: 20px; item: root.current; alignment: start; }
         Rectangle { y: root.height - 120px; height: 120px; background: @linear-gradient(180deg, #00000000 0%, #000000 80%); }
     }
 }

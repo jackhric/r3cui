@@ -55,6 +55,8 @@ pub struct Entry {
     pub id: i64,
     pub title: String,
     pub meta: String,
+    pub rating: String,
+    pub tail: String,
     pub genre: String,
     pub plot: String,
     pub detail: String,
@@ -66,14 +68,14 @@ pub fn entry(it: &Value, shows: bool) -> Entry {
     let rating = it["rating"].as_f64().unwrap_or(0.0);
     let genre: Vec<&str> = it["genre"].as_array().map(|g| g.iter().filter_map(Value::as_str).take(3).collect()).unwrap_or_default();
     let mpaa = it["mpaa"].as_str().unwrap_or("").trim_start_matches("Rated ").to_string();
-    let (mut meta, detail, progress) = if shows {
+    let (meta, detail, progress) = if shows {
         let (eps, seen) = (it["episode"].as_i64().unwrap_or(0), it["watchedepisodes"].as_i64().unwrap_or(0));
         let seasons = it["season"].as_i64().unwrap_or(0);
-        let meta = format!("{year} · {seasons} season{} · ★ {rating:.1}", if seasons == 1 { "" } else { "s" });
+        let meta = format!("{year} · {seasons} season{}", if seasons == 1 { "" } else { "s" });
         (meta, format!("{seen} of {eps} episodes watched"), if eps > 0 { seen as f32 / eps as f32 } else { 0.0 })
     } else {
         let mins = it["runtime"].as_i64().unwrap_or(0) / 60;
-        let meta = format!("{year} · {}h {:02}m · ★ {rating:.1}", mins / 60, mins % 60);
+        let meta = format!("{year} · {}h {:02}m", mins / 60, mins % 60);
         let (pos, total) = (it["resume"]["position"].as_f64().unwrap_or(0.0), it["resume"]["total"].as_f64().unwrap_or(0.0));
         let detail = if pos > 0.0 {
             format!("Resume from {}:{:02}", pos as i64 / 3600, pos as i64 / 60 % 60)
@@ -84,13 +86,12 @@ pub fn entry(it: &Value, shows: bool) -> Entry {
         };
         (meta, detail, if total > 0.0 { (pos / total) as f32 } else { 0.0 })
     };
-    if !mpaa.is_empty() {
-        meta = format!("{meta} · {mpaa}");
-    }
     Entry {
         id: it["id"].as_i64().unwrap_or(-1),
         title: it["title"].as_str().or(it["label"].as_str()).unwrap_or("").into(),
         meta,
+        rating: if rating > 0.0 { format!("{rating:.1}") } else { String::new() },
+        tail: mpaa,
         genre: genre.join(" · "),
         plot: it["plot"].as_str().unwrap_or("").into(),
         detail,
@@ -103,6 +104,8 @@ pub fn item(e: &Entry, poster: slint::Image) -> LibItem {
         poster,
         title: e.title.as_str().into(),
         meta: e.meta.as_str().into(),
+        rating: e.rating.as_str().into(),
+        tail: e.tail.as_str().into(),
         genre: e.genre.as_str().into(),
         plot: e.plot.as_str().into(),
         detail: e.detail.as_str().into(),
@@ -155,19 +158,23 @@ pub fn start(weak: slint::Weak<AppWindow>) {
                             app.set_lib_heading(heading.into());
                             app.set_lib_count(count.into());
                             URLS.with(|u| *u.borrow_mut() = (generation, urls));
+                            // A different list while the wall is up comes in the same way.
+                            if app.get_lib_mode() == 4 {
+                                crate::reveal_library(&app, std::time::Duration::ZERO);
+                            }
                         });
                     }
                     let ids = &shown.as_ref().unwrap().1;
                     let at = ids.iter().position(|&id| id == view.focus).unwrap_or(0);
                     crate::ui_call(&weak, move |app| {
                         app.set_lib_focus(at as i32);
-                        app.set_lib_mode(4);
+                        crate::library_stage(&app, 4);
                     });
                     fetch_posters(&weak, ids, at, &loading);
                 }
                 _ => {
                     if shown.take().is_some() {
-                        crate::ui_call(&weak, |app| app.set_lib_mode(0));
+                        crate::ui_call(&weak, |app| crate::library_stage(&app, 0));
                     }
                 }
             }

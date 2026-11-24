@@ -340,6 +340,8 @@ export component AppWindow inherits Window {
     in property <[image]> lib-posters;
     in property <[LibItem]> lib-items;
     in property <int> lib-focus;
+    public function hold-library() { lib.hold(); }
+    public function run-library() { lib.run(); }
     out property <bool> lava-on: root.page == 0 && root.home-view == 2 && root.lit;
     in property <bool> charging;
     // On the charger the screen and keys go dark after a short while; any input brings them back.
@@ -1011,7 +1013,7 @@ export component AppWindow inherits Window {
                     }
 
                     // Kodi's Movies or TV list, mirrored; also the previews' library variations.
-                    Library {
+                    lib := Library {
                         mode: root.lib-mode;
                         heading: root.lib-heading;
                         count: root.lib-count;
