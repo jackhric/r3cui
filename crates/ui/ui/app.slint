@@ -357,8 +357,10 @@ export component AppWindow inherits Window {
     in property <string> kb-text;
 
     // 0 home, 1 inputs, 2 menu, 3 display, 4 power, 5 wi-fi, 6 password, 7 status, 8 join failed,
-    // 9 audio or subtitle picker
+    // 9 audio or subtitle picker, 10 feedback lab
     in-out property <int> page: 0;
+    in property <[Choice]> lab-rows;
+    callback lab-pick(int);
     in-out property <int> focus-index: 0;
 
     // A command id for the Kodi entity.
@@ -379,7 +381,7 @@ export component AppWindow inherits Window {
     callback kb-tap(int);
     // The physical power key, held: switch the receiver on or off. A short press does nothing.
     callback power-held();
-    // "hold-start", "hold-cancel" or "complete": cues for the haptic motor.
+    // An event name from `UI_EVENTS` in feedback.rs.
     callback haptic(string);
     // Seconds to jump, back (negative) or forward.
     callback seek(int);
@@ -452,7 +454,10 @@ export component AppWindow inherits Window {
         root.page = p;
     }
     public function back() {
-        if (root.page == 3) {
+        root.haptic("back");
+        if (root.page == 10) {
+            root.go(2, 5);
+        } else if (root.page == 3) {
             root.go(2, 1);
         } else if (root.page == 4) {
             root.go(2, 3);
@@ -470,14 +475,23 @@ export component AppWindow inherits Window {
         }
     }
     function row-count() -> int {
-        root.page == 1 ? root.sources.length : root.page == 2 ? 6 : root.page == 3 ? 3 : root.page == 4 ? 4 : root.page == 5 ? root.wifi-rows.length + (root.wifi-band-known ? 2 : 1) : root.page == 8 ? 2 : root.page == 9 ? root.tracks.length : 1
+        root.page == 1 ? root.sources.length : root.page == 2 ? 6 : root.page == 3 ? 3 : root.page == 4 ? 4 : root.page == 5 ? root.wifi-rows.length + (root.wifi-band-known ? 2 : 1) : root.page == 8 ? 2 : root.page == 9 ? root.tracks.length : root.page == 10 ? root.lab-rows.length : 1
     }
     public function move(d: int) {
-        root.focus-index = max(0, min(root.row-count() - 1, root.focus-index + d));
+        let next = max(0, min(root.row-count() - 1, root.focus-index + d));
+        if (next != root.focus-index) {
+            root.haptic("tick");
+        }
+        root.focus-index = next;
     }
     public function activate(i: int) {
         root.focus-index = i;
-        if (root.page == 1) {
+        if (root.page != 10) {
+            root.haptic("select");
+        }
+        if (root.page == 10) {
+            root.lab-pick(i);
+        } else if (root.page == 1) {
             root.select-source(root.sources[i].name);
             root.go(0, 0);
         } else if (root.page == 2) {
@@ -490,6 +504,8 @@ export component AppWindow inherits Window {
                 root.go(4, 0);
             } else if (i == 4) {
                 root.go(7, 0);
+            } else if (i == 5) {
+                root.go(10, 0);
             }
         } else if (root.page == 3) {
             if (i == 1) {
@@ -553,7 +569,7 @@ export component AppWindow inherits Window {
                     root.power-completed = false;
                     root.capture(1);
                     root.power-holding = true;
-                    root.haptic("hold-start");
+                    root.haptic("power-hold");
                 }
                 return accept;
             }
@@ -607,6 +623,9 @@ export component AppWindow inherits Window {
                     return accept;
                 }
             }
+            if (!event.repeat) {
+                root.haptic("tap");
+            }
             root.key(event.text);
             return accept;
         }
@@ -640,7 +659,7 @@ export component AppWindow inherits Window {
                 root.power-latched = true;
                 root.power-completed = true;
                 root.power-held();
-                root.haptic("complete");
+                root.haptic("power-complete");
             }
         }
         // Taps are common, so the rumble waits a moment before starting.
@@ -650,7 +669,7 @@ export component AppWindow inherits Window {
             triggered => {
                 root.capture(1);
                 root.home-rumbling = true;
-                root.haptic("hold-start");
+                root.haptic("home-hold");
             }
         }
         Timer {
@@ -658,7 +677,7 @@ export component AppWindow inherits Window {
             running: root.home-down && !root.home-used;
             triggered => {
                 root.home-used = true;
-                root.haptic("complete");
+                root.haptic("home-complete");
                 root.go(1, root.source-index);
             }
         }
@@ -1042,7 +1061,7 @@ export component AppWindow inherits Window {
                         { label: "Sound & haptics", value: root.haptics, chevron: true },
                         { label: "Power", chevron: true },
                         { label: "Status", chevron: true },
-                        { label: "About", chevron: true },
+                        { label: "Feedback lab", chevron: true },
                     ];
                     focused-row: root.focus-index;
                     pick(i) => { root.activate(i); }
@@ -1308,6 +1327,20 @@ export component AppWindow inherits Window {
                 ChoiceList {
                     title: "Status";
                     rows: root.status-choices;
+                    back => { root.back(); }
+                }
+            }
+
+            // Menu / Feedback lab
+            Page {
+                depth: 2;
+                current-depth: root.depth;
+                active: root.page == 10;
+                ChoiceList {
+                    title: "Feedback lab";
+                    rows: root.lab-rows;
+                    focused-row: root.focus-index;
+                    pick(i) => { root.activate(i); }
                     back => { root.back(); }
                 }
             }

@@ -3,13 +3,14 @@
 //! The tokio runtime runs on its own thread and pushes a `Model` into the Slint event loop via
 //! `invoke_from_event_loop`; UI callbacks flow back over a channel. See docs/plan.md.
 
+mod audio;
 mod backlight;
 mod device;
 #[cfg(feature = "device")]
 mod evdev_input;
+mod feedback;
 #[cfg(feature = "device")]
 mod frames;
-mod haptics;
 mod input;
 mod keyboard;
 mod kodi;
@@ -243,10 +244,22 @@ fn main() -> anyhow::Result<()> {
     app.on_key(send(UiAction::Key));
     app.on_select_source(send(UiAction::SelectSource));
     app.on_power_action(send(UiAction::Power));
-    app.on_haptic(|name| {
-        if let Some(cue) = haptics::Cue::from_ui(&name) {
-            haptics::play(cue);
+    app.on_haptic(|name| feedback::ui_event(&name));
+    let lab = Rc::new(RefCell::new(feedback::Lab::default()));
+    let show_lab = {
+        let weak = app.as_weak();
+        let lab = lab.clone();
+        move || {
+            let Some(app) = weak.upgrade() else { return };
+            let rows: Vec<Choice> =
+                lab.borrow().rows().into_iter().map(|(label, value)| Choice { label: label.into(), value: value.into(), ..Default::default() }).collect();
+            app.set_lab_rows(ModelRc::new(VecModel::from(rows)));
         }
+    };
+    show_lab();
+    app.on_lab_pick(move |i| {
+        lab.borrow_mut().pick(i as usize);
+        show_lab();
     });
     app.on_wifi_scan({
         let tx = act_tx.clone();
@@ -1150,6 +1163,9 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     }
                     UiAction::Slider(slider::Gesture::Steps(n)) => {
                         let v = slide(session.volume_base(), n, session.volume_max());
+                        if v == session.volume_base() {
+                            feedback::play(feedback::SLIDER_LIMIT);
+                        }
                         session.slider_volume = Some((v, Instant::now()));
                         flash_volume(weak, &overlay);
                         render(weak, &session.model());
@@ -1159,6 +1175,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         continue;
                     }
                     UiAction::Slider(slider::Gesture::DoubleTap) => {
+                        feedback::play(feedback::SLIDER_MUTE);
                         flash_volume(weak, &overlay);
                         (Target::Volume, "mute_toggle".to_string(), Value::Null)
                     }
@@ -1376,7 +1393,13 @@ async fn load_settings(weak: &slint::Weak<AppWindow>, core: &coreapi::Core) {
     let get = |msg: &'static str| async move {
         core.request(msg, json!({})).await.ok().filter(|r| (200..300).contains(&r.code)).map(|r| r.data)
     };
-    let (display, haptic, power) = tokio::join!(get("get_display_cfg"), get("get_haptic_cfg"), get("get_power_saving_cfg"));
+    let (display, haptic, power, sound) =
+        tokio::join!(get("get_display_cfg"), get("get_haptic_cfg"), get("get_power_saving_cfg"), get("get_sound_cfg"));
+    feedback::set_core_config(
+        haptic.as_ref().and_then(|v| v.get("enabled")).and_then(Value::as_bool),
+        sound.as_ref().and_then(|v| v.get("enabled")).and_then(Value::as_bool),
+        sound.as_ref().and_then(|v| v.get("volume")).and_then(Value::as_u64).map(|v| v.min(100) as u8),
+    );
     let secs = |v: &Option<Value>, key: &str| v.as_ref().and_then(|v| v.get(key)).and_then(Value::as_i64).map(duration_label);
     let brightness = display.as_ref().and_then(|v| v.get("brightness")).and_then(Value::as_i64);
     let auto = display.as_ref().and_then(|v| v.get("auto_brightness")).and_then(Value::as_bool);
@@ -1471,11 +1494,16 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                 }
                 UiAction::PickTrack(_, i) => demo_subtitle = i as usize,
                 UiAction::Slider(slider::Gesture::Steps(n)) => {
+                    let before = m.volume;
                     m.volume = slide(m.volume, n, m.volume_max);
+                    if m.volume == before {
+                        feedback::play(feedback::SLIDER_LIMIT);
+                    }
                     m.muted = false;
                     flash_volume(weak, &overlay);
                 }
                 UiAction::Slider(slider::Gesture::DoubleTap) => {
+                    feedback::play(feedback::SLIDER_MUTE);
                     m.muted = !m.muted;
                     flash_volume(weak, &overlay);
                 }

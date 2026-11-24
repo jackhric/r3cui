@@ -28,6 +28,13 @@ pub struct Settings {
     pub volume_interval_ms: Option<u64>,
     /// Entity-id ending of the Home Assistant sensor holding the receiver's volume limit.
     pub volume_limit_sensor: String,
+    /// Haptic feedback on or off; the core's own setting must also allow it.
+    pub haptics_enabled: Option<bool>,
+    /// 0 (off) to 1 (full): lowers the strength of every pattern.
+    pub haptics_intensity: Option<f32>,
+    pub sound_enabled: Option<bool>,
+    /// 0 to 1, multiplied by the core's sound volume.
+    pub sound_volume: Option<f32>,
 }
 
 impl Settings {
@@ -93,6 +100,10 @@ fn parse(text: &str) -> Result<Settings, String> {
         volume_limit_sensor: string_or(&v, "volume_limit_sensor", "sensor.theater_receiver_volume_limit"),
         volume_interval_ms: v.get("volume_interval_ms").and_then(Value::as_u64),
         lava: v.get("lava").and_then(Value::as_f64).map(|x| x.clamp(0.0, 1.0) as f32),
+        haptics_enabled: v.get("haptics_enabled").and_then(Value::as_bool),
+        haptics_intensity: v.get("haptics_intensity").and_then(Value::as_f64).map(|x| x.clamp(0.0, 1.0) as f32),
+        sound_enabled: v.get("sound_enabled").and_then(Value::as_bool),
+        sound_volume: v.get("sound_volume").and_then(Value::as_f64).map(|x| x.clamp(0.0, 1.0) as f32),
     })
 }
 
@@ -106,6 +117,13 @@ mod tests {
         assert!(s.hides("heos music") && s.hides("Net"));
         assert!(!s.hides("KODI"));
         assert_eq!(s.accent, None);
+    }
+
+    #[test]
+    fn feedback_settings_are_clamped() {
+        let s = parse(r#"{"haptics_enabled": false, "haptics_intensity": 3, "sound_volume": 0.25}"#).unwrap();
+        assert_eq!((s.haptics_enabled, s.haptics_intensity, s.sound_volume), (Some(false), Some(1.0), Some(0.25)));
+        assert_eq!(s.sound_enabled, None);
     }
 
     #[test]
