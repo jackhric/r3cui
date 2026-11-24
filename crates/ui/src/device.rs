@@ -14,7 +14,7 @@ const SCREEN_SIZE: (u32, u32) = (480, 800);
 const SCALE: f32 = 544.0 / 462.0;
 const PATCH: i32 = 36;
 const GLYPH_RADIUS: f32 = 24.0;
-const FADE_SECS: f32 = 0.22;
+
 
 /// Key glyph centres in the original photo, with the backlight zone each belongs to.
 /// Key glyph centres in the original photo, and whether the key is in the power zone.
@@ -52,8 +52,10 @@ struct Key {
 pub struct Device {
     base: RgbaImage,
     keys: Vec<Key>,
-    /// The colours showing now (the rest, then the power zone), easing toward those asked for.
-    level: [[f32; 3]; 2],
+    /// The key fade, eased like the remote's own: from `from` to `to`, `t` of the way there.
+    from: Keys,
+    to: Keys,
+    t: f32,
 }
 
 impl Device {
@@ -91,23 +93,25 @@ impl Device {
                 Key { power, x0, y0, glyph, glow }
             })
             .collect();
-        Ok(Self { base, keys, level: [[0.0; 3]; 2] })
+        Ok(Self { base, keys, from: Keys::OFF, to: Keys::OFF, t: 1.0 })
     }
 
     /// One picture: the photo, the keys lit as `keys` asks, and `screen` (RGBA) on the panel.
     /// `dt` is the time since the previous picture, for the key fade; pass `f32::MAX` for a still.
     pub fn compose(&mut self, screen: &[u8], screen_size: (u32, u32), keys: Keys, dt: f32) -> RgbaImage {
-        let step = (dt / FADE_SECS).min(1.0) * 255.0;
-        for (level, want) in self.level.iter_mut().zip([keys.rest, keys.power]) {
-            for (now, target) in level.iter_mut().zip([want.0, want.1, want.2]) {
-                *now += (target as f32 - *now).clamp(-step, step);
-            }
+        if keys != self.to {
+            self.from = self.from.mix(self.to, self.t);
+            self.to = keys;
+            self.t = 0.0;
         }
+        self.t = (self.t + dt / crate::backlight::FADE.as_secs_f32()).min(1.0);
+        let now = self.from.mix(self.to, self.t);
+        let level = [now.rest, now.power].map(|c| [c.0 as f32, c.1 as f32, c.2 as f32]);
 
         let mut out = self.base.clone();
         let side = 2 * PATCH + 1;
         for key in &self.keys {
-            let colour = self.level[key.power as usize];
+            let colour = level[key.power as usize];
             let lvl = colour.iter().cloned().fold(0.0, f32::max) / 255.0;
             for py in 0..side {
                 for px in 0..side {
