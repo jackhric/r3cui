@@ -982,6 +982,7 @@ pub fn record(app: &AppWindow, tx: Tx, mut device: Device, out: PathBuf, which: 
     let mut pending = steps.next();
     let mut since = Instant::now();
     let mut last_frame = Instant::now();
+    let mut first = true;
     let mut ffmpeg = Some(ffmpeg);
     let weak = app.as_weak();
     let timer = slint::Timer::default();
@@ -1008,6 +1009,12 @@ pub fn record(app: &AppWindow, tx: Tx, mut device: Device, out: PathBuf, which: 
             last_frame = Instant::now();
             let frame = device.compose(buf.as_bytes(), (buf.width(), buf.height()), keys(&app), dt);
             if let Some(pipe) = &mut pipe {
+                // Printed once, so a screen recorded elsewhere at the same time can be lined up with this one.
+                if first {
+                    first = false;
+                    let t0 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+                    println!("record t0 {:.3}", t0.as_secs_f64());
+                }
                 let _ = pipe.write_all(frame.as_raw());
             }
         }
