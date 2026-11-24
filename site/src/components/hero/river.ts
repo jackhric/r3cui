@@ -29,9 +29,8 @@ export interface Column { clips: Clip[]; style: string }
 const GOLDEN = 0.618034;
 
 /**
- * Each column cycles through every clip from its own starting point, each in a light or dark finish. All columns drift at one speed,
- * so their offsets never change, and those offsets step by the golden ratio of a tile's height: no two
- * neighbours ever line up, and no pattern repeats across the river.
+ * Each column cycles through every clip from its own starting point, each in a light or dark finish. The
+ * columns start staggered by the golden ratio of a tile's height and drift at slightly different speeds.
  */
 export function riverColumns(count: number): Column[] {
   return Array.from({ length: count }, (_, i) => {
@@ -39,6 +38,8 @@ export function riverColumns(count: number): Column[] {
     // About half the remotes in each column are the dark grey finish.
     const order = [...clips.slice(start), ...clips.slice(0, start)].map((c, k) => (noise(i * 31 + k, 10) < 0.5 ? c.dark : c.light));
     // As a fraction of one tile plus its gap; the CSS turns it into pixels for the tile size in use.
-    return { clips: order, style: `--stagger:${((i * GOLDEN) % 1).toFixed(3)}` };
+    // Speeds step by a second irrational ratio, so the columns slide past each other without falling into step.
+    const speed = 110 + ((i * 0.754877) % 1) * 40;
+    return { clips: order, style: `--stagger:${((i * GOLDEN) % 1).toFixed(3)};--speed:${speed.toFixed(1)}s` };
   });
 }

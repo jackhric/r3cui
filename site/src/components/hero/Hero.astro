@@ -17,12 +17,14 @@ const columns = riverColumns(15);
   <div class="stage" aria-hidden="true">
     <div class="glow"></div>
     <div class="river" style={`--mask:url(${mask})`}>
-      {columns.map(col => (
+      {columns.map((col, ci) => (
         <div class="column" style={col.style}>
           <div class="flow">
-            {[...col.clips, ...col.clips].map(c => (
-              <video muted loop playsinline preload="none" width="100" height="432" poster={c.poster}
-                data-webm={c.webm} data-mp4={c.mp4}></video>
+            {[...col.clips, ...col.clips].map((c, k) => (
+              <div class="tile" style={`--in:${(0.2 + (((ci * 7 + k * 3) % 11) / 11) * 1.4).toFixed(2)}s`}>
+                <img src={c.poster} alt="" width="100" height="432" draggable="false" />
+                <video muted loop playsinline preload="none" width="100" height="432" data-webm={c.webm} data-mp4={c.mp4}></video>
+              </div>
             ))}
           </div>
         </div>
@@ -47,10 +49,41 @@ const columns = riverColumns(15);
     </nav>
   </header>
 
-  <h1 class="content"><Logo class="logo" label="r3cui: a simplified Unfolded Circle Remote 3 interface" /></h1>
+  <h1 class="content">
+    <span class="lens" data-logo-lens>
+      <span data-lens-art><Logo class="logo" label="r3cui: a simplified Unfolded Circle Remote 3 interface" /></span>
+      <canvas aria-hidden="true"></canvas>
+    </span>
+  </h1>
 </section>
 
 <script>
+  import { mountLogoLens } from '../../scripts/logo-lens';
+
+  for (const el of document.querySelectorAll<HTMLElement>('[data-logo-lens]')) mountLogoLens(el);
+
+  // A tile stays hidden (its entrance paused) until its poster has decoded, so none shows up blank. Posters load a few
+  // at a time, which staggers their arrival; each tile's own --in delay staggers the entrance. Both copies of a clip in
+  // a column share a poster and are revealed together, so the loop's wrap never swaps a visible tile for a hidden twin.
+  const byPoster = new Map<string, HTMLElement[]>();
+  for (const el of document.querySelectorAll<HTMLElement>('.hero .tile')) {
+    const poster = el.querySelector('img')!.src;
+    byPoster.set(poster, [...(byPoster.get(poster) ?? []), el]);
+  }
+  const pending = [...byPoster];
+  const reveal = (els: HTMLElement[]) => els.forEach(el => el.classList.add('ready'));
+  let next = 0;
+  function pump() {
+    const item = pending[next++];
+    if (!item) return;
+    const [poster, els] = item;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = poster;
+    img.decode().catch(() => {}).finally(() => { reveal(els); pump(); });
+  }
+  for (let i = 0; i < 6; i++) pump();
+
   const videos = [...document.querySelectorAll<HTMLVideoElement>('.hero video[data-webm]')];
   const still = matchMedia('(prefers-reduced-motion: reduce)');
   const golden = 0.618034;
@@ -64,8 +97,10 @@ const columns = riverColumns(15);
       source.src = video.dataset[key]!;
       video.append(source);
     }
-    // Copies of a clip start at different points, so neighbours never play in step.
+    // Copies of a clip start at different points, so neighbours never play in step. The video stays invisible over
+    // its poster until it is really playing, then crossfades in.
     video.addEventListener('loadedmetadata', () => { video.currentTime = ((i * golden) % 1) * video.duration; }, { once: true });
+    video.addEventListener('playing', () => video.classList.add('live'), { once: true });
     video.load();
   }
 
@@ -100,22 +135,6 @@ const columns = riverColumns(15);
     else addEventListener('load', idle, { once: true });
   }
   document.addEventListener('visibilitychange', schedule);
-
-  // Parallax: the river drifts at a third of the scroll speed and the logo at a sixth, so the page
-  // slides over them.
-  const stage = document.querySelector<HTMLElement>('.hero .stage')!;
-  const logo = document.querySelector<HTMLElement>('.hero .content')!;
-  let ticking = false;
-  const parallax = () => {
-    ticking = false;
-    const y = Math.min(scrollY, innerHeight);
-    stage.style.translate = `0 ${(y * 0.35).toFixed(1)}px`;
-    logo.style.translate = `0 ${(y * 0.18).toFixed(1)}px`;
-  };
-  if (!still.matches) {
-    addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(parallax); } }, { passive: true });
-    parallax();
-  }
 
   // Off screen the hero costs nothing: the river and the clips pause.
   const hero = document.querySelector<HTMLElement>('.hero')!;
@@ -153,17 +172,25 @@ const columns = riverColumns(15);
   }
   .flow {
     display: grid; gap: 22px; will-change: transform;
-    animation: drift 120s linear infinite;
+    animation: drift var(--speed, 120s) linear infinite;
   }
   /* Video can't carry the photo's transparent corners everywhere, so each tile is cut to the remote's
-     own outline instead. */
-  .flow video {
-    display: block; width: 100px; height: auto; aspect-ratio: 200 / 864;
+     own outline instead. The poster sits underneath and the video fades in over it once playing. */
+  .tile {
+    position: relative; width: var(--tile); aspect-ratio: 200 / 864;
     -webkit-mask: var(--mask) center / 100% 100% no-repeat; mask: var(--mask) center / 100% 100% no-repeat;
   }
+  .tile img, .tile video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  .tile video { opacity: 0; transition: opacity 0.7s ease; }
+  .tile video:global(.live) { opacity: 1; }
   /* Two copies of the column stacked; sliding by one copy's height loops seamlessly. */
   @keyframes drift { from { transform: translateY(calc(-50% - 11px)); } to { transform: translateY(0); } }
   .hero.away .flow { animation-play-state: paused; }
+  /* Each tile grows and fades in once its poster is ready. Filling backwards only, so a finished entrance stops
+     holding an animation. */
+  .tile { animation: tile-in 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) var(--in, 0s) backwards; }
+  .tile:not(:global(.ready)) { animation-play-state: paused; }
+  @keyframes tile-in { from { opacity: 0; scale: 0.85; } }
 
   /* Darkest behind the logo, fading out toward the edges so the river stays visible around it. */
   .shade {
@@ -191,16 +218,19 @@ const columns = riverColumns(15);
   .content {
     position: relative; z-index: 2; margin: auto; padding: 24px 28px 88px; display: grid; place-items: center;
   }
-  .content :global(.logo) {
-    width: min(420px, 72vw); height: auto; color: var(--hero-text);
-    filter: drop-shadow(0 4px 30px rgb(0 0 0 / 0.6));
+  .lens {
+    position: relative; display: inline-block; cursor: crosshair; touch-action: none; user-select: none;
+    color: var(--hero-text); filter: drop-shadow(0 4px 30px rgb(0 0 0 / 0.6));
   }
+  .lens canvas { position: absolute; pointer-events: none; }
+  .lens :global(.logo) { display: block; width: min(420px, 72vw); height: auto; }
+  /* Once the lens has drawn the logo, the canvas shows it and the SVG only holds its place. */
+  [data-lens-art][data-lens-ready] :global(svg) { opacity: 0; }
 
   @media (max-width: 760px) {
     .top nav > a:not(.docs) { display: none; }
     .river { gap: 16px; }
     .column { --tile: 80px; --gap: 16px; }
-    .flow video { width: 80px; }
     .flow { gap: 16px; }
     .content { padding-bottom: 64px; }
   }
@@ -209,6 +239,6 @@ const columns = riverColumns(15);
     .top nav { gap: 8px; padding-left: 14px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .flow, .river, .glow { animation: none; }
+    .flow, .river, .glow, .tile { animation: none; }
   }
 </style>
