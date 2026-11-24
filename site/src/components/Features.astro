@@ -92,9 +92,23 @@ const lights = [
 </section>
 
 <script>
+  import probeUrl from '../assets/autoplay-probe.mp4?url';
+
   // Each card's remote shows its still until its row is the one in focus (nearest the middle of the screen); then the
   // clip crossfades in and the remote rises. Scrolling another row into focus pauses it again.
   const still = matchMedia('(prefers-reduced-motion: reduce)');
+
+  // Whether this browser lets a muted, inline clip play without a tap. Asked once, with a one-frame silent video, so
+  // the Play clip overlay depends on the browser's autoplay rule (iPhone Low Power Mode, an autoplay setting) and not on
+  // whether one particular play attempt failed during a scroll or while a clip was loading.
+  const autoplayBlocked: Promise<boolean> = (async () => {
+    const probe = document.createElement('video');
+    probe.muted = true; probe.playsInline = true; probe.setAttribute('muted', ''); probe.setAttribute('playsinline', '');
+    probe.src = probeUrl;
+    try { await probe.play(); probe.pause(); return false; }
+    catch (e) { return (e as DOMException).name === 'NotAllowedError'; }
+    finally { probe.removeAttribute('src'); probe.load(); }
+  })();
   function start(card: HTMLElement) {
     const video = card.querySelector('video');
     if (!video || still.matches) return;
@@ -113,9 +127,13 @@ const lights = [
       video.load();
     }
     // Autoplay refused (iPhone Low Power Mode, or the browser's setting): frost the screen behind a Play clip button.
-    // If it is still not playing a moment later, the browser really did refuse it; a refused attempt followed by one that
-    // plays (a focus change, a clip still loading) must not leave the button up.
-    video.play().catch(e => {
+    // Only when the browser blocks autoplay outright, and the clip is still not playing a moment later.
+    video.play().catch(async e => {
+      if (!(await autoplayBlocked)) {
+        // Autoplay is allowed, so this attempt just lost a race (a scroll, a clip still loading): try again while in focus.
+        setTimeout(() => { if (card.classList.contains('in-focus') && video.paused) video.play().catch(() => {}); }, 400);
+        return;
+      }
       if ((e as DOMException).name !== 'NotAllowedError') return;
       setTimeout(() => { if (video.paused && !video.dataset.playing) card.querySelector<HTMLElement>('.veil')!.hidden = false; }, 350);
     });
