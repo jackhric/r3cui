@@ -1,0 +1,241 @@
+// Prototype library views for the Movies and TV menus, fed by Kodi's library. Exploration only:
+// `mode` picks the variation (1 river, 2 river with the focused title, 3 carousel, 4 poster
+// wall, 5 shows).
+import { Theme } from "theme.slint";
+
+export struct LibItem {
+    poster: image,
+    title: string,
+    meta: string,
+    genre: string,
+    plot: string,
+    detail: string,
+    progress: float,
+}
+
+component River inherits Rectangle {
+    in property <[image]> posters;
+    in property <float> dim: 0.42;
+    property <float> t: animation-tick() / 1ms;
+    clip: true;
+    // Rotated, so oversized to keep the corners covered.
+    Rectangle {
+        x: -170px;
+        y: -120px;
+        width: 820px;
+        height: 1040px;
+        transform-rotation: -9deg;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+        for r in 7: Rectangle {
+            property <float> step: 118;
+            property <int> n: 9;
+            property <float> span: self.n * self.step;
+            // Neighbouring rows drift opposite ways at slightly different speeds.
+            property <float> speed: (mod(r, 2) == 0 ? 1 : -1) * (0.010 + 0.0025 * mod(r * 3, 4));
+            property <float> shift: mod(root.t * self.speed, self.span) + (self.speed < 0 ? self.span : 0);
+            y: r * 158px;
+            height: 150px;
+            for i in self.n: Rectangle {
+                x: (mod(i * parent.step + parent.shift, parent.span) - parent.step) * 1px;
+                width: 100px;
+                height: 150px;
+                border-radius: 6px;
+                clip: true;
+                Image {
+                    width: 100%;
+                    height: 100%;
+                    image-fit: cover;
+                    source: root.posters.length == 0 ? @image-url("") : root.posters[mod(r * 11 + i * 3, root.posters.length)];
+                }
+            }
+        }
+    }
+    Rectangle { background: #000000; opacity: 1 - root.dim; }
+    Rectangle { height: 200px; y: 0; background: @linear-gradient(180deg, #000000 0%, #000000 35%, #00000000 100%); }
+    Rectangle { y: parent.height - 220px; height: 220px; background: @linear-gradient(180deg, #00000000 0%, #000000 70%); }
+}
+
+component Card inherits Rectangle {
+    in property <LibItem> item;
+    in property <bool> show: true;
+    Rectangle {
+        x: 24px;
+        y: 0;
+        width: 150px;
+        height: 225px;
+        border-radius: 8px;
+        clip: true;
+        background: #111111;
+        drop-shadow-blur: 24px;
+        drop-shadow-color: #000000C0;
+        Image { width: 100%; height: 100%; image-fit: cover; source: root.item.poster; }
+    }
+    VerticalLayout {
+        x: 192px;
+        width: root.width - 192px - 24px;
+        y: 4px;
+        height: 225px;
+        spacing: 8px;
+        alignment: start;
+        Text { text: root.item.title; font-size: 24px; font-weight: 600; color: Theme.text; wrap: word-wrap; }
+        Text { text: root.item.meta; font-size: 15px; color: Theme.t2; }
+        Text { text: root.item.genre; font-size: 14px; color: Theme.t2; }
+        Rectangle { height: 4px; }
+        Rectangle {
+            visible: root.item.progress > 0;
+            height: 4px;
+            border-radius: 2px;
+            background: Theme.track;
+            Rectangle { x: 0; width: parent.width * root.item.progress; border-radius: 2px; background: Theme.accent; }
+        }
+        Text { visible: root.item.detail != ""; text: root.item.detail; font-size: 13px; color: Theme.t2; }
+    }
+    Text {
+        x: 24px;
+        y: 250px;
+        width: root.width - 48px;
+        height: 110px;
+        text: root.item.plot;
+        font-size: 15px;
+        color: Theme.text-dim;
+        wrap: word-wrap;
+        overflow: elide;
+    }
+}
+
+export component Library inherits Rectangle {
+    in property <int> mode;
+    in property <string> heading;
+    in property <string> count;
+    in property <[image]> posters;
+    in property <[LibItem]> items;
+    in property <int> at;
+    property <float> pos: root.at;
+    animate pos { duration: 320ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+    property <LibItem> current: root.items.length == 0 ? { } : root.items[root.at];
+    background: #000000;
+    visible: root.mode > 0;
+
+    // 1: the river on its own, behind the menu's name.
+    if root.mode == 1 || root.mode == 2 || root.mode == 5: River {
+        posters: root.posters;
+        dim: root.mode == 1 ? 0.55 : 0.30;
+    }
+    if root.mode == 1: VerticalLayout {
+        alignment: center;
+        spacing: 6px;
+        Text { text: root.heading; font-size: 56px; font-weight: 300; color: Theme.text; horizontal-alignment: center; }
+        Text { text: root.count; font-size: 17px; color: Theme.t2; horizontal-alignment: center; }
+    }
+
+    // 2 and 5: the river behind a card for whatever Kodi has highlighted.
+    if root.mode == 2 || root.mode == 5: Rectangle {
+        Text { x: 24px; y: 92px; text: root.heading; font-size: 15px; font-weight: 600; color: Theme.t2; letter-spacing: 1.5px; }
+        Text { x: 24px; y: 92px; width: root.width - 48px; text: root.count; font-size: 15px; color: Theme.t3; horizontal-alignment: right; }
+        for it[i] in root.items: Card {
+            y: 300px;
+            height: 380px;
+            item: it;
+            opacity: max(0, 1 - abs(i - root.pos) * 1.6);
+            visible: self.opacity > 0;
+        }
+    }
+
+    // 3: a carousel that follows Kodi's highlight.
+    if root.mode == 3: Rectangle {
+        Text { x: 24px; y: 92px; text: root.heading; font-size: 15px; font-weight: 600; color: Theme.t2; letter-spacing: 1.5px; }
+        Text { x: 24px; y: 92px; width: root.width - 48px; text: root.count; font-size: 15px; color: Theme.t3; horizontal-alignment: right; }
+        // Neighbours first, the centre last, so the highlighted poster sits on top.
+        for it[i] in root.items: Rectangle {
+            property <float> d: i - root.pos;
+            property <float> k: 1 - min(abs(self.d), 2) * 0.22;
+            visible: abs(self.d) < 3 && abs(self.d) >= 0.5;
+            width: 220px * self.k;
+            height: 330px * self.k;
+            x: (240 + self.d * 150) * 1px - self.width / 2;
+            y: 330px - self.height / 2;
+            border-radius: 10px;
+            clip: true;
+            Image { width: 100%; height: 100%; image-fit: cover; source: it.poster; }
+            Rectangle { background: #000000; opacity: min(abs(parent.d), 2) * 0.3; }
+        }
+        for it[i] in root.items: Rectangle {
+            property <float> d: i - root.pos;
+            property <float> k: 1 - min(abs(self.d), 2) * 0.22;
+            visible: abs(self.d) < 0.5;
+            width: 220px * self.k;
+            height: 330px * self.k;
+            x: (240 + self.d * 150) * 1px - self.width / 2;
+            y: 330px - self.height / 2;
+            border-radius: 10px;
+            background: #111111;
+            drop-shadow-blur: 30px;
+            drop-shadow-color: #000000E0;
+            clip: true;
+            Image { width: 100%; height: 100%; image-fit: cover; source: it.poster; }
+        }
+        VerticalLayout {
+            y: 520px;
+            height: 200px;
+            padding-left: 32px;
+            padding-right: 32px;
+            spacing: 8px;
+            alignment: start;
+            Text { text: root.current.title; font-size: 26px; font-weight: 600; color: Theme.text; horizontal-alignment: center; wrap: word-wrap; }
+            Text { text: root.current.meta; font-size: 15px; color: Theme.t2; horizontal-alignment: center; }
+            Text { text: root.current.genre; font-size: 14px; color: Theme.t3; horizontal-alignment: center; }
+            Rectangle {
+                visible: root.current.progress > 0;
+                height: 4px;
+                Rectangle {
+                    x: (parent.width - 160px) / 2;
+                    width: 160px;
+                    border-radius: 2px;
+                    background: Theme.track;
+                    Rectangle { x: 0; width: parent.width * root.current.progress; border-radius: 2px; background: Theme.accent; }
+                }
+            }
+        }
+    }
+
+    // 4: a wall of posters with the highlight lifted out of it.
+    if root.mode == 4: Rectangle {
+        clip: true;
+        property <float> scroll: floor(root.pos / 3);
+        animate scroll { duration: 320ms; easing: ease-out; }
+        for it[i] in root.items: cell := Rectangle {
+            property <bool> on: i == root.at;
+            property <float> top: (floor(i / 3) - parent.scroll) * 222 + 250;
+            visible: self.top > -240 && self.top < 820;
+            x: (24 + mod(i, 3) * 148) * 1px;
+            y: self.top * 1px;
+            width: 136px;
+            height: 204px;
+            transform-origin: { x: self.width / 2, y: self.height / 2 };
+            transform-scale: self.on ? 1.07 : 1;
+            animate transform-scale { duration: 200ms; easing: ease-out; }
+            Rectangle {
+                border-radius: 8px;
+                clip: true;
+                Image { width: 100%; height: 100%; image-fit: cover; source: it.poster; }
+                Rectangle { background: #000000; opacity: cell.on ? 0 : 0.5; animate opacity { duration: 200ms; } }
+            }
+            Rectangle {
+                visible: parent.on;
+                x: -3px;
+                y: -3px;
+                width: parent.width + 6px;
+                height: parent.height + 6px;
+                border-radius: 10px;
+                border-width: 2px;
+                border-color: Theme.accent;
+            }
+        }
+        Rectangle { y: 0; height: 230px; background: @linear-gradient(180deg, #000000 0%, #000000 55%, #00000000 100%); }
+        Text { x: 24px; y: 92px; text: root.heading; font-size: 15px; font-weight: 600; color: Theme.t2; letter-spacing: 1.5px; }
+        Text { x: 24px; y: 92px; width: root.width - 48px; text: root.count; font-size: 15px; color: Theme.t3; horizontal-alignment: right; }
+        Text { x: 24px; y: 124px; width: root.width - 48px; text: root.current.title; font-size: 24px; font-weight: 600; color: Theme.text; overflow: elide; }
+        Text { x: 24px; y: 160px; width: root.width - 48px; text: root.current.meta; font-size: 15px; color: Theme.t2; overflow: elide; }
+        Rectangle { y: root.height - 120px; height: 120px; background: @linear-gradient(180deg, #00000000 0%, #000000 80%); }
+    }
+}

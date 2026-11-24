@@ -549,6 +549,98 @@ fn charge_script() -> Vec<(u64, Act)> {
 }
 
 /// The menu's background, through the input colours.
+/// Kodi's library as saved by a fetch script: `library.json` plus a poster file per title, in
+/// the directory named by `UC_DEMO_LIBRARY`.
+struct Shelf {
+    posters: Vec<slint::Image>,
+    items: Vec<crate::LibItem>,
+    count: String,
+}
+
+fn shelf(kind: &str) -> Shelf {
+    use serde_json::Value;
+    let dir = PathBuf::from(std::env::var("UC_DEMO_LIBRARY").unwrap_or_default());
+    let json: Value = std::fs::read(dir.join("library.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+    let list = json[kind].as_array().cloned().unwrap_or_default();
+    let shows = kind == "tvshows";
+    let mut posters = Vec::new();
+    let mut items = Vec::new();
+    for it in &list {
+        let Some(file) = it["file"].as_str() else { continue };
+        let Ok(img) = image::open(dir.join(file)) else { continue };
+        let img = img.resize_to_fill(200, 300, image::imageops::FilterType::Triangle).to_rgb8();
+        let buf = slint::SharedPixelBuffer::<slint::Rgb8Pixel>::clone_from_slice(img.as_raw(), 200, 300);
+        let poster = slint::Image::from_rgb8(buf);
+        posters.push(poster.clone());
+        let year = it["year"].as_i64().unwrap_or(0);
+        let rating = it["rating"].as_f64().unwrap_or(0.0);
+        let genre: Vec<&str> = it["genre"].as_array().map(|g| g.iter().filter_map(Value::as_str).take(3).collect()).unwrap_or_default();
+        let (meta, detail, progress) = if shows {
+            let (eps, seen) = (it["episode"].as_i64().unwrap_or(0), it["watchedepisodes"].as_i64().unwrap_or(0));
+            let seasons = it["season"].as_i64().unwrap_or(0);
+            let meta = format!("{year} · {seasons} season{} · ★ {rating:.1}", if seasons == 1 { "" } else { "s" });
+            (meta, format!("{seen} of {eps} episodes watched"), if eps > 0 { seen as f32 / eps as f32 } else { 0.0 })
+        } else {
+            let mins = it["runtime"].as_i64().unwrap_or(0) / 60;
+            let mpaa = it["mpaa"].as_str().unwrap_or("").trim_start_matches("Rated ").to_string();
+            let mut meta = format!("{year} · {}h {:02}m · ★ {rating:.1}", mins / 60, mins % 60);
+            if !mpaa.is_empty() {
+                meta = format!("{meta} · {mpaa}");
+            }
+            let (pos, total) = (it["resume"]["position"].as_f64().unwrap_or(0.0), it["resume"]["total"].as_f64().unwrap_or(0.0));
+            let detail = if pos > 0.0 { format!("Resume from {}:{:02}", pos as i64 / 3600, pos as i64 / 60 % 60) } else if it["playcount"].as_i64().unwrap_or(0) > 0 { "Watched".into() } else { String::new() };
+            (meta, detail, if total > 0.0 { (pos / total) as f32 } else { 0.0 })
+        };
+        items.push(crate::LibItem {
+            poster,
+            title: it["title"].as_str().unwrap_or("").into(),
+            meta: meta.into(),
+            genre: genre.join(" · ").into(),
+            plot: it["plot"].as_str().unwrap_or("").into(),
+            detail: detail.into(),
+            progress,
+        });
+    }
+    let count = if shows { format!("{} shows", list.len()) } else { format!("{} films", list.len()) };
+    Shelf { posters, items, count }
+}
+
+fn library_script() -> Vec<(u64, Act)> {
+    let movies = Rc::new(shelf("movies"));
+    let shows = Rc::new(shelf("tvshows"));
+    let show = |shelf: &Rc<Shelf>, heading: &'static str, mode: i32| -> Act {
+        let shelf = shelf.clone();
+        Box::new(move |app, _| {
+            app.set_lib_heading(heading.into());
+            app.set_lib_count(shelf.count.clone().into());
+            app.set_lib_posters(Rc::new(slint::VecModel::from(shelf.posters.clone())).into());
+            app.set_lib_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
+            app.set_lib_focus(0);
+            app.set_lib_mode(mode);
+        })
+    };
+    let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
+    let mut s: Vec<(u64, Act)> = vec![(300, show(&movies, "Movies", 1))];
+    s.push((5000, show(&movies, "MOVIES", 2)));
+    for _ in 0..4 {
+        s.push((1500, step(1)));
+    }
+    s.push((1800, show(&movies, "MOVIES", 3)));
+    for by in [1, 1, 1, -1, 1, 1] {
+        s.push((1100, step(by)));
+    }
+    s.push((1600, show(&movies, "MOVIES", 4)));
+    for by in [1, 1, 3, 3, -1, 3, 3, 1] {
+        s.push((900, step(by)));
+    }
+    s.push((1600, show(&shows, "TV SHOWS", 5)));
+    for _ in 0..4 {
+        s.push((1500, step(1)));
+    }
+    s.push((1800, Box::new(|_, _| {})));
+    s
+}
+
 fn lava_script() -> Vec<(u64, Act)> {
     let source = |name: &'static str| -> Act {
         Box::new(move |_, tx| {
@@ -573,6 +665,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         Some("layers") => return layers_script(),
         Some("stages") => return stages_script(),
         Some("switch") => return switch_script(),
+        Some("library") => return library_script(),
         _ => {}
     }
     if name == Some("home") {
