@@ -1,6 +1,6 @@
 /target
+/target-device
 **/*.rs.bk
-Cargo.lock
 
 # build output / secrets
 packaging/out/
@@ -9,10 +9,12 @@ secrets/
 *.pin
 ws-token
 
+# local agent tooling
+.claude/
+CLAUDE.md
+
 # Manufacturer product photo used only for local previews; not ours to redistribute.
 design/device/
 
 # Generated previews (stills and recordings); they include the manufacturer photo.
 design/poc-shots/
-target-device/
-packaging/out/
