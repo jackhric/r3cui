@@ -30,11 +30,12 @@ const features: Feature[] = [
 
 // The backlighting card shows one remote per input, its keys lit in that input's colour.
 const lightStills = import.meta.glob<string>('../assets/lights/*.webp', { query: '?url', import: 'default', eager: true });
+const light = (file: string) => lightStills[`../assets/lights/${file}.webp`];
 const lights = [
-  { name: 'Kodi', colour: '#E8343A', still: lightStills['../assets/lights/kodi.webp'] },
-  { name: 'PlayStation', colour: '#2E7BFF', still: lightStills['../assets/lights/playstation.webp'] },
-  { name: 'Xbox', colour: '#4CD137', still: lightStills['../assets/lights/xbox.webp'] },
-  { name: 'Android TV', colour: '#2ED9E6', still: lightStills['../assets/lights/android.webp'] },
+  { name: 'Late Night with the Devil playing', colour: '#E8343A', still: light('late-night') },
+  { name: 'Toy Story playing', colour: '#2E7BFF', still: light('toy-story') },
+  { name: 'The Matrix playing', colour: '#4CD137', still: light('matrix') },
+  { name: 'the PlayStation input', colour: '#2E7BFF', still: light('playstation') },
 ];
 ---
 
@@ -68,13 +69,13 @@ const lights = [
     <article class="card lights-card" tabindex="0">
       <div class="copy">
         <h3>Reactive backlighting</h3>
-        <p>The buttons light up in the colour of the input you're on, and change with it. Switch from Kodi to the
-          PlayStation and the whole keypad turns blue.</p>
+        <p>The buttons light up to match what's on screen: the colours of the poster for the film that's playing, or the
+          colour of the input you've switched to.</p>
       </div>
       <ul class="lights" aria-label="Key colours by input">
         {lights.map(l => (
           <li style={`--glow:${l.colour}`}>
-            <div class="remote"><img src={l.still} alt={`Remote on ${l.name}, keys lit in its colour`} width="200" height="864" decoding="async" /></div>
+            <div class="remote"><img src={l.still} alt={`Remote with ${l.name}, keys lit to match`} width="200" height="864" decoding="async" /></div>
           </li>
         ))}
       </ul>
@@ -103,6 +104,20 @@ const lights = [
     video.play().catch(() => {});
   }
   const stop = (card: HTMLElement) => card.querySelector('video')?.pause();
+
+  // Backlighting: each remote rises the nearer the pointer is to it, so they lift and settle one by one as it moves.
+  const lightsCard = document.querySelector<HTMLElement>('#features .lights-card');
+  if (lightsCard && !still.matches && matchMedia('(hover: hover)').matches) {
+    const remotes = [...lightsCard.querySelectorAll<HTMLElement>('.lights .remote')];
+    lightsCard.addEventListener('pointermove', e => {
+      for (const r of remotes) {
+        const box = r.getBoundingClientRect();
+        const away = Math.abs(e.clientX - (box.left + box.width / 2)) / (box.width * 2.4);
+        r.style.setProperty('--lift', Math.max(0, 1 - away * away).toFixed(3));
+      }
+    });
+    lightsCard.addEventListener('pointerleave', () => remotes.forEach(r => r.style.removeProperty('--lift')));
+  }
 
   const cards = [...document.querySelectorAll<HTMLElement>('#features .card')];
   if (matchMedia('(hover: hover)').matches) {
@@ -200,10 +215,9 @@ const lights = [
     background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) 22%, transparent), transparent);
   }
   .lights .remote { width: min(140px, 100%); }
-  .lights-card:hover li:nth-child(2) .remote { transition-delay: 0.03s; }
-  .lights-card:hover li:nth-child(3) .remote { transition-delay: 0.06s; }
-  .lights-card:hover li:nth-child(4) .remote { transition-delay: 0.09s; }
-  .lights-card:hover .remote, .lights-card:focus-visible .remote { translate: 0 0; }
+  /* Each remote rises by its own --lift, set from how close the pointer is (see the script), so they ripple as it moves. */
+  .lights .remote { translate: 0 calc(34px - var(--lift, 0) * 34px); transition-duration: 0.45s; }
+  .lights-card:focus-visible .remote { --lift: 1; }
 
   @media (max-width: 760px) {
     .lights-card { grid-template-columns: minmax(0, 1fr); }
