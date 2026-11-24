@@ -1,7 +1,7 @@
 //! Preview only: draws the UI into a photo of the Remote 3 and lights the keys by backlight zone,
 //! so stills and recordings show the whole device. Not part of the on-device build path.
 
-use crate::backlight::{Frame, Zone};
+use crate::backlight::Keys;
 use anyhow::Context;
 use image::RgbImage;
 use std::path::Path;
@@ -17,30 +17,31 @@ const GLYPH_RADIUS: f32 = 24.0;
 const FADE_SECS: f32 = 0.22;
 
 /// Key glyph centres in the original photo, with the backlight zone each belongs to.
-const KEYS: &[(Zone, i32, i32)] = &[
-    (Zone::Home, 230, 843),
-    (Zone::VolumeUpBack, 63, 845),
-    (Zone::ChannelUpPower, 395, 845),
-    (Zone::VolumeUpBack, 64, 954),
-    (Zone::ChannelUpPower, 394, 953),
-    (Zone::DpadUp, 229, 996),
-    (Zone::DpadLeft, 103, 1121),
-    (Zone::DpadRight, 355, 1121),
-    (Zone::DpadDown, 229, 1247),
-    (Zone::VolumeDown, 64, 1286),
-    (Zone::ChannelDown, 394, 1286),
-    (Zone::MutePrevious, 63, 1397),
-    (Zone::RecordMenuStopPlay, 176, 1397),
-    (Zone::RecordMenuStopPlay, 286, 1398),
-    (Zone::VoiceNext, 396, 1396),
-    (Zone::MutePrevious, 63, 1480),
-    (Zone::RecordMenuStopPlay, 175, 1480),
-    (Zone::RecordMenuStopPlay, 287, 1480),
-    (Zone::VoiceNext, 397, 1480),
+/// Key glyph centres in the original photo, and whether the key is in the power zone.
+const KEYS: &[(bool, i32, i32)] = &[
+    (false, 230, 843),
+    (false, 63, 845),
+    (true, 395, 845),
+    (false, 64, 954),
+    (true, 394, 953),
+    (false, 229, 996),
+    (false, 103, 1121),
+    (false, 355, 1121),
+    (false, 229, 1247),
+    (false, 64, 1286),
+    (false, 394, 1286),
+    (false, 63, 1397),
+    (false, 176, 1397),
+    (false, 286, 1398),
+    (false, 396, 1396),
+    (false, 63, 1480),
+    (false, 175, 1480),
+    (false, 287, 1480),
+    (false, 397, 1480),
 ];
 
 struct Key {
-    zone: Zone,
+    power: bool,
     x0: i32,
     y0: i32,
     /// How much of each pixel is printed glyph, and a blurred copy of that for the glow.
@@ -51,8 +52,8 @@ struct Key {
 pub struct Device {
     base: RgbImage,
     keys: Vec<Key>,
-    /// The colour each zone is showing now, easing toward the frame's.
-    level: [[f32; 3]; 12],
+    /// The colours showing now (the rest, then the power zone), easing toward those asked for.
+    level: [[f32; 3]; 2],
 }
 
 impl Device {
@@ -71,7 +72,7 @@ impl Device {
         let side = (2 * PATCH + 1) as usize;
         let keys = KEYS
             .iter()
-            .map(|&(zone, cx, cy)| {
+            .map(|&(power, cx, cy)| {
                 let (cx, cy) = ((cx as f32 * SCALE).round() as i32, (cy as f32 * SCALE).round() as i32);
                 let (x0, y0) = (cx - PATCH, cy - PATCH);
                 let mut glyph = vec![0.0f32; side * side];
@@ -87,20 +88,18 @@ impl Device {
                     }
                 }
                 let glow = blur(&blur(&glyph, side, 5), side, 5);
-                Key { zone, x0, y0, glyph, glow }
+                Key { power, x0, y0, glyph, glow }
             })
             .collect();
-        Ok(Self { base, keys, level: [[0.0; 3]; 12] })
+        Ok(Self { base, keys, level: [[0.0; 3]; 2] })
     }
 
-    /// One picture: the photo, each key lit in its zone's colour from `keys`, and `screen` (RGBA)
-    /// on the panel. `dt` is the time since the previous picture, for the key fade; pass
-    /// `f32::MAX` for a still.
-    pub fn compose(&mut self, screen: &[u8], screen_size: (u32, u32), keys: &Frame, dt: f32) -> RgbImage {
+    /// One picture: the photo, the keys lit as `keys` asks, and `screen` (RGBA) on the panel.
+    /// `dt` is the time since the previous picture, for the key fade; pass `f32::MAX` for a still.
+    pub fn compose(&mut self, screen: &[u8], screen_size: (u32, u32), keys: Keys, dt: f32) -> RgbImage {
         let step = (dt / FADE_SECS).min(1.0) * 255.0;
-        for zone in Zone::ALL {
-            let want = keys.get(zone);
-            for (now, target) in self.level[zone.index()].iter_mut().zip([want.0, want.1, want.2]) {
+        for (level, want) in self.level.iter_mut().zip([keys.rest, keys.power]) {
+            for (now, target) in level.iter_mut().zip([want.0, want.1, want.2]) {
                 *now += (target as f32 - *now).clamp(-step, step);
             }
         }
@@ -108,7 +107,7 @@ impl Device {
         let mut out = self.base.clone();
         let side = 2 * PATCH + 1;
         for key in &self.keys {
-            let colour = self.level[key.zone.index()];
+            let colour = self.level[key.power as usize];
             let lvl = colour.iter().cloned().fold(0.0, f32::max) / 255.0;
             for py in 0..side {
                 for px in 0..side {

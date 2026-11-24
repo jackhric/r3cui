@@ -54,6 +54,12 @@ pub fn start(app: &AppWindow) {
         let is_touch = (device.properties().contains(evdev::PropType::DIRECT) || lower.contains("touchscreen"))
             && !lower.contains("slider")
             && device.supported_absolute_axes().is_some_and(|a| a.iter().any(|x| x.0 == ABS_MT_POSITION_X || x.0 == ABS_X));
+        if lower.contains("slider") {
+            tracing::info!("input {}: {name:?} (touch slider)", path.display());
+            let weak = app.as_weak();
+            std::thread::spawn(move || read_slider(device, weak));
+            continue;
+        }
         let keys = device.supported_keys().map_or(0, |k| k.iter().count());
         tracing::info!("input {}: {name:?}, touch={is_touch}, keys={keys}", path.display());
         if !is_touch && keys == 0 {
@@ -65,6 +71,61 @@ pub fn start(app: &AppWindow) {
     }
     if found == 0 {
         tracing::warn!("no input devices could be opened");
+    }
+}
+
+/// The capacitive slider below the screen. For now this only shows what it reports, so the
+/// hardware can be explored: every axis it sends, and the position along its length.
+fn read_slider(mut device: Device, weak: slint::Weak<AppWindow>) {
+    let ranges = device.get_abs_state().ok();
+    let max_of = |code: u16| ranges.as_ref().map(|r| r[code as usize].maximum).filter(|m| *m > 0);
+    let axes: Vec<String> = device
+        .supported_absolute_axes()
+        .map(|a| a.iter().map(|x| format!("{:#04x} max {:?}", x.0, max_of(x.0))).collect())
+        .unwrap_or_default();
+    tracing::info!("slider axes: {}", axes.join(", "));
+
+    let mut values: std::collections::BTreeMap<u16, i32> = Default::default();
+    let mut touching = false;
+    let mut logged = 0;
+    loop {
+        let events = match device.fetch_events() {
+            Ok(events) => events.collect::<Vec<_>>(),
+            Err(e) => {
+                tracing::warn!("slider read failed: {e}");
+                return;
+            }
+        };
+        for ev in events {
+            let (kind, code, value) = (ev.event_type(), ev.code(), ev.value());
+            if logged < 60 && kind != EventType::SYNCHRONIZATION {
+                logged += 1;
+                tracing::info!("slider event type {:?} code {code:#05x} value {value}", kind);
+            }
+            if kind == EventType::KEY {
+                touching = value != 0;
+            } else if kind == EventType::ABSOLUTE {
+                if code == ABS_MT_TRACKING_ID {
+                    touching = value >= 0;
+                } else {
+                    values.insert(code, value);
+                }
+            } else if kind == EventType::SYNCHRONIZATION {
+                // Whichever position axis it uses, the first one reported is the length of the strip.
+                let position = [ABS_X, ABS_MT_POSITION_X, ABS_Y, ABS_MT_POSITION_Y]
+                    .into_iter()
+                    .find_map(|c| Some(*values.get(&c)? as f32 / max_of(c).unwrap_or(300) as f32));
+                let raw = values.iter().map(|(c, v)| format!("{c:#04x}={v}")).collect::<Vec<_>>().join("  ");
+                let (weak, touch, pos) = (weak.clone(), touching, position.unwrap_or(0.0).clamp(0.0, 1.0));
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(app) = weak.upgrade() {
+                        app.set_slider_touch(touch);
+                        app.set_slider_pos(pos);
+                        app.set_slider_raw(raw.into());
+                    }
+                });
+            }
+        }
     }
 }
 

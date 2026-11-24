@@ -40,7 +40,7 @@ pub enum UiAction {
     PowerHeld,
     WifiScan,
     WifiJoin { ssid: String, hex: String, password: String },
-    Backlight(backlight::Frame),
+    Backlight(backlight::Keys),
 }
 
 /// Results of work that finishes later than the request that started it.
@@ -223,10 +223,10 @@ fn main() -> anyhow::Result<()> {
         timer.start(slint::TimerMode::Repeated, Duration::from_millis(150), move || {
             let Some(app) = weak.upgrade() else { return };
             let (state, accent) = backlight::observe(&app);
-            let frame = backlight::frame_for(state, accent);
-            if last != Some(frame) {
-                last = Some(frame);
-                let _ = tx.send(UiAction::Backlight(frame));
+            let keys = backlight::keys_for(state, accent);
+            if last != Some(keys) {
+                last = Some(keys);
+                let _ = tx.send(UiAction::Backlight(keys));
             }
         });
         timer
@@ -349,6 +349,43 @@ pub fn apply_demo_settings(app: &AppWindow) {
     app.set_sleep_after("3 min".into());
 }
 
+/// The Kodi driver swaps the title for the audio/subtitle track names or the chapter name for a
+/// few seconds whenever one changes (its "show track name" setting). This holds the real title
+/// steady: a different title for the same film has to last before it is believed.
+#[derive(Default)]
+struct StableTitle {
+    media: String,
+    shown: String,
+    pending: Option<(String, Instant)>,
+}
+
+impl StableTitle {
+    const SETTLE: Duration = Duration::from_secs(7);
+
+    fn feed(&mut self, media: &str, title: &str, tracks: &str, now: Instant) {
+        // The track-name flash is the same text the driver reports as the artist.
+        let is_tracks = !tracks.is_empty() && title == tracks;
+        if media != self.media {
+            self.media = media.to_string();
+            self.shown = if is_tracks { String::new() } else { title.to_string() };
+            self.pending = None;
+        } else if is_tracks || title == self.shown {
+            self.pending = None;
+        } else if self.shown.is_empty() {
+            self.shown = title.to_string();
+        } else {
+            match &self.pending {
+                Some((t, since)) if t == title && now.duration_since(*since) >= Self::SETTLE => {
+                    self.shown = title.to_string();
+                    self.pending = None;
+                }
+                Some((t, _)) if t == title => {}
+                _ => self.pending = Some((title.to_string(), now)),
+            }
+        }
+    }
+}
+
 struct Session {
     entities: Vec<Value>,
     screen: Option<String>,
@@ -362,6 +399,7 @@ struct Session {
     wifi: Vec<net::Network>,
     scanning: bool,
     integrations: HashMap<String, bool>,
+    title: StableTitle,
     /// The network id of a join in progress, and when it started.
     joining: Option<(Option<i64>, Instant)>,
 }
@@ -418,13 +456,12 @@ impl Session {
     }
 
     /// What the Home Assistant helpers ask of the key backlight. Without the mode helper the
-    /// lights alone decide: any of them on means their colours, all off means follow the screen.
+    /// light alone decides: on means its colour, off means follow the remote.
     fn keys(&self) -> backlight::Ha {
-        use backlight::{Ha, Mode, Rgb, Zone};
+        use backlight::{Ha, Mode, Rgb};
         let cfg = settings::get();
         let ending = |suffix: &str| self.entities.iter().find(|e| !suffix.is_empty() && entity_id(e).ends_with(suffix));
-        let colour = |light: Option<&Value>| {
-            let light = light.filter(|l| attr_str(Some(l), "state") == "ON")?;
+        let colour = ending(&cfg.keys_light).filter(|l| attr_str(Some(l), "state") == "ON").map(|light| {
             let (h, s, v) = (
                 attr_f64(Some(light), "hue"),
                 attr_f64(Some(light), "saturation") / 255.0,
@@ -435,21 +472,23 @@ impl Session {
                 let k = (n + h / 60.0) % 6.0;
                 ((v - v * s * k.min(4.0 - k).clamp(0.0, 1.0)) * 255.0).round() as u8
             };
-            Some(Rgb(f(5.0), f(3.0), f(1.0)))
-        };
-        let mut zones = [None; 12];
-        for zone in Zone::ALL {
-            zones[zone.index()] = colour(ending(&format!("{}{}", cfg.keys_zone_prefix, zone.slug())));
-        }
-        let all = colour(ending(&cfg.keys_light));
-        let option = |suffix: &str| attr_str(ending(suffix), "current_option").to_lowercase();
-        let mode = match option(&cfg.keys_mode).as_str() {
+            Rgb(f(5.0), f(3.0), f(1.0))
+        });
+        let mode = match attr_str(ending(&cfg.keys_mode), "current_option").to_lowercase().as_str() {
             "off" => Mode::Off,
             "custom" => Mode::Custom,
-            "" if all.is_some() || zones.iter().any(Option::is_some) => Mode::Custom,
+            "" if colour.is_some() => Mode::Custom,
             _ => Mode::Follow,
         };
-        Ha { mode, colour: all, fixed: backlight::preset(&option(&cfg.keys_zones)), zones }
+        Ha { mode, colour }
+    }
+
+    /// Feed the title filter with what Kodi reports now. Call before `model`.
+    fn settle_title(&mut self) {
+        let screen = self.target(Target::Screen);
+        let media = format!("{}|{}", attr_f64(screen, "media_duration"), attr_str(screen, "media_image_url"));
+        let (title, tracks) = (attr_str(screen, "media_title"), attr_str(screen, "media_artist"));
+        self.title.feed(&media, &title, &tracks, Instant::now());
     }
 
     fn model(&self) -> Model {
@@ -492,7 +531,7 @@ impl Session {
             sound_mode: attr_str(receiver, "sound_mode"),
             // The Kodi driver keeps the last title, artwork and position after a stop, so only the
             // playback state says whether anything is on.
-            title: if matches!(state.as_str(), "PLAYING" | "PAUSED" | "BUFFERING") { attr_str(screen, "media_title") } else { String::new() },
+            title: if matches!(state.as_str(), "PLAYING" | "PAUSED" | "BUFFERING") { self.title.shown.clone() } else { String::new() },
             paused,
             duration: attr_f64(screen, "media_duration"),
             position,
@@ -531,6 +570,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         scanning: false,
         integrations: HashMap::new(),
         joining: None,
+        title: StableTitle::default(),
         awake: is_awake(power.get("mode").and_then(Value::as_str)),
         screen,
         entities,
@@ -538,6 +578,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     load_settings(weak, &core).await;
     (session.wifi_ssid, session.wifi) = net::wifi(&core).await;
     session.integrations = net::integrations(&core).await;
+    session.settle_title();
     session.sync_poster(weak);
     session.position = attr_f64(session.target(Target::Screen), "media_position");
     tracing::info!(screen = ?session.screen, volume = ?session.volume, "targets");
@@ -583,6 +624,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                 if session.joining.is_some_and(|(_, since)| since.elapsed() > JOIN_TIMEOUT) {
                     let _ = later_tx.send(Later::JoinDone(false));
                 }
+                session.settle_title();
                 render(weak, &session.model());
             }
             Some(later) = later_rx.recv() => {
@@ -635,6 +677,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     }
                 }
                 if ev.msg == "entity_change" && session.apply_change(&ev.data) {
+                    session.settle_title();
                     session.sync_poster(weak);
                     render(weak, &session.model());
                 }
@@ -652,8 +695,8 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         let on = session.model().receiver_on;
                         (Target::Volume, if on { "off" } else { "on" }.to_string(), Value::Null)
                     }
-                    UiAction::Backlight(frame) => {
-                        keys.show(frame);
+                    UiAction::Backlight(wanted) => {
+                        keys.show(wanted);
                         continue;
                     }
                     UiAction::WifiScan => {
@@ -1102,5 +1145,28 @@ mod tests {
         assert_eq!(audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)"), "DTS-HD MA 5.1");
         assert_eq!(format_badge(&audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)")), ("dts", "HD MA 5.1".to_string()));
         assert_eq!(audio_format(""), "");
+    }
+
+    #[test]
+    fn temporary_titles_are_ignored() {
+        let t0 = Instant::now();
+        let mut t = StableTitle::default();
+        // Playback starts: the driver flashes the track names first.
+        t.feed("m1", "English - English", "English - English", t0);
+        assert_eq!(t.shown, "");
+        t.feed("m1", "Patton", "English - English", t0);
+        assert_eq!(t.shown, "Patton");
+        // A chapter name appears for a few seconds, then the title returns.
+        t.feed("m1", "Chapter 4", "English - English", t0);
+        t.feed("m1", "Chapter 4", "English - English", t0 + Duration::from_secs(4));
+        assert_eq!(t.shown, "Patton");
+        t.feed("m1", "Patton", "English - English", t0 + Duration::from_secs(5));
+        // A change that lasts is real.
+        t.feed("m1", "Patton (Extended)", "", t0 + Duration::from_secs(10));
+        t.feed("m1", "Patton (Extended)", "", t0 + Duration::from_secs(18));
+        assert_eq!(t.shown, "Patton (Extended)");
+        // Another film takes over at once.
+        t.feed("m2", "Alien", "", t0 + Duration::from_secs(20));
+        assert_eq!(t.shown, "Alien");
     }
 }

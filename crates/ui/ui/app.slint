@@ -279,6 +279,10 @@ export component AppWindow inherits Window {
     in property <[StatusRow]> status-rows;
     // Non-empty when something the home screen depends on is unreachable.
     in property <string> home-warning;
+    // Raw touch-slider readout, for testing the hardware.
+    in property <bool> slider-touch;
+    in property <float> slider-pos;
+    in property <string> slider-raw;
     in property <[KeyCell]> kb-keys;
     in property <string> kb-text;
 
@@ -1311,6 +1315,29 @@ export component AppWindow inherits Window {
             }
         }
     ]
+
+    // Slider test readout: shown while the slider below the screen is touched.
+    Rectangle {
+        y: 716px;
+        height: 84px;
+        background: Theme.bg;
+        opacity: root.slider-touch ? 1 : 0;
+        animate opacity { duration: 160ms; }
+        Text {
+            y: 8px;
+            width: 480px;
+            horizontal-alignment: center;
+            text: root.slider-raw;
+            font-size: 18px;
+            color: Theme.t2;
+        }
+        Bar {
+            x: 40px;
+            y: 48px;
+            value: root.slider-pos;
+            handle: true;
+        }
+    }
 
     if !root.awake: TouchArea { }
 }

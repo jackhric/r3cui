@@ -15,10 +15,10 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedSender;
 
-/// The key frame for what the window is showing.
-fn keys(app: &AppWindow) -> backlight::Frame {
+/// What the keys show for what the window is showing.
+fn keys(app: &AppWindow) -> backlight::Keys {
     let (state, accent) = backlight::observe(app);
-    backlight::frame_for(state, accent)
+    backlight::keys_for(state, accent)
 }
 
 type Step = (&'static str, fn(&AppWindow, &mut Model));
@@ -101,7 +101,7 @@ pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::R
             let saved = app.window().take_snapshot().map_err(anyhow::Error::from).and_then(|buf| {
                 match &mut frame {
                     Some(device) => device
-                        .compose(buf.as_bytes(), (buf.width(), buf.height()), &keys(&app), f32::MAX)
+                        .compose(buf.as_bytes(), (buf.width(), buf.height()), keys(&app), f32::MAX)
                         .save(&path)?,
                     None => image::save_buffer(&path, buf.as_bytes(), buf.width(), buf.height(), image::ColorType::Rgba8)?,
                 }
@@ -138,7 +138,7 @@ pub fn snap(app: &AppWindow, path: PathBuf, mut frame: Option<Device>) -> slint:
         let saved = app.window().take_snapshot().map_err(anyhow::Error::from).and_then(|buf| {
             match &mut frame {
                 Some(device) => device
-                    .compose(buf.as_bytes(), (buf.width(), buf.height()), &keys(&app), f32::MAX)
+                    .compose(buf.as_bytes(), (buf.width(), buf.height()), keys(&app), f32::MAX)
                     .save(&path)?,
                 None => image::save_buffer(&path, buf.as_bytes(), buf.width(), buf.height(), image::ColorType::Rgba8)?,
             }
@@ -320,7 +320,7 @@ pub fn record(app: &AppWindow, tx: Tx, mut device: Device, out: PathBuf, which: 
         if let Ok(buf) = app.window().take_snapshot() {
             let dt = last_frame.elapsed().as_secs_f32();
             last_frame = Instant::now();
-            let frame = device.compose(buf.as_bytes(), (buf.width(), buf.height()), &keys(&app), dt);
+            let frame = device.compose(buf.as_bytes(), (buf.width(), buf.height()), keys(&app), dt);
             if let Some(pipe) = &mut pipe {
                 let _ = pipe.write_all(frame.as_raw());
             }

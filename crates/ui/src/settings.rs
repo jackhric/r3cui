@@ -17,9 +17,6 @@ pub struct Settings {
     /// Entity-id endings of the Home Assistant helpers that steer the key backlight.
     pub keys_light: String,
     pub keys_mode: String,
-    pub keys_zones: String,
-    /// The per-key lights end in this prefix followed by the zone's name (`backlight::Zone::slug`).
-    pub keys_zone_prefix: String,
     /// Receiver inputs to leave out of the input list, compared without regard to case.
     pub hidden_sources: Vec<String>,
 }
@@ -74,8 +71,6 @@ fn parse(text: &str) -> Result<Settings, String> {
         renderer: v.get("renderer").and_then(Value::as_str).map(String::from),
         keys_light: string_or(&v, "keys_light", "light.theater_remote_keys"),
         keys_mode: string_or(&v, "keys_mode", "theater_remote_keys_mode"),
-        keys_zones: string_or(&v, "keys_zones", "theater_remote_keys_zones"),
-        keys_zone_prefix: string_or(&v, "keys_zone_prefix", "light.theater_remote_key_"),
         hidden_sources: v
             .get("hidden_sources")
             .and_then(Value::as_array)
