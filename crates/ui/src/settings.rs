@@ -26,6 +26,8 @@ pub struct Settings {
     pub lava: Option<f32>,
     /// The least time between two volume commands from the slider, so the receiver keeps up.
     pub volume_interval_ms: Option<u64>,
+    /// Entity-id ending of the Home Assistant sensor holding the receiver's volume limit.
+    pub volume_limit_sensor: String,
 }
 
 impl Settings {
@@ -88,6 +90,7 @@ fn parse(text: &str) -> Result<Settings, String> {
             .and_then(Value::as_array)
             .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
             .unwrap_or_default(),
+        volume_limit_sensor: string_or(&v, "volume_limit_sensor", "sensor.theater_receiver_volume_limit"),
         volume_interval_ms: v.get("volume_interval_ms").and_then(Value::as_u64),
         lava: v.get("lava").and_then(Value::as_f64).map(|x| x.clamp(0.0, 1.0) as f32),
     })

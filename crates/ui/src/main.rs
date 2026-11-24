@@ -39,6 +39,8 @@ const JOIN_TIMEOUT: Duration = Duration::from_secs(45);
 const SLIDER_HOLD: Duration = Duration::from_secs(3);
 /// How long an input picked here is shown before the receiver's own report wins again.
 const SWITCH_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long a power change made here is believed before the receiver's own report wins again.
+const POWER_TIMEOUT: Duration = Duration::from_secs(120);
 /// On the charger, the screen and keys go dark after this long without a touch or key.
 const CHARGER_REST: Duration = Duration::from_secs(10);
 
@@ -96,6 +98,8 @@ pub struct Model {
     pub battery: i32,
     /// On the dock or a cable.
     pub charging: bool,
+    /// The highest volume the receiver allows (its own volume limit), on the same scale as `volume`.
+    pub volume_max: i32,
     pub awake: bool,
     pub receiver_on: bool,
     pub wifi_ssid: String,
@@ -128,6 +132,7 @@ impl Model {
             audio_tracks: vec!["English DTS-HD MA 7.1 - DTS-HD MA 7.1".into(), "English Commentary - AAC-LC stereo".into(), "French - Dolby Digital 5.1".into()],
             audio_track: "English DTS-HD MA 7.1 - DTS-HD MA 7.1".into(),
             battery: 81,
+            volume_max: 72,
             awake: true,
             receiver_on: true,
             wifi_ssid: "HomeNetwork".into(),
@@ -657,6 +662,8 @@ struct Session {
     charging: bool,
     /// An input picked here, shown straight away until the receiver reports it (or gives up).
     pending_source: Option<(String, Instant)>,
+    /// The same for power: the receiver can take a minute to report that it has come on.
+    pending_power: Option<(bool, Instant)>,
 }
 
 impl Session {
@@ -714,6 +721,18 @@ impl Session {
                 app.set_backdrop(backdrop.map(slint::Image::from_rgba8).unwrap_or_default());
             });
         });
+    }
+
+    /// The receiver's volume limit, from the Home Assistant sensor that reads it; full scale without one.
+    fn volume_max(&self) -> i32 {
+        let suffix = &settings::get().volume_limit_sensor;
+        self.entities
+            .iter()
+            .find(|e| !suffix.is_empty() && entity_id(e).ends_with(suffix.as_str()))
+            .and_then(|e| e.pointer("/attributes/value"))
+            .and_then(|v| v.as_f64().or_else(|| v.as_str()?.trim().parse().ok()))
+            .map(|v| (v.round() as i32).clamp(1, MAX_VOLUME))
+            .unwrap_or(MAX_VOLUME)
     }
 
     /// The level the next slider step starts from.
@@ -821,7 +840,14 @@ impl Session {
             battery: self.battery,
             charging: self.charging,
             awake: self.awake,
-            receiver_on: receiver.is_none_or(|r| attr_str(Some(r), "state") != "OFF"),
+            receiver_on: {
+                let reported = receiver.is_none_or(|r| attr_str(Some(r), "state") != "OFF");
+                match self.pending_power {
+                    Some((want, at)) if want != reported && at.elapsed() < POWER_TIMEOUT => want,
+                    _ => reported,
+                }
+            },
+            volume_max: self.volume_max(),
         }
     }
 }
@@ -860,6 +886,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         slider_volume: None,
         charging,
         pending_source: None,
+        pending_power: None,
         title: StableTitle::default(),
         awake: is_awake(power.get("mode").and_then(Value::as_str)),
         screen,
@@ -892,7 +919,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     };
     let mut tick = tokio::time::interval(Duration::from_secs(1));
     let mut ticks = 0u64;
-    let mut volume_gate = slider::Throttle::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(100)));
+    let mut volume_gate = slider::Throttle::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(250)));
     loop {
         tokio::select! {
             _ = tick.tick() => {
@@ -1011,6 +1038,8 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     }
                     UiAction::PowerHeld => {
                         let on = session.model().receiver_on;
+                        session.pending_power = Some((!on, Instant::now()));
+                        render(weak, &session.model());
                         (Target::Volume, if on { "off" } else { "on" }.to_string(), Value::Null)
                     }
                     UiAction::Backlight(wanted) => {
@@ -1069,7 +1098,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         continue;
                     }
                     UiAction::Slider(slider::Gesture::Steps(n)) => {
-                        let v = (session.volume_base() + n).clamp(0, MAX_VOLUME);
+                        let v = (session.volume_base() + n).clamp(0, session.volume_max());
                         session.slider_volume = Some((v, Instant::now()));
                         flash_volume(weak, &overlay);
                         render(weak, &session.model());
@@ -1362,7 +1391,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                 }
                 UiAction::PickTrack(_, i) => demo_subtitle = i as usize,
                 UiAction::Slider(slider::Gesture::Steps(n)) => {
-                    m.volume = (m.volume + n).clamp(0, MAX_VOLUME);
+                    m.volume = (m.volume + n).clamp(0, m.volume_max);
                     m.muted = false;
                     flash_volume(weak, &overlay);
                 }
@@ -1530,6 +1559,7 @@ fn apply_now(app: &AppWindow, m: &Model) {
     }
     app.set_charging(m.charging);
     app.set_volume(m.volume);
+    app.set_volume_max(m.volume_max.max(1));
     app.set_volume_db(volume_db(m.volume).into());
     app.set_muted(m.muted);
 
