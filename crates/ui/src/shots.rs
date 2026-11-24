@@ -745,19 +745,20 @@ fn tap_at(x: f32, y: f32) -> Act {
 }
 
 /// Short clips for the website's hero, 6 to 9 seconds each after a settling lead-in (`SITE_LEAD`
-/// ms, trimmed when the clip is encoded). Each starts from a known input so the keys fade in from it.
+/// ms, trimmed when the clip is encoded). Each starts from a known input, `UC_SITE_SOURCE` (Kodi by
+/// default), so the same clip can be recorded in each input's colours. `site-switch` then moves
+/// `UC_SITE_STEPS` rows down the input list and picks that input.
 pub const SITE_LEAD: u64 = 2500;
 
 fn site_script(name: &str) -> Vec<(u64, Act)> {
-    let source = |name: &'static str| -> Act {
-        Box::new(move |_, tx| {
-            let _ = tx.send(UiAction::SelectSource(name.into()));
-        })
-    };
     use slint::platform::WindowEvent;
     let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "p".into() });
     let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "p".into() });
-    let mut s: Vec<(u64, Act)> = vec![(300, source("KODI")), (SITE_LEAD - 300, ui(|_| {}))];
+    let start = std::env::var("UC_SITE_SOURCE").unwrap_or_else(|_| "KODI".into());
+    let first: Act = Box::new(move |_, tx| {
+        let _ = tx.send(UiAction::SelectSource(start.clone()));
+    });
+    let mut s: Vec<(u64, Act)> = vec![(300, first), (SITE_LEAD - 300, ui(|_| {}))];
     s.extend(match name {
         "site-inputs" => vec![
             (900, ui(|a| a.invoke_go(1, a.get_source_index()))),
@@ -768,6 +769,16 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
             (2400, ui(|_| {})),
         ],
+        "site-switch" => {
+            let steps: i32 = std::env::var("UC_SITE_STEPS").ok().and_then(|n| n.parse().ok()).unwrap_or(1);
+            let mut v: Vec<(u64, Act)> = vec![(1400, ui(|a| a.invoke_go(1, a.get_source_index())))];
+            for _ in 0..steps.abs() {
+                v.push((550, Box::new(move |a: &AppWindow, _: &Tx| a.invoke_move(steps.signum()))));
+            }
+            v.push((700, ui(|a| a.invoke_activate(a.get_focus_index()))));
+            v.push((3600, ui(|_| {})));
+            v
+        }
         "site-playing" => vec![
             (1200, tap_at(240.0, 584.0)),
             (1300, tap_at(240.0, 584.0)),
@@ -779,14 +790,21 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             (600, ui(|a| a.invoke_activate(a.get_focus_index()))),
             (1500, ui(|_| {})),
         ],
+        // Keys tick the level up and down, the slider sweeps it, the overlay fades back to the film, then a
+        // double tap mutes and unmutes.
         "site-volume" => vec![
-            (1000, swipe((0..26).map(|i| 0.3 + i as f32 * 0.014).collect())),
-            (1500, swipe((0..20).map(|i| 0.66 - i as f32 * 0.012).collect())),
+            (900, key("+")),
+            (260, key("+")),
+            (260, key("+")),
+            (260, key("+")),
+            (700, key("-")),
+            (260, key("-")),
+            (900, swipe((0..30).map(|i| 0.35 + i as f32 * 0.012).collect())),
+            (2600, tap_strip()),
+            (180, tap_strip()),
             (1500, tap_strip()),
             (180, tap_strip()),
-            (1600, tap_strip()),
-            (180, tap_strip()),
-            (1800, ui(|_| {})),
+            (2000, ui(|_| {})),
         ],
         "site-power" => vec![
             (1000, ui(down)),
