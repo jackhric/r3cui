@@ -168,6 +168,8 @@ const lights = [
   .crop {
     position: relative; height: 360px; margin-top: auto; padding-top: 22px; flex: none; overflow: hidden;
     display: flex; justify-content: center; align-items: flex-start; contain: paint;
+    /* Firefox anchored scrolling to the remote and shifted the page when its clip started loading on first hover. */
+    overflow-anchor: none;
   }
   .remote {
     position: relative; width: 190px; aspect-ratio: 200 / 864; flex: none; overflow: hidden; will-change: translate;
@@ -207,7 +209,7 @@ const lights = [
   .lights-card { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr); align-items: center; }
   .lights-card .copy { padding: 26px; }
   .lights {
-    list-style: none; margin: 0; padding: 30px 26px 0 0; height: 420px; contain: size;
+    list-style: none; margin: 0; padding: 30px 26px 0 0; height: 420px; contain: size; overflow-anchor: none;
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-self: stretch;
   }
   .lights li { position: relative; display: flex; justify-content: center; }

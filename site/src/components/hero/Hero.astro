@@ -7,7 +7,7 @@ import { riverColumns } from './river';
 interface Props { repo: string }
 const { repo } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-const iconButton = 'text-(--hero-text) rounded-lg hover:bg-(--hero-text)/8 hover:text-(--hero-text) select-none';
+const iconButton = 'text-(--hero-text) rounded-full hover:text-(--hero-text) select-none';
 const docsButton = `docs text-base px-2.5 -ml-2.5 ${iconButton}`;
 const columns = riverColumns(15);
 ---
@@ -189,7 +189,8 @@ const columns = riverColumns(15);
     position: relative; overflow: hidden; isolation: isolate; color: var(--hero-text); background: var(--hero-bg);
     min-height: min(58vh, 540px); display: flex; flex-direction: column;
   }
-  .stage { position: absolute; inset: 0; contain: strict; user-select: none; -webkit-user-select: none; pointer-events: none; }
+  /* The river never decides where the page scrolls: Firefox anchored to its moving clips and shifted the page. */
+  .stage { overflow-anchor: none; position: absolute; inset: 0; contain: strict; user-select: none; -webkit-user-select: none; pointer-events: none; }
   .glow {
     position: absolute; left: 50%; top: 50%; width: 110%; height: 160%; translate: -50% -50%;
     background: radial-gradient(closest-side, var(--hero-glow), color-mix(in srgb, var(--hero-glow) 30%, transparent) 55%, transparent 75%);
@@ -258,9 +259,8 @@ const columns = riverColumns(15);
   .top nav a { color: color-mix(in srgb, var(--hero-text) 88%, transparent); text-decoration: none; font-weight: 600; }
   .top nav a:hover { color: var(--hero-text); }
   .icons { display: flex; gap: 4px; }
-  /* A <button>, so it would otherwise carry the browser's grey button face; it matches the GitHub link beside it. */
-  .island :global(.theme-cycle) { border: 0; color: color-mix(in srgb, var(--hero-text) 88%, transparent); font: inherit; }
-  .island :global(.theme-cycle:not(:hover)) { background-color: transparent; }
+  /* A <button>, so it would otherwise carry the browser's grey button face; like the GitHub link it has no hover fill. */
+  .island :global(.theme-cycle) { border: 0; background-color: transparent; color: color-mix(in srgb, var(--hero-text) 88%, transparent); font: inherit; }
   .island :global(.theme-cycle:hover) { color: var(--hero-text); }
   /* The theme button shows the icon of the current choice. */
   .theme-cycle svg.t { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
