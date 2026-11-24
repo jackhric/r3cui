@@ -9,12 +9,14 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/.." && pwd)
 UC_SDK=${UC_SDK:-$HOME/.cache/ucr3-toolchain/sdk/aarch64-buildroot-linux-gnu_sdk-buildroot}
+# A Docker volume name, or a host path so CI can cache the downloaded crates between runs.
+CARGO_REGISTRY=${CARGO_REGISTRY:-ucr3-ui-cargo-registry}
 [ -x "$UC_SDK/bin/aarch64-none-linux-gnu-gcc" ] || { echo "SDK not found at $UC_SDK (set UC_SDK)" >&2; exit 1; }
 
 docker run --rm \
     -v "$repo":/src -v "$UC_SDK":/sdk \
-    -v ucr3-ui-cargo-registry:/usr/local/cargo/registry \
-    -w /src rust:1-bookworm sh -euc '
+    -v "$CARGO_REGISTRY":/usr/local/cargo/registry \
+    -w /src rust:1.100.0-bookworm sh -euc '
         apt-get update -qq && apt-get install -y -qq --no-install-recommends pkg-config clang libclang-dev >/dev/null
         rustup target add aarch64-unknown-linux-gnu >/dev/null
         /sdk/relocate-sdk.sh >/dev/null
@@ -28,7 +30,7 @@ docker run --rm \
         export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$sysroot"
         cargo build --locked --release -p remote-ui --no-default-features --features device \
             --target aarch64-unknown-linux-gnu --target-dir /src/target-device
-        chown -R '"$(id -u):$(id -g)"' /src/target-device
+        chown -R '"$(id -u):$(id -g)"' /src/target-device /usr/local/cargo/registry
     '
 
 "$repo/packaging/pack.sh" "$repo/target-device/aarch64-unknown-linux-gnu/release/remote-ui"

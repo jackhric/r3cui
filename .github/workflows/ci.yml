@@ -41,7 +41,19 @@ jobs:
           mkdir "$RUNNER_TEMP/sdk"
           tar -xzf "$RUNNER_TEMP/sdk.tar.gz" -C "$RUNNER_TEMP/sdk"
           echo "UC_SDK=$RUNNER_TEMP/sdk/aarch64-buildroot-linux-gnu_sdk-buildroot" >> "$GITHUB_ENV"
+      # Only r3cui's own crates rebuild when the lockfile is unchanged; a lockfile change starts from
+      # the newest older cache, so most dependencies still come from it. The script pins the Rust
+      # image, so a toolchain bump changes its hash and starts a fresh cache.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target-device
+            ${{ runner.temp }}/cargo-registry
+          key: device-${{ hashFiles('scripts/build-device.sh') }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: device-${{ hashFiles('scripts/build-device.sh') }}-
       - run: scripts/build-device.sh
+        env:
+          CARGO_REGISTRY: ${{ runner.temp }}/cargo-registry
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: remote-ui
