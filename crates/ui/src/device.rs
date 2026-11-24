@@ -1,7 +1,7 @@
 //! Preview only: draws the UI into a photo of the Remote 3 and lights the keys by backlight zone,
 //! so stills and recordings show the whole device. Not part of the on-device build path.
 
-use crate::backlight::zone::*;
+use crate::backlight::{Frame, Zone};
 use anyhow::Context;
 use image::RgbImage;
 use std::path::Path;
@@ -17,30 +17,30 @@ const GLYPH_RADIUS: f32 = 24.0;
 const FADE_SECS: f32 = 0.22;
 
 /// Key glyph centres in the original photo, with the backlight zone each belongs to.
-const KEYS: &[(u8, i32, i32)] = &[
-    (HOME, 230, 843),
-    (VOLUME_UP_BACK, 63, 845),
-    (CHANNEL_UP_POWER, 395, 845),
-    (VOLUME_UP_BACK, 64, 954),
-    (CHANNEL_UP_POWER, 394, 953),
-    (DPAD_UP, 229, 996),
-    (DPAD_LEFT, 103, 1121),
-    (DPAD_RIGHT, 355, 1121),
-    (DPAD_DOWN, 229, 1247),
-    (VOLUME_DOWN, 64, 1286),
-    (CHANNEL_DOWN, 394, 1286),
-    (MUTE_PREV, 63, 1397),
-    (RECORD_MENU_STOP_PLAY, 176, 1397),
-    (RECORD_MENU_STOP_PLAY, 286, 1398),
-    (VOICE_NEXT, 396, 1396),
-    (MUTE_PREV, 63, 1480),
-    (RECORD_MENU_STOP_PLAY, 175, 1480),
-    (RECORD_MENU_STOP_PLAY, 287, 1480),
-    (VOICE_NEXT, 397, 1480),
+const KEYS: &[(Zone, i32, i32)] = &[
+    (Zone::Home, 230, 843),
+    (Zone::VolumeUpBack, 63, 845),
+    (Zone::ChannelUpPower, 395, 845),
+    (Zone::VolumeUpBack, 64, 954),
+    (Zone::ChannelUpPower, 394, 953),
+    (Zone::DpadUp, 229, 996),
+    (Zone::DpadLeft, 103, 1121),
+    (Zone::DpadRight, 355, 1121),
+    (Zone::DpadDown, 229, 1247),
+    (Zone::VolumeDown, 64, 1286),
+    (Zone::ChannelDown, 394, 1286),
+    (Zone::MutePrevious, 63, 1397),
+    (Zone::RecordMenuStopPlay, 176, 1397),
+    (Zone::RecordMenuStopPlay, 286, 1398),
+    (Zone::VoiceNext, 396, 1396),
+    (Zone::MutePrevious, 63, 1480),
+    (Zone::RecordMenuStopPlay, 175, 1480),
+    (Zone::RecordMenuStopPlay, 287, 1480),
+    (Zone::VoiceNext, 397, 1480),
 ];
 
 struct Key {
-    zone: u8,
+    zone: Zone,
     x0: i32,
     y0: i32,
     /// How much of each pixel is printed glyph, and a blurred copy of that for the glow.
@@ -51,7 +51,8 @@ struct Key {
 pub struct Device {
     base: RgbImage,
     keys: Vec<Key>,
-    level: [f32; 13],
+    /// The colour each zone is showing now, easing toward the frame's.
+    level: [[f32; 3]; 12],
 }
 
 impl Device {
@@ -89,22 +90,26 @@ impl Device {
                 Key { zone, x0, y0, glyph, glow }
             })
             .collect();
-        Ok(Self { base, keys, level: [0.0; 13] })
+        Ok(Self { base, keys, level: [[0.0; 3]; 12] })
     }
 
-    /// One frame: the photo, keys lit for `lit` zones in `rgb`, and `screen` (RGBA) on the panel.
-    /// `dt` is the time since the previous frame, for the key fade; pass `f32::MAX` for a still.
-    pub fn compose(&mut self, screen: &[u8], screen_size: (u32, u32), lit: &[u8], rgb: [u8; 3], dt: f32) -> RgbImage {
-        let step = (dt / FADE_SECS).min(1.0);
-        for z in 1..self.level.len() {
-            let target = if lit.contains(&(z as u8)) { 1.0 } else { 0.0 };
-            self.level[z] += (target - self.level[z]).clamp(-step, step);
+    /// One picture: the photo, each key lit in its zone's colour from `keys`, and `screen` (RGBA)
+    /// on the panel. `dt` is the time since the previous picture, for the key fade; pass
+    /// `f32::MAX` for a still.
+    pub fn compose(&mut self, screen: &[u8], screen_size: (u32, u32), keys: &Frame, dt: f32) -> RgbImage {
+        let step = (dt / FADE_SECS).min(1.0) * 255.0;
+        for zone in Zone::ALL {
+            let want = keys.get(zone);
+            for (now, target) in self.level[zone.index()].iter_mut().zip([want.0, want.1, want.2]) {
+                *now += (target as f32 - *now).clamp(-step, step);
+            }
         }
 
         let mut out = self.base.clone();
         let side = 2 * PATCH + 1;
         for key in &self.keys {
-            let lvl = self.level[key.zone as usize];
+            let colour = self.level[key.zone.index()];
+            let lvl = colour.iter().cloned().fold(0.0, f32::max) / 255.0;
             for py in 0..side {
                 for px in 0..side {
                     let i = (py * side + px) as usize;
@@ -116,8 +121,8 @@ impl Device {
                     for c in 0..3 {
                         let b = p.0[c] as f32;
                         let unlit = b * (1.0 - 0.7 * m);
-                        let lit = b * (1.0 - m) + rgb[c] as f32 * m;
-                        let v = unlit + (lit - unlit) * lvl + rgb[c] as f32 * g * 0.5 * lvl;
+                        let lit = b * (1.0 - m) + colour[c] * m;
+                        let v = unlit + (lit - unlit) * lvl.min(1.0).ceil() + colour[c] * g * 0.5;
                         p.0[c] = v.clamp(0.0, 255.0) as u8;
                     }
                 }

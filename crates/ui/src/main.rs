@@ -40,8 +40,7 @@ pub enum UiAction {
     PowerHeld,
     WifiScan,
     WifiJoin { ssid: String, hex: String, password: String },
-    /// Light these key zones in this colour.
-    Backlight(Vec<u8>, [u8; 3]),
+    Backlight(backlight::Frame),
 }
 
 /// Results of work that finishes later than the request that started it.
@@ -216,15 +215,15 @@ fn main() -> anyhow::Result<()> {
     // from here; the core is only told when the answer changes.
     let _backlight = {
         let (weak, tx) = (app.as_weak(), act_tx.clone());
-        let mut last = (Vec::new(), [0u8; 3]);
+        let mut last = None;
         let timer = slint::Timer::default();
         timer.start(slint::TimerMode::Repeated, Duration::from_millis(150), move || {
             let Some(app) = weak.upgrade() else { return };
             let (state, accent) = backlight::observe(&app);
-            let now = (backlight::zones(state).to_vec(), backlight::colour(state, accent));
-            if now != last {
-                last = now.clone();
-                let _ = tx.send(UiAction::Backlight(now.0, now.1));
+            let frame = backlight::frame_for(state, accent);
+            if last != Some(frame) {
+                last = Some(frame);
+                let _ = tx.send(UiAction::Backlight(frame));
             }
         });
         timer
@@ -510,8 +509,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
 
     let overlay = Arc::new(AtomicU64::new(0));
     let (later_tx, mut later_rx) = mpsc::unbounded_channel::<Later>();
-    let (backlight_tx, backlight_rx) = tokio::sync::watch::channel((Vec::<u8>::new(), [0u8; 3]));
-    tokio::spawn(drive_backlight(core.clone(), backlight_rx));
+    let keys = backlight::Backlight::start(core.clone());
     let refresh_wifi = |delay: Duration| {
         let (core, tx) = (core.clone(), later_tx.clone());
         tokio::spawn(async move {
@@ -596,8 +594,8 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         let on = session.model().receiver_on;
                         (Target::Volume, if on { "off" } else { "on" }.to_string(), Value::Null)
                     }
-                    UiAction::Backlight(zones, rgb) => {
-                        let _ = backlight_tx.send((zones, rgb));
+                    UiAction::Backlight(frame) => {
+                        keys.show(frame);
                         continue;
                     }
                     UiAction::WifiScan => {
@@ -655,28 +653,6 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         }
     }
     Ok(())
-}
-
-/// Keeps the key backlight in step with the latest request. The core only changes the zones named
-/// in an update and leaves the rest showing what they had, so each change is two updates: black
-/// for the zones that should be off, then the colour for the ones that should be on. Running them
-/// from one task keeps the pairs in order, and a newer request replaces one not yet sent.
-async fn drive_backlight(core: coreapi::Core, mut wanted: tokio::sync::watch::Receiver<(Vec<u8>, [u8; 3])>) {
-    let names = |zones: &[u8]| zones.iter().map(|z| format!("ZONE_{z}")).collect::<Vec<_>>();
-    while wanted.changed().await.is_ok() {
-        let (lit, rgb) = wanted.borrow_and_update().clone();
-        let dark: Vec<u8> = (1..=backlight::ZONE_COUNT).filter(|z| !lit.contains(z)).collect();
-        for (zones, rgb) in [(dark, [0, 0, 0]), (lit, rgb)] {
-            if zones.is_empty() {
-                continue;
-            }
-            let cfg = json!({ "static_color": { "rgb": rgb, "zones": names(&zones) } });
-            match core.request("set_button_cfg", cfg).await {
-                Ok(r) if (200..300).contains(&r.code) => {}
-                other => tracing::debug!("backlight: {other:?}"),
-            }
-        }
-    }
 }
 
 /// Leave the keyboard for the network list, or for the failure page.
