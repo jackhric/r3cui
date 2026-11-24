@@ -1,8 +1,9 @@
 name: CI
 
+# Pushes to dev are checked through their pull request, so only main runs on push.
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
     branches: [main, dev]
   workflow_call:
@@ -21,8 +22,37 @@ env:
   UC_SDK_SHA256: 9307f0006d7dbc49e2ab6a2040f4633cd48318f6a5598cdc3b54af2cf417b7ef
 
 jobs:
+  # Which parts changed, so a site-only change skips the Rust jobs and the other way round. A skipped
+  # job still satisfies a required check. Anything else (a release, a manual run) builds everything.
+  changes:
+    name: Changes
+    runs-on: ubuntu-26.04
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
+      site: ${{ steps.diff.outputs.site }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          all() { echo rust=true >> "$GITHUB_OUTPUT"; echo site=true >> "$GITHUB_OUTPUT"; }
+          case "$GITHUB_EVENT_NAME" in push|pull_request) ;; *) all; exit 0 ;; esac
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then all; exit 0; fi
+          files=$(git diff --name-only "$BASE" HEAD)
+          printf '%s\n' "$files"
+          rust=false; site=false
+          if grep -qvE '^(site/|docs/|README\.md$|\.github/workflows/pages\.yml$)' <<<"$files"; then rust=true; fi
+          if grep -qE '^(site/|docs/images/|packaging/release\.json$|\.github/workflows/ci\.yml$)' <<<"$files"; then site=true; fi
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
+          echo "site=$site" >> "$GITHUB_OUTPUT"
+
   test:
     name: Test
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,6 +61,8 @@ jobs:
 
   device:
     name: Device package
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,6 +94,8 @@ jobs:
 
   site:
     name: Site
+    needs: changes
+    if: needs.changes.outputs.site == 'true'
     runs-on: ubuntu-26.04
     defaults:
       run:
