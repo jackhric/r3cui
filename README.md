@@ -38,7 +38,7 @@
 - Deep [Kodi](https://kodi.tv) integration: control playback, audio tracks, subtitles, etc. easily
 - Easy input switching for receivers
 - Global volume controls
-- Reactive and dynamic backlighting depending on input, currently playing media, etc.
+- Reactive and dynamic button backlighting depending on input, currently playing media, etc.
 - Focuses on simplicity and single purpose
   
 ## Beta software
