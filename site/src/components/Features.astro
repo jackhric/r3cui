@@ -3,11 +3,13 @@ import ring from '../assets/one-ring.webp?url';
 import kodiSvg from '../assets/brands/kodi-wordmark.svg?raw';
 import haSvg from '../assets/brands/homeassistant-wordmark.svg?raw';
 
-const clips = import.meta.glob<string>('../assets/clips/*.{webm,mp4,webp}', { query: '?url', import: 'default', eager: true });
+// Card clips are their own encodes: only the top of the remote (all a card ever shows) at full resolution, so the
+// screen stays sharp at card size. The hero's small full-remote clips live in assets/clips.
+const clips = import.meta.glob<string>('../assets/cards/*.{webm,mp4,webp}', { query: '?url', import: 'default', eager: true });
 const clip = (name: string) => ({
-  webm: clips[`../assets/clips/${name}.webm`],
-  mp4: clips[`../assets/clips/${name}.mp4`],
-  poster: clips[`../assets/clips/${name}.webp`],
+  webm: clips[`../assets/cards/${name}.webm`],
+  mp4: clips[`../assets/cards/${name}.mp4`],
+  poster: clips[`../assets/cards/${name}.webp`],
 });
 
 // Each brand's own wordmark (Kodi from Wikimedia Commons, public domain; Home Assistant from its logo pack). The
@@ -60,8 +62,8 @@ const lights = [
         </div>
         <div class="crop" aria-hidden="true">
           <div class="remote">
-            <img src={f.clip.poster} alt="" width="200" height="864" loading="lazy" decoding="async" />
-            <video muted loop playsinline preload="none" width="200" height="864" data-webm={f.clip.webm} data-mp4={f.clip.mp4}></video>
+            <img src={f.clip.poster} alt="" width="544" height="1084" loading="lazy" decoding="async" />
+            <video muted loop playsinline preload="none" width="544" height="1084" data-webm={f.clip.webm} data-mp4={f.clip.mp4}></video>
           </div>
         </div>
       </article>
@@ -219,6 +221,8 @@ const lights = [
     .card:not(.lights-card):hover .remote { translate: 0 0; }
   }
   .remote img, .remote video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  /* Card media is the top of the remote only: pinned to its top at its own shape, the rest is below the card's edge. */
+  .card:not(.lights-card) .remote :is(img, video) { inset: 0 0 auto; height: auto; aspect-ratio: 544 / 1084; }
   .remote video { opacity: 0; transition: opacity 0.5s ease; }
   .remote video:global(.live) { opacity: 1; }
 
