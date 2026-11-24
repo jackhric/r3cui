@@ -2,21 +2,15 @@ import "fonts/HankenGrotesk-200.ttf";
 import "fonts/HankenGrotesk-300.ttf";
 import "fonts/HankenGrotesk-400.ttf";
 import "fonts/HankenGrotesk-500.ttf";
-import { Theme, Icons, Marks, Glyph, Logo, Bar, StatusBar, ListRow, PageHeader, Page } from "theme.slint";
+import { Choice, ChoiceList, Theme, Icons, Marks, Glyph, Logo, Bar, StatusBar, ListRow, PageHeader, Page } from "theme.slint";
 import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
 
-export { Theme, Logos, Icons, Marks, Codecs }
+export { Choice, Theme, Logos, Icons, Marks, Codecs }
 
 export struct SourceRow {
     name: string,
     icon: string,
-}
-
-export struct TrackRow {
-    label: string,
-    detail: string,
-    current: bool,
 }
 
 export struct WifiRow {
@@ -328,7 +322,10 @@ export component AppWindow inherits Window {
     in property <string> media-format-label;
     // The audio or subtitle picker: 0 audio, 1 subtitles.
     in-out property <int> picker;
-    in-out property <[TrackRow]> tracks;
+    in-out property <[Choice]> tracks;
+    in property <[Choice]> input-choices;
+    in property <[Choice]> wifi-choices;
+    in property <[Choice]> status-choices;
     // The menu's animated background.
     in property <image> lava;
     out property <bool> lava-on: root.page == 2 && root.lit;
@@ -424,7 +421,7 @@ export component AppWindow inherits Window {
         root.swap-start = animation-tick();
         root.swap-held = false;
     }
-    // Between the idle mark and Now playing: a crossfade only, no zoom or blur.
+    // Between the idle mark and Now playing: the same blur, without the zoom.
     in property <bool> swap-plain;
     in property <image> swap-out;
     in property <image> swap-out-blur;
@@ -939,23 +936,22 @@ export component AppWindow inherits Window {
                 // the new one blurred, which sharpens into the live stage beneath.
                 Rectangle {
                     visible: root.swapping && root.capturing == 0;
-                    if !root.swap-plain: Image {
+                    Image {
                         width: 480px;
                         height: 800px;
                         source: root.swap-in-blur;
                         image-fit: fill;
                         opacity: 1 - clamp((root.swap - 0.55) / 0.45, 0, 1);
                     }
-                    if !root.swap-plain: Image {
+                    Image {
                         width: 480px;
                         height: 800px;
                         transform-origin: { x: self.width / 2, y: self.height / 2 };
-                        transform-scale: 1 + 0.05 * root.swap;
+                        transform-scale: root.swap-plain ? 1 : 1 + 0.05 * root.swap;
                         source: root.swap-out-blur;
                         image-fit: fill;
                         opacity: 1 - clamp((root.swap - 0.25) / 0.35, 0, 1);
                     }
-                    // A plain swap is the old stage fading over the new, nothing more.
                     Image {
                         width: 480px;
                         height: 800px;
@@ -963,7 +959,7 @@ export component AppWindow inherits Window {
                         transform-scale: root.swap-plain ? 1 : 1 + 0.05 * root.swap;
                         source: root.swap-out;
                         image-fit: fill;
-                        opacity: root.swap-plain ? 1 - root.swap : 1 - clamp(root.swap / 0.3, 0, 1);
+                        opacity: 1 - clamp(root.swap / 0.3, 0, 1);
                     }
                 }
 
@@ -991,17 +987,12 @@ export component AppWindow inherits Window {
                 depth: 1;
                 current-depth: root.depth;
                 active: root.page == 1;
-                property <length> row-h: min(100px, 700px / max(1, root.sources.length));
-
-                for row[i] in root.sources: ListRow {
-                    y: 68px + i * parent.row-h;
-                    height: parent.row-h;
-                    divider: i > 0;
-                    label: row.name;
-                    icon: row.icon;
-                    focused: i == root.focus-index;
-                    checked: i == root.source-index;
-                    tapped => { root.activate(i); }
+                ChoiceList {
+                    title: "Inputs";
+                    rows: root.input-choices;
+                    focused-row: root.focus-index;
+                    pick(i) => { root.activate(i); }
+                    back => { root.back(); }
                 }
             }
 
@@ -1018,60 +1009,19 @@ export component AppWindow inherits Window {
                     image-fit: fill;
                     image-rendering: pixelated;
                 }
-                PageHeader {
+                ChoiceList {
                     title: "Menu";
+                    rows: [
+                        { label: "Wi-Fi", value: root.wifi-name, chevron: true },
+                        { label: "Display", value: root.brightness + "%", chevron: true },
+                        { label: "Sound & haptics", value: root.haptics, chevron: true },
+                        { label: "Power", chevron: true },
+                        { label: "Status", chevron: true },
+                        { label: "About", chevron: true },
+                    ];
+                    focused-row: root.focus-index;
+                    pick(i) => { root.activate(i); }
                     back => { root.back(); }
-                }
-                ListRow {
-                    y: 168px;
-                    height: 96px;
-                    label: "Wi-Fi";
-                    value: root.wifi-name;
-                    chevron: true;
-                    focused: root.focus-index == 0;
-                    tapped => { root.activate(0); }
-                }
-                ListRow {
-                    y: 264px;
-                    height: 96px;
-                    label: "Display";
-                    value: root.brightness + "%";
-                    chevron: true;
-                    focused: root.focus-index == 1;
-                    tapped => { root.activate(1); }
-                }
-                ListRow {
-                    y: 360px;
-                    height: 96px;
-                    label: "Sound & haptics";
-                    value: root.haptics;
-                    chevron: true;
-                    focused: root.focus-index == 2;
-                    tapped => { root.activate(2); }
-                }
-                ListRow {
-                    y: 456px;
-                    height: 96px;
-                    label: "Power";
-                    chevron: true;
-                    focused: root.focus-index == 3;
-                    tapped => { root.activate(3); }
-                }
-                ListRow {
-                    y: 552px;
-                    height: 96px;
-                    label: "Status";
-                    chevron: true;
-                    focused: root.focus-index == 4;
-                    tapped => { root.activate(4); }
-                }
-                ListRow {
-                    y: 648px;
-                    height: 96px;
-                    label: "About";
-                    chevron: true;
-                    focused: root.focus-index == 5;
-                    tapped => { root.activate(5); }
                 }
             }
 
@@ -1179,36 +1129,17 @@ export component AppWindow inherits Window {
                 depth: 2;
                 current-depth: root.depth;
                 active: root.page == 4;
-
-                PageHeader {
+                ChoiceList {
                     title: "Power";
+                    rows: [
+                        { label: "Standby" },
+                        { label: "Restart" },
+                        { label: "Power off" },
+                        { label: "Sleep after", value: root.sleep-after, chevron: true },
+                    ];
+                    focused-row: root.focus-index;
+                    pick(i) => { root.activate(i); }
                     back => { root.back(); }
-                }
-                ListRow {
-                    y: 168px;
-                    label: "Standby";
-                    focused: root.focus-index == 0;
-                    tapped => { root.activate(0); }
-                }
-                ListRow {
-                    y: 280px;
-                    label: "Restart";
-                    focused: root.focus-index == 1;
-                    tapped => { root.activate(1); }
-                }
-                ListRow {
-                    y: 392px;
-                    label: "Power off";
-                    focused: root.focus-index == 2;
-                    tapped => { root.activate(2); }
-                }
-                ListRow {
-                    y: 504px;
-                    label: "Sleep after";
-                    value: root.sleep-after;
-                    chevron: true;
-                    focused: root.focus-index == 3;
-                    tapped => { root.activate(3); }
                 }
             }
 
@@ -1217,41 +1148,12 @@ export component AppWindow inherits Window {
                 depth: 2;
                 current-depth: root.depth;
                 active: root.page == 5;
-
-                PageHeader {
+                ChoiceList {
                     title: "Wi-Fi";
+                    rows: root.wifi-choices;
+                    focused-row: root.focus-index;
+                    pick(i) => { root.activate(i); }
                     back => { root.back(); }
-                }
-                for row[i] in root.wifi-rows: ListRow {
-                    y: 168px + i * 96px;
-                    height: 96px;
-                    divider: i > 0;
-                    label: row.ssid;
-                    value: row.connected ? "Connected" : "";
-                    trailing: 48px;
-                    focused: i == root.focus-index;
-                    tapped => { root.activate(i); }
-                    if row.secured && !row.connected: Glyph {
-                        x: 364px;
-                        commands: Icons.lock;
-                        tint: Theme.t3;
-                    }
-                    for n in 4: Rectangle {
-                        x: 408px + n * 8px;
-                        y: parent.height / 2 + 11px - self.height;
-                        width: 5px;
-                        height: 7px + n * 5px;
-                        border-radius: 2px;
-                        background: n < row.bars ? Theme.t2 : Theme.track;
-                    }
-                }
-                ListRow {
-                    y: 168px + root.wifi-rows.length * 96px;
-                    height: 96px;
-                    divider: root.wifi-rows.length > 0;
-                    label: root.wifi-scanning ? "Scanning…" : "Scan again";
-                    focused: root.focus-index == root.wifi-rows.length;
-                    tapped => { root.activate(root.wifi-rows.length); }
                 }
             }
 
@@ -1372,49 +1274,10 @@ export component AppWindow inherits Window {
                 depth: 2;
                 current-depth: root.depth;
                 active: root.page == 7;
-
-                PageHeader {
+                ChoiceList {
                     title: "Status";
+                    rows: root.status-choices;
                     back => { root.back(); }
-                }
-                for row[i] in root.status-rows: Rectangle {
-                    x: 0;
-                    y: 168px + i * 96px;
-                    width: 480px;
-                    height: 96px;
-                    if i > 0: Rectangle {
-                        y: 0;
-                        height: 1px;
-                        background: Theme.hair;
-                    }
-                    Rectangle {
-                        x: 0;
-                        width: 4px;
-                        height: 40px;
-                        border-radius: 2px;
-                        background: Theme.accent;
-                        opacity: row.level == 1 ? 1 : 0;
-                    }
-                    Dot {
-                        x: 40px;
-                        level: row.level;
-                    }
-                    Text {
-                        x: 72px;
-                        text: row.label;
-                        font-size: 26px;
-                        font-weight: row.level == 1 ? 500 : 400;
-                        color: row.level == 1 ? Theme.text : Theme.text-dim;
-                    }
-                    Text {
-                        x: 0;
-                        width: 440px;
-                        horizontal-alignment: right;
-                        text: row.value;
-                        font-size: 22px;
-                        font-weight: 300;
-                        color: Theme.t2;
-                    }
                 }
             }
 
@@ -1462,56 +1325,16 @@ export component AppWindow inherits Window {
 
             // Audio or subtitle tracks
             Page {
-                depth: 2;
+                depth: 1;
                 current-depth: root.depth;
                 active: root.page == 9;
-                property <length> row-h: min(96px, 620px / max(1, root.tracks.length));
-
-                PageHeader {
+                ChoiceList {
                     title: root.picker == 0 ? "Audio" : "Subtitles";
+                    rows: root.tracks;
+                    empty: "Loading…";
+                    focused-row: root.focus-index;
+                    pick(i) => { root.activate(i); }
                     back => { root.back(); }
-                }
-                if root.tracks.length == 0: Text {
-                    y: 220px;
-                    width: 480px;
-                    horizontal-alignment: center;
-                    text: "Loading…";
-                    font-size: 22px;
-                    color: Theme.t2;
-                }
-                for row[i] in root.tracks: ListRow {
-                    y: 168px + i * parent.row-h;
-                    height: parent.row-h;
-                    divider: i > 0;
-                    label: "";
-                    trailing: 48px;
-                    focused: i == root.focus-index;
-                    tapped => { root.activate(i); }
-                    // Name above, codec below: long stream names would otherwise run into the codec.
-                    Text {
-                        x: 40px;
-                        y: row.detail == "" ? (parent.height - self.height) / 2 : parent.height / 2 - 30px;
-                        width: 340px;
-                        overflow: elide;
-                        text: row.label;
-                        font-size: 26px;
-                        font-weight: i == root.focus-index ? 500 : 400;
-                        color: i == root.focus-index ? Theme.text : Theme.text-dim;
-                    }
-                    if row.detail != "": Text {
-                        x: 40px;
-                        y: parent.height / 2 + 6px;
-                        width: 340px;
-                        overflow: elide;
-                        text: row.detail;
-                        font-size: 18px;
-                        color: Theme.t2;
-                    }
-                    if row.current: Glyph {
-                        x: 404px;
-                        commands: Icons.check;
-                        tint: Theme.accent;
-                    }
                 }
             }
             }

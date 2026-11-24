@@ -361,10 +361,8 @@ fn stage_change(app: &AppWindow, m: &Model, change: impl FnOnce()) {
     let (Some(old), Some(new)) = (old, new) else { return };
     let plain = before.is_some_and(|b| b.receiver_on == key.receiver_on && b.source == key.source);
     app.set_swap_plain(plain);
-    if !plain {
-        app.set_swap_out_blur(soften(&old, 2.2));
-        app.set_swap_in_blur(soften(&new, 2.2));
-    }
+    app.set_swap_out_blur(soften(&old, 2.2));
+    app.set_swap_in_blur(soften(&new, 2.2));
     app.set_swap_out(slint::Image::from_rgba8(pixels(old)));
     app.invoke_hold_swap();
     let weak = app.as_weak();
@@ -1135,12 +1133,12 @@ pub fn demo_tracks(m: &Model, kind: i32, subtitle: usize) -> (Vec<(String, Strin
 /// Fill the picker. `current` beyond the list marks none.
 pub fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, String)>, current: usize) {
     ui(weak, move |app| {
-        let rows: Vec<TrackRow> = rows
+        let rows: Vec<Choice> = rows
             .into_iter()
             .enumerate()
-            .map(|(i, (label, detail))| TrackRow { label: label.into(), detail: detail.into(), current: i == current })
+            .map(|(i, (label, detail))| Choice { label: label.into(), detail: detail.into(), checked: i == current, ..Default::default() })
             .collect();
-        let focus = rows.iter().position(|r| r.current).unwrap_or(0) as i32;
+        let focus = rows.iter().position(|r| r.checked).unwrap_or(0) as i32;
         app.set_tracks(ModelRc::new(VecModel::from(rows)));
         if app.get_page() == 9 {
             app.set_focus_index(focus);
@@ -1485,6 +1483,15 @@ fn apply_now(app: &AppWindow, m: &Model) {
         app.set_sources(ModelRc::new(VecModel::from(rows)));
     }
     app.set_source_index(current);
+    let inputs: Vec<Choice> = m
+        .sources
+        .iter()
+        .enumerate()
+        .map(|(i, s)| Choice { label: s.into(), icon: source_logo(&logos, s), checked: i as i32 == current, ..Default::default() })
+        .collect();
+    if app.get_input_choices().iter().ne(inputs.iter().cloned()) {
+        app.set_input_choices(ModelRc::new(VecModel::from(inputs)));
+    }
 
     app.set_wifi_name(m.wifi_ssid.as_str().into());
     let wifi: Vec<WifiRow> = m
@@ -1496,10 +1503,30 @@ fn apply_now(app: &AppWindow, m: &Model) {
         app.set_wifi_rows(ModelRc::new(VecModel::from(wifi)));
     }
     app.set_wifi_scanning(m.scanning);
+    let mut networks: Vec<Choice> = m
+        .wifi
+        .iter()
+        .map(|n| Choice {
+            label: (&n.ssid).into(),
+            value: if n.connected { "Connected".into() } else { SharedString::new() },
+            locked: n.secured && !n.connected,
+            bars: n.bars,
+            ..Default::default()
+        })
+        .collect();
+    networks.push(Choice { label: if m.scanning { "Scanning…" } else { "Scan again" }.into(), ..Default::default() });
+    if app.get_wifi_choices().iter().ne(networks.iter().cloned()) {
+        app.set_wifi_choices(ModelRc::new(VecModel::from(networks)));
+    }
     let status: Vec<StatusRow> =
         m.status.iter().map(|s| StatusRow { label: s.label.into(), value: (&s.value).into(), level: s.level }).collect();
     if app.get_status_rows().iter().ne(status.iter().cloned()) {
         app.set_status_rows(ModelRc::new(VecModel::from(status)));
+    }
+    let status_rows: Vec<Choice> =
+        m.status.iter().map(|s| Choice { label: s.label.into(), value: (&s.value).into(), dot: s.level + 1, ..Default::default() }).collect();
+    if app.get_status_choices().iter().ne(status_rows.iter().cloned()) {
+        app.set_status_choices(ModelRc::new(VecModel::from(status_rows)));
     }
     app.set_home_warning(m.warning.as_str().into());
 
