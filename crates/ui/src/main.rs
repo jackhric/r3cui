@@ -54,6 +54,7 @@ pub enum UiAction {
     OpenPicker(i32),
     PickTrack(i32, i32),
     Slider(slider::Gesture),
+    Display { brightness: i32, auto: bool },
 }
 
 /// Results of work that finishes later than the request that started it.
@@ -259,6 +260,14 @@ fn main() -> anyhow::Result<()> {
         }
     });
     app.on_activity(poke);
+    app.on_display_changed({
+        let (tx, weak) = (act_tx.clone(), app.as_weak());
+        move || {
+            if let Some(app) = weak.upgrade() {
+                let _ = tx.send(UiAction::Display { brightness: app.get_brightness(), auto: app.get_auto_brightness() });
+            }
+        }
+    });
     app.on_power_held({
         let tx = act_tx.clone();
         move || {
@@ -983,6 +992,17 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         keys.show(wanted);
                         continue;
                     }
+                    UiAction::Display { brightness, auto } => {
+                        let core = core.clone();
+                        tokio::spawn(async move {
+                            let cfg = json!({ "brightness": brightness, "auto_brightness": auto });
+                            match core.request("set_display_cfg", cfg).await {
+                                Ok(r) if (200..300).contains(&r.code) => {}
+                                other => tracing::warn!("set_display_cfg: {other:?}"),
+                            }
+                        });
+                        continue;
+                    }
                     UiAction::Seek(by) => {
                         let m = session.model();
                         let to = (m.position + by as f64).clamp(0.0, m.duration.max(0.0));
@@ -1290,7 +1310,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                     joining = ssid;
                     after(1800, Later::JoinDone(ok));
                 }
-                UiAction::Backlight(..) => continue,
+                UiAction::Backlight(..) | UiAction::Display { .. } => continue,
                 UiAction::Seek(by) => m.position = (m.position + by as f64).clamp(0.0, m.duration),
                 UiAction::OpenPicker(kind) => {
                     let (rows, current) = demo_tracks(&m, kind, demo_subtitle);

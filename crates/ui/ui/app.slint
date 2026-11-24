@@ -381,6 +381,8 @@ export component AppWindow inherits Window {
     callback pick-track(int, int);
     // Any key or touch: restarts the charger's countdown to dark.
     callback activity();
+    // The user changed brightness or auto brightness on the Display page.
+    callback display-changed();
 
     out property <bool> power-overlay: root.power-holding || root.power-latched;
     out property <bool> power-turning-off: true;
@@ -486,6 +488,7 @@ export component AppWindow inherits Window {
         } else if (root.page == 3) {
             if (i == 1) {
                 root.auto-brightness = !root.auto-brightness;
+                root.display-changed();
             }
         } else if (root.page == 5) {
             if (i >= root.wifi-rows.length) {
@@ -586,7 +589,10 @@ export component AppWindow inherits Window {
                 }
                 if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
                     if (root.page == 3 && root.focus-index == 0) {
-                        root.brightness = max(5, min(100, root.brightness + (event.text == Key.LeftArrow ? -5 : 5)));
+                        if (!root.auto-brightness) {
+                            root.brightness = max(5, min(100, root.brightness + (event.text == Key.LeftArrow ? -5 : 5)));
+                            root.display-changed();
+                        }
                     } else if (event.text == Key.LeftArrow) {
                         root.back();
                     }
@@ -989,6 +995,7 @@ export component AppWindow inherits Window {
                 active: root.page == 1;
                 ChoiceList {
                     title: "Inputs";
+                    show-title: false;
                     rows: root.input-choices;
                     focused-row: root.focus-index;
                     pick(i) => { root.activate(i); }
@@ -1013,7 +1020,7 @@ export component AppWindow inherits Window {
                     title: "Menu";
                     rows: [
                         { label: "Wi-Fi", value: root.wifi-name, chevron: true },
-                        { label: "Display", value: root.brightness + "%", chevron: true },
+                        { label: "Display", value: root.auto-brightness ? "Auto" : root.brightness + "%", chevron: true },
                         { label: "Sound & haptics", value: root.haptics, chevron: true },
                         { label: "Power", chevron: true },
                         { label: "Status", chevron: true },
@@ -1051,23 +1058,27 @@ export component AppWindow inherits Window {
                     text: "Brightness";
                     font-size: 26px;
                     font-weight: root.focus-index == 0 ? 500 : 400;
-                    color: root.focus-index == 0 ? Theme.text : Theme.text-dim;
+                    color: root.auto-brightness ? Theme.t3 : root.focus-index == 0 ? Theme.text : Theme.text-dim;
                 }
                 Text {
                     x: 40px;
                     y: 176px;
                     width: 400px;
                     horizontal-alignment: right;
-                    text: root.brightness + "%";
+                    text: root.auto-brightness ? "Automatic" : root.brightness + "%";
                     font-size: 22px;
                     font-weight: 300;
                     color: Theme.t2;
                 }
+                // Locked while auto brightness is on: the remote sets the level itself then.
                 Bar {
                     x: 40px;
                     y: 250px;
                     value: root.brightness / 100;
-                    handle: true;
+                    handle: !root.auto-brightness;
+                    tint: root.auto-brightness ? Theme.t3 : Theme.accent;
+                    opacity: root.auto-brightness ? 0.5 : 1;
+                    animate opacity { duration: 160ms; }
                 }
                 TouchArea {
                     mouse-cursor: Theme.cursor;
@@ -1075,9 +1086,11 @@ export component AppWindow inherits Window {
                     y: 220px;
                     width: 432px;
                     height: 74px;
+                    enabled: !root.auto-brightness;
                     function set() {
                         root.focus-index = 0;
                         root.brightness = max(5, min(100, round((self.mouse-x - 16px) / 400px * 100)));
+                        root.display-changed();
                     }
                     pointer-event(e) => {
                         if (e.kind == PointerEventKind.down) {
