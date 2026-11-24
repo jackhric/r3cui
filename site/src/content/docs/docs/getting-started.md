@@ -3,7 +3,7 @@ title: Getting started
 description: Install r3cui on your Unfolded Circle Remote 3, and go back to the Normal UI.
 ---
 
-:::danger[These be treacherous waters]
+:::danger[This voids your warranty]
 Installing r3cui voids your Remote 3 warranty. The remote keeps a permanent record that a custom UI was installed.
 That record stays even if you go back to the Normal UI.
 :::
