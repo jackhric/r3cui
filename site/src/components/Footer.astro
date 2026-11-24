@@ -5,6 +5,11 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '
 import remote from '../assets/remotes/now-playing.webp?url';
 import Icon from './Icon.astro';
 import Logo from './Logo.astro';
+import appleSvg from '../assets/brands/apple.svg?raw';
+import linuxSvg from '../assets/brands/linux.svg?raw';
+import windowsSvg from '../assets/brands/windows.svg?raw';
+
+const mark = (svg: string) => svg.replace(/<title>.*?<\/title>/, '').replace('<svg', '<svg aria-hidden="true" fill="currentColor"');
 
 interface Props { repo: string; download: string }
 const { repo, download } = Astro.props;
@@ -12,8 +17,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const latest = `${repo}/releases/latest/download`;
 // The script asks for the remote's address and PIN, shows the warranty warning and installs the latest release.
 const commands = [
-  { id: 'unix', label: 'macOS / Linux', shell: 'Terminal', cmd: `curl -fsSLO ${latest}/install.sh && sh install.sh` },
-  { id: 'windows', label: 'Windows', shell: 'Command Prompt', cmd: `curl.exe -fsSLO ${latest}/install.bat && install.bat` },
+  { id: 'unix', label: 'macOS / Linux', marks: [mark(appleSvg), mark(linuxSvg)], shell: 'Terminal', cmd: `curl -fsSLO ${latest}/install.sh && sh install.sh` },
+  { id: 'windows', label: 'Windows', marks: [mark(windowsSvg)], shell: 'Command Prompt', cmd: `curl.exe -fsSLO ${latest}/install.bat && install.bat` },
 ];
 ---
 
@@ -29,7 +34,7 @@ const commands = [
             <div class="os" role="tablist" aria-label="Your computer">
               {commands.map((c, i) => (
                 <button type="button" role="tab" id={`os-${c.id}`} aria-controls={`cmd-${c.id}`} aria-selected={i === 0 ? 'true' : 'false'}
-                  tabindex={i === 0 ? 0 : -1}>{c.label}</button>
+                  tabindex={i === 0 ? 0 : -1}><span class="marks">{c.marks.map(m => <Fragment set:html={m} />)}</span>{c.label}</button>
               ))}
             </div>
           </li>
@@ -82,6 +87,12 @@ const commands = [
     content: ''; position: absolute; right: -10%; top: -30%; width: 70%; height: 160%; pointer-events: none;
     background: radial-gradient(closest-side, color-mix(in srgb, var(--primary) 18%, transparent), transparent 75%);
   }
+  /* Faint film grain over the glow, faded out with it, so the red reads as light rather than a flat gradient. */
+  .cta :global(.cta-card)::after {
+    content: ''; position: absolute; right: -10%; top: -30%; width: 70%; height: 160%; pointer-events: none; opacity: 0.32;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.1 0 0 0 0 0.1 0 0 0 0.9 -0.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    -webkit-mask: radial-gradient(closest-side, #000, transparent 75%); mask: radial-gradient(closest-side, #000, transparent 75%);
+  }
   .grid {
     position: relative; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
     align-items: center; gap: 44px; padding: 44px 48px;
@@ -110,7 +121,10 @@ const commands = [
   .os button {
     font-family: inherit; font-size: 0.88rem; font-weight: 600; line-height: 1; color: var(--muted-foreground); background: transparent; border: 0; border-radius: 8px;
     padding: 8px 14px; cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease;
+    display: inline-flex; align-items: center; gap: 8px;
   }
+  .marks { display: inline-flex; gap: 4px; }
+  .marks :global(svg) { width: 15px; height: 15px; display: block; }
   .os button[aria-selected='true'] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
   .os button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   /* Copy: a clipboard that turns into a check once the command is on the clipboard. */

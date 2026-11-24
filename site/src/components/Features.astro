@@ -20,8 +20,8 @@ const brands = {
 
 type Feature = { title: string; text: string; clip: ReturnType<typeof clip>; wide?: boolean; brand?: keyof typeof brands };
 const features: Feature[] = [
-  { brand: 'kodi', title: 'Deep Kodi integration', wide: true, clip: clip('2001-tracks'),
-    text: "What's playing, front and center: the poster, the time left and the controls. Switch audio tracks and subtitles, and browse your movies and shows as a wall of posters." },
+  { brand: 'kodi', title: 'Deep Kodi integration', wide: true, clip: clip('kodi-deep'),
+    text: "Browse your movies as a wall of posters that follows Kodi, start one, and it's front and center: the poster, the time left and the controls. Audio tracks and subtitles are a tap away, by their real names." },
   { brand: 'ha', title: 'Easy input switching', clip: clip('inputs-lava'),
     text: "Every input on your receiver, a tap away. r3cui controls your receiver's media player in Home Assistant." },
   { title: 'Global volume', clip: clip('matrix-volume'),
