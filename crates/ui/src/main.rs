@@ -490,11 +490,13 @@ impl Session {
                 .map(|a| a.iter().filter_map(Value::as_str).filter(|s| !settings::get().hides(s)).map(String::from).collect())
                 .unwrap_or_default(),
             sound_mode: attr_str(receiver, "sound_mode"),
-            title: attr_str(screen, "media_title"),
+            // The Kodi driver keeps the last title, artwork and position after a stop, so only the
+            // playback state says whether anything is on.
+            title: if matches!(state.as_str(), "PLAYING" | "PAUSED" | "BUFFERING") { attr_str(screen, "media_title") } else { String::new() },
             paused,
             duration: attr_f64(screen, "media_duration"),
             position,
-            media_format: String::new(),
+            media_format: audio_format(&attr_str(screen, "sound_mode")),
             battery: self.battery,
             awake: self.awake,
             receiver_on: receiver.is_none_or(|r| attr_str(Some(r), "state") != "OFF"),
@@ -1002,6 +1004,13 @@ fn time_left(secs: f64) -> String {
     }
 }
 
+/// Kodi reports its audio stream as "English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)": language and
+/// stream name, then the codec with its channel layout. The codec part is what the badge shows.
+fn audio_format(sound_mode: &str) -> String {
+    let codec = sound_mode.rsplit(" - ").next().unwrap_or_default();
+    codec.split('(').next().unwrap_or_default().trim().to_string()
+}
+
 /// "DOLBY DIGITAL" → ("dolby", "Digital"): the logo carries the brand, the label the rest.
 fn format_badge(mode: &str) -> (&'static str, String) {
     let upper = mode.trim().to_uppercase();
@@ -1090,5 +1099,8 @@ mod tests {
         assert_eq!(format_badge("DOLBY DIGITAL"), ("dolby", "Digital".to_string()));
         assert_eq!(format_badge("DTS HD MA 7.1"), ("dts", "HD MA 7.1".to_string()));
         assert_eq!(format_badge("STEREO"), ("", "Stereo".to_string()));
+        assert_eq!(audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)"), "DTS-HD MA 5.1");
+        assert_eq!(format_badge(&audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)")), ("dts", "HD MA 5.1".to_string()));
+        assert_eq!(audio_format(""), "");
     }
 }
