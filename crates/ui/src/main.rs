@@ -303,6 +303,56 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The stage as it looks right now, alone and unreceded.
+fn snapshot_stage(app: &AppWindow) -> Option<image::RgbaImage> {
+    app.set_capturing(1);
+    let shot = app.window().take_snapshot();
+    app.set_capturing(0);
+    let shot = shot.map_err(|e| tracing::warn!("stage snapshot: {e}")).ok()?;
+    image::RgbaImage::from_raw(shot.width(), shot.height(), shot.as_bytes().to_vec())
+}
+
+fn soften(img: &image::RgbaImage, sigma: f32) -> slint::Image {
+    let small = image::imageops::resize(img, 60, 100, image::imageops::FilterType::Triangle);
+    slint::Image::from_rgba8(pixels(image::imageops::blur(&small, sigma)))
+}
+
+/// What decides which main stage is showing.
+#[derive(Clone, PartialEq)]
+struct StageKey {
+    receiver_on: bool,
+    playing: bool,
+    source: String,
+}
+
+thread_local!(static STAGE: RefCell<Option<StageKey>> = const { RefCell::new(None) });
+
+/// Apply `change`, and if it moved the window to a different main stage while the stage is in
+/// view, blur through from the old one to the new.
+fn stage_change(app: &AppWindow, m: &Model, change: impl FnOnce()) {
+    let key = StageKey { receiver_on: m.receiver_on, playing: m.on_kodi() && !m.title.is_empty(), source: m.source.clone() };
+    let before = STAGE.with(|s| s.replace(Some(key.clone())));
+    let visible = app.get_page() == 0 && app.get_lit() && app.get_capturing() == 0;
+    if before.is_none() || before.as_ref() == Some(&key) || !visible {
+        change();
+        return;
+    }
+    let old = snapshot_stage(app);
+    change();
+    let new = snapshot_stage(app);
+    let (Some(old), Some(new)) = (old, new) else { return };
+    app.set_swap_out_blur(soften(&old, 2.2));
+    app.set_swap_in_blur(soften(&new, 2.2));
+    app.set_swap_out(slint::Image::from_rgba8(pixels(old)));
+    app.invoke_hold_swap();
+    let weak = app.as_weak();
+    slint::Timer::single_shot(Duration::ZERO, move || {
+        if let Some(app) = weak.upgrade() {
+            app.invoke_run_swap();
+        }
+    });
+}
+
 /// A soft, blurred picture of the screen for a layer that is about to recede: 0 the stage alone,
 /// 1 everything under the overlays.
 pub fn capture(app: &AppWindow, which: i32) {
@@ -1348,6 +1398,10 @@ fn kick_if_changed(m: &Model) {
 
 /// Push a model into the window. UI thread only.
 pub fn apply(app: &AppWindow, m: &Model) {
+    stage_change(app, m, || apply_now(app, m));
+}
+
+fn apply_now(app: &AppWindow, m: &Model) {
     #[cfg(feature = "device")]
     kick_if_changed(m);
     let now = chrono::Local::now();

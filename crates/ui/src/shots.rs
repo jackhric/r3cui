@@ -490,6 +490,32 @@ fn layers_script() -> Vec<(u64, Act)> {
     ]
 }
 
+/// Main stage to main stage: stop and play on Kodi, change input, and the receiver off and on.
+fn stages_script() -> Vec<(u64, Act)> {
+    let source = |name: &'static str| -> Act {
+        Box::new(move |_, tx| {
+            let _ = tx.send(UiAction::SelectSource(name.into()));
+        })
+    };
+    use slint::platform::WindowEvent;
+    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "p".into() });
+    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "p".into() });
+    vec![
+        (300, source("KODI")),
+        (1800, key("s")),
+        (1600, key(" ")),
+        (1800, source("PLAYSTATION 5")),
+        (1600, source("XBOX 360")),
+        (1600, source("ANDROID TV")),
+        (1600, source("KODI")),
+        (1600, ui(down)),
+        (1500, ui(up)),
+        (2000, ui(down)),
+        (1500, ui(up)),
+        (2200, ui(|_| {})),
+    ]
+}
+
 /// On the charger: the battery screen, then the countdown to dark, then a touch to wake.
 fn charge_script() -> Vec<(u64, Act)> {
     vec![
@@ -526,6 +552,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         Some("charge") => return charge_script(),
         Some("lava") => return lava_script(),
         Some("layers") => return layers_script(),
+        Some("stages") => return stages_script(),
         _ => {}
     }
     if name == Some("home") {

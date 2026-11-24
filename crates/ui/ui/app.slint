@@ -391,6 +391,27 @@ export component AppWindow inherits Window {
     in property <image> world-blur;
     // Ask for a blurred picture of what is on screen now: 0 the stage, 1 everything.
     callback capture(int);
+    // A change of main stage in progress; Rust supplies the pictures and starts it.
+    in-out property <bool> swapping;
+    // Timed from the animation clock: a declared animation on a property nothing reads while
+    // hidden jumps straight to its end.
+    property <duration> swap-start;
+    // The pictures are taken before the clock can move on, so the swap holds the old stage until
+    // `run-swap` starts the clock on a fresh tick.
+    property <bool> swap-held;
+    property <float> swap-linear: !root.swapping || root.swap-held ? 0 : clamp((animation-tick() - root.swap-start) / 620ms, 0, 1);
+    property <float> swap: root.swap-linear * root.swap-linear * (3 - 2 * root.swap-linear);
+    public function hold-swap() {
+        root.swap-held = true;
+        root.swapping = true;
+    }
+    public function run-swap() {
+        root.swap-start = animation-tick();
+        root.swap-held = false;
+    }
+    in property <image> swap-out;
+    in property <image> swap-out-blur;
+    in property <image> swap-in-blur;
     // Set by Rust only while it takes that picture: 1 shows the stage alone, 2 hides the overlays.
     in-out property <int> capturing;
     property <bool> caret-on: true;
@@ -400,7 +421,6 @@ export component AppWindow inherits Window {
     property <bool> home-rumbling;
     // 1 Kodi is playing, 2 the input's mark (every input, Kodi included, when idle), 3 receiver off
     property <int> home-view: !root.receiver-on ? 3 : root.kodi && root.media-title != "" ? 1 : 2;
-    property <duration> fade: 260ms;
 
     public function go(p: int, f: int) {
         if (root.page == 0 && p != 0) {
@@ -615,6 +635,11 @@ export component AppWindow inherits Window {
             }
         }
         Timer {
+            interval: 660ms;
+            running: root.swapping && !root.swap-held;
+            triggered => { root.swapping = false; }
+        }
+        Timer {
             interval: 550ms;
             running: root.page == 6;
             triggered => { root.caret-on = !root.caret-on; }
@@ -641,7 +666,7 @@ export component AppWindow inherits Window {
 
             stage := Rectangle {
                 transform-origin: { x: self.width / 2, y: self.height / 2 };
-                transform-scale: root.capturing == 1 ? 1 : 1 - 0.08 * root.recede;
+                transform-scale: root.capturing == 1 ? 1 : (1 - 0.08 * root.recede) * (root.swapping ? 0.97 + 0.03 * root.swap : 1);
                 opacity: root.capturing == 1 ? 1 : 1 - 0.55 * root.recede;
 
 
@@ -649,7 +674,6 @@ export component AppWindow inherits Window {
                     Rectangle {
                         opacity: root.home-view == 1 ? 1 : 0;
                         visible: self.opacity > 0;
-                        animate opacity { duration: root.fade; }
 
                         // The backdrop arrives already blurred and darkened; the scrim fades it into black
                         // where the controls sit.
@@ -813,7 +837,6 @@ export component AppWindow inherits Window {
                     Rectangle {
                         opacity: root.home-view == 2 ? 1 : 0;
                         visible: self.opacity > 0;
-                        animate opacity { duration: root.fade; }
 
                         Logo {
                             y: 330px;
@@ -856,7 +879,6 @@ export component AppWindow inherits Window {
                     Rectangle {
                         opacity: root.home-view == 3 ? 1 : 0;
                         visible: self.opacity > 0;
-                        animate opacity { duration: root.fade; }
 
                         Glyph {
                             y: 340px;
@@ -904,6 +926,37 @@ export component AppWindow inherits Window {
                         color: Theme.t3;
                         overflow: elide;
                     }
+
+                // One stage giving way to another: the old one, sharp then blurred, dissolves into
+                // the new one blurred, which sharpens into the live stage beneath.
+                Rectangle {
+                    visible: root.swapping && root.capturing == 0;
+                    Image {
+                        width: 480px;
+                        height: 800px;
+                        source: root.swap-in-blur;
+                        image-fit: fill;
+                        opacity: 1 - clamp((root.swap - 0.55) / 0.45, 0, 1);
+                    }
+                    Image {
+                        width: 480px;
+                        height: 800px;
+                        transform-origin: { x: self.width / 2, y: self.height / 2 };
+                        transform-scale: 1 + 0.05 * root.swap;
+                        source: root.swap-out-blur;
+                        image-fit: fill;
+                        opacity: 1 - clamp((root.swap - 0.25) / 0.35, 0, 1);
+                    }
+                    Image {
+                        width: 480px;
+                        height: 800px;
+                        transform-origin: { x: self.width / 2, y: self.height / 2 };
+                        transform-scale: 1 + 0.05 * root.swap;
+                        source: root.swap-out;
+                        image-fit: fill;
+                        opacity: 1 - clamp(root.swap / 0.3, 0, 1);
+                    }
+                }
 
                 Image {
                     width: 480px;
