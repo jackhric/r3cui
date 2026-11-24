@@ -40,18 +40,12 @@ const columns = riverColumns(15);
       <Button href={`${base}/docs/`} variant="ghost" size="sm" class={docsButton}>
         Docs
       </Button>
-      <div class="theme" role="radiogroup" aria-label="Colour theme">
-        <button type="button" role="radio" data-theme-pick="auto" aria-checked="true" title="System" aria-label="System theme">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
-        </button>
-        <button type="button" role="radio" data-theme-pick="light" aria-checked="false" title="Light" aria-label="Light theme">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>
-        </button>
-        <button type="button" role="radio" data-theme-pick="dark" aria-checked="false" title="Dark" aria-label="Dark theme">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
-        </button>
-      </div>
       <span class="icons">
+        <Button variant="ghost" size="icon-sm" class={`${iconButton} theme-cycle`} data-theme-cycle title="Theme: System" aria-label="Theme: System. Switch to Light">
+          <svg class="t auto" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+          <svg class="t light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>
+          <svg class="t dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
+        </Button>
         <Button href={repo} target="_blank" rel="noopener" title="GitHub" variant="ghost" size="icon-sm" class={iconButton}>
           <Icon name="github" label="GitHub" class="size-5" />
         </Button>
@@ -76,17 +70,25 @@ const columns = riverColumns(15);
 <script>
   import { mountLogoLens } from '../../scripts/logo-lens';
 
-  // Theme: System, Light or Dark, stored as starlight-theme so the docs open in the same theme.
-  const picks = [...document.querySelectorAll<HTMLButtonElement>('[data-theme-pick]')];
-  const stored = () => { try { return localStorage.getItem('starlight-theme') || 'auto'; } catch { return 'auto'; } };
-  function apply(theme: string) {
+  // Theme: one button cycling System, Light and Dark, stored as starlight-theme so the docs open in the same theme.
+  const order = ['auto', 'light', 'dark'] as const;
+  const names = { auto: 'System', light: 'Light', dark: 'Dark' };
+  const cycle = document.querySelector<HTMLButtonElement>('[data-theme-cycle]')!;
+  const stored = () => { try { const t = localStorage.getItem('starlight-theme'); return (order as readonly string[]).includes(t ?? '') ? t as typeof order[number] : 'auto'; } catch { return 'auto' as const; } };
+  function show(theme: typeof order[number]) {
+    cycle.dataset.current = theme;
+    const next = order[(order.indexOf(theme) + 1) % order.length];
+    cycle.title = `Theme: ${names[theme]}`;
+    cycle.setAttribute('aria-label', `Theme: ${names[theme]}. Switch to ${names[next]}`);
+  }
+  cycle.addEventListener('click', () => {
+    const theme = order[(order.indexOf(stored()) + 1) % order.length];
     try { localStorage.setItem('starlight-theme', theme); } catch {}
     if (theme === 'auto') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = theme;
-    for (const b of picks) b.setAttribute('aria-checked', String(b.dataset.themePick === theme));
-  }
-  for (const b of picks) b.addEventListener('click', () => apply(b.dataset.themePick!));
-  for (const b of picks) b.setAttribute('aria-checked', String(b.dataset.themePick === stored()));
+    show(theme);
+  });
+  show(stored());
 
   for (const el of document.querySelectorAll<HTMLElement>('[data-logo-lens]')) mountLogoLens(el);
 
@@ -251,15 +253,15 @@ const columns = riverColumns(15);
   .top nav a { color: color-mix(in srgb, var(--hero-text) 88%, transparent); text-decoration: none; font-weight: 600; }
   .top nav a:hover { color: var(--hero-text); }
   .icons { display: flex; gap: 4px; }
-  .theme { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgb(255 255 255 / 0.07); }
-  .theme button {
-    display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 999px; cursor: pointer;
-    background: transparent; color: color-mix(in srgb, var(--hero-text) 60%, transparent); transition: background-color 0.2s ease, color 0.2s ease;
-  }
-  .theme button:hover { color: var(--hero-text); }
-  .theme button[aria-checked='true'] { background: rgb(255 255 255 / 0.16); color: var(--hero-text); }
-  .theme button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
-  .theme svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  /* A <button>, so it would otherwise carry the browser's grey button face; it matches the GitHub link beside it. */
+  .icons :global(.theme-cycle) { border: 0; color: color-mix(in srgb, var(--hero-text) 88%, transparent); font: inherit; }
+  .icons :global(.theme-cycle:not(:hover)) { background-color: transparent; }
+  .icons :global(.theme-cycle:hover) { color: var(--hero-text); }
+  /* The theme button shows the icon of the current choice. */
+  .theme-cycle svg.t { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .theme-cycle:not([data-current='auto']) svg.auto, .theme-cycle:not([data-current='light']) svg.light,
+  .theme-cycle:not([data-current='dark']) svg.dark { display: none; }
+  .theme-cycle:not([data-current]) svg.light, .theme-cycle:not([data-current]) svg.dark { display: none; }
 
   .content {
     position: relative; z-index: 2; margin: auto; padding: 24px 28px 88px; display: grid; place-items: center;
