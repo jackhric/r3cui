@@ -2,6 +2,7 @@
 import { Button } from '@/components/starwind/button';
 import Icon from '../Icon.astro';
 import Logo from '../Logo.astro';
+import mask from '../../assets/remote-mask.png?url';
 import { riverColumns } from './river';
 
 interface Props { repo: string }
@@ -15,7 +16,7 @@ const columns = riverColumns(15);
 <section class="hero">
   <div class="stage" aria-hidden="true">
     <div class="glow"></div>
-    <div class="river">
+    <div class="river" style={`--mask:url(${mask})`}>
       {columns.map(col => (
         <div class="column" style={col.style}>
           <div class="flow">
@@ -154,7 +155,12 @@ const columns = riverColumns(15);
     display: grid; gap: 22px; will-change: transform;
     animation: drift 120s linear infinite;
   }
-  .flow video { display: block; width: 100px; height: auto; aspect-ratio: 200 / 864; border-radius: 10px; background: var(--hero-bg); }
+  /* Video can't carry the photo's transparent corners everywhere, so each tile is cut to the remote's
+     own outline instead. */
+  .flow video {
+    display: block; width: 100px; height: auto; aspect-ratio: 200 / 864;
+    -webkit-mask: var(--mask) center / 100% 100% no-repeat; mask: var(--mask) center / 100% 100% no-repeat;
+  }
   /* Two copies of the column stacked; sliding by one copy's height loops seamlessly. */
   @keyframes drift { from { transform: translateY(calc(-50% - 11px)); } to { transform: translateY(0); } }
   .hero.away .flow { animation-play-state: paused; }
@@ -174,8 +180,8 @@ const columns = riverColumns(15);
   /* A dark, blurred pill keeps the links readable over whatever part of the river passes behind them. */
   .top nav {
     display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding: 6px 8px 6px 20px; border-radius: 999px;
-    background: color-mix(in srgb, var(--hero-bg) 78%, transparent); border: 1px solid rgb(255 255 255 / 0.1);
-    backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    background: color-mix(in srgb, var(--hero-bg) 55%, transparent); border: 1px solid rgb(255 255 255 / 0.1);
+    backdrop-filter: blur(18px) saturate(1.3);
     box-shadow: 0 8px 30px rgb(0 0 0 / 0.45);
   }
   .top nav a { color: color-mix(in srgb, var(--hero-text) 88%, transparent); text-decoration: none; font-weight: 600; }
