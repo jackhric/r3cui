@@ -231,7 +231,7 @@ pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::R
     let weak = app.as_weak();
     let mut next = 0usize;
     // Long enough for the page transition to settle before the frame is grabbed.
-    timer.start(slint::TimerMode::Repeated, Duration::from_millis(700), move || {
+    timer.start(slint::TimerMode::Repeated, Duration::from_millis(1500), move || {
         let Some(app) = weak.upgrade() else { return };
         if next > 0 {
             let path = dir.join(format!("{}.png", STEPS[next - 1].0));
