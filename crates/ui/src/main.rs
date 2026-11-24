@@ -891,7 +891,11 @@ impl Session {
             charging: self.charging,
             awake: self.awake,
             receiver_on: {
-                let reported = receiver.is_none_or(|r| attr_str(Some(r), "state") != "OFF");
+                // The AVR is the source of truth: anything short of on (standby, unreachable, not yet
+                // known) is off.
+                let reported = receiver.is_none_or(|r| {
+                    !matches!(attr_str(Some(r), "state").as_str(), "OFF" | "STANDBY" | "UNAVAILABLE" | "UNKNOWN" | "")
+                });
                 match self.pending_power {
                     Some((want, at)) if want != reported && at.elapsed() < POWER_TIMEOUT => want,
                     _ => reported,
@@ -1708,6 +1712,7 @@ fn apply_now(app: &AppWindow, m: &Model) {
         }
     }
     app.set_awake(m.awake);
+    app.set_receiver_on(m.receiver_on);
     backlight::set_ha(m.keys);
     app.set_battery(m.battery);
     if m.charging != app.get_charging() {
