@@ -663,6 +663,21 @@ fn wall_script() -> Vec<(u64, Act)> {
     vec![(300, load), (600, key("s")), (1500, wall(true)), (2200, step(1)), (500, step(3)), (900, wall(false)), (1600, wall(true)), (2200, ui(|a| crate::reveal_library(a, Duration::ZERO))), (2200, ui(|_| {}))]
 }
 
+/// The poster wall settled on one film: the first whose title contains `UC_DEMO_FOCUS`.
+fn feature_script() -> Vec<(u64, Act)> {
+    let movies = Rc::new(shelf("movies"));
+    let want = std::env::var("UC_DEMO_FOCUS").unwrap_or_default().to_lowercase();
+    let focus = movies.items.iter().position(|i| !want.is_empty() && i.title.to_lowercase().contains(&want)).unwrap_or(0) as i32;
+    let load: Act = Box::new(move |app, tx| {
+        let _ = tx.send(UiAction::SelectSource("KODI".into()));
+        app.set_lib_heading("MOVIES".into());
+        app.set_lib_count(movies.count.clone().into());
+        app.set_lib_items(Rc::new(slint::VecModel::from(movies.items.clone())).into());
+        app.set_lib_focus(focus);
+    });
+    vec![(300, load), (600, key("s")), (1500, ui(|a| crate::library_stage(a, 4))), (4000, ui(|_| {}))]
+}
+
 /// The wall's three ways of showing the highlighted title's details, one after another.
 fn walls_script() -> Vec<(u64, Act)> {
     let movies = Rc::new(shelf("movies"));
@@ -744,6 +759,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         Some("library") => return library_script(),
         Some("picker") => return picker_script(),
         Some("wall") => return wall_script(),
+        Some("feature") => return feature_script(),
         Some("walls") => return walls_script(),
         _ => {}
     }
