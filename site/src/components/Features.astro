@@ -235,7 +235,8 @@ const lights = [
   .lights-card { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr); align-items: center; }
   .lights-card .copy { padding: 26px; }
   .lights {
-    list-style: none; margin: 0; padding: 30px 26px 0 0; height: 420px; contain: size; overflow-anchor: none;
+    /* Reaches 80px left into the text column (empty padding), so the first remote's glow isn't clipped by this box's edge. */
+    list-style: none; margin: 0 0 0 -80px; padding: 30px 26px 0 80px; height: 420px; contain: size; overflow-anchor: none;
     /* A faint fade at the bottom edge, so the remotes ease out of the card instead of stopping at a hard line. */
     -webkit-mask: linear-gradient(to bottom, #000 calc(100% - 56px), rgb(0 0 0 / 0.6));
     mask: linear-gradient(to bottom, #000 calc(100% - 56px), rgb(0 0 0 / 0.6));
@@ -261,7 +262,7 @@ const lights = [
   @media (max-width: 760px) {
     .lights-card { grid-template-columns: minmax(0, 1fr); }
     .lights-card .copy { padding: 22px 22px 0; }
-    .lights { padding: 22px 16px 0; height: 330px; gap: 10px; }
+    .lights { margin-left: 0; padding: 22px 16px 0; height: 330px; gap: 10px; }
   }
   @media (max-width: 600px) {
     .bento { grid-template-columns: minmax(0, 1fr); }
