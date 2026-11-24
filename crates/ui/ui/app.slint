@@ -309,6 +309,7 @@ export component AppWindow inherits Window {
     in property <string> time-left;
     in property <string> ends-at;
     in property <image> backdrop;
+    in property <image> grain;
     in property <string> media-sub;
     in property <bool> paused;
     in property <string> elapsed;
@@ -689,7 +690,15 @@ export component AppWindow inherits Window {
                             height: 800px;
                             source: root.backdrop;
                             image-fit: cover;
-                            opacity: 0.8;
+                            opacity: 0.55;
+                        }
+                        Image {
+                            width: 480px;
+                            height: 800px;
+                            source: root.grain;
+                            image-fit: fill;
+                            image-rendering: pixelated;
+                            opacity: root.backdrop.width > 0 ? 1 : 0;
                         }
                         Rectangle {
                             background: @linear-gradient(180deg, #00000066 0%, #00000022 26%, #000000B0 52%, #000000 74%);
