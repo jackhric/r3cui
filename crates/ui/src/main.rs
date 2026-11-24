@@ -1558,8 +1558,8 @@ fn apply_now(app: &AppWindow, m: &Model) {
         }
     }
     app.set_charging(m.charging);
-    app.set_volume(m.volume);
-    app.set_volume_max(m.volume_max.max(1));
+    // Shown as 0-100 of the receiver's limit; the dB figure stays the receiver's own.
+    app.set_volume(volume_percent(m.volume, m.volume_max));
     app.set_volume_db(volume_db(m.volume).into());
     app.set_muted(m.muted);
 
@@ -1642,6 +1642,10 @@ fn apply_now(app: &AppWindow, m: &Model) {
     app.set_media_format_logo_size(mark.size);
     app.set_media_format_logo_baseline(mark.baseline);
     app.set_media_format_label(label.into());
+}
+
+fn volume_percent(volume: i32, max: i32) -> i32 {
+    ((volume.max(0) as f64 / max.max(1) as f64) * 100.0).round().min(100.0) as i32
 }
 
 /// Denon reports volume as dB + 80, so the receiver's own dB reading is the level minus 80.
@@ -1833,6 +1837,9 @@ mod tests {
     fn formats() {
         assert_eq!(volume_db(62), "−18 dB");
         assert_eq!(volume_db(80), "0 dB");
+        assert_eq!(volume_percent(72, 72), 100);
+        assert_eq!(volume_percent(36, 72), 50);
+        assert_eq!(volume_percent(80, 72), 100);
         assert_eq!(clock(4328.0), "1:12:08");
         assert_eq!(clock(548.0), "9:08");
         assert_eq!(episode("episode", "S1E4"), "Season 1 · Episode 4");

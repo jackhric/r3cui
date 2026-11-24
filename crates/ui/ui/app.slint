@@ -160,8 +160,6 @@ component VolumeChip inherits HorizontalLayout {
 
 component VolumeReadout inherits Rectangle {
     in property <int> volume;
-    // The receiver's own volume limit: the bar is full there.
-    in property <int> volume-max: 98;
     in property <string> volume-db;
     in property <bool> muted;
     in property <length> top;
@@ -192,7 +190,7 @@ component VolumeReadout inherits Rectangle {
     Bar {
         x: 40px;
         y: root.top + 254px;
-        value: root.volume / root.volume-max;
+        value: root.volume / 100;
         tint: root.muted ? Theme.t3 : Theme.accent;
     }
 }
@@ -294,8 +292,8 @@ export component AppWindow inherits Window {
     in property <string> clock;
     in property <int> battery: 100;
 
+    // 0-100 of the receiver's volume limit.
     in property <int> volume;
-    in property <int> volume-max: 98;
     in property <string> volume-db;
     in property <bool> muted;
     in property <bool> volume-overlay;
@@ -1397,7 +1395,6 @@ export component AppWindow inherits Window {
                 height: 800px;
                 top: 270px;
                 volume: root.volume;
-                volume-max: root.volume-max;
                 volume-db: root.volume-db;
                 muted: root.muted;
             }
