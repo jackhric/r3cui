@@ -105,18 +105,41 @@ const lights = [
   }
   const stop = (card: HTMLElement) => card.querySelector('video')?.pause();
 
-  // Backlighting: each remote rises the nearer the pointer is to it, so they lift and settle one by one as it moves.
+  // Backlighting: each remote rises the nearer the pointer (or finger) is to it, so they lift and settle one by one.
   const lightsCard = document.querySelector<HTMLElement>('#features .lights-card');
-  if (lightsCard && !still.matches && matchMedia('(hover: hover)').matches) {
+  if (lightsCard && !still.matches) {
     const remotes = [...lightsCard.querySelectorAll<HTMLElement>('.lights .remote')];
-    lightsCard.addEventListener('pointermove', e => {
+    const liftAt = (x: number) => {
       for (const r of remotes) {
         const box = r.getBoundingClientRect();
-        const away = Math.abs(e.clientX - (box.left + box.width / 2)) / (box.width * 2.4);
+        const away = Math.abs(x - (box.left + box.width / 2)) / (box.width * 2.4);
         r.style.setProperty('--lift', Math.max(0, 1 - away * away).toFixed(3));
       }
-    });
-    lightsCard.addEventListener('pointerleave', () => remotes.forEach(r => r.style.removeProperty('--lift')));
+    };
+    const raiseAll = () => remotes.forEach(r => r.style.setProperty('--lift', '1'));
+    if (matchMedia('(hover: hover)').matches) {
+      lightsCard.addEventListener('pointermove', e => liftAt(e.clientX));
+      lightsCard.addEventListener('pointerleave', () => remotes.forEach(r => r.style.removeProperty('--lift')));
+    } else {
+      // Touch: a finger down or dragging sideways ripples the row (vertical swipes still scroll, see touch-action),
+      // and lifting it settles every remote back up. On first sight a wave runs across once, as a hint.
+      lightsCard.classList.add('touch');
+      const track = (e: PointerEvent) => { if (e.pointerType !== 'mouse') liftAt(e.clientX); };
+      lightsCard.addEventListener('pointerdown', track);
+      lightsCard.addEventListener('pointermove', track);
+      for (const end of ['pointerup', 'pointercancel'] as const) lightsCard.addEventListener(end, () => setTimeout(raiseAll, 450));
+      const wave = () => {
+        const first = remotes[0].getBoundingClientRect(), last = remotes.at(-1)!.getBoundingClientRect();
+        const from = first.left, to = last.right, t0 = performance.now(), length = 1400;
+        const step = (now: number) => {
+          const k = Math.min(1, (now - t0) / length);
+          liftAt(from + (to - from) * k);
+          if (k < 1) requestAnimationFrame(step); else setTimeout(raiseAll, 250);
+        };
+        requestAnimationFrame(step);
+      };
+      new IntersectionObserver(([e], io) => { if (e.isIntersecting) { io.disconnect(); setTimeout(wave, 300); } }, { threshold: 0.6 }).observe(lightsCard);
+    }
   }
 
   const cards = [...document.querySelectorAll<HTMLElement>('#features .card')];
@@ -226,6 +249,9 @@ const lights = [
      shadows fade out softly. */
   .lights .remote { translate: 0 calc(var(--rest, 0px) * (1 - var(--lift, 0))); transition: translate 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease; }
   .lights-card:focus-visible .remote { --lift: 1; }
+  /* Touch screens: the row rests lower so a finger can lift it; sideways drags reach the script, vertical ones scroll. */
+  .lights-card.touch { --rest: 34px; }
+  .lights-card.touch .lights { touch-action: pan-y; }
 
   @media (max-width: 760px) {
     .lights-card { grid-template-columns: minmax(0, 1fr); }
