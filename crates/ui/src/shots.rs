@@ -637,6 +637,40 @@ fn wall_script() -> Vec<(u64, Act)> {
     vec![(300, load), (600, key("s")), (1500, wall(true)), (2200, step(1)), (500, step(3)), (900, wall(false)), (1600, wall(true)), (2200, ui(|a| crate::reveal_library(a, Duration::ZERO))), (2200, ui(|_| {}))]
 }
 
+/// The wall's three ways of showing the highlighted title's details, one after another.
+fn walls_script() -> Vec<(u64, Act)> {
+    let movies = Rc::new(shelf("movies"));
+    let load: Act = {
+        let shelf = movies.clone();
+        Box::new(move |app, tx| {
+            let _ = tx.send(UiAction::SelectSource("KODI".into()));
+            app.set_lib_heading("MOVIES".into());
+            app.set_lib_count(shelf.count.clone().into());
+            app.set_lib_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
+        })
+    };
+    let style = |n: i32| -> Act {
+        Box::new(move |app, _| {
+            crate::library_stage(app, 0);
+            app.set_lib_wall_style(n);
+            app.set_lib_focus(12);
+        })
+    };
+    let wall: fn() -> Act = || Box::new(|app, _| crate::library_stage(app, 4));
+    let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
+    let mut s: Vec<(u64, Act)> = vec![(300, load), (600, key("s"))];
+    for n in 1..=3 {
+        s.push((1200, style(n)));
+        s.push((900, wall()));
+        s.push((2000, step(1)));
+        s.push((1300, step(3)));
+        s.push((1300, step(1)));
+        s.push((1300, step(-3)));
+    }
+    s.push((1800, ui(|_| {})));
+    s
+}
+
 /// The subtitle picker with a long list: walk down past the screen and back.
 fn picker_script() -> Vec<(u64, Act)> {
     let open: Act = Box::new(|app, _| {
@@ -684,6 +718,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         Some("library") => return library_script(),
         Some("picker") => return picker_script(),
         Some("wall") => return wall_script(),
+        Some("walls") => return walls_script(),
         _ => {}
     }
     if name == Some("home") {

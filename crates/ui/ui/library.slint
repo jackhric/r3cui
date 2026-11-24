@@ -73,7 +73,7 @@ component PosterTile inherits Rectangle {
     }
 }
 
-// The details line: the font has no star, so the rating's star is drawn.
+// The details line: the font has no star, so the rating's star is a picture.
 component MetaLine inherits HorizontalLayout {
     in property <LibItem> item;
     in property <length> size: 15px;
@@ -83,13 +83,13 @@ component MetaLine inherits HorizontalLayout {
     if root.item.rating != "": Text { text: " · "; font-size: root.size; color: root.tint; vertical-alignment: center; }
     if root.item.rating != "": VerticalLayout {
         alignment: center;
-        Path {
+        // A picture, not a Path: drawn as a filled Path the star went missing on the remote,
+        // most likely its GPU's fill for concave shapes.
+        Image {
             width: root.size * 0.85;
             height: root.size * 0.85;
-            viewbox-width: 24;
-            viewbox-height: 24;
-            commands: "M12 2.6l2.9 6 6.5.8-4.8 4.5 1.2 6.5L12 17.2l-5.8 3.2 1.2-6.5L2.6 9.4l6.5-.8z";
-            fill: root.tint;
+            source: @image-url("icons/star.svg");
+            colorize: root.tint;
         }
     }
     if root.item.rating != "": Text { text: " " + root.item.rating; font-size: root.size; color: root.tint; vertical-alignment: center; }
@@ -186,6 +186,32 @@ component Card inherits Rectangle {
     }
 }
 
+// What the highlighted title is about, bottom-aligned: the plot trimmed to `lines`.
+component Details inherits Rectangle {
+    in property <LibItem> item;
+    in property <int> lines: 4;
+    VerticalLayout {
+        alignment: end;
+        spacing: 8px;
+        Text { text: root.item.title; font-size: 26px; font-weight: 600; color: Theme.text; overflow: elide; }
+        MetaLine { item: root.item; alignment: start; }
+        if root.item.genre != "": Text { text: root.item.genre; font-size: 14px; color: Theme.t3; overflow: elide; }
+        if root.item.progress > 0: Rectangle {
+            height: 4px;
+            Rectangle { width: 160px; border-radius: 2px; background: Theme.track; }
+            Rectangle { width: 160px * root.item.progress; border-radius: 2px; background: Theme.accent; }
+        }
+        if root.item.plot != "": Text {
+            text: root.item.plot;
+            font-size: 16px;
+            color: Theme.text-dim;
+            wrap: word-wrap;
+            overflow: elide;
+            height: min(self.preferred-height, root.lines * 22px);
+        }
+    }
+}
+
 export component Library inherits Rectangle {
     in property <int> mode;
     in property <string> heading;
@@ -193,6 +219,7 @@ export component Library inherits Rectangle {
     in property <[image]> posters;
     in property <[LibItem]> items;
     in property <int> at;
+    in property <int> wall-style: 1;
     property <float> pos: root.at;
     animate pos { duration: 320ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
     property <LibItem> current: root.items.length == 0 ? { } : root.items[root.at];
@@ -295,14 +322,20 @@ export component Library inherits Rectangle {
         }
     }
 
-    // 4: a wall of posters with the highlight lifted out of it.
+    // 4: a wall of posters with the highlight lifted out of it, and what the highlighted title is
+    // about along the bottom. `wall-style` picks how: 1 a solid sheet under the grid, 2 the grid
+    // running on beneath a fading overlay, 3 the details opening up inline below the highlighted row.
     if root.mode == 4: Rectangle {
         clip: true;
         property <float> scroll: floor(root.pos / 3);
         animate scroll { duration: 320ms; easing: ease-out; }
+        property <int> focus-row: floor(root.at / 3);
+        property <float> first: root.wall-style == 3 ? 132 : 250;
         for it[i] in root.items: cell := Rectangle {
             property <bool> on: i == root.at;
-            property <float> top: (floor(i / 3) - parent.scroll) * 222 + 250;
+            property <float> below: root.wall-style == 3 && floor(i / 3) > parent.focus-row ? 1 : 0;
+            animate below { duration: 320ms; easing: ease-out; }
+            property <float> top: (floor(i / 3) - parent.scroll) * 222 + parent.first + self.below * 300;
             visible: self.top > -240 && self.top < 820;
             x: (24 + mod(i, 3) * 148) * 1px;
             y: self.top * 1px;
@@ -330,16 +363,39 @@ export component Library inherits Rectangle {
                 y: -3px;
                 width: parent.width + 6px;
                 height: parent.height + 6px;
-                border-radius: 0;
                 border-width: 2px;
                 border-color: Theme.accent;
             }
         }
-        Rectangle { y: 0; height: 230px; background: @linear-gradient(180deg, #000000 0%, #000000 55%, #00000000 100%); }
-        Text { x: 24px; y: 92px; text: root.heading; font-size: 15px; font-weight: 600; color: Theme.t2; letter-spacing: 1.5px; }
-        Text { x: 24px; y: 92px; width: root.width - 48px; text: root.count; font-size: 15px; color: Theme.t3; horizontal-alignment: right; }
-        Text { x: 24px; y: 124px; width: root.width - 48px; text: root.current.title; font-size: 24px; font-weight: 600; color: Theme.text; overflow: elide; }
-        MetaLine { x: 24px; y: 160px; height: 20px; item: root.current; alignment: start; }
-        Rectangle { y: root.height - 120px; height: 120px; background: @linear-gradient(180deg, #00000000 0%, #000000 80%); }
+        Rectangle { y: 0; height: 160px; background: @linear-gradient(180deg, #000000 0%, #000000 70%, #00000000 100%); }
+        Text { x: 24px; y: 80px; text: root.heading; font-size: 15px; font-weight: 600; color: Theme.t2; letter-spacing: 1.5px; }
+        Text { x: 24px; y: 80px; width: root.width - 48px; text: root.count; font-size: 15px; color: Theme.t3; horizontal-alignment: right; }
+
+        // 1: a solid sheet, the grid stopping above it.
+        if root.wall-style == 1: Rectangle {
+            y: 476px;
+            height: root.height - 476px;
+            background: #000000;
+            Rectangle { y: -36px; height: 36px; background: @linear-gradient(180deg, #00000000 0%, #000000 100%); }
+            Rectangle { x: 24px; y: 0; width: parent.width - 48px; height: 1px; background: Theme.hair; }
+            Details { x: 24px; y: 22px; width: parent.width - 48px; height: parent.height - 44px; item: root.current; lines: 5; }
+        }
+        // 2: the grid carries on underneath, fading out behind the words.
+        if root.wall-style == 2: Rectangle {
+            y: 400px;
+            height: root.height - 400px;
+            background: @linear-gradient(180deg, #00000000 0%, #000000D0 30%, #000000F5 60%, #000000 100%);
+            Details { x: 24px; y: 150px; width: parent.width - 48px; height: parent.height - 170px; item: root.current; lines: 4; }
+        }
+        // 3: the details open up right under the highlighted row.
+        if root.wall-style == 3: Details {
+            x: 24px;
+            y: (parent.first + 222 + (parent.focus-row - parent.scroll) * 222) * 1px;
+            width: parent.width - 48px;
+            height: 270px;
+            item: root.current;
+            lines: 5;
+        }
+        Rectangle { y: root.height - 40px; height: 40px; background: @linear-gradient(180deg, #00000000 0%, #000000 100%); visible: root.wall-style == 3; }
     }
 }

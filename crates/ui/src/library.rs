@@ -155,6 +155,7 @@ pub fn start(weak: slint::Weak<AppWindow>) {
                         crate::ui_call(&weak, move |app| {
                             let rows: Vec<LibItem> = texts.iter().map(|e| item(e, slint::Image::default())).collect();
                             app.set_lib_items(std::rc::Rc::new(slint::VecModel::from(rows)).into());
+                            app.set_lib_wall_style(crate::settings::get().wall_style.unwrap_or(1));
                             app.set_lib_heading(heading.into());
                             app.set_lib_count(count.into());
                             URLS.with(|u| *u.borrow_mut() = (generation, urls));

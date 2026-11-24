@@ -35,6 +35,8 @@ pub struct Settings {
     pub sound_enabled: Option<bool>,
     /// 0 to 1, multiplied by the core's sound volume.
     pub sound_volume: Option<f32>,
+    /// How the poster wall shows the highlighted title: 1 sheet, 2 overlay, 3 inline.
+    pub wall_style: Option<i32>,
 }
 
 impl Settings {
@@ -104,6 +106,7 @@ fn parse(text: &str) -> Result<Settings, String> {
         haptics_intensity: v.get("haptics_intensity").and_then(Value::as_f64).map(|x| x.clamp(0.0, 1.0) as f32),
         sound_enabled: v.get("sound_enabled").and_then(Value::as_bool),
         sound_volume: v.get("sound_volume").and_then(Value::as_f64).map(|x| x.clamp(0.0, 1.0) as f32),
+        wall_style: v.get("wall_style").and_then(Value::as_i64).map(|x| x.clamp(1, 3) as i32),
     })
 }
 
