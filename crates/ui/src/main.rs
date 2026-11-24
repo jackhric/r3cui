@@ -1528,9 +1528,11 @@ fn flash_volume(weak: &slint::Weak<AppWindow>, generation: &Arc<AtomicU64>) {
 
 type Queued = (String, Value, Instant);
 
-/// One queue per entity, for one core session: commands for an entity go out one at a time, in
-/// the order they were made. Sent all at once, the integration handles them in parallel and
-/// Kodi can see a burst of presses in a different order.
+/// The longest a command waits for the previous one's answer before going out anyway.
+const PRESS_GAP: Duration = Duration::from_millis(40);
+
+/// One queue per entity, for one core session: commands for an entity go out in the order they
+/// were made, each after the previous one is answered or `PRESS_GAP` has passed.
 struct Commands {
     core: coreapi::Core,
     queues: RefCell<HashMap<String, mpsc::UnboundedSender<Queued>>>,
@@ -1551,12 +1553,29 @@ impl Commands {
                 while let Some((cmd, params, made)) = rx.recv().await {
                     let waited = made.elapsed();
                     let sent = Instant::now();
-                    let outcome = match core.execute_entity_command(&id, &cmd, params).await {
-                        Ok(r) if (200..300).contains(&r.code) => "ok".to_string(),
-                        Ok(r) => r.data.get("message").and_then(Value::as_str).unwrap_or("failed").to_string(),
-                        Err(e) => format!("{e:#}"),
+                    let data = json!({ "entity_id": id, "cmd_id": cmd, "params": params });
+                    let mut answer = core.submit("execute_entity_command", data).await;
+                    // The next command waits for this one's answer, but not for long. The
+                    // integration reorders commands that arrive together; a short gap keeps the
+                    // order, and a Wi-Fi stall on the answer no longer holds up the next press.
+                    let quick = match &mut answer {
+                        Ok(rx) => tokio::time::timeout(PRESS_GAP, rx).await.ok(),
+                        Err(_) => None,
                     };
-                    tracing::info!("{name} · {cmd} — {outcome} in {} ms (queued {} ms)", sent.elapsed().as_millis(), waited.as_millis());
+                    let name = name.clone();
+                    tokio::spawn(async move {
+                        let reply = match (quick, answer) {
+                            (Some(reply), _) => reply.map_err(|_| "no answer".to_string()),
+                            (None, Ok(rx)) => rx.await.map_err(|_| "no answer".to_string()),
+                            (None, Err(e)) => Err(format!("{e:#}")),
+                        };
+                        let outcome = match reply {
+                            Ok(r) if (200..300).contains(&r.code) => "ok".to_string(),
+                            Ok(r) => r.data.get("message").and_then(Value::as_str).unwrap_or("failed").to_string(),
+                            Err(e) => e,
+                        };
+                        tracing::info!("{name} · {cmd} — {outcome} in {} ms (queued {} ms)", sent.elapsed().as_millis(), waited.as_millis());
+                    });
                 }
             });
             tx

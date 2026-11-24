@@ -85,12 +85,15 @@ pub struct Core {
 
 impl Core {
     pub async fn request(&self, msg: &str, data: Value) -> Result<Response> {
+        self.submit(msg, data).await?.await.map_err(|_| anyhow!("no response to {msg}"))
+    }
+
+    /// Queue a request without waiting for its answer. Requests reach the core in the order they
+    /// are submitted, so a burst keeps its order while none of it waits on another's round trip.
+    pub async fn submit(&self, msg: &str, data: Value) -> Result<oneshot::Receiver<Response>> {
         let (reply, rx) = oneshot::channel();
-        self.tx
-            .send(Out { msg: msg.to_string(), data, reply })
-            .await
-            .map_err(|_| anyhow!("core task gone"))?;
-        rx.await.map_err(|_| anyhow!("no response to {msg}"))
+        self.tx.send(Out { msg: msg.to_string(), data, reply }).await.map_err(|_| anyhow!("core task gone"))?;
+        Ok(rx)
     }
 
     /// All configured entities, following the server's pagination to the end.
