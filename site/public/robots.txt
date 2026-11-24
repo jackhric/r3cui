@@ -1,0 +1,6 @@
+# r3cui is served from jackhric.github.io/r3cui/. Search engines read robots.txt only at the domain root, so this file
+# mainly points crawlers and AI agents that look here to the sitemap and the plain-text guide.
+User-agent: *
+Allow: /
+
+Sitemap: https://jackhric.github.io/r3cui/sitemap-index.xml

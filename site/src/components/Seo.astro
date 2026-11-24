@@ -5,12 +5,16 @@ interface Props { title: string; description: string }
 const { title, description } = Astro.props;
 const repo = 'https://github.com/jackhric/r3cui';
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
-const image = new URL(`${import.meta.env.BASE_URL.replace(/\/$/, '')}/og.jpg`, Astro.site).href;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+// Share images, drawn from the card layouts and saved by the build: wide for X/Slack/Discord, square for Google.
+const image = new URL(`${base}/og.png`, Astro.site).href;
+const square = new URL(`${base}/og-square.png`, Astro.site).href;
+const alt = 'r3cui: a simplified custom frontend for the Unfolded Circle Remote 3, shown on three remotes';
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
-    { '@type': 'WebSite', name: 'r3cui', url: canonical },
+    { '@type': 'WebSite', name: 'r3cui', alternateName: 'Remote 3 Custom UI', url: canonical, inLanguage: 'en' },
     {
       '@type': 'SoftwareSourceCode',
       name: 'r3cui',
@@ -24,7 +28,9 @@ const jsonLd = {
       alternateName: 'Remote 3 Custom UI',
       description,
       url: canonical,
-      image,
+      image: [image, square],
+      screenshot: image,
+      inLanguage: 'en',
       applicationCategory: 'MultimediaApplication',
       operatingSystem: 'Unfolded Circle Remote 3 firmware 2.8.4 or newer',
       softwareVersion: release.version,
@@ -56,12 +62,25 @@ const jsonLd = {
 <meta property="og:title" content={title} />
 <meta property="og:description" content={description} />
 <meta property="og:url" content={canonical} />
+<meta property="og:locale" content="en_US" />
 <meta property="og:image" content={image} />
+<meta property="og:image:type" content="image/png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="r3cui: a simplified Unfolded Circle Remote 3 interface for your home theater" />
+<meta property="og:image:alt" content={alt} />
+<meta property="og:image" content={square} />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="1200" />
+<meta property="og:image:alt" content={alt} />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content={title} />
 <meta name="twitter:description" content={description} />
 <meta name="twitter:image" content={image} />
+<meta name="twitter:image:alt" content={alt} />
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f9f9" />
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141414" />
+<link rel="manifest" href={`${base}/manifest.webmanifest`} />
+<link rel="apple-touch-icon" href={`${base}/apple-touch-icon.png`} />
+<link rel="alternate" type="text/plain" title="r3cui for AI assistants" href={`${base}/llms.txt`} />
 <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
