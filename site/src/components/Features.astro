@@ -109,17 +109,20 @@ const lights = [
   const lightsCard = document.querySelector<HTMLElement>('#features .lights-card');
   if (lightsCard && !still.matches) {
     const remotes = [...lightsCard.querySelectorAll<HTMLElement>('.lights .remote')];
+    // --lift raises a remote and --hot lights its halo; both live on the <li> so the halo can read them.
     const liftAt = (x: number) => {
       for (const r of remotes) {
         const box = r.getBoundingClientRect();
         const away = Math.abs(x - (box.left + box.width / 2)) / (box.width * 2.4);
-        r.style.setProperty('--lift', Math.max(0, 1 - away * away).toFixed(3));
+        const lift = Math.max(0, 1 - away * away).toFixed(3);
+        r.parentElement!.style.setProperty('--lift', lift);
+        r.parentElement!.style.setProperty('--hot', lift);
       }
     };
-    const raiseAll = () => remotes.forEach(r => r.style.setProperty('--lift', '1'));
+    const raiseAll = () => remotes.forEach(r => { r.parentElement!.style.setProperty('--lift', '1'); r.parentElement!.style.removeProperty('--hot'); });
     if (matchMedia('(hover: hover)').matches) {
       lightsCard.addEventListener('pointermove', e => liftAt(e.clientX));
-      lightsCard.addEventListener('pointerleave', () => remotes.forEach(r => r.style.removeProperty('--lift')));
+      lightsCard.addEventListener('pointerleave', () => remotes.forEach(r => { r.parentElement!.style.removeProperty('--lift'); r.parentElement!.style.removeProperty('--hot'); }));
     } else {
       // Touch: a finger down or dragging sideways ripples the row (vertical swipes still scroll, see touch-action),
       // and lifting it settles every remote back up. On first sight a wave runs across once, as a hint.
@@ -239,16 +242,18 @@ const lights = [
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-self: stretch;
   }
   .lights li { position: relative; display: flex; justify-content: center; }
+  /* A faint halo in the remote's key colour fades in behind it as the pointer lifts it (--hot, set by the script). */
   .lights li::before {
-    content: ''; position: absolute; left: 50%; top: 52%; width: 150%; height: 60%; translate: -50% 0; pointer-events: none;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) 22%, transparent), transparent);
+    content: ''; position: absolute; left: 50%; top: 34%; width: 170%; height: 80%; translate: -50% 0; pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) 55%, transparent), transparent);
+    opacity: var(--hot, 0); transition: opacity 0.18s ease-out; filter: blur(6px);
   }
   .lights .remote { width: min(140px, 100%); }
   /* Each remote rises by its own --lift, set from how close the pointer is (see the script), so they ripple as it moves. */
   /* Short and eased out, so the lift follows the pointer closely. The card, not the list, clips the remotes, so their
      shadows fade out softly. */
   .lights .remote { translate: 0 calc(var(--rest, 0px) * (1 - var(--lift, 0))); transition: translate 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease; }
-  .lights-card:focus-visible .remote { --lift: 1; }
+  .lights-card:focus-visible li { --lift: 1; }
   /* Touch screens: the row rests lower so a finger can lift it; sideways drags reach the script, vertical ones scroll. */
   .lights-card.touch { --rest: 34px; }
   .lights-card.touch .lights { touch-action: pan-y; }
