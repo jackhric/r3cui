@@ -71,6 +71,7 @@ pub struct Model {
     pub scanning: bool,
     pub status: Vec<net::StatusLine>,
     pub warning: String,
+    pub keys: backlight::Wish,
     /// Demo only: pretend Home Assistant cannot be reached.
     pub demo_ha_down: bool,
 }
@@ -414,6 +415,36 @@ impl Session {
         });
     }
 
+    /// What the Home Assistant helpers ask of the key backlight. Without the mode helper, the
+    /// light alone decides: on means its colour, off means follow the screen.
+    fn keys_wish(&self) -> backlight::Wish {
+        use backlight::{Rgb, Wish};
+        let cfg = settings::get();
+        let ending = |suffix: &str| self.entities.iter().find(|e| !suffix.is_empty() && entity_id(e).ends_with(suffix));
+        let light = ending(&cfg.keys_light);
+        let lit = light.is_some_and(|l| attr_str(Some(l), "state") == "ON");
+        let colour = || {
+            let (h, s, v) = (attr_f64(light, "hue"), attr_f64(light, "saturation") / 255.0, attr_f64(light, "brightness") / 255.0);
+            // HSV to RGB, with the light's brightness as the value.
+            let f = |n: f64| {
+                let k = (n + h / 60.0) % 6.0;
+                ((v - v * s * k.min(4.0 - k).clamp(0.0, 1.0)) * 255.0).round() as u8
+            };
+            Rgb(f(5.0), f(3.0), f(1.0))
+        };
+        let mode = ending(&cfg.keys_mode).map(|m| {
+            let m = attr_str(Some(m), "current_option");
+            if m.is_empty() { attr_str(ending(&cfg.keys_mode), "state") } else { m }
+        });
+        match mode.as_deref().map(str::to_lowercase).as_deref() {
+            Some("off") => Wish::Off,
+            Some("custom") if light.is_some() => Wish::Custom(colour()),
+            Some(_) => Wish::Follow,
+            None if lit => Wish::Custom(colour()),
+            None => Wish::Follow,
+        }
+    }
+
     fn model(&self) -> Model {
         let screen = self.target(Target::Screen);
         let receiver = self.target(Target::Volume).filter(|_| self.volume != self.screen);
@@ -436,6 +467,7 @@ impl Session {
             on_kodi: source.is_empty() || source.eq_ignore_ascii_case("kodi"),
         });
         Model {
+            keys: self.keys_wish(),
             wifi_ssid: self.wifi_ssid.clone(),
             wifi: self.wifi.clone(),
             scanning: self.scanning,
@@ -871,6 +903,13 @@ pub fn apply(app: &AppWindow, m: &Model) {
         }
     }
     app.set_awake(m.awake);
+    let (mode, colour) = match m.keys {
+        backlight::Wish::Follow => (0, backlight::Rgb::OFF),
+        backlight::Wish::Custom(c) => (1, c),
+        backlight::Wish::Off => (2, backlight::Rgb::OFF),
+    };
+    app.set_keys_mode(mode);
+    app.set_keys_color(slint::Color::from_rgb_u8(colour.0, colour.1, colour.2));
     app.set_receiver_on(m.receiver_on);
     app.set_battery(m.battery);
     app.set_volume(m.volume);

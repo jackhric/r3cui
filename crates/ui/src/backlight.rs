@@ -117,6 +117,15 @@ impl Frame {
         self.0[zone.index()]
     }
 
+    /// The same pattern of lit and dimmed zones in another colour.
+    pub fn recolour(mut self, from: Rgb, to: Rgb) -> Self {
+        let peak = |c: Rgb| c.0.max(c.1).max(c.2) as f32;
+        for c in self.0.iter_mut().filter(|c| !c.is_off()) {
+            *c = to.dim(if peak(from) > 0.0 { peak(*c) / peak(from) } else { 1.0 });
+        }
+        self
+    }
+
     /// Give each dark zone that sits beside a lit one a faint share of its colour (see [`BLEED`]).
     pub fn spill(self) -> Self {
         let mut out = self;
@@ -185,6 +194,17 @@ impl Backlight {
     }
 }
 
+/// What Home Assistant wants from the keys. The screen still decides which keys matter.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Wish {
+    /// Colour and keys both follow the screen.
+    #[default]
+    Follow,
+    /// The keys the screen would light, in this colour (already scaled by its brightness).
+    Custom(Rgb),
+    Off,
+}
+
 /// What decides the keys: a snapshot of what the window is showing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UiState {
@@ -198,6 +218,7 @@ pub struct UiState {
     pub playing: bool,
     pub volume_overlay: bool,
     pub muted: bool,
+    pub wish: Wish,
 }
 
 /// UI thread only.
@@ -212,6 +233,14 @@ pub fn observe(app: &AppWindow) -> (UiState, Rgb) {
         playing: !app.get_media_title().is_empty(),
         volume_overlay: app.get_volume_overlay(),
         muted: app.get_muted(),
+        wish: match app.get_keys_mode() {
+            1 => {
+                let c = app.get_keys_color();
+                Wish::Custom(Rgb(c.red(), c.green(), c.blue()))
+            }
+            2 => Wish::Off,
+            _ => Wish::Follow,
+        },
     };
     (state, Rgb(accent.red(), accent.green(), accent.blue()))
 }
@@ -219,7 +248,7 @@ pub fn observe(app: &AppWindow) -> (UiState, Rgb) {
 /// The policy: which keys are lit, and in what colour, for what is on screen. Keys that do
 /// something right now are lit in the accent; the power key shows red or green when it matters.
 pub fn frame_for(s: UiState, accent: Rgb) -> Frame {
-    if !s.awake {
+    if !s.awake || s.wish == Wish::Off {
         return Frame::OFF;
     }
     let volume = |frame: Frame| {
@@ -242,6 +271,10 @@ pub fn frame_for(s: UiState, accent: Rgb) -> Frame {
     } else {
         volume(Frame::OFF.light(DPAD, accent).light(&[Zone::Home, Zone::RecordMenuStopPlay], accent))
     };
+    let base = match s.wish {
+        Wish::Custom(colour) => base.recolour(accent, colour),
+        _ => base,
+    };
     let frame = match s.power_hold {
         Some(turning_off) => base.light(&[Zone::ChannelUpPower], if turning_off { Rgb::RED } else { Rgb::GREEN }),
         None => base,
@@ -256,7 +289,7 @@ mod tests {
     const ACCENT: Rgb = Rgb(10, 20, 30);
 
     fn state() -> UiState {
-        UiState { awake: true, power_hold: None, receiver_on: true, page: 0, kodi: false, playing: false, volume_overlay: false, muted: false }
+        UiState { awake: true, power_hold: None, receiver_on: true, page: 0, kodi: false, playing: false, volume_overlay: false, muted: false, wish: Wish::Follow }
     }
 
     #[test]
@@ -282,6 +315,15 @@ mod tests {
         let holding = frame_for(UiState { power_hold: Some(true), ..state() }, ACCENT);
         assert_eq!(holding.get(Zone::ChannelUpPower), Rgb::RED);
         assert_eq!(holding.get(Zone::VolumeDown), ACCENT, "the rest of the keys keep their colours");
+    }
+
+    #[test]
+    fn home_assistant_can_recolour_or_darken_the_keys() {
+        let custom = frame_for(UiState { muted: true, wish: Wish::Custom(Rgb(0, 0, 200)), ..state() }, ACCENT);
+        assert_eq!(custom.get(Zone::MutePrevious), Rgb(0, 0, 200));
+        assert_eq!(custom.get(Zone::VolumeDown), Rgb(0, 0, 53), "dimmed keys stay dimmed, in the new colour");
+        assert_eq!(custom.get(Zone::Home), Rgb::OFF);
+        assert_eq!(frame_for(UiState { wish: Wish::Off, ..state() }, ACCENT), Frame::OFF);
     }
 
     #[test]
