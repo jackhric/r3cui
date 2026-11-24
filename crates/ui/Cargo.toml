@@ -33,8 +33,10 @@ optional = true
 
 [features]
 default = ["desktop"]
-desktop = ["slint/backend-winit", "slint/renderer-femtovg"]
+desktop = ["slint/backend-winit", "slint/renderer-femtovg", "preview"]
 device = ["slint/backend-linuxkms", "slint/renderer-femtovg", "slint/renderer-software", "slint/software-renderer-path", "dep:evdev"]
+# Screenshot, recording and remote-photo framing tools (--shots, --snap, --record, --frame).
+preview = []
 
 [build-dependencies]
 slint-build = "1.19"

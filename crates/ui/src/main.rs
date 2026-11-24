@@ -5,6 +5,7 @@
 
 mod audio;
 mod backlight;
+#[cfg(feature = "preview")]
 mod device;
 #[cfg(feature = "device")]
 mod evdev_input;
@@ -19,6 +20,7 @@ mod kodi;
 mod lava;
 mod net;
 mod settings;
+#[cfg(feature = "preview")]
 mod shots;
 mod slider;
 
@@ -213,6 +215,7 @@ fn main() -> anyhow::Result<()> {
 
     let args: Vec<String> = std::env::args().collect();
     let arg = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1));
+    #[cfg(feature = "preview")]
     let frame = arg("--frame").map(|p| device::Device::load(p.as_ref())).transpose()?;
     let (act_tx, mut act_rx) = mpsc::unbounded_channel();
     #[cfg(feature = "device")]
@@ -226,6 +229,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
     });
+    #[cfg(feature = "preview")]
     if let Some(dir) = arg("--shots") {
         return shots::run(app, dir.into(), frame);
     }
@@ -353,6 +357,7 @@ fn main() -> anyhow::Result<()> {
     if let Some(page) = arg("--page").and_then(|p| p.parse().ok()) {
         app.invoke_go(page, 0);
     }
+    #[cfg(feature = "preview")]
     let _snap = arg("--snap").map(|out| shots::snap(&app, out.into(), device::Device::load_opt(arg("--frame"))));
     // The window is the source of truth for what is on screen, so the key backlight follows it
     // from here; the core is only told when the answer changes.
@@ -373,6 +378,7 @@ fn main() -> anyhow::Result<()> {
     };
     let _rest = rest_on_charger(&app);
     let _lava = animate_lava(&app);
+    #[cfg(feature = "preview")]
     let _recording = match record {
         Some(out) => {
             let device = frame.ok_or_else(|| anyhow::anyhow!("--record needs --frame <remote photo>"))?;
