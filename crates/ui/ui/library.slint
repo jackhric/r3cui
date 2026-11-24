@@ -222,12 +222,12 @@ component Details inherits Rectangle {
     in property <int> lines: 4;
     // Every line has a fixed place, and the plot a box `lines` tall, so moving between titles
     // never shifts the title, year or rating, however long or short the plot.
-    height: 104px + root.lines * 22px;
-    Text { y: 0; height: 34px; width: root.width; text: root.item.title; font-size: 26px; font-weight: 600; color: Theme.text; overflow: elide; vertical-alignment: center; }
-    MetaLine { y: 40px; height: 20px; item: root.item; alignment: start; }
-    Text { y: 66px; height: 18px; width: root.width; text: root.item.genre; font-size: 14px; color: Theme.t3; overflow: elide; }
+    height: 116px + root.lines * 25px;
+    Text { y: 0; height: 38px; width: root.width; text: root.item.title; font-size: 30px; font-weight: 600; color: Theme.text; overflow: elide; vertical-alignment: center; }
+    MetaLine { y: 44px; height: 22px; size: 17px; item: root.item; alignment: start; }
+    Text { y: 73px; height: 20px; width: root.width; text: root.item.genre; font-size: 15px; color: Theme.t3; overflow: elide; }
     if root.item.progress > 0: Rectangle {
-        y: 90px;
+        y: 101px;
         width: 160px;
         height: 4px;
         border-radius: 2px;
@@ -235,11 +235,11 @@ component Details inherits Rectangle {
         Rectangle { x: 0; width: parent.width * root.item.progress; border-radius: 2px; background: Theme.accent; }
     }
     Text {
-        y: 104px;
+        y: 116px;
         width: root.width;
-        height: root.lines * 22px;
+        height: root.lines * 25px;
         text: root.item.plot;
-        font-size: 16px;
+        font-size: 18px;
         color: Theme.text-dim;
         wrap: word-wrap;
         overflow: elide;
@@ -366,7 +366,8 @@ export component Library inherits Rectangle {
         property <float> scroll: floor(root.pos / 3);
         animate scroll { duration: 320ms; easing: ease-out; }
         property <int> focus-row: floor(root.at / 3);
-        property <float> first: root.wall-style == 3 ? 132 : 250;
+        // Where the highlighted row sits: high up, just a sliver of the row before showing.
+        property <float> first: root.wall-style == 1 ? 140 : root.wall-style == 2 ? 110 : 120;
         for it[i] in root.items: cell := Rectangle {
             property <bool> on: i == root.at;
             property <float> below: root.wall-style == 3 && floor(i / 3) > parent.focus-row ? 1 : 0;
@@ -403,12 +404,12 @@ export component Library inherits Rectangle {
                 border-color: Theme.accent;
             }
         }
-        Rectangle { y: 0; height: 160px; background: @linear-gradient(180deg, #000000 0%, #000000 70%, #00000000 100%); }
+        Rectangle { y: 0; height: 104px; background: @linear-gradient(180deg, #000000 0%, #000000 62%, #00000000 100%); }
 
         // 1: a solid sheet, the grid stopping above it.
         if root.wall-style == 1: Rectangle {
-            y: 476px;
-            height: root.height - 476px;
+            y: 366px;
+            height: root.height - 366px;
             background: #000000;
             Rectangle { y: -36px; height: 36px; background: @linear-gradient(180deg, #00000000 0%, #000000 100%); }
             Rectangle { x: 24px; y: 0; width: parent.width - 48px; height: 1px; background: Theme.hair; }
@@ -416,8 +417,8 @@ export component Library inherits Rectangle {
         }
         // 2: the grid carries on underneath, fading out behind the words.
         if root.wall-style == 2: Rectangle {
-            y: 400px;
-            height: root.height - 400px;
+            y: 380px;
+            height: root.height - 380px;
             background: @linear-gradient(180deg, #00000000 0%, #000000D0 30%, #000000F5 60%, #000000 100%);
             Details { x: 24px; y: parent.height - 24px - self.height; width: parent.width - 48px; item: root.current; lines: 4; }
         }
