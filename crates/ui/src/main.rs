@@ -36,7 +36,9 @@ slint::include_modules!();
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 const VOLUME_OVERLAY: Duration = Duration::from_millis(1800);
 const JOIN_TIMEOUT: Duration = Duration::from_secs(45);
-const SLIDER_HOLD: Duration = Duration::from_secs(3);
+const SLIDER_HOLD: Duration = Duration::from_millis(1500);
+/// The longest the slider's level is shown while the receiver has not yet reported it.
+const SLIDER_SETTLE: Duration = Duration::from_secs(6);
 /// How long an input picked here is shown before the receiver's own report wins again.
 const SWITCH_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long a power change made here is believed before the receiver's own report wins again.
@@ -664,6 +666,8 @@ struct Session {
     pending_source: Option<(String, Instant)>,
     /// The same for power: the receiver can take a minute to report that it has come on.
     pending_power: Option<(bool, Instant)>,
+    /// And for mute, so a second double tap undoes the first even before the receiver reports.
+    pending_mute: Option<(bool, Instant)>,
 }
 
 impl Session {
@@ -737,10 +741,7 @@ impl Session {
 
     /// The level the next slider step starts from.
     fn volume_base(&self) -> i32 {
-        match self.slider_volume {
-            Some((v, at)) if at.elapsed() < SLIDER_HOLD => v,
-            _ => attr_f64(self.target(Target::Volume).or(self.target(Target::Screen)), "volume").round() as i32,
-        }
+        self.model().volume
     }
 
     /// What the Home Assistant helpers ask of the key backlight. Without the mode helper the
@@ -810,11 +811,21 @@ impl Session {
             status,
             warning,
             demo_ha_down: false,
-            volume: match self.slider_volume {
-                Some((v, at)) if at.elapsed() < SLIDER_HOLD => v,
-                _ => attr_f64(volume_from, "volume").round() as i32,
+            volume: {
+                let reported = attr_f64(volume_from, "volume").round() as i32;
+                match self.slider_volume {
+                    // Until the receiver has caught up, its reports are old levels on the way.
+                    Some((v, at)) if at.elapsed() < SLIDER_HOLD || (v != reported && at.elapsed() < SLIDER_SETTLE) => v,
+                    _ => reported,
+                }
             },
-            muted: volume_from.and_then(|e| e.pointer("/attributes/muted")).and_then(Value::as_bool).unwrap_or(false),
+            muted: {
+                let reported = volume_from.and_then(|e| e.pointer("/attributes/muted")).and_then(Value::as_bool).unwrap_or(false);
+                match self.pending_mute {
+                    Some((want, at)) if want != reported && at.elapsed() < SLIDER_SETTLE => want,
+                    _ => reported,
+                }
+            },
             source,
             sources: receiver
                 .and_then(|e| e.pointer("/attributes/source_list"))
@@ -887,6 +898,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         charging,
         pending_source: None,
         pending_power: None,
+        pending_mute: None,
         title: StableTitle::default(),
         awake: is_awake(power.get("mode").and_then(Value::as_str)),
         screen,
@@ -919,7 +931,23 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     };
     let mut tick = tokio::time::interval(Duration::from_secs(1));
     let mut ticks = 0u64;
-    let mut volume_gate = slider::Throttle::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(250)));
+    let mut volume_gate = slider::Pacer::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(250)), Duration::from_secs(1));
+    // Spawns the timer a `Send::Later` asks for, or sends at once.
+    let pace = |send: slider::Send, session: &Session| match send {
+        slider::Send::Now(v) => {
+            if let Some(entity) = session.target(Target::Volume) {
+                send_command(&core, entity, "volume".into(), json!({ "volume": v }));
+            }
+        }
+        slider::Send::Later(wait) => {
+            let tx = later_tx.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(wait).await;
+                let _ = tx.send(Later::SendVolume);
+            });
+        }
+        slider::Send::Wait => {}
+    };
     loop {
         tokio::select! {
             _ = tick.tick() => {
@@ -965,11 +993,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         show_tracks(weak, labels.iter().map(|l| (l.clone(), String::new())).collect(), current);
                     }
                     Later::Switched => {}
-                    Later::SendVolume => {
-                        if let (Some(v), Some(entity)) = (volume_gate.due(Instant::now()), session.target(Target::Volume)) {
-                            send_command(&core, entity, "volume".into(), json!({ "volume": v }));
-                        }
-                    }
+                    Later::SendVolume => pace(volume_gate.due(Instant::now()), &session),
                     Later::JoinDone(ok) => {
                         if session.joining.take().is_some() {
                             finish_join(weak, ok);
@@ -1015,6 +1039,11 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     }
                     if matches!(event, "SCAN_COMPLETED" | "CONNECTED" | "DISCONNECTED") {
                         refresh_wifi(Duration::ZERO);
+                    }
+                }
+                if ev.msg == "entity_change" && session.volume.as_deref() == ev.data.get("entity_id").and_then(Value::as_str) {
+                    if let Some(v) = ev.data.pointer("/new_state/attributes/volume").and_then(Value::as_f64) {
+                        pace(volume_gate.reported(v.round() as i32, Instant::now()), &session);
                     }
                 }
                 if ev.msg == "entity_change" && session.apply_change(&ev.data) {
@@ -1102,18 +1131,8 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         session.slider_volume = Some((v, Instant::now()));
                         flash_volume(weak, &overlay);
                         render(weak, &session.model());
-                        match volume_gate.offer(v, Instant::now()) {
-                            slider::Send::Now(v) => (Target::Volume, "volume".to_string(), json!({ "volume": v })),
-                            slider::Send::Later(wait) => {
-                                let tx = later_tx.clone();
-                                tokio::spawn(async move {
-                                    tokio::time::sleep(wait).await;
-                                    let _ = tx.send(Later::SendVolume);
-                                });
-                                continue;
-                            }
-                            slider::Send::Merged => continue,
-                        }
+                        pace(volume_gate.offer(v, Instant::now()), &session);
+                        continue;
                     }
                     UiAction::Slider(slider::Gesture::DoubleTap) => {
                         flash_volume(weak, &overlay);
@@ -1163,12 +1182,16 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     continue;
                 };
                 // Not every player has a toggle; the Denon via Home Assistant only has mute and unmute.
-                let cmd = if cmd == "mute_toggle" && !has_feature(entity, "mute_toggle") {
-                    let muted = entity.pointer("/attributes/muted").and_then(Value::as_bool).unwrap_or(false);
-                    if muted { "unmute" } else { "mute" }.to_string()
+                // The receiver reports late, so the toggle follows what this remote last asked for.
+                let cmd = if cmd == "mute_toggle" && target == Target::Volume {
+                    let (muted, toggles) = (session.model().muted, has_feature(entity, "mute_toggle"));
+                    session.pending_mute = Some((!muted, Instant::now()));
+                    render(weak, &session.model());
+                    if toggles { cmd } else { if muted { "unmute" } else { "mute" }.to_string() }
                 } else {
                     cmd
                 };
+                let Some(entity) = session.target(target) else { continue };
                 send_command(&core, entity, cmd, params);
             }
         }

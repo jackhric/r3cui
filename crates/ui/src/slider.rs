@@ -67,14 +67,19 @@ impl Slider {
     }
 }
 
-/// At most one volume command per interval. The first change goes out at once; changes during
-/// the gap are merged, and the latest goes out when the gap ends, so the receiver always lands on
-/// where the finger stopped.
-pub struct Throttle {
-    every: Duration,
-    last: Option<Instant>,
+/// Paces volume commands to what the receiver can take: one in flight at a time, at least
+/// `min_gap` apart. The next goes out once the receiver reports the last one, or after `max_wait`
+/// if it never does. Changes in between are merged, and the latest always goes out, so the
+/// receiver heads for wherever the finger is now and never builds up a queue.
+pub struct Pacer {
+    min_gap: Duration,
+    max_wait: Duration,
+    sent: Option<(i32, Instant)>,
+    confirmed: bool,
     pending: Option<i32>,
-    scheduled: bool,
+    /// When the timer already asked for will fire. An extra timer is harmless; one firing too
+    /// late is not, so a sooner moment always asks again.
+    scheduled: Option<Instant>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -82,39 +87,52 @@ pub enum Send {
     Now(i32),
     /// Call `due` after this long.
     Later(Duration),
-    /// A send is already scheduled; it will carry this value.
-    Merged,
+    /// Nothing to do now; a send is already scheduled, or there is nothing left to send.
+    Wait,
 }
 
-impl Throttle {
-    pub fn new(every: Duration) -> Self {
-        Self { every, last: None, pending: None, scheduled: false }
+impl Pacer {
+    pub fn new(min_gap: Duration, max_wait: Duration) -> Self {
+        Self { min_gap, max_wait, sent: None, confirmed: true, pending: None, scheduled: None }
     }
 
     pub fn offer(&mut self, value: i32, now: Instant) -> Send {
-        if self.scheduled {
-            self.pending = Some(value);
-            return Send::Merged;
-        }
-        match self.last.map(|t| now.duration_since(t)) {
-            Some(gap) if gap < self.every => {
-                self.pending = Some(value);
-                self.scheduled = true;
-                Send::Later(self.every - gap)
-            }
-            _ => {
-                self.last = Some(now);
-                Send::Now(value)
-            }
-        }
+        self.pending = Some(value);
+        self.next(now)
     }
 
-    /// The scheduled send: the latest value offered during the gap.
-    pub fn due(&mut self, now: Instant) -> Option<i32> {
-        self.scheduled = false;
-        let v = self.pending.take()?;
-        self.last = Some(now);
-        Some(v)
+    /// The receiver reported this level.
+    pub fn reported(&mut self, value: i32, now: Instant) -> Send {
+        if self.sent.is_some_and(|(v, _)| v == value) {
+            self.confirmed = true;
+        }
+        self.next(now)
+    }
+
+    /// The scheduled moment has come.
+    pub fn due(&mut self, now: Instant) -> Send {
+        if self.scheduled.is_some_and(|at| at <= now) {
+            self.scheduled = None;
+        }
+        self.next(now)
+    }
+
+    fn next(&mut self, now: Instant) -> Send {
+        let Some(value) = self.pending else { return Send::Wait };
+        if let Some((_, at)) = self.sent {
+            let ready = at + if self.confirmed { self.min_gap } else { self.max_wait };
+            if now < ready {
+                if self.scheduled.is_some_and(|at| at <= ready) {
+                    return Send::Wait;
+                }
+                self.scheduled = Some(ready);
+                return Send::Later(ready - now);
+            }
+        }
+        self.pending = None;
+        self.sent = Some((value, now));
+        self.confirmed = false;
+        Send::Now(value)
     }
 }
 
@@ -127,18 +145,25 @@ mod tests {
     }
 
     #[test]
-    fn throttle_sends_first_then_latest_per_interval() {
+    fn pacer_waits_for_the_receiver_and_sends_only_the_latest() {
         let t0 = Instant::now();
-        let mut t = Throttle::new(Duration::from_millis(100));
-        assert_eq!(t.offer(60, t0), Send::Now(60));
-        assert_eq!(t.offer(61, ms(t0, 30)), Send::Later(Duration::from_millis(70)));
-        assert_eq!(t.offer(62, ms(t0, 60)), Send::Merged);
-        assert_eq!(t.offer(63, ms(t0, 90)), Send::Merged);
-        assert_eq!(t.due(ms(t0, 100)), Some(63));
-        assert_eq!(t.offer(64, ms(t0, 150)), Send::Later(Duration::from_millis(50)));
-        assert_eq!(t.due(ms(t0, 200)), Some(64));
-        // After a quiet spell the next change goes straight out.
-        assert_eq!(t.offer(65, ms(t0, 500)), Send::Now(65));
+        let mut p = Pacer::new(Duration::from_millis(250), Duration::from_millis(1000));
+        assert_eq!(p.offer(60, t0), Send::Now(60));
+        // Not confirmed yet: wait up to a second, merging what comes in.
+        assert_eq!(p.offer(61, ms(t0, 50)), Send::Later(Duration::from_millis(950)));
+        assert_eq!(p.offer(64, ms(t0, 100)), Send::Wait);
+        // The receiver reports 60 after 400 ms: the latest goes out at once (past the 250 ms gap).
+        assert_eq!(p.reported(60, ms(t0, 400)), Send::Now(64));
+        // Confirmed quickly: the next still keeps the minimum gap.
+        assert_eq!(p.reported(64, ms(t0, 450)), Send::Wait);
+        assert_eq!(p.offer(66, ms(t0, 500)), Send::Later(Duration::from_millis(150)));
+        assert_eq!(p.due(ms(t0, 650)), Send::Now(66));
+        // A receiver that never answers costs a second, not a queue.
+        assert_eq!(p.offer(70, ms(t0, 700)), Send::Later(Duration::from_millis(950)));
+        assert_eq!(p.due(ms(t0, 1650)), Send::Now(70));
+        // Stale reports of other levels do not count as confirmation.
+        assert_eq!(p.offer(71, ms(t0, 1700)), Send::Later(Duration::from_millis(950)));
+        assert_eq!(p.reported(43, ms(t0, 1800)), Send::Wait);
     }
 
     #[test]
