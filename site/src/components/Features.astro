@@ -200,7 +200,7 @@ const lights = [
   .lights-card { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr); align-items: center; }
   .lights-card .copy { padding: 26px; }
   .lights {
-    list-style: none; margin: 0; padding: 30px 26px 0 0; height: 420px; overflow: hidden; contain: size;
+    list-style: none; margin: 0; padding: 30px 26px 0 0; height: 420px; contain: size;
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-self: stretch;
   }
   .lights li { position: relative; display: flex; justify-content: center; }
@@ -210,7 +210,9 @@ const lights = [
   }
   .lights .remote { width: min(140px, 100%); }
   /* Each remote rises by its own --lift, set from how close the pointer is (see the script), so they ripple as it moves. */
-  .lights .remote { translate: 0 calc(34px - var(--lift, 0) * 34px); transition-duration: 0.45s; }
+  /* Short and eased out, so the lift follows the pointer closely. The card, not the list, clips the remotes, so their
+     shadows fade out softly. */
+  .lights .remote { translate: 0 calc(34px - var(--lift, 0) * 34px); transition: translate 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease; }
   .lights-card:focus-visible .remote { --lift: 1; }
 
   @media (max-width: 760px) {
