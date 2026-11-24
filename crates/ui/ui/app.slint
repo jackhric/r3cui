@@ -340,7 +340,7 @@ export component AppWindow inherits Window {
     in property <[image]> lib-posters;
     in property <[LibItem]> lib-items;
     in property <int> lib-focus;
-    in property <int> lib-wall-style: 1;
+    in property <int> lib-wall-style: 2;
     public function hold-library() { lib.hold(); }
     public function run-library() { lib.run(); }
     out property <bool> lava-on: root.page == 0 && root.home-view == 2 && root.lit;

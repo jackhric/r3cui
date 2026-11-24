@@ -35,7 +35,7 @@ pub struct Settings {
     pub sound_enabled: Option<bool>,
     /// 0 to 1, multiplied by the core's sound volume.
     pub sound_volume: Option<f32>,
-    /// How the poster wall shows the highlighted title: 1 sheet, 2 overlay, 3 inline.
+    /// How the poster wall shows the highlighted title: 1 sheet, 2 overlay (the default), 3 inline.
     pub wall_style: Option<i32>,
 }
 
