@@ -48,12 +48,15 @@ const columns = riverColumns(15);
     </nav>
   </header>
 
-  <h1 class="content">
-    <span class="lens" data-logo-lens>
-      <span data-lens-art><Logo class="logo" label="r3cui: a simplified Unfolded Circle Remote 3 interface" /></span>
-      <canvas aria-hidden="true"></canvas>
-    </span>
-  </h1>
+  <div class="content">
+    <h1>
+      <span class="lens" data-logo-lens>
+        <span data-lens-art><Logo class="logo" label="r3cui" /></span>
+        <canvas aria-hidden="true"></canvas>
+      </span>
+    </h1>
+    <p class="summary">A custom, simplified UI for the Unfolded Circle Remote&nbsp;3</p>
+  </div>
 </section>
 
 <script>
@@ -225,7 +228,10 @@ const columns = riverColumns(15);
 
   .content {
     position: relative; z-index: 2; margin: auto; padding: 24px 28px 88px; display: grid; place-items: center;
+    text-align: center; text-shadow: 0 2px 18px rgb(0 0 0 / 0.85), 0 0 4px rgb(0 0 0 / 0.6);
   }
+  h1 { margin: 0; }
+  .summary { margin: 22px 0 0; font-size: clamp(1.05rem, 2.2vw, 1.4rem); font-weight: 600; color: var(--hero-text); text-wrap: balance; }
   .lens {
     position: relative; display: inline-block; cursor: crosshair; touch-action: none; user-select: none;
     color: var(--hero-text); filter: drop-shadow(0 4px 30px rgb(0 0 0 / 0.6));
