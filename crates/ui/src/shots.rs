@@ -557,7 +557,6 @@ fn lava_script() -> Vec<(u64, Act)> {
     };
     vec![
         (200, source("KODI")),
-        (400, ui(|a| a.invoke_go(2, 0))),
         (4500, source("PLAYSTATION 5")),
         (4000, source("XBOX 360")),
         (4000, source("ANDROID TV")),
