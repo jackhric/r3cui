@@ -127,22 +127,24 @@ const lights = [
       lightsCard.addEventListener('pointermove', e => liftAt(e.clientX));
       lightsCard.addEventListener('pointerleave', settle);
     } else {
-      // Touch: one animation loop eases every remote toward a target each frame (restarting CSS transitions on every
-      // touchmove jittered on iPhone). A tap or sideways drag lifts the nearest remote; once a gesture turns into a
-      // vertical scroll the row lowers and ignores it. With nothing touched, everything rests lowered.
+      // Touch. Each remote is a small spring (position and velocity), so it rises and settles like an object rather
+      // than snapping. A finger only moves the row once the gesture is clearly a tap or a sideways drag: scrolling
+      // never does, and any scroll, or a touch anywhere else, lowers it. With no finger down it always rests lowered.
       lightsCard.classList.add('touch');
       const items = remotes.map(r => r.parentElement!);
-      const target = items.map(() => 0), now = items.map(() => 0);
+      const target = items.map(() => 0), pos = items.map(() => 0), vel = items.map(() => 0);
       let raf = 0, last = 0;
       const frame = (t: number) => {
-        const k = 1 - Math.pow(0.78, Math.min(4, (t - (last || t)) / 16.7));
+        const dt = Math.min(0.05, (t - (last || t)) / 1000 || 1 / 60);
         last = t;
         let moving = false;
         items.forEach((li, n) => {
-          const d = target[n] - now[n];
-          if (Math.abs(d) > 0.002) { now[n] += d * k; moving = true; } else now[n] = target[n];
-          li.style.setProperty('--lift', now[n].toFixed(3));
-          li.style.setProperty('--hot', now[n].toFixed(3));
+          // Stiffness 220, damping 26: a quick rise with the gentlest overshoot, and a soft landing.
+          vel[n] += ((target[n] - pos[n]) * 220 - vel[n] * 26) * dt;
+          pos[n] += vel[n] * dt;
+          if (Math.abs(target[n] - pos[n]) < 0.002 && Math.abs(vel[n]) < 0.01) { pos[n] = target[n]; vel[n] = 0; } else moving = true;
+          li.style.setProperty('--lift', Math.max(0, Math.min(1.08, pos[n])).toFixed(3));
+          li.style.setProperty('--hot', Math.max(0, Math.min(1, pos[n])).toFixed(3));
         });
         raf = moving ? requestAnimationFrame(frame) : 0;
         if (!raf) last = 0;
@@ -156,32 +158,45 @@ const lights = [
         });
         kick();
       };
-      const lower = () => { target.fill(0); kick(); };
-      let x0 = 0, y0 = 0, mode: 'idle' | 'touch' | 'drag' | 'scroll' = 'idle', timer = 0;
+      let mode: 'idle' | 'pending' | 'drag' | 'scroll' = 'idle', x0 = 0, y0 = 0, t0 = 0, timer = 0;
+      const lower = () => { clearTimeout(timer); target.fill(0); kick(); };
       lightsCard.addEventListener('touchstart', e => {
-        const t = e.touches[0]; if (!t) return;
-        clearTimeout(timer); x0 = t.clientX; y0 = t.clientY; mode = 'touch'; aim(t.clientX);
+        const t = e.touches[0]; if (!t || e.touches.length > 1) return;
+        clearTimeout(timer); x0 = t.clientX; y0 = t.clientY; t0 = performance.now(); mode = 'pending';
       }, { passive: true });
       lightsCard.addEventListener('touchmove', e => {
-        const t = e.touches[0]; if (!t || mode === 'scroll') return;
+        const t = e.touches[0]; if (!t || mode === 'scroll' || mode === 'idle') return;
         const dx = Math.abs(t.clientX - x0), dy = Math.abs(t.clientY - y0);
-        if (mode === 'touch' && dy > 10 && dy > dx) { mode = 'scroll'; lower(); return; }
-        if (mode === 'touch' && dx > 6) mode = 'drag';
+        if (mode === 'pending') {
+          if (dy > 6 && dy >= dx) { mode = 'scroll'; lower(); return; }
+          if (dx > 8 && dx > dy * 1.2) mode = 'drag'; else return;
+        }
         aim(t.clientX);
       }, { passive: true });
-      for (const end of ['touchend', 'touchcancel'] as const) lightsCard.addEventListener(end, () => {
-        const wasScroll = mode === 'scroll'; mode = 'idle';
-        clearTimeout(timer); timer = window.setTimeout(lower, wasScroll ? 0 : 600);
+      lightsCard.addEventListener('touchend', e => {
+        if (e.touches.length) return;
+        const t = e.changedTouches[0];
+        // A tap: lift where it landed, hold a moment, then settle.
+        if (mode === 'pending' && t && performance.now() - t0 < 500 && Math.abs(t.clientX - x0) < 10 && Math.abs(t.clientY - y0) < 10) {
+          aim(t.clientX); timer = window.setTimeout(lower, 650);
+        } else if (mode === 'drag') timer = window.setTimeout(lower, 250);
+        else lower();
+        mode = 'idle';
       }, { passive: true });
+      lightsCard.addEventListener('touchcancel', () => { mode = 'idle'; lower(); }, { passive: true });
+      // Whatever else happens, the row goes back down: a scroll, a touch elsewhere, leaving the page.
+      addEventListener('scroll', () => { if (mode !== 'drag') { if (mode === 'pending') mode = 'scroll'; lower(); } }, { passive: true });
+      document.addEventListener('touchstart', e => { if (!lightsCard.contains(e.target as Node)) { mode = 'idle'; lower(); } }, { passive: true });
+      document.addEventListener('visibilitychange', () => { mode = 'idle'; lower(); });
       // On first sight a wave runs across once, as a hint that the row responds.
       const wave = () => {
         const first = remotes[0].getBoundingClientRect(), lastBox = remotes[remotes.length - 1].getBoundingClientRect();
-        const from = first.left, to = lastBox.right, t0 = performance.now(), length = 1400;
+        const from = first.left, to = lastBox.right, start = performance.now(), length = 1400;
         const step = (t: number) => {
-          if (mode !== 'idle') return;
-          const k = Math.min(1, (t - t0) / length);
+          if (mode !== 'idle') return lower();
+          const k = Math.min(1, (t - start) / length);
           aim(from + (to - from) * k);
-          if (k < 1) requestAnimationFrame(step); else setTimeout(lower, 200);
+          if (k < 1) requestAnimationFrame(step); else timer = window.setTimeout(lower, 150);
         };
         requestAnimationFrame(step);
       };
@@ -190,6 +205,8 @@ const lights = [
   }
 
   const cards = [...document.querySelectorAll<HTMLElement>('#features .card')];
+  // On touch screens a tap shouldn't focus a card (its focus styles read as a finger still resting on it).
+  if (!matchMedia('(hover: hover)').matches) cards.forEach(c => c.removeAttribute('tabindex'));
   if (matchMedia('(hover: hover)').matches) {
     for (const card of cards) {
       card.addEventListener('pointerenter', () => start(card));
@@ -217,6 +234,7 @@ const lights = [
   .bento { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   .card { grid-column: span 1; }
   .card {
+    -webkit-tap-highlight-color: transparent;
     position: relative; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px;
     background: var(--card); border: 1px solid var(--border); outline: none;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;

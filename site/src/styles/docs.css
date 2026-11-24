@@ -41,3 +41,6 @@
   --sl-card-border: var(--sl-color-accent);
   --sl-card-bg: var(--sl-color-accent-low);
 }
+
+/* No long-press callout, selection or dragging on pictures. */
+.sl-markdown-content :is(img, video) { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
