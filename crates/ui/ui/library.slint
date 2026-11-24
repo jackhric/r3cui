@@ -73,6 +73,25 @@ component PosterTile inherits Rectangle {
     }
 }
 
+// Certification badges, drawn by scripts/rating-badges.py; `code` as library::entry writes it.
+global Ratings {
+    public pure function badge(code: string) -> image {
+        if code == "G" { return @image-url("ratings/g.svg"); }
+        if code == "PG" { return @image-url("ratings/pg.svg"); }
+        if code == "PG-13" { return @image-url("ratings/pg-13.svg"); }
+        if code == "R" { return @image-url("ratings/r.svg"); }
+        if code == "NC-17" { return @image-url("ratings/nc-17.svg"); }
+        if code == "NR" { return @image-url("ratings/nr.svg"); }
+        if code == "TV-Y" { return @image-url("ratings/tv-y.svg"); }
+        if code == "TV-Y7" { return @image-url("ratings/tv-y7.svg"); }
+        if code == "TV-G" { return @image-url("ratings/tv-g.svg"); }
+        if code == "TV-PG" { return @image-url("ratings/tv-pg.svg"); }
+        if code == "TV-14" { return @image-url("ratings/tv-14.svg"); }
+        if code == "TV-MA" { return @image-url("ratings/tv-ma.svg"); }
+        return @image-url("");
+    }
+}
+
 // The details line: the font has no star, so the rating's star is a picture.
 component MetaLine inherits HorizontalLayout {
     in property <LibItem> item;
@@ -93,7 +112,18 @@ component MetaLine inherits HorizontalLayout {
         }
     }
     if root.item.rating != "": Text { text: " " + root.item.rating; font-size: root.size; color: root.tint; vertical-alignment: center; }
-    if root.item.tail != "": Text { text: " · " + root.item.tail; font-size: root.size; color: root.tint; vertical-alignment: center; }
+    property <image> badge: Ratings.badge(root.item.tail);
+    if root.item.tail != "" && root.badge.width == 0: Text { text: " · " + root.item.tail; font-size: root.size; color: root.tint; vertical-alignment: center; }
+    if root.badge.width > 0: Rectangle { width: root.size * 0.6; }
+    if root.badge.width > 0: VerticalLayout {
+        alignment: center;
+        Image {
+            height: root.size * 1.15;
+            width: self.height * root.badge.width / root.badge.height;
+            source: root.badge;
+            colorize: root.tint;
+        }
+    }
 }
 
 component River inherits Rectangle {

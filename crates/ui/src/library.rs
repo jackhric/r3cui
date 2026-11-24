@@ -67,7 +67,7 @@ pub fn entry(it: &Value, shows: bool) -> Entry {
     let year = it["year"].as_i64().unwrap_or(0);
     let rating = it["rating"].as_f64().unwrap_or(0.0);
     let genre: Vec<&str> = it["genre"].as_array().map(|g| g.iter().filter_map(Value::as_str).take(3).collect()).unwrap_or_default();
-    let mpaa = it["mpaa"].as_str().unwrap_or("").trim_start_matches("Rated ").to_string();
+    let mpaa = certificate(it["mpaa"].as_str().unwrap_or(""));
     let (meta, detail, progress) = if shows {
         let (eps, seen) = (it["episode"].as_i64().unwrap_or(0), it["watchedepisodes"].as_i64().unwrap_or(0));
         let seasons = it["season"].as_i64().unwrap_or(0);
@@ -96,6 +96,15 @@ pub fn entry(it: &Value, shows: bool) -> Entry {
         plot: it["plot"].as_str().unwrap_or("").into(),
         detail,
         progress,
+    }
+}
+
+/// Kodi's certification ("Rated PG-13", "Not Rated", "TV-MA") as the code the badges are named by.
+fn certificate(raw: &str) -> String {
+    let code = raw.trim().trim_start_matches("Rated ").trim().to_uppercase();
+    match code.as_str() {
+        "NOT RATED" | "UNRATED" | "NR" => "NR".into(),
+        _ => code,
     }
 }
 
@@ -243,4 +252,17 @@ fn fetch_posters(weak: &slint::Weak<AppWindow>, ids: &[i64], at: usize, loading:
             }
         });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn certificates_match_the_badge_names() {
+        assert_eq!(certificate("Rated PG-13"), "PG-13");
+        assert_eq!(certificate("tv-ma"), "TV-MA");
+        assert_eq!(certificate("Not Rated"), "NR");
+        assert_eq!(certificate(""), "");
+    }
 }
