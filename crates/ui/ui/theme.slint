@@ -354,10 +354,15 @@ export component ChoiceList inherits Rectangle {
             opacity: parent.focused || row.dot == 2 ? 1 : 0;
             animate opacity { duration: 140ms; }
         }
+        // The focused or hovered row lifts very slightly; the others settle back.
+        property <float> lift: self.focused || ta.has-hover ? 1.035 : 1;
+        animate lift { duration: 180ms; easing: ease-out; }
         if row.icon != "": Logo {
             x: 40px;
             commands: row.icon;
             tint: parent.focused ? Theme.text : Theme.t2;
+            transform-origin: { x: self.width / 2, y: self.height / 2 };
+            transform-scale: parent.lift;
         }
         if row.dot > 0: Rectangle {
             x: 40px;
@@ -372,6 +377,8 @@ export component ChoiceList inherits Rectangle {
             width: parent.edge - parent.lead - (row.value == "" ? 0px : 120px);
             overflow: elide;
             text: row.label;
+            transform-origin: { x: 0, y: self.height / 2 };
+            transform-scale: parent.lift;
             font-size: 26px;
             font-weight: parent.focused || row.dot == 2 ? 500 : 400;
             color: parent.focused || row.dot == 2 ? Theme.text : Theme.text-dim;
@@ -420,7 +427,7 @@ export component ChoiceList inherits Rectangle {
             commands: Icons.check;
             tint: Theme.accent;
         }
-        TouchArea {
+        ta := TouchArea {
             mouse-cursor: Theme.cursor;
             clicked => { root.pick(i); }
         }

@@ -298,6 +298,8 @@ export component AppWindow inherits Window {
     in property <bool> volume-overlay;
     in property <string> source;
     in property <string> source-icon;
+    // An input picked here that the receiver has not confirmed yet.
+    in property <bool> switching;
     in property <[SourceRow]> sources;
     in property <int> source-index;
 
@@ -870,11 +872,21 @@ export component AppWindow inherits Window {
                         opacity: root.home-view == 2 ? 1 : 0;
                         visible: self.opacity > 0;
 
-                        Logo {
+                        // While the receiver is still switching, a faint sheen sweeps across the mark.
+                        property <float> sheen: mod(animation-tick() / 1400ms, 1.0) * 1.6 - 0.3;
+                        Path {
                             y: 330px;
-                            size: 140px;
+                            width: 140px;
+                            height: 140px;
+                            viewbox-width: 24;
+                            viewbox-height: 24;
                             commands: root.source == "" ? Logos.kodi : root.source-icon;
-                            tint: Theme.t2-muted;
+                            fill: !root.switching ? Theme.t2-muted : @linear-gradient(110deg,
+                                Theme.t2-muted 0%,
+                                Theme.t2-muted clamp(parent.sheen - 0.18, 0, 1) * 100%,
+                                #9DA3A6 clamp(parent.sheen, 0, 1) * 100%,
+                                Theme.t2-muted clamp(parent.sheen + 0.18, 0, 1) * 100%,
+                                Theme.t2-muted 100%);
                         }
                         // An input with no mark of its own needs its name to be told apart.
                         if root.source != "" && root.source-icon == Logos.generic: Text {

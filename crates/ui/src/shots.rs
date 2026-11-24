@@ -516,6 +516,26 @@ fn stages_script() -> Vec<(u64, Act)> {
     ]
 }
 
+/// Pick an input: the rows lift as focus moves, then the home screen shows the new input at once
+/// with a sheen until the receiver confirms.
+fn switch_script() -> Vec<(u64, Act)> {
+    vec![
+        (900, ui(|a| a.invoke_go(1, a.get_source_index()))),
+        (700, ui(|a| a.invoke_move(-1))),
+        (600, ui(|a| a.invoke_move(-1))),
+        (600, ui(|a| a.invoke_move(1))),
+        (600, ui(|a| a.invoke_move(1))),
+        (600, ui(|a| a.invoke_move(1))),
+        (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
+        (3000, ui(|a| a.invoke_go(1, a.get_source_index()))),
+        (700, ui(|a| a.invoke_move(-1))),
+        (600, ui(|a| a.invoke_move(-1))),
+        (600, ui(|a| a.invoke_move(-1))),
+        (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
+        (3000, ui(|_| {})),
+    ]
+}
+
 /// On the charger: the battery screen, then the countdown to dark, then a touch to wake.
 fn charge_script() -> Vec<(u64, Act)> {
     vec![
@@ -553,6 +573,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         Some("lava") => return lava_script(),
         Some("layers") => return layers_script(),
         Some("stages") => return stages_script(),
+        Some("switch") => return switch_script(),
         _ => {}
     }
     if name == Some("home") {

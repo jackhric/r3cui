@@ -37,6 +37,8 @@ const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 const VOLUME_OVERLAY: Duration = Duration::from_millis(1800);
 const JOIN_TIMEOUT: Duration = Duration::from_secs(45);
 const SLIDER_HOLD: Duration = Duration::from_secs(3);
+/// How long an input picked here is shown before the receiver's own report wins again.
+const SWITCH_TIMEOUT: Duration = Duration::from_secs(10);
 /// On the charger, the screen and keys go dark after this long without a touch or key.
 const CHARGER_REST: Duration = Duration::from_secs(10);
 
@@ -66,6 +68,8 @@ enum Later {
     JoinDone(bool),
     /// Kodi's subtitle streams, as (stream index or None for off, label), and which is on.
     Subtitles(Vec<(Option<i64>, String)>, usize),
+    /// Demo only: the receiver has caught up with an input change.
+    Switched,
 }
 
 /// Everything the screen shows, independent of where it came from (core or demo).
@@ -76,6 +80,8 @@ pub struct Model {
     pub source: String,
     pub sources: Vec<String>,
     pub sound_mode: String,
+    /// The input was just picked here and the receiver has not confirmed it yet.
+    pub switching: bool,
     pub title: String,
     pub paused: bool,
     pub duration: f64,
@@ -647,6 +653,8 @@ struct Session {
     /// steps taken meanwhile must build on what was asked, not on the stale report.
     slider_volume: Option<(i32, Instant)>,
     charging: bool,
+    /// An input picked here, shown straight away until the receiver reports it (or gives up).
+    pending_source: Option<(String, Instant)>,
 }
 
 impl Session {
@@ -761,7 +769,9 @@ impl Session {
             let id = e?.get("integration_id")?.as_str()?;
             self.integrations.get(id).copied()
         };
-        let source = attr_str(receiver, "source");
+        let reported = attr_str(receiver, "source");
+        let pending = self.pending_source.as_ref().filter(|(name, at)| *name != reported && at.elapsed() < SWITCH_TIMEOUT);
+        let source = pending.map_or(reported, |(name, _)| name.clone());
         let receiver_state = receiver.map(|r| attr_str(Some(r), "state"));
         let (status, warning) = net::health(net::Health {
             wifi_ssid: &self.wifi_ssid,
@@ -791,6 +801,7 @@ impl Session {
                 .map(|a| a.iter().filter_map(Value::as_str).filter(|s| !settings::get().hides(s)).map(String::from).collect())
                 .unwrap_or_default(),
             sound_mode: attr_str(receiver, "sound_mode"),
+            switching: pending.is_some(),
             // The Kodi driver keeps the last title, artwork and position after a stop, so only the
             // playback state says whether anything is on.
             title: if matches!(state.as_str(), "PLAYING" | "PAUSED" | "BUFFERING") { self.title.shown.clone() } else { String::new() },
@@ -846,6 +857,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         subtitle_ids: Vec::new(),
         slider_volume: None,
         charging,
+        pending_source: None,
         title: StableTitle::default(),
         awake: is_awake(power.get("mode").and_then(Value::as_str)),
         screen,
@@ -922,6 +934,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         let labels: Vec<String> = rows.into_iter().map(|r| r.1).collect();
                         show_tracks(weak, labels.iter().map(|l| (l.clone(), String::new())).collect(), current);
                     }
+                    Later::Switched => {}
                     Later::JoinDone(ok) => {
                         if session.joining.take().is_some() {
                             finish_join(weak, ok);
@@ -978,7 +991,11 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
             Some(action) = actions.recv() => {
                 let (target, cmd, params) = match action {
                     UiAction::Command(cmd) => (Target::Screen, cmd, Value::Null),
-                    UiAction::SelectSource(name) => (Target::Volume, "select_source".to_string(), json!({ "source": name })),
+                    UiAction::SelectSource(name) => {
+                        session.pending_source = Some((name.clone(), Instant::now()));
+                        render(weak, &session.model());
+                        (Target::Volume, "select_source".to_string(), json!({ "source": name }))
+                    }
                     UiAction::Power(what) => {
                         // Not wired yet: a stray tap in a prototype should not switch the remote off.
                         tracing::info!("power action {what} (not sent)");
@@ -1288,6 +1305,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
             Some(later) = later_rx.recv() => match later {
                 Later::Wifi(_, networks) => (m.wifi, m.scanning) = (networks, false),
                 Later::Integrations(_) | Later::Entities(_) | Later::Subtitles(..) => {}
+                Later::Switched => m.switching = false,
                 Later::JoinDone(ok) => {
                     if ok {
                         m.wifi_ssid = std::mem::take(&mut joining);
@@ -1334,7 +1352,11 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                 }
                 UiAction::Key(text) if text == "c" => m.charging = !m.charging,
                 UiAction::Key(text) if text == "x" => m.demo_ha_down = !m.demo_ha_down,
-                UiAction::SelectSource(name) => m.source = name,
+                UiAction::SelectSource(name) => {
+                    m.source = name;
+                    m.switching = true;
+                    after(1800, Later::Switched);
+                }
                 UiAction::Command(cmd) => tracing::info!("kodi command {cmd}"),
                 UiAction::Power(what) => tracing::info!("power action {what}"),
                 UiAction::PowerHeld => m.receiver_on = !m.receiver_on,
@@ -1492,6 +1514,7 @@ fn apply_now(app: &AppWindow, m: &Model) {
     app.set_muted(m.muted);
 
     app.set_source(m.source.as_str().into());
+    app.set_switching(m.switching);
     app.set_source_icon(source_logo(&logos, &m.source));
     let current = m.sources.iter().position(|s| *s == m.source).map_or(-1, |i| i as i32);
     if app.get_sources().iter().map(|r| r.name).ne(m.sources.iter().map(SharedString::from)) {
