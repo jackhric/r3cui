@@ -122,7 +122,7 @@ export component StatusBar inherits Rectangle {
         color: Theme.text;
     }
     cell := Rectangle {
-        x: root.show-menu ? 350px : 400px;
+        x: 350px;
         width: 34px;
         height: 18px;
         border-radius: 5px;
@@ -154,15 +154,19 @@ export component StatusBar inherits Rectangle {
         border-radius: 1.5px;
         background: Theme.t2;
     }
-    if root.show-menu: TouchArea {
+    // Fades rather than leaving, so nothing else in the bar shifts.
+    TouchArea {
         mouse-cursor: Theme.cursor;
         x: 400px;
         width: 72px;
         height: 60px;
+        enabled: root.show-menu;
         clicked => { root.menu(); }
         Glyph {
             size: 30px;
             commands: Icons.menu;
+            opacity: root.show-menu ? 1 : 0;
+            animate opacity { duration: Theme.page-time; }
         }
     }
 }

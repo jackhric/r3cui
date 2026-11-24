@@ -923,27 +923,6 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    StatusBar {
-                        clock: root.clock;
-                        battery: root.battery;
-                        charging: root.charging;
-                        menu => { root.go(2, 0); }
-                    }
-                    // While something plays, the input's mark moves up into the status line; tapping it
-                    // opens the list. On the idle screen the large mark already says it.
-                    if root.home-view == 1 && root.sources.length > 0: TouchArea {
-                        mouse-cursor: Theme.cursor;
-                        x: 190px;
-                        y: 0;
-                        width: 100px;
-                        height: 64px;
-                        clicked => { root.go(1, root.source-index); }
-                        Logo {
-                            size: 32px;
-                            commands: root.source-icon;
-                            tint: Theme.t2;
-                        }
-                    }
                     if !root.connected: Text {
                         y: 772px;
                         width: 480px;
@@ -1011,12 +990,6 @@ export component AppWindow inherits Window {
                 active: root.page == 1;
                 property <length> row-h: min(100px, 700px / max(1, root.sources.length));
 
-                StatusBar {
-                    clock: root.clock;
-                    battery: root.battery;
-                    charging: root.charging;
-                    menu => { root.go(2, 0); }
-                }
                 for row[i] in root.sources: ListRow {
                     y: 68px + i * parent.row-h;
                     height: parent.row-h;
@@ -1041,12 +1014,6 @@ export component AppWindow inherits Window {
                     source: root.lava;
                     image-fit: fill;
                     image-rendering: pixelated;
-                }
-                StatusBar {
-                    clock: root.clock;
-                    battery: root.battery;
-                    charging: root.charging;
-                    show-menu: false;
                 }
                 PageHeader {
                     title: "Menu";
@@ -1111,12 +1078,6 @@ export component AppWindow inherits Window {
                 current-depth: root.depth;
                 active: root.page == 3;
 
-                StatusBar {
-                    clock: root.clock;
-                    battery: root.battery;
-                    charging: root.charging;
-                    show-menu: false;
-                }
                 PageHeader {
                     title: "Display";
                     back => { root.back(); }
@@ -1216,12 +1177,6 @@ export component AppWindow inherits Window {
                 current-depth: root.depth;
                 active: root.page == 4;
 
-                StatusBar {
-                    clock: root.clock;
-                    battery: root.battery;
-                    charging: root.charging;
-                    show-menu: false;
-                }
                 PageHeader {
                     title: "Power";
                     back => { root.back(); }
@@ -1260,12 +1215,6 @@ export component AppWindow inherits Window {
                 current-depth: root.depth;
                 active: root.page == 5;
 
-                StatusBar {
-                    clock: root.clock;
-                    battery: root.battery;
-                    charging: root.charging;
-                    show-menu: false;
-                }
                 PageHeader {
                     title: "Wi-Fi";
                     back => { root.back(); }
@@ -1421,12 +1370,6 @@ export component AppWindow inherits Window {
                 current-depth: root.depth;
                 active: root.page == 7;
 
-                StatusBar {
-                    clock: root.clock;
-                    battery: root.battery;
-                    charging: root.charging;
-                    show-menu: false;
-                }
                 PageHeader {
                     title: "Status";
                     back => { root.back(); }
@@ -1521,12 +1464,6 @@ export component AppWindow inherits Window {
                 active: root.page == 9;
                 property <length> row-h: min(96px, 620px / max(1, root.tracks.length));
 
-                StatusBar {
-                    clock: root.clock;
-                    battery: root.battery;
-                    charging: root.charging;
-                    show-menu: false;
-                }
                 PageHeader {
                     title: root.picker == 0 ? "Audio" : "Subtitles";
                     back => { root.back(); }
@@ -1790,6 +1727,36 @@ export component AppWindow inherits Window {
             clicked => {
                 root.charge-card = false;
                 root.activity();
+            }
+        }
+    }
+
+    // The navbar belongs to no layer: it stays put through every transition, fading only with
+    // sleep, and is kept out of the snapshots so no blurred copy of it shows behind it.
+    navbar := Rectangle {
+        y: 0;
+        height: 64px;
+        opacity: root.reveal * (root.page == 6 || root.page == 8 ? 0 : 1);
+        visible: self.opacity > 0 && root.capturing == 0;
+        animate opacity { duration: Theme.page-time; }
+        StatusBar {
+            clock: root.clock;
+            battery: root.battery;
+            charging: root.charging;
+            show-menu: root.page <= 1;
+            menu => { root.go(2, 0); }
+        }
+        // While something plays the input's mark sits in the middle; tapping it opens the list.
+        if root.page == 0 && root.home-view == 1 && root.sources.length > 0: TouchArea {
+            mouse-cursor: Theme.cursor;
+            x: 190px;
+            width: 100px;
+            height: 64px;
+            clicked => { root.go(1, root.source-index); }
+            Logo {
+                size: 32px;
+                commands: root.source-icon;
+                tint: Theme.t2;
             }
         }
     }
