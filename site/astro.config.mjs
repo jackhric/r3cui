@@ -11,7 +11,7 @@ export default defineConfig({
   base: '/r3cui',
   integrations: [
     // One entry per page: the trailing-slash form only (the bare /r3cui duplicated the home page).
-    sitemap({ filter: page => page.endsWith('/') }),
+    sitemap({ filter: page => page.endsWith('/') && !page.includes('/og-card/') }),
     starlight({
       title: 'r3cui',
       description: 'A simplified Unfolded Circle Remote 3 interface for your home theater.',

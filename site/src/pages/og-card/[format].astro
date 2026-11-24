@@ -1,0 +1,59 @@
+---
+// The share images' layouts, drawn at their exact size. The Pages build screenshots these into og.png and
+// og-square.png, then deletes this page from the published site. Settings come from the card editor.
+import '@fontsource-variable/plus-jakarta-sans';
+import cards from '../../data/og-cards.json';
+import Logo from '../../components/Logo.astro';
+
+export function getStaticPaths() {
+  return [{ params: { format: 'wide' } }, { params: { format: 'square' } }];
+}
+const c = cards[Astro.params.format as keyof typeof cards];
+const stills = import.meta.glob<string>('../../assets/og/*.webp', { query: '?url', import: 'default', eager: true });
+const still = (name: string) => stills[`../../assets/og/${name}.webp`];
+const dark = c.bg === 'dark';
+const vars = [
+  `--w:${c.width}px`, `--h:${c.height}px`, `--angle:${c.angle}deg`, `--rw:${c.rw}px`, `--gap:${c.gap}px`, `--rx:${c.rx}px`, `--ry:${c.ry}px`,
+  `--lw:${c.lw}px`, `--lx:${c.lx}px`, `--ly:${c.ly}px`, `--ts:${c.ts}px`, `--tgap:${c.tgap}px`, `--tw:${c.tw}px`,
+  `--og-bg:${dark ? '#0e0e0e' : '#ffffff'}`, `--og-ink:${dark ? '#f5f5f5' : '#141414'}`, `--og-muted:${dark ? '#a9a9a9' : '#5a5a5a'}`,
+].join(';');
+const shots = [c.s0, c.s1, c.s2];
+const offsets = [c.o0, c.o1, c.o2];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>r3cui share card</title>
+  </head>
+  <body style={vars}>
+    <div class="og">
+      <div class="remotes">
+        {shots.map((name, i) => <img src={still(name)} alt="" style={`translate:0 ${offsets[i]}px`} />)}
+      </div>
+      <Logo class="logo" label="r3cui" />
+      <p class="tag">
+        A simplified custom frontend for <svg class="uc" viewBox="0 0 45 30" aria-hidden="true"><path d="M30 15a15 15 0 0 1-30 0M45 30a15 15 0 0 1 0-30" fill="currentColor" /></svg><b>Remote&nbsp;3</b>
+      </p>
+    </div>
+  </body>
+</html>
+
+<style is:global>
+  html, body { margin: 0; }
+  body { width: var(--w); height: var(--h); overflow: hidden; }
+  .og { position: relative; width: var(--w); height: var(--h); overflow: hidden; background: var(--og-bg); color: var(--og-ink);
+    font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif; }
+  .remotes { position: absolute; left: var(--rx); top: var(--ry); display: flex; gap: var(--gap); rotate: var(--angle); transform-origin: center; }
+  .remotes img { display: block; width: var(--rw); height: auto; border-radius: 2% 2% 15% 15% / .46% .46% 3.5% 3.5%;
+    filter: drop-shadow(0 18px 30px rgb(0 0 0 / .22)); }
+  .logo { position: absolute; left: var(--lx); top: var(--ly); width: var(--lw); height: auto; color: var(--og-ink); }
+  /* The logo is 32.495 x 11.464, so its height is 0.3528 of its width. */
+  .tag { position: absolute; left: var(--lx); top: calc(var(--ly) + var(--lw) * 0.3528 + var(--tgap)); max-width: var(--tw); margin: 0;
+    font-size: var(--ts); font-weight: 600; line-height: 1.3; letter-spacing: -.01em; color: var(--og-muted); text-wrap: balance; }
+  /* Centred on the capitals of "Remote 3". */
+  .uc { display: inline-block; height: .72em; width: auto; vertical-align: calc(0.5cap - 0.36em); margin: 0 .3em 0 .14em; color: var(--og-ink); }
+  .uc + b { color: var(--og-ink); font-weight: 700; }
+</style>
