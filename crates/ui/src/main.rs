@@ -1601,8 +1601,8 @@ fn codec_logo(app: &AppWindow, id: &str) -> CodecLogo {
     let c = app.global::<Codecs>();
     let lockup = |path: SharedString, width: f32| CodecLogo { path, top: 0.0, width, height: 24.0, size: 30.0 };
     match id {
-        // The simple-icons marks sit in a 24x24 box with empty space above and below.
-        "dolby" => CodecLogo { path: app.global::<Logos>().get_dolby(), top: 3.56, width: 24.0, height: 16.88, size: 20.0 },
+        // The simple-icons DTS mark sits in a 24x24 box with empty space above and below.
+        "dolby" => CodecLogo { path: c.get_dolby_box(), top: 0.0, width: 33.03, height: 24.0, size: 20.0 },
         "dts" => CodecLogo { path: app.global::<Logos>().get_dts(), top: 7.12, width: 24.0, height: 9.76, size: 17.0 },
         "flac" => lockup(c.get_flac(), 49.63),
         "opus" => lockup(c.get_opus(), 42.19),
