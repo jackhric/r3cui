@@ -46,7 +46,7 @@
 This is beta software. Things may break, and things are 100% bound to change.
 
 r3cui works closely with [Kodi](https://kodi.tv) and [Home Assistant](https://www.home-assistant.io).
-<b>It's not plug and play yet.</b> You'll need to clone the project and modify it to suit your home
+It's not plug and play yet. You'll need to clone the project and modify it to suit your home
 theater configuration and setup.
 
 ## Warranty
