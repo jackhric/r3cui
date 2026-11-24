@@ -4,8 +4,9 @@ import "fonts/HankenGrotesk-400.ttf";
 import "fonts/HankenGrotesk-500.ttf";
 import { Theme, Icons, Marks, Glyph, Logo, Bar, StatusBar, ListRow, PageHeader, Page } from "theme.slint";
 import { Logos } from "logos.slint";
+import { Codecs } from "codecs.slint";
 
-export { Theme, Logos, Icons, Marks }
+export { Theme, Logos, Icons, Marks, Codecs }
 
 export struct SourceRow {
     name: string,
@@ -312,7 +313,7 @@ export component AppWindow inherits Window {
     in property <string> media-format-label;
     // The audio or subtitle picker: 0 audio, 1 subtitles.
     in-out property <int> picker;
-    in property <[TrackRow]> tracks;
+    in-out property <[TrackRow]> tracks;
     // The menu's animated background.
     in property <image> lava;
     out property <bool> lava-on: root.page == 2 && root.lit;
@@ -378,7 +379,20 @@ export component AppWindow inherits Window {
     property <float> hold: 0;
     property <color> power-tint: root.power-turning-off ? Theme.off : Theme.on;
 
-    property <int> depth: root.page == 0 ? 0 : root.page <= 2 ? 1 : root.page == 6 ? 3 : root.page == 8 ? 4 : 2;
+    // Lists one step from the stage share a depth, so opening one from the stage is the layer
+    // transition alone, without a sideways slide.
+    property <int> depth: root.page <= 2 || root.page == 9 ? 1 : root.page == 6 ? 3 : root.page == 8 ? 4 : 2;
+    property <float> recede: root.page != 0 ? 1 : 0;
+    animate recede { duration: 460ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+    property <bool> overlay-open: (root.volume-overlay && root.receiver-on) || root.power-overlay || root.home-holding || (root.charge-card && root.lit);
+    property <float> under: root.overlay-open ? 1 : 0;
+    animate under { duration: 380ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+    in property <image> stage-blur;
+    in property <image> world-blur;
+    // Ask for a blurred picture of what is on screen now: 0 the stage, 1 everything.
+    callback capture(int);
+    // Set by Rust only while it takes that picture: 1 shows the stage alone, 2 hides the overlays.
+    in-out property <int> capturing;
     property <bool> caret-on: true;
     // The home key: a tap is home, a hold opens the input list.
     property <bool> home-down;
@@ -389,6 +403,9 @@ export component AppWindow inherits Window {
     property <duration> fade: 260ms;
 
     public function go(p: int, f: int) {
+        if (root.page == 0 && p != 0) {
+            root.capture(0);
+        }
         root.focus-index = f;
         root.page = p;
     }
@@ -489,6 +506,7 @@ export component AppWindow inherits Window {
                 if (!event.repeat && !root.power-latched) {
                     root.power-turning-off = root.receiver-on;
                     root.power-completed = false;
+                    root.capture(1);
                     root.power-holding = true;
                     root.haptic("hold-start");
                 }
@@ -582,6 +600,7 @@ export component AppWindow inherits Window {
             interval: 160ms;
             running: root.home-down && !root.home-used && !root.home-rumbling;
             triggered => {
+                root.capture(1);
                 root.home-rumbling = true;
                 root.haptic("hold-start");
             }
@@ -611,850 +630,888 @@ export component AppWindow inherits Window {
             mouse-cursor: Theme.cursor;
         }
 
-        // Home
-        Page {
-            depth: 0;
-            current-depth: root.depth;
-            active: root.page == 0;
+        // Three layers. The main stage (home, now playing) is at the bottom; option lists (menu,
+        // inputs, track pickers) open over it, and the stage recedes: it shrinks, blurs and dims
+        // until it is only faintly there behind the list. Overlays (volume, power, charging) do
+        // the same to whatever lies beneath them. Blur is a snapshot taken as the layer opens,
+        // since Slint cannot blur live content.
+        world := Rectangle {
+            transform-origin: { x: self.width / 2, y: self.height / 2 };
+            transform-scale: root.capturing != 0 ? 1 : 1 - 0.05 * root.under;
 
-            // Kodi, playing
-            Rectangle {
-                opacity: root.home-view == 1 ? 1 : 0;
-                visible: self.opacity > 0;
-                animate opacity { duration: root.fade; }
+            stage := Rectangle {
+                transform-origin: { x: self.width / 2, y: self.height / 2 };
+                transform-scale: root.capturing == 1 ? 1 : 1 - 0.08 * root.recede;
+                opacity: root.capturing == 1 ? 1 : 1 - 0.55 * root.recede;
 
-                // The backdrop arrives already blurred and darkened; the scrim fades it into black
-                // where the controls sit.
+
+                    // Kodi, playing
+                    Rectangle {
+                        opacity: root.home-view == 1 ? 1 : 0;
+                        visible: self.opacity > 0;
+                        animate opacity { duration: root.fade; }
+
+                        // The backdrop arrives already blurred and darkened; the scrim fades it into black
+                        // where the controls sit.
+                        Image {
+                            width: 480px;
+                            height: 800px;
+                            source: root.backdrop;
+                            image-fit: cover;
+                            opacity: 0.8;
+                        }
+                        Rectangle {
+                            background: @linear-gradient(180deg, #00000066 0%, #00000022 26%, #000000B0 52%, #000000 74%);
+                        }
+
+                        Rectangle {
+                            x: 144px;
+                            y: 84px;
+                            width: 192px;
+                            height: 288px;
+                            border-radius: 12px;
+                            drop-shadow-blur: 28px;
+                            drop-shadow-color: #000000CC;
+                            drop-shadow-offset-y: 10px;
+                            background: #111;
+                            Rectangle {
+                                border-radius: 12px;
+                                clip: true;
+                                if root.poster.width == 0: PosterStandIn {
+                                    title: root.media-title;
+                                }
+                                if root.poster.width > 0: Image {
+                                    source: root.poster;
+                                    width: 100%;
+                                    height: 100%;
+                                    image-fit: cover;
+                                }
+                            }
+                        }
+                        Text {
+                            y: 392px;
+                            x: 24px;
+                            width: 432px;
+                            height: 36px;
+                            horizontal-alignment: center;
+                            overflow: elide;
+                            text: root.media-title;
+                            font-size: 28px;
+                            font-weight: 500;
+                            color: Theme.text;
+                        }
+                        Text {
+                            y: 430px;
+                            width: 480px;
+                            horizontal-alignment: center;
+                            text: root.media-sub;
+                            font-size: 18px;
+                            color: Theme.t2;
+                        }
+                        Bar {
+                            x: 40px;
+                            y: 470px;
+                            value: root.progress;
+                        }
+                        Text {
+                            x: 40px;
+                            y: 494px;
+                            text: root.elapsed;
+                            font-size: 18px;
+                            font-weight: 400;
+                            color: Theme.t2;
+                        }
+                        Text {
+                            x: 40px;
+                            y: 494px;
+                            width: 400px;
+                            horizontal-alignment: right;
+                            text: root.paused ? root.time-left + "  ·  paused" : root.time-left + "  ·  " + root.ends-at;
+                            font-size: 18px;
+                            color: Theme.t2;
+                        }
+
+                        SkipButton {
+                            x: 84px;
+                            y: 548px;
+                            back: true;
+                            tapped => { root.seek(-10); }
+                        }
+                        Rectangle {
+                            x: 198px;
+                            y: 542px;
+                            width: 84px;
+                            height: 84px;
+                            border-radius: 42px;
+                            background: Theme.accent;
+                            opacity: play-touch.pressed ? 0.6 : 1;
+                            Path {
+                                x: root.paused ? 30px : 26px;
+                                width: 32px;
+                                height: 32px;
+                                viewbox-width: 24;
+                                viewbox-height: 24;
+                                commands: root.paused ? Marks.play : Marks.pause;
+                                fill: Theme.bg;
+                            }
+                            play-touch := TouchArea {
+                                mouse-cursor: Theme.cursor;
+                                clicked => { root.command("play_pause"); }
+                            }
+                        }
+                        SkipButton {
+                            x: 332px;
+                            y: 548px;
+                            back: false;
+                            tapped => { root.seek(10); }
+                        }
+
+                        if root.home-warning == "": HorizontalLayout {
+                            y: 656px;
+                            height: 40px;
+                            alignment: center;
+                            spacing: 18px;
+                            FormatBadge {
+                                logo: root.media-format-logo;
+                                logo-width: root.media-format-logo-width;
+                                label: root.media-format-label;
+                            }
+                            if root.media-format-label != "" || root.media-format-logo != "": Text {
+                                text: "·";
+                                font-size: 22px;
+                                color: Theme.t3;
+                                vertical-alignment: center;
+                            }
+                            VolumeChip {
+                                volume: root.volume;
+                                muted: root.muted;
+                                size: 22px;
+                            }
+                        }
+                        if root.home-warning != "": WarningRow {
+                            y: 648px;
+                            message: root.home-warning;
+                            tapped => { root.go(7, 0); }
+                        }
+                        TrackButton {
+                            x: 32px;
+                            y: 716px;
+                            icon: Icons.subtitles;
+                            label: "Subtitles";
+                            tapped => { root.tracks = []; root.picker = 1; root.go(9, 0); root.open-picker(1); }
+                        }
+                        TrackButton {
+                            x: 248px;
+                            y: 716px;
+                            icon: Icons.audio;
+                            label: "Audio";
+                            tapped => { root.tracks = []; root.picker = 0; root.go(9, 0); root.open-picker(0); }
+                        }
+                    }
+
+                    // The current input, shown as its mark. Kodi while browsing looks the same as any other.
+                    Rectangle {
+                        opacity: root.home-view == 2 ? 1 : 0;
+                        visible: self.opacity > 0;
+                        animate opacity { duration: root.fade; }
+
+                        Logo {
+                            y: 330px;
+                            size: 140px;
+                            commands: root.source == "" ? Logos.kodi : root.source-icon;
+                            tint: Theme.t2-muted;
+                        }
+                        // An input with no mark of its own needs its name to be told apart.
+                        if root.source != "" && root.source-icon == Logos.generic: Text {
+                            y: 490px;
+                            width: 480px;
+                            horizontal-alignment: center;
+                            text: root.source;
+                            font-size: 26px;
+                            color: Theme.t2;
+                        }
+                        if root.sources.length > 0: TouchArea {
+                            mouse-cursor: Theme.cursor;
+                            x: 140px;
+                            y: 300px;
+                            width: 200px;
+                            height: 200px;
+                            clicked => { root.go(1, root.source-index); }
+                        }
+                        if root.home-warning != "": WarningRow {
+                            y: 540px;
+                            message: root.home-warning;
+                            tapped => { root.go(7, 0); }
+                        }
+                        VolumeChip {
+                            y: 700px;
+                            height: 40px;
+                            size: 32px;
+                            volume: root.volume;
+                            muted: root.muted;
+                        }
+                    }
+
+                    // Receiver off
+                    Rectangle {
+                        opacity: root.home-view == 3 ? 1 : 0;
+                        visible: self.opacity > 0;
+                        animate opacity { duration: root.fade; }
+
+                        Glyph {
+                            y: 340px;
+                            size: 72px;
+                            commands: Icons.power;
+                            tint: Theme.t3;
+                        }
+                        Text {
+                            y: 436px;
+                            width: 480px;
+                            horizontal-alignment: center;
+                            text: "Off";
+                            font-size: 26px;
+                            color: Theme.t2;
+                        }
+                    }
+
+                    StatusBar {
+                        clock: root.clock;
+                        battery: root.battery;
+                        charging: root.charging;
+                        menu => { root.go(2, 0); }
+                    }
+                    // While something plays, the input's mark moves up into the status line; tapping it
+                    // opens the list. On the idle screen the large mark already says it.
+                    if root.home-view == 1 && root.sources.length > 0: TouchArea {
+                        mouse-cursor: Theme.cursor;
+                        x: 190px;
+                        y: 0;
+                        width: 100px;
+                        height: 64px;
+                        clicked => { root.go(1, root.source-index); }
+                        Logo {
+                            size: 32px;
+                            commands: root.source-icon;
+                            tint: Theme.t2;
+                        }
+                    }
+                    if !root.connected: Text {
+                        y: 772px;
+                        width: 480px;
+                        horizontal-alignment: center;
+                        text: root.status;
+                        font-size: 14px;
+                        color: Theme.t3;
+                        overflow: elide;
+                    }
+
                 Image {
                     width: 480px;
                     height: 800px;
-                    source: root.backdrop;
-                    image-fit: cover;
-                    opacity: 0.8;
+                    source: root.stage-blur;
+                    image-fit: fill;
+                    opacity: root.recede;
+                    visible: self.opacity > 0 && root.capturing != 1;
                 }
-                Rectangle {
-                    background: @linear-gradient(180deg, #00000066 0%, #00000022 26%, #000000B0 52%, #000000 74%);
-                }
+            }
 
-                Rectangle {
-                    x: 144px;
-                    y: 84px;
-                    width: 192px;
-                    height: 288px;
-                    border-radius: 12px;
-                    drop-shadow-blur: 28px;
-                    drop-shadow-color: #000000CC;
-                    drop-shadow-offset-y: 10px;
-                    background: #111;
-                    Rectangle {
-                        border-radius: 12px;
-                        clip: true;
-                        if root.poster.width == 0: PosterStandIn {
-                            title: root.media-title;
-                        }
-                        if root.poster.width > 0: Image {
-                            source: root.poster;
-                            width: 100%;
-                            height: 100%;
-                            image-fit: cover;
-                        }
-                    }
+            options := Rectangle {
+                visible: root.recede > 0 && root.capturing != 1;
+                opacity: root.recede;
+                transform-origin: { x: self.width / 2, y: self.height / 2 };
+                transform-scale: 1.04 - 0.04 * root.recede;
+                background: #000000B8;
+                // The stage behind is only scenery while a list is open.
+                TouchArea { mouse-cursor: Theme.cursor; }
+
+            // Inputs
+            Page {
+                depth: 1;
+                current-depth: root.depth;
+                active: root.page == 1;
+                property <length> row-h: min(100px, 700px / max(1, root.sources.length));
+
+                StatusBar {
+                    clock: root.clock;
+                    battery: root.battery;
+                    charging: root.charging;
+                    menu => { root.go(2, 0); }
                 }
-                Text {
-                    y: 392px;
-                    x: 24px;
-                    width: 432px;
-                    height: 36px;
-                    horizontal-alignment: center;
-                    overflow: elide;
-                    text: root.media-title;
-                    font-size: 28px;
-                    font-weight: 500;
-                    color: Theme.text;
+                for row[i] in root.sources: ListRow {
+                    y: 68px + i * parent.row-h;
+                    height: parent.row-h;
+                    divider: i > 0;
+                    label: row.name;
+                    icon: row.icon;
+                    focused: i == root.focus-index;
+                    checked: i == root.source-index;
+                    tapped => { root.activate(i); }
                 }
-                Text {
-                    y: 430px;
+            }
+
+            // Menu
+            Page {
+                depth: 1;
+                current-depth: root.depth;
+                active: root.page == 2;
+
+                Image {
                     width: 480px;
-                    horizontal-alignment: center;
-                    text: root.media-sub;
-                    font-size: 18px;
-                    color: Theme.t2;
+                    height: 800px;
+                    source: root.lava;
+                    image-fit: fill;
+                    image-rendering: pixelated;
                 }
-                Bar {
-                    x: 40px;
-                    y: 470px;
-                    value: root.progress;
+                StatusBar {
+                    clock: root.clock;
+                    battery: root.battery;
+                    charging: root.charging;
+                    show-menu: false;
                 }
-                Text {
-                    x: 40px;
-                    y: 494px;
-                    text: root.elapsed;
-                    font-size: 18px;
-                    font-weight: 400;
-                    color: Theme.t2;
+                PageHeader {
+                    title: "Menu";
+                    back => { root.back(); }
                 }
-                Text {
-                    x: 40px;
-                    y: 494px;
-                    width: 400px;
-                    horizontal-alignment: right;
-                    text: root.paused ? root.time-left + "  ·  paused" : root.time-left + "  ·  " + root.ends-at;
-                    font-size: 18px;
-                    color: Theme.t2;
+                ListRow {
+                    y: 168px;
+                    height: 96px;
+                    label: "Wi-Fi";
+                    value: root.wifi-name;
+                    chevron: true;
+                    focused: root.focus-index == 0;
+                    tapped => { root.activate(0); }
                 }
-
-                SkipButton {
-                    x: 84px;
-                    y: 548px;
-                    back: true;
-                    tapped => { root.seek(-10); }
+                ListRow {
+                    y: 264px;
+                    height: 96px;
+                    label: "Display";
+                    value: root.brightness + "%";
+                    chevron: true;
+                    focused: root.focus-index == 1;
+                    tapped => { root.activate(1); }
                 }
-                Rectangle {
-                    x: 198px;
-                    y: 542px;
-                    width: 84px;
-                    height: 84px;
-                    border-radius: 42px;
-                    background: Theme.accent;
-                    opacity: play-touch.pressed ? 0.6 : 1;
-                    Path {
-                        x: root.paused ? 30px : 26px;
-                        width: 32px;
-                        height: 32px;
-                        viewbox-width: 24;
-                        viewbox-height: 24;
-                        commands: root.paused ? Marks.play : Marks.pause;
-                        fill: Theme.bg;
-                    }
-                    play-touch := TouchArea {
-                        mouse-cursor: Theme.cursor;
-                        clicked => { root.command("play_pause"); }
-                    }
+                ListRow {
+                    y: 360px;
+                    height: 96px;
+                    label: "Sound & haptics";
+                    value: root.haptics;
+                    chevron: true;
+                    focused: root.focus-index == 2;
+                    tapped => { root.activate(2); }
                 }
-                SkipButton {
-                    x: 332px;
-                    y: 548px;
-                    back: false;
-                    tapped => { root.seek(10); }
+                ListRow {
+                    y: 456px;
+                    height: 96px;
+                    label: "Power";
+                    chevron: true;
+                    focused: root.focus-index == 3;
+                    tapped => { root.activate(3); }
                 }
-
-                if root.home-warning == "": HorizontalLayout {
-                    y: 656px;
-                    height: 40px;
-                    alignment: center;
-                    spacing: 18px;
-                    FormatBadge {
-                        logo: root.media-format-logo;
-                        logo-width: root.media-format-logo-width;
-                        label: root.media-format-label;
-                    }
-                    if root.media-format-label != "" || root.media-format-logo != "": Text {
-                        text: "·";
-                        font-size: 22px;
-                        color: Theme.t3;
-                        vertical-alignment: center;
-                    }
-                    VolumeChip {
-                        volume: root.volume;
-                        muted: root.muted;
-                        size: 22px;
-                    }
+                ListRow {
+                    y: 552px;
+                    height: 96px;
+                    label: "Status";
+                    chevron: true;
+                    focused: root.focus-index == 4;
+                    tapped => { root.activate(4); }
                 }
-                if root.home-warning != "": WarningRow {
+                ListRow {
                     y: 648px;
-                    message: root.home-warning;
-                    tapped => { root.go(7, 0); }
-                }
-                TrackButton {
-                    x: 32px;
-                    y: 716px;
-                    icon: Icons.subtitles;
-                    label: "Subtitles";
-                    tapped => { root.picker = 1; root.go(9, 0); root.open-picker(1); }
-                }
-                TrackButton {
-                    x: 248px;
-                    y: 716px;
-                    icon: Icons.audio;
-                    label: "Audio";
-                    tapped => { root.picker = 0; root.go(9, 0); root.open-picker(0); }
+                    height: 96px;
+                    label: "About";
+                    chevron: true;
+                    focused: root.focus-index == 5;
+                    tapped => { root.activate(5); }
                 }
             }
 
-            // The current input, shown as its mark. Kodi while browsing looks the same as any other.
-            Rectangle {
-                opacity: root.home-view == 2 ? 1 : 0;
-                visible: self.opacity > 0;
-                animate opacity { duration: root.fade; }
+            // Menu / Display
+            Page {
+                depth: 2;
+                current-depth: root.depth;
+                active: root.page == 3;
 
-                Logo {
-                    y: 330px;
-                    size: 140px;
-                    commands: root.source == "" ? Logos.kodi : root.source-icon;
-                    tint: Theme.t2-muted;
+                StatusBar {
+                    clock: root.clock;
+                    battery: root.battery;
+                    charging: root.charging;
+                    show-menu: false;
                 }
-                // An input with no mark of its own needs its name to be told apart.
-                if root.source != "" && root.source-icon == Logos.generic: Text {
-                    y: 490px;
-                    width: 480px;
-                    horizontal-alignment: center;
-                    text: root.source;
-                    font-size: 26px;
-                    color: Theme.t2;
-                }
-                if root.sources.length > 0: TouchArea {
-                    mouse-cursor: Theme.cursor;
-                    x: 140px;
-                    y: 300px;
-                    width: 200px;
-                    height: 200px;
-                    clicked => { root.go(1, root.source-index); }
-                }
-                if root.home-warning != "": WarningRow {
-                    y: 540px;
-                    message: root.home-warning;
-                    tapped => { root.go(7, 0); }
-                }
-                VolumeChip {
-                    y: 700px;
-                    height: 40px;
-                    size: 32px;
-                    volume: root.volume;
-                    muted: root.muted;
-                }
-            }
-
-            // Receiver off
-            Rectangle {
-                opacity: root.home-view == 3 ? 1 : 0;
-                visible: self.opacity > 0;
-                animate opacity { duration: root.fade; }
-
-                Glyph {
-                    y: 340px;
-                    size: 72px;
-                    commands: Icons.power;
-                    tint: Theme.t3;
-                }
-                Text {
-                    y: 436px;
-                    width: 480px;
-                    horizontal-alignment: center;
-                    text: "Off";
-                    font-size: 26px;
-                    color: Theme.t2;
-                }
-            }
-
-            StatusBar {
-                clock: root.clock;
-                battery: root.battery;
-                charging: root.charging;
-                menu => { root.go(2, 0); }
-            }
-            // While something plays, the input's mark moves up into the status line; tapping it
-            // opens the list. On the idle screen the large mark already says it.
-            if root.home-view == 1 && root.sources.length > 0: TouchArea {
-                mouse-cursor: Theme.cursor;
-                x: 190px;
-                y: 0;
-                width: 100px;
-                height: 64px;
-                clicked => { root.go(1, root.source-index); }
-                Logo {
-                    size: 32px;
-                    commands: root.source-icon;
-                    tint: Theme.t2;
-                }
-            }
-            if !root.connected: Text {
-                y: 772px;
-                width: 480px;
-                horizontal-alignment: center;
-                text: root.status;
-                font-size: 14px;
-                color: Theme.t3;
-                overflow: elide;
-            }
-        }
-
-        // Inputs
-        Page {
-            depth: 1;
-            current-depth: root.depth;
-            active: root.page == 1;
-            property <length> row-h: min(100px, 700px / max(1, root.sources.length));
-
-            StatusBar {
-                clock: root.clock;
-                battery: root.battery;
-                charging: root.charging;
-                menu => { root.go(2, 0); }
-            }
-            for row[i] in root.sources: ListRow {
-                y: 68px + i * parent.row-h;
-                height: parent.row-h;
-                divider: i > 0;
-                label: row.name;
-                icon: row.icon;
-                focused: i == root.focus-index;
-                checked: i == root.source-index;
-                tapped => { root.activate(i); }
-            }
-        }
-
-        // Menu
-        Page {
-            depth: 1;
-            current-depth: root.depth;
-            active: root.page == 2;
-
-            Image {
-                width: 480px;
-                height: 800px;
-                source: root.lava;
-                image-fit: fill;
-                image-rendering: pixelated;
-            }
-            StatusBar {
-                clock: root.clock;
-                battery: root.battery;
-                charging: root.charging;
-                show-menu: false;
-            }
-            PageHeader {
-                title: "Menu";
-                back => { root.back(); }
-            }
-            ListRow {
-                y: 168px;
-                height: 96px;
-                label: "Wi-Fi";
-                value: root.wifi-name;
-                chevron: true;
-                focused: root.focus-index == 0;
-                tapped => { root.activate(0); }
-            }
-            ListRow {
-                y: 264px;
-                height: 96px;
-                label: "Display";
-                value: root.brightness + "%";
-                chevron: true;
-                focused: root.focus-index == 1;
-                tapped => { root.activate(1); }
-            }
-            ListRow {
-                y: 360px;
-                height: 96px;
-                label: "Sound & haptics";
-                value: root.haptics;
-                chevron: true;
-                focused: root.focus-index == 2;
-                tapped => { root.activate(2); }
-            }
-            ListRow {
-                y: 456px;
-                height: 96px;
-                label: "Power";
-                chevron: true;
-                focused: root.focus-index == 3;
-                tapped => { root.activate(3); }
-            }
-            ListRow {
-                y: 552px;
-                height: 96px;
-                label: "Status";
-                chevron: true;
-                focused: root.focus-index == 4;
-                tapped => { root.activate(4); }
-            }
-            ListRow {
-                y: 648px;
-                height: 96px;
-                label: "About";
-                chevron: true;
-                focused: root.focus-index == 5;
-                tapped => { root.activate(5); }
-            }
-        }
-
-        // Menu / Display
-        Page {
-            depth: 2;
-            current-depth: root.depth;
-            active: root.page == 3;
-
-            StatusBar {
-                clock: root.clock;
-                battery: root.battery;
-                charging: root.charging;
-                show-menu: false;
-            }
-            PageHeader {
-                title: "Display";
-                back => { root.back(); }
-            }
-            Rectangle {
-                x: 0;
-                y: 168px;
-                width: 4px;
-                height: 40px;
-                border-radius: 2px;
-                background: Theme.accent;
-                opacity: root.focus-index == 0 ? 1 : 0;
-                animate opacity { duration: 140ms; }
-            }
-            Text {
-                x: 40px;
-                y: 172px;
-                text: "Brightness";
-                font-size: 26px;
-                font-weight: root.focus-index == 0 ? 500 : 400;
-                color: root.focus-index == 0 ? Theme.text : Theme.text-dim;
-            }
-            Text {
-                x: 40px;
-                y: 176px;
-                width: 400px;
-                horizontal-alignment: right;
-                text: root.brightness + "%";
-                font-size: 22px;
-                font-weight: 300;
-                color: Theme.t2;
-            }
-            Bar {
-                x: 40px;
-                y: 250px;
-                value: root.brightness / 100;
-                handle: true;
-            }
-            TouchArea {
-                mouse-cursor: Theme.cursor;
-                x: 24px;
-                y: 220px;
-                width: 432px;
-                height: 74px;
-                function set() {
-                    root.focus-index = 0;
-                    root.brightness = max(5, min(100, round((self.mouse-x - 16px) / 400px * 100)));
-                }
-                pointer-event(e) => {
-                    if (e.kind == PointerEventKind.down) {
-                        self.set();
-                    }
-                }
-                moved => {
-                    if (self.pressed) {
-                        self.set();
-                    }
-                }
-            }
-            ListRow {
-                y: 328px;
-                height: 104px;
-                label: "Auto brightness";
-                focused: root.focus-index == 1;
-                tapped => { root.activate(1); }
-                Rectangle {
-                    x: 384px;
-                    width: 56px;
-                    height: 32px;
-                    border-radius: 16px;
-                    background: root.auto-brightness ? Theme.text : Theme.track;
-                    animate background { duration: 160ms; }
-                    Rectangle {
-                        x: root.auto-brightness ? 28px : 4px;
-                        width: 24px;
-                        height: 24px;
-                        border-radius: 12px;
-                        background: root.auto-brightness ? Theme.bg : Theme.t2;
-                        animate x { duration: 160ms; easing: ease-out; }
-                    }
-                }
-            }
-            ListRow {
-                y: 432px;
-                height: 104px;
-                label: "Screen off after";
-                value: root.screen-off-after;
-                chevron: true;
-                focused: root.focus-index == 2;
-                tapped => { root.activate(2); }
-            }
-        }
-
-        // Menu / Power
-        Page {
-            depth: 2;
-            current-depth: root.depth;
-            active: root.page == 4;
-
-            StatusBar {
-                clock: root.clock;
-                battery: root.battery;
-                charging: root.charging;
-                show-menu: false;
-            }
-            PageHeader {
-                title: "Power";
-                back => { root.back(); }
-            }
-            ListRow {
-                y: 168px;
-                label: "Standby";
-                focused: root.focus-index == 0;
-                tapped => { root.activate(0); }
-            }
-            ListRow {
-                y: 280px;
-                label: "Restart";
-                focused: root.focus-index == 1;
-                tapped => { root.activate(1); }
-            }
-            ListRow {
-                y: 392px;
-                label: "Power off";
-                focused: root.focus-index == 2;
-                tapped => { root.activate(2); }
-            }
-            ListRow {
-                y: 504px;
-                label: "Sleep after";
-                value: root.sleep-after;
-                chevron: true;
-                focused: root.focus-index == 3;
-                tapped => { root.activate(3); }
-            }
-        }
-
-        // Menu / Wi-Fi
-        Page {
-            depth: 2;
-            current-depth: root.depth;
-            active: root.page == 5;
-
-            StatusBar {
-                clock: root.clock;
-                battery: root.battery;
-                charging: root.charging;
-                show-menu: false;
-            }
-            PageHeader {
-                title: "Wi-Fi";
-                back => { root.back(); }
-            }
-            for row[i] in root.wifi-rows: ListRow {
-                y: 168px + i * 96px;
-                height: 96px;
-                divider: i > 0;
-                label: row.ssid;
-                value: row.connected ? "Connected" : "";
-                trailing: 48px;
-                focused: i == root.focus-index;
-                tapped => { root.activate(i); }
-                if row.secured && !row.connected: Glyph {
-                    x: 364px;
-                    commands: Icons.lock;
-                    tint: Theme.t3;
-                }
-                for n in 4: Rectangle {
-                    x: 408px + n * 8px;
-                    y: parent.height / 2 + 11px - self.height;
-                    width: 5px;
-                    height: 7px + n * 5px;
-                    border-radius: 2px;
-                    background: n < row.bars ? Theme.t2 : Theme.track;
-                }
-            }
-            ListRow {
-                y: 168px + root.wifi-rows.length * 96px;
-                height: 96px;
-                divider: root.wifi-rows.length > 0;
-                label: root.wifi-scanning ? "Scanning…" : "Scan again";
-                focused: root.focus-index == root.wifi-rows.length;
-                tapped => { root.activate(root.wifi-rows.length); }
-            }
-        }
-
-        // Menu / Wi-Fi / password
-        Page {
-            depth: 3;
-            current-depth: root.depth;
-            active: root.page == 6;
-
-            PageHeader {
-                y: 0;
-                title: root.wifi-target.ssid;
-                back => { root.back(); }
-            }
-            Text {
-                x: 40px;
-                y: 128px;
-                text: "PASSWORD";
-                font-size: 13px;
-                font-weight: 500;
-                letter-spacing: 1.8px;
-                color: Theme.t2;
-            }
-            Rectangle {
-                x: 40px;
-                y: 158px;
-                width: 400px;
-                height: 84px;
-                clip: true;
-                HorizontalLayout {
-                    alignment: end;
-                    spacing: 3px;
-                    Text {
-                        text: root.kb-text;
-                        font-size: 40px;
-                        font-weight: 300;
-                        letter-spacing: 0.8px;
-                        color: Theme.text;
-                        vertical-alignment: center;
-                    }
-                    VerticalLayout {
-                        alignment: center;
-                        Rectangle {
-                            width: 3px;
-                            height: 40px;
-                            border-radius: 2px;
-                            background: Theme.accent;
-                            opacity: root.caret-on && root.join-state != 1 ? 1 : 0;
-                        }
-                    }
-                }
-            }
-            Rectangle {
-                x: 40px;
-                y: 242px;
-                width: 400px;
-                height: 1px;
-                background: Theme.hair;
-            }
-
-            if root.join-state != 1: Rectangle {
-                for key[i] in root.kb-keys: Rectangle {
-                    x: key.x;
-                    y: key.y;
-                    width: key.w;
-                    height: key.h;
-                    border-radius: key.style == 0 ? 12px : 16px;
-                    background: key.focused ? Theme.accent : key.style == 2 ? #2A2A2C : key.style == 0 ? #121213 : #161617;
-                    opacity: key.focused && key.style == 3 ? 0.45 : 1;
-                    transform-scale: key.focused ? (key.style == 0 ? 1.12 : 1.06) : 1;
-                    animate transform-scale, background { duration: 80ms; }
-                    if key.icon == "": Text {
-                        text: key.label;
-                        font-size: key.style == 0 ? 26px : 20px;
-                        font-weight: key.focused || key.style == 4 ? 600 : key.style == 0 ? 400 : 500;
-                        color: key.focused ? #000000 : key.style == 3 ? Theme.t3 : key.style == 4 ? Theme.accent : Theme.text;
-                    }
-                    if key.icon != "": Glyph {
-                        commands: key.icon;
-                        tint: key.focused ? #000000 : Theme.text;
-                    }
-                    TouchArea {
-                        mouse-cursor: Theme.cursor;
-                        clicked => { root.kb-tap(i); }
-                    }
-                }
-            }
-            if root.join-state == 1: Rectangle {
-                Text {
-                    y: 440px;
-                    width: 480px;
-                    horizontal-alignment: center;
-                    text: "Joining…";
-                    font-size: 32px;
-                    font-weight: 300;
-                    color: Theme.text;
-                }
-                Rectangle {
-                    x: 120px;
-                    y: 524px;
-                    width: 240px;
-                    height: 14px;
-                    border-radius: 7px;
-                    background: Theme.track;
-                    clip: true;
-                    Rectangle {
-                        x: 75px + 75px * sin(animation-tick() / 1ms * 0.33deg);
-                        width: 90px;
-                        border-radius: 7px;
-                        background: Theme.accent;
-                    }
-                }
-            }
-        }
-
-        // Menu / Status
-        Page {
-            depth: 2;
-            current-depth: root.depth;
-            active: root.page == 7;
-
-            StatusBar {
-                clock: root.clock;
-                battery: root.battery;
-                charging: root.charging;
-                show-menu: false;
-            }
-            PageHeader {
-                title: "Status";
-                back => { root.back(); }
-            }
-            for row[i] in root.status-rows: Rectangle {
-                x: 0;
-                y: 168px + i * 96px;
-                width: 480px;
-                height: 96px;
-                if i > 0: Rectangle {
-                    y: 0;
-                    height: 1px;
-                    background: Theme.hair;
+                PageHeader {
+                    title: "Display";
+                    back => { root.back(); }
                 }
                 Rectangle {
                     x: 0;
+                    y: 168px;
                     width: 4px;
                     height: 40px;
                     border-radius: 2px;
                     background: Theme.accent;
-                    opacity: row.level == 1 ? 1 : 0;
+                    opacity: root.focus-index == 0 ? 1 : 0;
+                    animate opacity { duration: 140ms; }
                 }
-                Dot {
+                Text {
                     x: 40px;
-                    level: row.level;
-                }
-                Text {
-                    x: 72px;
-                    text: row.label;
+                    y: 172px;
+                    text: "Brightness";
                     font-size: 26px;
-                    font-weight: row.level == 1 ? 500 : 400;
-                    color: row.level == 1 ? Theme.text : Theme.text-dim;
+                    font-weight: root.focus-index == 0 ? 500 : 400;
+                    color: root.focus-index == 0 ? Theme.text : Theme.text-dim;
                 }
                 Text {
-                    x: 0;
-                    width: 440px;
+                    x: 40px;
+                    y: 176px;
+                    width: 400px;
                     horizontal-alignment: right;
-                    text: row.value;
+                    text: root.brightness + "%";
                     font-size: 22px;
                     font-weight: 300;
                     color: Theme.t2;
                 }
+                Bar {
+                    x: 40px;
+                    y: 250px;
+                    value: root.brightness / 100;
+                    handle: true;
+                }
+                TouchArea {
+                    mouse-cursor: Theme.cursor;
+                    x: 24px;
+                    y: 220px;
+                    width: 432px;
+                    height: 74px;
+                    function set() {
+                        root.focus-index = 0;
+                        root.brightness = max(5, min(100, round((self.mouse-x - 16px) / 400px * 100)));
+                    }
+                    pointer-event(e) => {
+                        if (e.kind == PointerEventKind.down) {
+                            self.set();
+                        }
+                    }
+                    moved => {
+                        if (self.pressed) {
+                            self.set();
+                        }
+                    }
+                }
+                ListRow {
+                    y: 328px;
+                    height: 104px;
+                    label: "Auto brightness";
+                    focused: root.focus-index == 1;
+                    tapped => { root.activate(1); }
+                    Rectangle {
+                        x: 384px;
+                        width: 56px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: root.auto-brightness ? Theme.text : Theme.track;
+                        animate background { duration: 160ms; }
+                        Rectangle {
+                            x: root.auto-brightness ? 28px : 4px;
+                            width: 24px;
+                            height: 24px;
+                            border-radius: 12px;
+                            background: root.auto-brightness ? Theme.bg : Theme.t2;
+                            animate x { duration: 160ms; easing: ease-out; }
+                        }
+                    }
+                }
+                ListRow {
+                    y: 432px;
+                    height: 104px;
+                    label: "Screen off after";
+                    value: root.screen-off-after;
+                    chevron: true;
+                    focused: root.focus-index == 2;
+                    tapped => { root.activate(2); }
+                }
             }
-        }
 
-        // Menu / Wi-Fi / join failed
-        Page {
-            depth: 4;
-            current-depth: root.depth;
-            active: root.page == 8;
+            // Menu / Power
+            Page {
+                depth: 2;
+                current-depth: root.depth;
+                active: root.page == 4;
 
-            PageHeader {
-                y: 0;
-                title: root.wifi-target.ssid;
-                back => { root.back(); }
+                StatusBar {
+                    clock: root.clock;
+                    battery: root.battery;
+                    charging: root.charging;
+                    show-menu: false;
+                }
+                PageHeader {
+                    title: "Power";
+                    back => { root.back(); }
+                }
+                ListRow {
+                    y: 168px;
+                    label: "Standby";
+                    focused: root.focus-index == 0;
+                    tapped => { root.activate(0); }
+                }
+                ListRow {
+                    y: 280px;
+                    label: "Restart";
+                    focused: root.focus-index == 1;
+                    tapped => { root.activate(1); }
+                }
+                ListRow {
+                    y: 392px;
+                    label: "Power off";
+                    focused: root.focus-index == 2;
+                    tapped => { root.activate(2); }
+                }
+                ListRow {
+                    y: 504px;
+                    label: "Sleep after";
+                    value: root.sleep-after;
+                    chevron: true;
+                    focused: root.focus-index == 3;
+                    tapped => { root.activate(3); }
+                }
             }
-            Text {
-                y: 300px;
-                width: 480px;
-                horizontal-alignment: center;
-                text: "Couldn’t join";
-                font-size: 44px;
-                font-weight: 300;
-                color: Theme.text;
-            }
-            Text {
-                y: 376px;
-                width: 480px;
-                horizontal-alignment: center;
-                text: "Check the password and try again.";
-                font-size: 22px;
-                color: Theme.t2;
-            }
-            Pill {
-                y: 500px;
-                label: "Try again";
-                focused: root.focus-index == 0;
-                tapped => { root.activate(0); }
-            }
-            Pill {
-                y: 580px;
-                label: root.wifi-name == "" ? "Cancel" : "Stay on " + root.wifi-name;
-                focused: root.focus-index == 1;
-                tapped => { root.activate(1); }
-            }
-        }
 
-        // Audio or subtitle tracks
-        Page {
-            depth: 2;
-            current-depth: root.depth;
-            active: root.page == 9;
-            property <length> row-h: min(96px, 620px / max(1, root.tracks.length));
+            // Menu / Wi-Fi
+            Page {
+                depth: 2;
+                current-depth: root.depth;
+                active: root.page == 5;
 
-            StatusBar {
-                clock: root.clock;
-                battery: root.battery;
-                charging: root.charging;
-                show-menu: false;
+                StatusBar {
+                    clock: root.clock;
+                    battery: root.battery;
+                    charging: root.charging;
+                    show-menu: false;
+                }
+                PageHeader {
+                    title: "Wi-Fi";
+                    back => { root.back(); }
+                }
+                for row[i] in root.wifi-rows: ListRow {
+                    y: 168px + i * 96px;
+                    height: 96px;
+                    divider: i > 0;
+                    label: row.ssid;
+                    value: row.connected ? "Connected" : "";
+                    trailing: 48px;
+                    focused: i == root.focus-index;
+                    tapped => { root.activate(i); }
+                    if row.secured && !row.connected: Glyph {
+                        x: 364px;
+                        commands: Icons.lock;
+                        tint: Theme.t3;
+                    }
+                    for n in 4: Rectangle {
+                        x: 408px + n * 8px;
+                        y: parent.height / 2 + 11px - self.height;
+                        width: 5px;
+                        height: 7px + n * 5px;
+                        border-radius: 2px;
+                        background: n < row.bars ? Theme.t2 : Theme.track;
+                    }
+                }
+                ListRow {
+                    y: 168px + root.wifi-rows.length * 96px;
+                    height: 96px;
+                    divider: root.wifi-rows.length > 0;
+                    label: root.wifi-scanning ? "Scanning…" : "Scan again";
+                    focused: root.focus-index == root.wifi-rows.length;
+                    tapped => { root.activate(root.wifi-rows.length); }
+                }
             }
-            PageHeader {
-                title: root.picker == 0 ? "Audio" : "Subtitles";
-                back => { root.back(); }
-            }
-            if root.tracks.length == 0: Text {
-                y: 220px;
-                width: 480px;
-                horizontal-alignment: center;
-                text: "Loading…";
-                font-size: 22px;
-                color: Theme.t2;
-            }
-            for row[i] in root.tracks: ListRow {
-                y: 168px + i * parent.row-h;
-                height: parent.row-h;
-                divider: i > 0;
-                label: "";
-                trailing: 48px;
-                focused: i == root.focus-index;
-                tapped => { root.activate(i); }
-                // Name above, codec below: long stream names would otherwise run into the codec.
+
+            // Menu / Wi-Fi / password
+            Page {
+                depth: 3;
+                current-depth: root.depth;
+                active: root.page == 6;
+
+                PageHeader {
+                    y: 0;
+                    title: root.wifi-target.ssid;
+                    back => { root.back(); }
+                }
                 Text {
                     x: 40px;
-                    y: row.detail == "" ? (parent.height - self.height) / 2 : parent.height / 2 - 30px;
-                    width: 340px;
-                    overflow: elide;
-                    text: row.label;
-                    font-size: 26px;
-                    font-weight: i == root.focus-index ? 500 : 400;
-                    color: i == root.focus-index ? Theme.text : Theme.text-dim;
-                }
-                if row.detail != "": Text {
-                    x: 40px;
-                    y: parent.height / 2 + 6px;
-                    width: 340px;
-                    overflow: elide;
-                    text: row.detail;
-                    font-size: 18px;
+                    y: 128px;
+                    text: "PASSWORD";
+                    font-size: 13px;
+                    font-weight: 500;
+                    letter-spacing: 1.8px;
                     color: Theme.t2;
                 }
-                if row.current: Glyph {
-                    x: 404px;
-                    commands: Icons.check;
-                    tint: Theme.accent;
+                Rectangle {
+                    x: 40px;
+                    y: 158px;
+                    width: 400px;
+                    height: 84px;
+                    clip: true;
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 3px;
+                        Text {
+                            text: root.kb-text;
+                            font-size: 40px;
+                            font-weight: 300;
+                            letter-spacing: 0.8px;
+                            color: Theme.text;
+                            vertical-alignment: center;
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 3px;
+                                height: 40px;
+                                border-radius: 2px;
+                                background: Theme.accent;
+                                opacity: root.caret-on && root.join-state != 1 ? 1 : 0;
+                            }
+                        }
+                    }
                 }
+                Rectangle {
+                    x: 40px;
+                    y: 242px;
+                    width: 400px;
+                    height: 1px;
+                    background: Theme.hair;
+                }
+
+                if root.join-state != 1: Rectangle {
+                    for key[i] in root.kb-keys: Rectangle {
+                        x: key.x;
+                        y: key.y;
+                        width: key.w;
+                        height: key.h;
+                        border-radius: key.style == 0 ? 12px : 16px;
+                        background: key.focused ? Theme.accent : key.style == 2 ? #2A2A2C : key.style == 0 ? #121213 : #161617;
+                        opacity: key.focused && key.style == 3 ? 0.45 : 1;
+                        transform-scale: key.focused ? (key.style == 0 ? 1.12 : 1.06) : 1;
+                        animate transform-scale, background { duration: 80ms; }
+                        if key.icon == "": Text {
+                            text: key.label;
+                            font-size: key.style == 0 ? 26px : 20px;
+                            font-weight: key.focused || key.style == 4 ? 600 : key.style == 0 ? 400 : 500;
+                            color: key.focused ? #000000 : key.style == 3 ? Theme.t3 : key.style == 4 ? Theme.accent : Theme.text;
+                        }
+                        if key.icon != "": Glyph {
+                            commands: key.icon;
+                            tint: key.focused ? #000000 : Theme.text;
+                        }
+                        TouchArea {
+                            mouse-cursor: Theme.cursor;
+                            clicked => { root.kb-tap(i); }
+                        }
+                    }
+                }
+                if root.join-state == 1: Rectangle {
+                    Text {
+                        y: 440px;
+                        width: 480px;
+                        horizontal-alignment: center;
+                        text: "Joining…";
+                        font-size: 32px;
+                        font-weight: 300;
+                        color: Theme.text;
+                    }
+                    Rectangle {
+                        x: 120px;
+                        y: 524px;
+                        width: 240px;
+                        height: 14px;
+                        border-radius: 7px;
+                        background: Theme.track;
+                        clip: true;
+                        Rectangle {
+                            x: 75px + 75px * sin(animation-tick() / 1ms * 0.33deg);
+                            width: 90px;
+                            border-radius: 7px;
+                            background: Theme.accent;
+                        }
+                    }
+                }
+            }
+
+            // Menu / Status
+            Page {
+                depth: 2;
+                current-depth: root.depth;
+                active: root.page == 7;
+
+                StatusBar {
+                    clock: root.clock;
+                    battery: root.battery;
+                    charging: root.charging;
+                    show-menu: false;
+                }
+                PageHeader {
+                    title: "Status";
+                    back => { root.back(); }
+                }
+                for row[i] in root.status-rows: Rectangle {
+                    x: 0;
+                    y: 168px + i * 96px;
+                    width: 480px;
+                    height: 96px;
+                    if i > 0: Rectangle {
+                        y: 0;
+                        height: 1px;
+                        background: Theme.hair;
+                    }
+                    Rectangle {
+                        x: 0;
+                        width: 4px;
+                        height: 40px;
+                        border-radius: 2px;
+                        background: Theme.accent;
+                        opacity: row.level == 1 ? 1 : 0;
+                    }
+                    Dot {
+                        x: 40px;
+                        level: row.level;
+                    }
+                    Text {
+                        x: 72px;
+                        text: row.label;
+                        font-size: 26px;
+                        font-weight: row.level == 1 ? 500 : 400;
+                        color: row.level == 1 ? Theme.text : Theme.text-dim;
+                    }
+                    Text {
+                        x: 0;
+                        width: 440px;
+                        horizontal-alignment: right;
+                        text: row.value;
+                        font-size: 22px;
+                        font-weight: 300;
+                        color: Theme.t2;
+                    }
+                }
+            }
+
+            // Menu / Wi-Fi / join failed
+            Page {
+                depth: 4;
+                current-depth: root.depth;
+                active: root.page == 8;
+
+                PageHeader {
+                    y: 0;
+                    title: root.wifi-target.ssid;
+                    back => { root.back(); }
+                }
+                Text {
+                    y: 300px;
+                    width: 480px;
+                    horizontal-alignment: center;
+                    text: "Couldn’t join";
+                    font-size: 44px;
+                    font-weight: 300;
+                    color: Theme.text;
+                }
+                Text {
+                    y: 376px;
+                    width: 480px;
+                    horizontal-alignment: center;
+                    text: "Check the password and try again.";
+                    font-size: 22px;
+                    color: Theme.t2;
+                }
+                Pill {
+                    y: 500px;
+                    label: "Try again";
+                    focused: root.focus-index == 0;
+                    tapped => { root.activate(0); }
+                }
+                Pill {
+                    y: 580px;
+                    label: root.wifi-name == "" ? "Cancel" : "Stay on " + root.wifi-name;
+                    focused: root.focus-index == 1;
+                    tapped => { root.activate(1); }
+                }
+            }
+
+            // Audio or subtitle tracks
+            Page {
+                depth: 2;
+                current-depth: root.depth;
+                active: root.page == 9;
+                property <length> row-h: min(96px, 620px / max(1, root.tracks.length));
+
+                StatusBar {
+                    clock: root.clock;
+                    battery: root.battery;
+                    charging: root.charging;
+                    show-menu: false;
+                }
+                PageHeader {
+                    title: root.picker == 0 ? "Audio" : "Subtitles";
+                    back => { root.back(); }
+                }
+                if root.tracks.length == 0: Text {
+                    y: 220px;
+                    width: 480px;
+                    horizontal-alignment: center;
+                    text: "Loading…";
+                    font-size: 22px;
+                    color: Theme.t2;
+                }
+                for row[i] in root.tracks: ListRow {
+                    y: 168px + i * parent.row-h;
+                    height: parent.row-h;
+                    divider: i > 0;
+                    label: "";
+                    trailing: 48px;
+                    focused: i == root.focus-index;
+                    tapped => { root.activate(i); }
+                    // Name above, codec below: long stream names would otherwise run into the codec.
+                    Text {
+                        x: 40px;
+                        y: row.detail == "" ? (parent.height - self.height) / 2 : parent.height / 2 - 30px;
+                        width: 340px;
+                        overflow: elide;
+                        text: row.label;
+                        font-size: 26px;
+                        font-weight: i == root.focus-index ? 500 : 400;
+                        color: i == root.focus-index ? Theme.text : Theme.text-dim;
+                    }
+                    if row.detail != "": Text {
+                        x: 40px;
+                        y: parent.height / 2 + 6px;
+                        width: 340px;
+                        overflow: elide;
+                        text: row.detail;
+                        font-size: 18px;
+                        color: Theme.t2;
+                    }
+                    if row.current: Glyph {
+                        x: 404px;
+                        commands: Icons.check;
+                        tint: Theme.accent;
+                    }
+                }
+            }
+            }
+
+            Image {
+                width: 480px;
+                height: 800px;
+                source: root.world-blur;
+                image-fit: fill;
+                opacity: root.under;
+                visible: self.opacity > 0 && root.capturing == 0;
             }
         }
 
         // Volume overlay, over everything.
         Rectangle {
             property <bool> shown: root.volume-overlay && root.receiver-on;
-            background: Theme.bg;
+            background: #000000A6;
             opacity: self.shown ? 1 : 0;
-            visible: self.opacity > 0;
+            visible: self.opacity > 0 && root.capturing == 0;
             animate opacity { duration: 180ms; easing: ease-out; }
 
             Glyph {
@@ -1481,9 +1538,9 @@ export component AppWindow inherits Window {
     property <float> home-hold: 0;
     property <float> ring: min(root.home-hold, 0.9999);
     Rectangle {
-        background: #000000E6;
+        background: #000000A6;
         opacity: root.home-holding ? 1 : 0;
-        visible: self.opacity > 0;
+        visible: self.opacity > 0 && root.capturing == 0;
         animate opacity { duration: 140ms; easing: ease-out; }
         Path {
             x: 120px;
@@ -1529,8 +1586,9 @@ export component AppWindow inherits Window {
 
     // Hold-to-power overlay: the symbol fills and a wash of the same colour rises behind it.
     Rectangle {
-        background: Theme.bg;
+        background: #000000A6;
         opacity: root.power-overlay ? 1 : 0;
+        visible: self.opacity > 0 && root.capturing == 0;
         animate opacity { duration: 240ms; easing: ease-out; }
 
         Rectangle {
@@ -1591,9 +1649,9 @@ export component AppWindow inherits Window {
 
     // Charging: the battery, full screen, until the first touch or key.
     Rectangle {
-        background: Theme.bg;
+        background: #000000C0;
         opacity: root.charge-card && root.lit ? 1 : 0;
-        visible: self.opacity > 0;
+        visible: self.opacity > 0 && root.capturing == 0;
         animate opacity { duration: 300ms; easing: ease-in-out; }
         Rectangle {
             x: 122px;

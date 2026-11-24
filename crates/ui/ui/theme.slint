@@ -272,7 +272,7 @@ export component Page inherits Rectangle {
     y: 0;
     width: 480px;
     height: 800px;
-    x: root.active ? 0px : (root.depth > root.current-depth ? 56px : -56px);
+    x: root.active ? 0px : root.depth > root.current-depth ? 56px : root.depth < root.current-depth ? -56px : 0px;
     opacity: root.active ? 1 : 0;
     visible: self.opacity > 0;
     animate x { duration: Theme.page-time; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }

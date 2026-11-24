@@ -112,6 +112,111 @@ const STEPS: &[Step] = &[
         m.source = "KODI".into();
         m.title = Model::demo().title;
     }),
+    ("30-codec-00", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "TrueHD Atmos 7.1".into();
+    }),
+    ("30-codec-01", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "DD+ Atmos 5.1".into();
+    }),
+    ("30-codec-02", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "DTS:X 7.1".into();
+    }),
+    ("30-codec-03", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "DTS-HD MA 7.1".into();
+    }),
+    ("30-codec-04", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "DTS-HD HRA 5.1".into();
+    }),
+    ("30-codec-05", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "DTS 5.1".into();
+    }),
+    ("30-codec-06", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "TrueHD 7.1".into();
+    }),
+    ("30-codec-07", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "DD+ 5.1".into();
+    }),
+    ("30-codec-08", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "Dolby Digital 5.1".into();
+    }),
+    ("30-codec-09", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "FLAC 2.0".into();
+    }),
+    ("30-codec-10", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "Alac 2 channels".into();
+    }),
+    ("30-codec-11", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "Opus 5.1".into();
+    }),
+    ("30-codec-12", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "MP3 stereo".into();
+    }),
+    ("30-codec-13", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "AAC-LC stereo".into();
+    }),
+    ("30-codec-14", |app, m| {
+        app.invoke_go(0, 0);
+        m.charging = false;
+        m.source = "KODI".into();
+        m.title = Model::demo().title;
+        m.media_format = "Pcm_S24Le 2 channels".into();
+    }),
 ];
 
 pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::Result<()> {
@@ -348,6 +453,43 @@ fn media_script() -> Vec<(u64, Act)> {
     ]
 }
 
+/// The three layers: a track picker over the playing film, the volume overlay over that, the
+/// menu over the stage, and the power hold over everything.
+fn layers_script() -> Vec<(u64, Act)> {
+    let kodi: Act = Box::new(|_, tx| {
+        let _ = tx.send(UiAction::SelectSource("KODI".into()));
+    });
+    let tap = |x: f32, y: f32| -> Act {
+        Box::new(move |a, _| {
+            use slint::platform::{PointerEventButton, WindowEvent};
+            let position = slint::LogicalPosition::new(x, y);
+            let button = PointerEventButton::Left;
+            a.window().dispatch_event(WindowEvent::PointerMoved { position });
+            a.window().dispatch_event(WindowEvent::PointerPressed { position, button });
+            a.window().dispatch_event(WindowEvent::PointerReleased { position, button });
+            a.window().dispatch_event(WindowEvent::PointerExited);
+        })
+    };
+    use slint::platform::WindowEvent;
+    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "p".into() });
+    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "p".into() });
+    vec![
+        (300, kodi),
+        (1500, tap(132.0, 746.0)),
+        (1600, ui(|a| a.invoke_move(1))),
+        (500, key("+")),
+        (300, key("+")),
+        (2200, press("\n")),
+        (1600, tap(348.0, 746.0)),
+        (1800, press("\u{8}")),
+        (1400, tap(436.0, 32.0)),
+        (2600, ui(|a| a.invoke_back())),
+        (1500, ui(down)),
+        (1500, ui(up)),
+        (2400, ui(|_| {})),
+    ]
+}
+
 /// On the charger: the battery screen, then the countdown to dark, then a touch to wake.
 fn charge_script() -> Vec<(u64, Act)> {
     vec![
@@ -383,6 +525,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         Some("media") => return media_script(),
         Some("charge") => return charge_script(),
         Some("lava") => return lava_script(),
+        Some("layers") => return layers_script(),
         _ => {}
     }
     if name == Some("home") {

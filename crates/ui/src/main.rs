@@ -177,6 +177,14 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "device")]
     evdev_input::start(&app, act_tx.clone());
     wire_keyboard(&app, act_tx.clone());
+    app.on_capture({
+        let weak = app.as_weak();
+        move |which| {
+            if let Some(app) = weak.upgrade() {
+                capture(&app, which);
+            }
+        }
+    });
     if let Some(dir) = arg("--shots") {
         return shots::run(app, dir.into(), frame);
     }
@@ -293,6 +301,30 @@ fn main() -> anyhow::Result<()> {
 
     app.run()?;
     Ok(())
+}
+
+/// A soft, blurred picture of the screen for a layer that is about to recede: 0 the stage alone,
+/// 1 everything under the overlays.
+pub fn capture(app: &AppWindow, which: i32) {
+    app.set_capturing(which + 1);
+    let shot = app.window().take_snapshot();
+    app.set_capturing(0);
+    let shot = match shot {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!("snapshot for blur: {e}");
+            return;
+        }
+    };
+    let Some(full) = image::RgbaImage::from_raw(shot.width(), shot.height(), shot.as_bytes().to_vec()) else { return };
+    let small = image::imageops::resize(&full, 60, 100, image::imageops::FilterType::Triangle);
+    let soft = image::imageops::blur(&small, 1.6);
+    let img = slint::Image::from_rgba8(pixels(soft));
+    if which == 0 {
+        app.set_stage_blur(img);
+    } else {
+        app.set_world_blur(img);
+    }
 }
 
 static LAST_INPUT: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
@@ -1220,7 +1252,12 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
 /// Show the volume overlay and hide it again once the keys have been quiet for a moment.
 fn flash_volume(weak: &slint::Weak<AppWindow>, generation: &Arc<AtomicU64>) {
     let mine = generation.fetch_add(1, Ordering::SeqCst) + 1;
-    ui(weak, |app| app.set_volume_overlay(true));
+    ui(weak, |app| {
+        if !app.get_volume_overlay() {
+            capture(&app, 1);
+        }
+        app.set_volume_overlay(true);
+    });
     let (weak, generation) = (weak.clone(), generation.clone());
     tokio::spawn(async move {
         tokio::time::sleep(VOLUME_OVERLAY).await;
@@ -1327,6 +1364,9 @@ pub fn apply(app: &AppWindow, m: &Model) {
     app.set_battery(m.battery);
     if m.charging != app.get_charging() {
         // Put on the charger: show the battery, and start counting down to dark from now.
+        if m.charging {
+            capture(app, 1);
+        }
         app.set_charge_card(m.charging);
         if m.charging {
             poke();
@@ -1380,7 +1420,7 @@ pub fn apply(app: &AppWindow, m: &Model) {
     app.set_time_left(if known { format!("−{}", clock(left)).into() } else { SharedString::new() });
     app.set_ends_at(if known { (now + chrono::Duration::seconds(left as i64)).format("ends %H:%M").to_string().into() } else { SharedString::new() });
     let (logo, label) = codec_badge(&m.media_format);
-    let (commands, width) = codec_logo(&logos, logo);
+    let (commands, width) = codec_logo(app, logo);
     app.set_media_format_logo(commands);
     app.set_media_format_logo_width(width);
     app.set_media_format_label(label.into());
@@ -1412,37 +1452,99 @@ fn audio_format(sound_mode: &str) -> String {
     codec.split('(').next().unwrap_or_default().trim().to_string()
 }
 
-/// "DOLBY DIGITAL" → ("dolby", "Digital"): the logo carries the brand, the label the rest.
-fn codec_badge(mode: &str) -> (&'static str, String) {
-    let upper = mode.trim().to_uppercase();
-    let (brand, rest) = if let Some(r) = upper.strip_prefix("DOLBY") {
-        ("dolby", r)
-    } else if let Some(r) = upper.strip_prefix("DTS") {
-        ("dts", r)
-    } else {
-        ("", upper.as_str())
-    };
-    let rest = rest.trim_matches(|c: char| c == ' ' || c == '-' || c == ':');
-    let label = rest
-        .split(' ')
-        .map(|w| {
-            if w.len() <= 3 || w.chars().any(|c| c.is_ascii_digit()) {
-                w.to_string()
-            } else {
-                let mut c = w.chars();
-                c.next().map(|f| f.to_string() + &c.as_str().to_lowercase()).unwrap_or_default()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-    (brand, label)
+/// The badge for Kodi's audio stream: a logo id and what the logo does not already say. The
+/// stream name is free text from the file (often "DTS-HD MA 5.1", sometimes the driver's fallback
+/// such as "Truehd_Atmos 8 channels"), so this matches families by keyword, most specific first.
+fn codec_badge(stream: &str) -> (&'static str, String) {
+    let s = format!(" {} ", stream.to_lowercase().replace(['_', '(', ')', ','], " "));
+    let has = |words: &[&str]| words.iter().any(|w| s.contains(w));
+    let ch = channels(&s);
+    let with = |prefix: &str| [prefix, ch.as_str()].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join(" ");
+    if has(&["atmos"]) {
+        return ("dolby-atmos", with(if has(&["truehd", "true hd"]) { "TrueHD" } else if has(&["dd+", "ddp", "eac3", "e-ac-3", "digital plus"]) { "DD+" } else { "" }));
+    }
+    if has(&["dts:x", "dtsx", "dts-x", " ma x ", "dts x "]) {
+        return ("dts-x", with(if has(&["imax"]) { "IMAX" } else { "" }));
+    }
+    if has(&["dts-hd ma", "dtshd ma", "dts-hd master", "dts hd ma", "dts ma ", "dts-ma"]) {
+        return ("dts-hd", with("Master Audio"));
+    }
+    if has(&["dts-hd hra", "dtshd hra", "dts-hd high", "dts hd hra", "hra "]) {
+        return ("dts-hd", with("High Res"));
+    }
+    if has(&["dts-hd", "dtshd", "dts hd"]) {
+        return ("dts-hd", ch);
+    }
+    if has(&[" dts", "dts ", " dca "]) {
+        return ("dts", with(if has(&["dts-es", "dts es"]) { "ES" } else if has(&["96/24", "96 24"]) { "96/24" } else if has(&["express"]) { "Express" } else { "" }));
+    }
+    if has(&["truehd", "true hd", " mlp "]) {
+        return ("dolby-truehd", ch);
+    }
+    if has(&["dd+", " ddp", "eac3", "e-ac-3", "digital plus"]) {
+        return ("dolby-digital-plus", ch);
+    }
+    if has(&[" ac3", " ac-3", "dolby digital", " dd "]) {
+        return ("dolby-digital", ch);
+    }
+    if has(&[" flac"]) {
+        return ("flac", ch);
+    }
+    if has(&[" alac", "apple lossless"]) {
+        return ("alac", ch);
+    }
+    if has(&[" opus"]) {
+        return ("opus", ch);
+    }
+    if has(&[" mp3"]) {
+        return ("mp3", ch);
+    }
+    if has(&["aac", "mp4a"]) {
+        return ("aac", with(if has(&["he-aac", "he aac"]) { "HE" } else { "" }));
+    }
+    if has(&["pcm", " wav "]) {
+        return ("", with("PCM"));
+    }
+    ("", stream.trim().to_string())
+}
+
+/// "5.1", "7.1", "Stereo"…, from either a layout or the driver's "N channels".
+fn channels(s: &str) -> String {
+    let words: Vec<&str> = s.split_whitespace().collect();
+    if let Some(layout) = words.iter().find(|w| w.len() == 3 && w.as_bytes()[1] == b'.' && w.chars().all(|c| c.is_ascii_digit() || c == '.')) {
+        return if *layout == "2.0" { "Stereo".into() } else { layout.to_string() };
+    }
+    if words.contains(&"stereo") {
+        return "Stereo".into();
+    }
+    if words.contains(&"mono") {
+        return "Mono".into();
+    }
+    match words.windows(2).find(|w| w[1].starts_with("channel")).and_then(|w| w[0].parse::<u32>().ok()) {
+        Some(1) => "Mono".into(),
+        Some(2) => "Stereo".into(),
+        Some(n @ 3..=8) => format!("{}.1", n - 1),
+        _ => String::new(),
+    }
 }
 
 /// A codec logo's path and its viewbox width at height 24.
-fn codec_logo(logos: &Logos, id: &str) -> (SharedString, f32) {
+fn codec_logo(app: &AppWindow, id: &str) -> (SharedString, f32) {
+    let c = app.global::<Codecs>();
     match id {
-        "dolby" => (logos.get_dolby(), 24.0),
-        "dts" => (logos.get_dts(), 24.0),
+        "dolby-atmos" => (c.get_dolby_atmos(), 172.17),
+        "dolby-truehd" => (c.get_dolby_truehd(), 95.9),
+        "dolby-digital" => (c.get_dolby_digital(), 95.49),
+        "dolby-digital-plus" => (c.get_dolby_digital_plus(), 99.73),
+        "dts-hd" => (c.get_dts_hd(), 103.12),
+        "dts-x" => (c.get_dts_x(), 67.47),
+        "flac" => (c.get_flac(), 49.63),
+        "opus" => (c.get_opus(), 42.19),
+        "alac" => (c.get_alac(), 44.99),
+        "mp3" => (c.get_mp3(), 47.89),
+        "aac" => (c.get_aac(), 23.91),
+        "imax" => (c.get_imax(), 126.68),
+        "dts" => (app.global::<Logos>().get_dts(), 24.0),
         _ => (SharedString::new(), 24.0),
     }
 }
@@ -1509,11 +1611,18 @@ mod tests {
         assert_eq!(episode("episode", "S1E4"), "Season 1 · Episode 4");
         assert_eq!(episode("movie", "English - English"), "");
         assert_eq!(split_track("French VF - AAC-LC stereo"), ("French VF".into(), "AAC-LC stereo".into()));
-        assert_eq!(codec_badge("DOLBY DIGITAL"), ("dolby", "Digital".to_string()));
-        assert_eq!(codec_badge("DTS HD MA 7.1"), ("dts", "HD MA 7.1".to_string()));
-        assert_eq!(codec_badge("STEREO"), ("", "Stereo".to_string()));
+        let badge = |s: &str| { let (l, t) = codec_badge(s); (l, t) };
+        assert_eq!(badge("DTS-HD MA 7.1"), ("dts-hd", "Master Audio 7.1".to_string()));
+        assert_eq!(badge("TrueHD Atmos 7.1"), ("dolby-atmos", "TrueHD 7.1".to_string()));
+        assert_eq!(badge("Truehd_Atmos 8 channels"), ("dolby-atmos", "TrueHD 7.1".to_string()));
+        assert_eq!(badge("DD+ 5.1"), ("dolby-digital-plus", "5.1".to_string()));
+        assert_eq!(badge("Dolby Digital 5.1"), ("dolby-digital", "5.1".to_string()));
+        assert_eq!(badge("AAC-LC stereo"), ("aac", "Stereo".to_string()));
+        assert_eq!(badge("DTS:X 7.1"), ("dts-x", "7.1".to_string()));
+        assert_eq!(badge("Pcm_S24Le 2 channels"), ("", "PCM Stereo".to_string()));
+        assert_eq!(badge("FLAC 2.0"), ("flac", "Stereo".to_string()));
         assert_eq!(audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)"), "DTS-HD MA 5.1");
-        assert_eq!(codec_badge(&audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)")), ("dts", "HD MA 5.1".to_string()));
+        assert_eq!(codec_badge(&audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)")), ("dts-hd", "Master Audio 5.1".to_string()));
         assert_eq!(audio_format(""), "");
     }
 

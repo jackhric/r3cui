@@ -9,17 +9,15 @@ pub const H: u32 = 200;
 
 const BAYER: [[f32; 4]; 4] = [[0.0, 8.0, 2.0, 10.0], [12.0, 4.0, 14.0, 6.0], [3.0, 11.0, 1.0, 9.0], [15.0, 7.0, 13.0, 5.0]];
 
-/// (x speed, y speed, phase, radius)
-const BLOBS: [(f32, f32, f32, f32); 6] =
-    [(0.11, 0.07, 0.0, 0.13), (0.07, 0.05, 1.7, 0.10), (0.05, 0.09, 3.1, 0.15), (0.09, 0.04, 4.4, 0.09), (0.04, 0.06, 5.5, 0.12), (0.06, 0.08, 2.4, 0.08)];
+/// (x speed, y speed, phase, radius). Few and far larger than the screen is wide, so what shows
+/// is slow drifting fields of colour rather than shapes.
+const BLOBS: [(f32, f32, f32, f32); 3] = [(0.031, 0.023, 0.0, 0.62), (0.019, 0.029, 2.1, 0.55), (0.025, 0.017, 4.2, 0.58)];
 
-/// Three colours: black, the accent dimmed, and a paler accent dimmed less, so the blob cores
-/// glow slightly. `strength` 0..1 sets how faded the whole thing is.
+/// Three colours: black and two dim steps of the accent. `strength` 0..1 sets how faded the whole thing is.
 pub fn palette(accent: (u8, u8, u8), strength: f32) -> [[u8; 3]; 3] {
     let base = [accent.0 as f32, accent.1 as f32, accent.2 as f32];
-    let pale = base.map(|v| v * 0.7 + 255.0 * 0.3);
-    let scale = |c: [f32; 3], k: f32| c.map(|v| (v * k * strength).round().clamp(0.0, 255.0) as u8);
-    [[0, 0, 0], scale(base, 0.11), scale(pale, 0.19)]
+        let scale = |c: [f32; 3], k: f32| c.map(|v| (v * k * strength).round().clamp(0.0, 255.0) as u8);
+    [[0, 0, 0], scale(base, 0.07), scale(base, 0.12)]
 }
 
 pub fn render(t: f32, colours: [[u8; 3]; 3]) -> SharedPixelBuffer<Rgb8Pixel> {
@@ -29,8 +27,8 @@ pub fn render(t: f32, colours: [[u8; 3]; 3]) -> SharedPixelBuffer<Rgb8Pixel> {
         .iter()
         .map(|&(sx, sy, p, r)| {
             // Blobs rise and sink like wax, drifting sideways a little.
-            let x = 0.5 + 0.32 * (t * sx + p).sin() + 0.08 * (t * sy * 2.3 + p).cos();
-            let y = 0.5 + 0.42 * (t * sy + p * 1.3).sin();
+            let x = 0.5 + 0.6 * (t * sx + p).sin();
+            let y = 0.5 + 0.7 * (t * sy + p * 1.3).sin();
             (x, y, r * r)
         })
         .collect();
@@ -51,7 +49,7 @@ pub fn render(t: f32, colours: [[u8; 3]; 3]) -> SharedPixelBuffer<Rgb8Pixel> {
                 })
                 .sum();
             // 0 below the edge of the wax, rising to 2 at the cores.
-            let level = ((field - 0.8) * 1.6).clamp(0.0, 2.0);
+            let level = ((field - 1.6) * 0.9).clamp(0.0, 2.0);
             let threshold = (BAYER[(j % 4) as usize][(i % 4) as usize] + 0.5) / 16.0;
             let index = (level.floor() as usize + usize::from(level.fract() > threshold)).min(2);
             let c = colours[index];
