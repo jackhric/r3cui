@@ -3,7 +3,7 @@
 
 use crate::backlight::Keys;
 use anyhow::Context;
-use image::RgbImage;
+use image::RgbaImage;
 use std::path::Path;
 
 pub const WIDTH: u32 = 544;
@@ -50,7 +50,7 @@ struct Key {
 }
 
 pub struct Device {
-    base: RgbImage,
+    base: RgbaImage,
     keys: Vec<Key>,
     /// The colours showing now (the rest, then the power zone), easing toward those asked for.
     level: [[f32; 3]; 2],
@@ -62,7 +62,7 @@ impl Device {
     }
 
     pub fn load(path: &Path) -> anyhow::Result<Self> {
-        let base = image::open(path).with_context(|| format!("opening {}", path.display()))?.to_rgb8();
+        let base = image::open(path).with_context(|| format!("opening {}", path.display()))?.to_rgba8();
         anyhow::ensure!(
             base.dimensions() == (WIDTH, HEIGHT),
             "{} must be {WIDTH}x{HEIGHT}, got {:?}",
@@ -96,7 +96,7 @@ impl Device {
 
     /// One picture: the photo, the keys lit as `keys` asks, and `screen` (RGBA) on the panel.
     /// `dt` is the time since the previous picture, for the key fade; pass `f32::MAX` for a still.
-    pub fn compose(&mut self, screen: &[u8], screen_size: (u32, u32), keys: Keys, dt: f32) -> RgbImage {
+    pub fn compose(&mut self, screen: &[u8], screen_size: (u32, u32), keys: Keys, dt: f32) -> RgbaImage {
         let step = (dt / FADE_SECS).min(1.0) * 255.0;
         for (level, want) in self.level.iter_mut().zip([keys.rest, keys.power]) {
             for (now, target) in level.iter_mut().zip([want.0, want.1, want.2]) {
@@ -137,7 +137,7 @@ impl Device {
         };
         if let Some(panel) = panel {
             for (x, y, p) in panel.enumerate_pixels() {
-                out.put_pixel(SCREEN.0 + x, SCREEN.1 + y, image::Rgb([p.0[0], p.0[1], p.0[2]]));
+                out.put_pixel(SCREEN.0 + x, SCREEN.1 + y, image::Rgba([p.0[0], p.0[1], p.0[2], 255]));
             }
         }
         out

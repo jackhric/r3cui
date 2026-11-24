@@ -818,7 +818,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
 /// Starts the recording; the returned timer must be kept alive until the event loop ends.
 pub fn record(app: &AppWindow, tx: Tx, mut device: Device, out: PathBuf, which: Option<&str>) -> anyhow::Result<slint::Timer> {
     let mut ffmpeg = Command::new("ffmpeg")
-        .args(["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24"])
+        .args(["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba"])
         .args(["-s", &format!("{}x{}", device::WIDTH, device::HEIGHT)])
         .args(["-use_wallclock_as_timestamps", "1", "-i", "-"])
         .args(["-vf", "fps=30"])
