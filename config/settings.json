@@ -1,4 +1,10 @@
 {
-  "accent": "#E8343A",
+  "accent": "#F1F3F3",
+  "source_accents": {
+    "kodi": "#E8343A",
+    "playstation": "#2E7BFF",
+    "xbox": "#4CD137",
+    "android": "#2ED9E6"
+  },
   "hidden_sources": ["NET", "HEOS Music", "Bluetooth", "Source"]
 }

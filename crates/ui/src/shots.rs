@@ -4,7 +4,7 @@
 
 use crate::backlight;
 use crate::device::{self, Device};
-use crate::{apply, apply_demo_settings, parse_color, set_accent, AppWindow, Model, UiAction};
+use crate::{apply, apply_demo_settings, AppWindow, Model, UiAction};
 use anyhow::Context;
 use slint::{ComponentHandle, Model as _};
 use std::cell::RefCell;
@@ -48,19 +48,14 @@ const STEPS: &[Step] = &[
     }),
     ("08-menu-display", |app, _| app.invoke_go(3, 0)),
     ("09-menu-power", |app, _| app.invoke_go(4, 0)),
-    ("10-accent-amber-kodi", |app, _| {
-        set_accent(app, parse_color("#FFB454").unwrap());
+    ("10-playstation", |app, m| {
         app.invoke_go(0, 0);
+        m.source = "PLAYSTATION 5".into();
     }),
-    ("11-accent-amber-receiver", |_, m| m.source = "PLAYSTATION 5".into()),
-    ("12-accent-violet-volume", |app, m| {
-        set_accent(app, parse_color("#A78BFA").unwrap());
+    ("11-xbox", |_, m| m.source = "XBOX 360".into()),
+    ("12-android-tv", |_, m| m.source = "ANDROID TV".into()),
+    ("13-receiver-off", |_, m| {
         m.source = "KODI".into();
-        app.set_volume_overlay(true);
-    }),
-    ("13-receiver-off", |app, m| {
-        set_accent(app, parse_color("#E8343A").unwrap());
-        app.set_volume_overlay(false);
         m.receiver_on = false;
     }),
     ("14-wifi", |app, m| {
@@ -275,10 +270,11 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         (600, ui(|a| a.invoke_activate(3))),
         (1200, ui(|a| a.invoke_back())),
         (700, ui(|a| a.invoke_back())),
-        // The interface colour changes at runtime; the keys follow.
-        (1400, ui(|a| set_accent(a, parse_color("#FFB454").unwrap()))),
-        (1700, ui(|a| set_accent(a, parse_color("#A78BFA").unwrap()))),
-        (1700, ui(|a| set_accent(a, parse_color("#E8343A").unwrap()))),
+        // Switching input changes the interface colour, and the keys follow.
+        (1400, ui(|a| a.invoke_select_source("PLAYSTATION 5".into()))),
+        (1700, ui(|a| a.invoke_select_source("XBOX 360".into()))),
+        (1700, ui(|a| a.invoke_select_source("ANDROID TV".into()))),
+        (1700, ui(|a| a.invoke_select_source("KODI".into()))),
         (1600, ui(|_| {})),
     ]
 }

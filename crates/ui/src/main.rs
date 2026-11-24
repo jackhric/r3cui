@@ -133,8 +133,8 @@ fn main() -> anyhow::Result<()> {
     let app = AppWindow::new()?;
     #[cfg(feature = "device")]
     evdev_input::start(&app);
-    let accent = std::env::var("UC_ACCENT").ok().or_else(|| settings::get().accent.clone());
-    if let Some(accent) = accent.as_deref().and_then(parse_color) {
+    // UC_ACCENT pins one colour; without it the colour follows the input (see `apply`).
+    if let Some(accent) = std::env::var("UC_ACCENT").ok().as_deref().and_then(parse_color) {
         set_accent(&app, accent);
     }
 
@@ -865,6 +865,11 @@ pub fn apply(app: &AppWindow, m: &Model) {
     let logos = app.global::<Logos>();
 
     app.set_clock(now.format("%H:%M").to_string().into());
+    if std::env::var_os("UC_ACCENT").is_none() {
+        if let Some(accent) = settings::get().accent_for(&m.source).and_then(parse_color) {
+            set_accent(app, accent);
+        }
+    }
     app.set_awake(m.awake);
     app.set_receiver_on(m.receiver_on);
     app.set_battery(m.battery);
