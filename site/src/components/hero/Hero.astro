@@ -9,7 +9,7 @@ const { repo } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const iconButton = 'text-(--hero-text) rounded-lg hover:bg-(--hero-text)/8 hover:text-(--hero-text) select-none';
 const docsButton = `docs text-base px-2.5 -ml-2.5 ${iconButton}`;
-const columns = riverColumns(19);
+const columns = riverColumns(23);
 ---
 
 <section class="hero">
@@ -68,8 +68,10 @@ const columns = riverColumns(19);
   @keyframes glow-in { from { opacity: 0; scale: 0.85; } }
 
   /* Flat, top-down: columns of whole remotes drifting down the page, each at its own pace and offset. */
+  /* Taller than the hero and rotated about its centre, so a tilted river still covers every corner. */
   .river {
-    position: absolute; top: 0; bottom: 0; left: 50%; translate: -50% 0; display: flex; gap: 22px;
+    position: absolute; top: -60%; bottom: -60%; left: 50%; translate: -50% 0; rotate: 20deg;
+    display: flex; gap: 22px;
     animation: river-in 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s backwards;
   }
   @keyframes river-in { from { opacity: 0; } }
@@ -95,8 +97,14 @@ const columns = riverColumns(19);
     position: relative; z-index: 3; width: 100%; max-width: 1160px; margin: 0 auto; padding: 18px 28px;
     display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex-wrap: wrap;
   }
-  .top nav { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
-  .top nav a { color: var(--hero-muted); text-decoration: none; font-weight: 500; }
+  /* A dark, blurred pill keeps the links readable over whatever part of the river passes behind them. */
+  .top nav {
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding: 6px 8px 6px 20px; border-radius: 999px;
+    background: color-mix(in srgb, var(--hero-bg) 78%, transparent); border: 1px solid rgb(255 255 255 / 0.1);
+    backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow: 0 8px 30px rgb(0 0 0 / 0.45);
+  }
+  .top nav a { color: color-mix(in srgb, var(--hero-text) 88%, transparent); text-decoration: none; font-weight: 600; }
   .top nav a:hover { color: var(--hero-text); }
   .icons { display: flex; gap: 4px; }
 
@@ -117,7 +125,7 @@ const columns = riverColumns(19);
   }
   @media (max-width: 400px) {
     .top { padding: 14px 16px; }
-    .top nav { gap: 8px; }
+    .top nav { gap: 8px; padding-left: 14px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .flow, .river, .glow { animation: none; }
