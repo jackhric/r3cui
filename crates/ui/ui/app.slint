@@ -322,6 +322,10 @@ export component AppWindow inherits Window {
 
     property <int> depth: root.page == 0 ? 0 : root.page <= 2 ? 1 : root.page == 6 ? 3 : root.page == 8 ? 4 : 2;
     property <bool> caret-on: true;
+    // The home key: a tap is home, a hold opens the input list.
+    property <bool> home-down;
+    property <bool> home-used;
+    property <bool> home-rumbling;
     property <int> home-view: !root.receiver-on ? 3 : !root.kodi ? 0 : root.media-title != "" ? 1 : 2;
     property <duration> fade: 260ms;
 
@@ -418,6 +422,14 @@ export component AppWindow inherits Window {
                 }
                 return accept;
             }
+            if (event.text == "h" || event.text == "H") {
+                if (!event.repeat) {
+                    root.home-down = true;
+                    root.home-used = false;
+                    root.home-rumbling = false;
+                }
+                return accept;
+            }
             // The voice key is the input switcher, from anywhere.
             if (event.text == "v" || event.text == "V") {
                 if (!event.repeat && root.page != 6) {
@@ -462,6 +474,20 @@ export component AppWindow inherits Window {
         }
 
         key-released(event) => {
+            if ((event.text == "h" || event.text == "H") && root.home-down) {
+                root.home-down = false;
+                if (!root.home-used) {
+                    if (root.home-rumbling) {
+                        root.haptic("hold-cancel");
+                    }
+                    // A tap: back to the home screen from anywhere else, or Kodi's own home.
+                    if (root.page != 0) {
+                        root.go(0, 0);
+                    } else {
+                        root.key("h");
+                    }
+                }
+            }
             if ((event.text == "p" || event.text == "P") && root.power-holding) {
                 root.power-holding = false;
                 root.haptic("hold-cancel");
@@ -477,6 +503,24 @@ export component AppWindow inherits Window {
                 root.power-completed = true;
                 root.power-held();
                 root.haptic("complete");
+            }
+        }
+        // Taps are common, so the rumble waits a moment before starting.
+        Timer {
+            interval: 160ms;
+            running: root.home-down && !root.home-used && !root.home-rumbling;
+            triggered => {
+                root.home-rumbling = true;
+                root.haptic("hold-start");
+            }
+        }
+        Timer {
+            interval: 650ms;
+            running: root.home-down && !root.home-used;
+            triggered => {
+                root.home-used = true;
+                root.haptic("complete");
+                root.go(1, root.source-index);
             }
         }
         Timer {
@@ -665,10 +709,10 @@ export component AppWindow inherits Window {
                 animate opacity { duration: root.fade; }
 
                 Logo {
-                    y: 364px;
-                    size: 72px;
+                    y: 330px;
+                    size: 140px;
                     commands: Logos.kodi;
-                    tint: Theme.t2;
+                    tint: Theme.t2-muted;
                 }
                 if root.home-warning != "": WarningRow {
                     y: 500px;
@@ -714,9 +758,9 @@ export component AppWindow inherits Window {
             // On the Kodi views the current input sits in the status line; tapping it opens the list.
             if root.home-view != 0 && root.home-view != 3 && root.sources.length > 0: TouchArea {
                 mouse-cursor: Theme.cursor;
-                x: 150px;
+                x: 130px;
                 y: 0;
-                width: 180px;
+                width: 210px;
                 height: 64px;
                 clicked => { root.go(1, root.source-index); }
                 HorizontalLayout {
@@ -724,14 +768,14 @@ export component AppWindow inherits Window {
                     spacing: 6px;
                     Text {
                         text: root.source;
-                        font-size: 18px;
+                        font-size: 22px;
                         color: Theme.t2;
                         vertical-alignment: center;
                     }
                     VerticalLayout {
                         alignment: center;
                         Glyph {
-                            size: 16px;
+                            size: 20px;
                             commands: Icons.right;
                             tint: Theme.t3;
                         }

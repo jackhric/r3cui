@@ -15,6 +15,8 @@ export global Theme {
     out property <color> text-dim: #F1F3F3B3;
     out property <color> t2: #8B9195;
     out property <color> t3: #53595D;
+    // Between t2 and t3: for a large mark that should sit back.
+    out property <color> t2-muted: #6C7276;
     out property <color> track: #FFFFFF24;
     out property <color> hair: #FFFFFF14;
     out property <duration> page-time: 280ms;
@@ -105,29 +107,29 @@ export component StatusBar inherits Rectangle {
     Text {
         x: 40px;
         text: root.clock;
-        font-size: 20px;
+        font-size: 26px;
         color: Theme.text;
     }
     cell := Rectangle {
-        x: root.show-menu ? 364px : 410px;
-        width: 26px;
-        height: 14px;
-        border-radius: 4px;
-        border-width: 1.75px;
+        x: root.show-menu ? 350px : 400px;
+        width: 34px;
+        height: 18px;
+        border-radius: 5px;
+        border-width: 2px;
         border-color: Theme.t2;
         Rectangle {
-            x: 3.5px;
-            width: 19px * clamp(root.battery, 0, 100) / 100;
-            height: 7px;
-            border-radius: 1.5px;
+            x: 4.5px;
+            width: 25px * clamp(root.battery, 0, 100) / 100;
+            height: 9px;
+            border-radius: 2px;
             background: Theme.t2;
         }
     }
     Rectangle {
-        x: cell.x + 28px;
-        width: 2px;
-        height: 5px;
-        border-radius: 1px;
+        x: cell.x + 36px;
+        width: 3px;
+        height: 7px;
+        border-radius: 1.5px;
         background: Theme.t2;
     }
     if root.show-menu: TouchArea {
@@ -136,7 +138,10 @@ export component StatusBar inherits Rectangle {
         width: 72px;
         height: 60px;
         clicked => { root.menu(); }
-        Glyph { commands: Icons.menu; }
+        Glyph {
+            size: 30px;
+            commands: Icons.menu;
+        }
     }
 }
 

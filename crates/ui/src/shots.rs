@@ -228,8 +228,23 @@ fn wifi_script() -> Vec<(u64, Act)> {
     steps
 }
 
+/// The home key through real key events, on the Kodi screen: a tap (Kodi's own home, nothing
+/// changes here), then a hold that opens the input list, then a tap that returns home.
+fn home_script() -> Vec<(u64, Act)> {
+    use slint::platform::WindowEvent;
+    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "h".into() });
+    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "h".into() });
+    let kodi: Act = Box::new(|_, tx| {
+        let _ = tx.send(UiAction::SelectSource("KODI".into()));
+    });
+    vec![(300, kodi), (1800, ui(down)), (120, ui(up)), (1500, ui(down)), (900, ui(up)), (2200, ui(down)), (120, ui(up)), (1800, ui(|_| {}))]
+}
+
 /// (pause before the step in ms, what happens)
 fn script(name: Option<&str>) -> Vec<(u64, Act)> {
+    if name == Some("home") {
+        return home_script();
+    }
     if name == Some("wifi") {
         return wifi_script();
     }

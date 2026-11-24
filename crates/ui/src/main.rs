@@ -137,6 +137,8 @@ fn main() -> anyhow::Result<()> {
         std::env::set_var(key, value);
     }
     #[cfg(feature = "device")]
+    log_display_facts();
+    #[cfg(feature = "device")]
     select_device_renderer();
     let app = AppWindow::new()?;
     app.global::<Theme>().set_touch_only(cfg!(feature = "device"));
@@ -249,6 +251,28 @@ fn main() -> anyhow::Result<()> {
 
     app.run()?;
     Ok(())
+}
+
+/// What the system says about the panel, once, for diagnosing display behaviour from the logs.
+#[cfg(feature = "device")]
+fn log_display_facts() {
+    let read = |p: &std::path::Path| std::fs::read_to_string(p).map(|s| s.trim().replace('\n', " | ")).ok();
+    if let Some(v) = read("/proc/version".as_ref()) {
+        tracing::info!("kernel: {v}");
+    }
+    for dir in ["/sys/class/drm", "/sys/class/graphics", "/sys/class/backlight"] {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            tracing::info!("{dir}: not readable");
+            continue;
+        };
+        for entry in entries.flatten() {
+            let facts: Vec<String> = ["status", "enabled", "dpms", "modes", "mode", "virtual_size", "name", "brightness", "max_brightness"]
+                .iter()
+                .filter_map(|f| Some(format!("{f}={}", read(&entry.path().join(f)).filter(|v| !v.is_empty())?)))
+                .collect();
+            tracing::info!("{}: {}", entry.path().display(), facts.join("; "));
+        }
+    }
 }
 
 /// GLES2 first; if the GPU path cannot start, draw in software so there is still a picture.
