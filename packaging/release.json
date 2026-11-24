@@ -1,8 +1,16 @@
 {
-  "name": { "en": "Custom Remote UI" },
-  "version": "0.1.0",
-  "description": { "en": "Single-purpose theater remote: receiver volume and input, Kodi, in Rust." },
-  "developer": { "name": "Jack Hric" },
+  "name": {
+    "en": "Custom Remote UI"
+  },
+  "version": "0.2.0",
+  "description": {
+    "en": "Single-purpose theater remote: receiver volume and input, Kodi, in Rust."
+  },
+  "developer": {
+    "name": "Jack Hric"
+  },
   "release_date": "2026-11-23",
-  "requirements": { "firmware_version": ">=2.0.0" }
+  "requirements": {
+    "firmware_version": ">=2.0.0"
+  }
 }
