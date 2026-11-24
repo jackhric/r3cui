@@ -9,7 +9,12 @@ import Logo from './Logo.astro';
 interface Props { repo: string; download: string }
 const { repo, download } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-const install = `curl -u 'web-configurator:<PIN>' 'http://<IP>/api/system/install/ui?void_warranty=yes' --form 'file=@remote-ui.tar.gz'`;
+const latest = `${repo}/releases/latest/download`;
+// The script asks for the remote's address and PIN, shows the warranty warning and installs the latest release.
+const commands = [
+  { id: 'unix', label: 'macOS / Linux', shell: 'Terminal', cmd: `curl -fsSLO ${latest}/install.sh && sh install.sh` },
+  { id: 'windows', label: 'Windows', shell: 'Command Prompt', cmd: `curl.exe -fsSLO ${latest}/install.bat && install.bat` },
+];
 ---
 
 <section id="get-started" class="cta" aria-labelledby="cta-title">
@@ -20,22 +25,32 @@ const install = `curl -u 'web-configurator:<PIN>' 'http://<IP>/api/system/instal
 
         <ol class="installs">
           <li>
-            <span class="where"><b>1</b>Download the latest release</span>
-            <div class="buttons">
-              <Button href={download} target="_blank" rel="noopener" variant="default" class="select-none">Download remote-ui.tar.gz</Button>
-              <Button href={`${base}/docs/getting-started/`} variant="outline" class="select-none">Read the guide</Button>
+            <span class="where"><b>1</b>Pick your computer</span>
+            <div class="os" role="tablist" aria-label="Your computer">
+              {commands.map((c, i) => (
+                <button type="button" role="tab" id={`os-${c.id}`} aria-controls={`cmd-${c.id}`} aria-selected={i === 0 ? 'true' : 'false'}
+                  tabindex={i === 0 ? 0 : -1}>{c.label}</button>
+              ))}
             </div>
           </li>
           <li>
-            <span class="where"><b>2</b>Install it from a computer on the same network</span>
-            <InputGroup class="bg-muted">
-              <InputGroupInput id="cta-install" readonly value={install} aria-label="Install command"
-                class="font-mono text-[0.8rem] min-w-0 bg-transparent" />
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton variant="primary" data-copy="cta-install" class="font-semibold">Copy</InputGroupButton>
-              </InputGroupAddon>
-            </InputGroup>
-            <span class="hint">Use your remote's IP address and web configurator PIN.</span>
+            <span class="where"><b>2</b>Paste this into a terminal on the same network as the remote</span>
+            {commands.map((c, i) => (
+              <div class="cmd-panel" role="tabpanel" id={`cmd-${c.id}`} aria-labelledby={`os-${c.id}`} hidden={i !== 0}>
+                <InputGroup class="bg-muted">
+                  <InputGroupInput id={`cta-install-${c.id}`} readonly value={c.cmd} aria-label={`Install command for ${c.label}`}
+                    class="font-mono text-[0.8rem] min-w-0 bg-transparent" />
+                  <InputGroupAddon align="inline-end">
+                    <InputGroupButton variant="ghost" size="icon-sm" data-copy={`cta-install-${c.id}`} class="copy-btn" aria-label="Copy command" title="Copy">
+                      <svg class="ic clip" viewBox="0 0 24 24" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /></svg>
+                      <svg class="ic tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                    </InputGroupButton>
+                  </InputGroupAddon>
+                </InputGroup>
+                <span class="hint">Opens in {c.shell}. It asks for your remote's IP address and PIN, then installs the latest release.</span>
+              </div>
+            ))}
+            <span class="hint alt">Rather do it by hand? <a href={download} target="_blank" rel="noopener">Download remote-ui.tar.gz</a> and follow <a href={`${base}/docs/getting-started/`}>the guide</a>.</span>
           </li>
         </ol>
 
@@ -87,12 +102,34 @@ const install = `curl -u 'web-configurator:<PIN>' 'http://<IP>/api/system/instal
   }
   .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
   .hint { font-size: 0.82rem; color: var(--muted-foreground); }
+  .hint.alt { margin-top: 2px; }
+  .hint a { color: var(--foreground); }
+  .cmd-panel { display: grid; gap: 8px; }
+  .cmd-panel[hidden] { display: none; }
+  .os { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--muted); border: 1px solid var(--border); width: fit-content; }
+  .os button {
+    font-family: inherit; font-size: 0.88rem; font-weight: 600; line-height: 1; color: var(--muted-foreground); background: transparent; border: 0; border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease;
+  }
+  .os button[aria-selected='true'] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
+  .os button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  /* Copy: a clipboard that turns into a check once the command is on the clipboard. */
+  .installs :global(.copy-btn) { position: relative; color: var(--muted-foreground); }
+  .installs :global(.copy-btn:hover) { color: var(--foreground); }
+  .ic { position: absolute; inset: 0; margin: auto; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; transition: opacity 0.2s ease, scale 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+  .ic.tick { opacity: 0; scale: 0.5; color: var(--primary); }
+  .ic.tick path { stroke-dasharray: 24; stroke-dashoffset: 24; }
+  :global(.copied) .ic.clip { opacity: 0; scale: 0.5; }
+  :global(.copied) .ic.tick { opacity: 1; scale: 1; }
+  :global(.copied) .ic.tick path { stroke-dashoffset: 0; transition: stroke-dashoffset 0.35s ease 0.08s; }
+  @media (prefers-reduced-motion: reduce) { .ic, .ic.tick path { transition: none !important; } }
   .then { margin: 20px 0 0; font-size: 0.92rem; color: var(--muted-foreground); }
 
   /* The copy sets the card's height; the remote hangs from near the top and runs out through the
      card's bottom edge, where the card clips it. */
   .media { position: relative; align-self: stretch; min-width: 0; min-height: 320px; margin-block: -44px; user-select: none; -webkit-user-select: none; pointer-events: none; }
-  .media img { position: absolute; top: 44px; left: 50%; translate: -50% 0; width: min(190px, 60%); height: auto; max-width: none; filter: drop-shadow(0 6px 16px rgb(0 0 0 / 0.16)); }
+  .media img { position: absolute; top: 44px; left: 50%; translate: -50% 0; width: min(190px, 60%); height: auto; max-width: none; filter: drop-shadow(0 10px 24px rgb(0 0 0 / 0.2)); }
   .warn { margin: 16px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 0.86rem; line-height: 1.45;
     color: var(--foreground); background: color-mix(in srgb, var(--primary) 10%, transparent);
     border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent); }

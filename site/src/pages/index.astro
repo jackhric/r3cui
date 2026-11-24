@@ -36,17 +36,47 @@ const description = 'A simplified, single-purpose Unfolded Circle Remote 3 inter
       for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-copy]')) {
         const input = document.getElementById(button.dataset.copy!) as HTMLInputElement | null;
         input?.addEventListener('focus', () => input.select());
+        let timer = 0;
         button.addEventListener('click', async () => {
+          // The Clipboard API can be refused (permissions, an embedded frame); select-and-copy is the fallback.
+          const copy = async (text: string) => {
+            try { await navigator.clipboard.writeText(text); return true; } catch {}
+            input?.focus(); input?.select();
+            try { return document.execCommand('copy'); } catch { return false; }
+          };
           try {
-            await navigator.clipboard.writeText(input?.value ?? '');
-            button.textContent = 'Copied';
+            if (!(await copy(input?.value ?? ''))) throw new Error('copy refused');
+            button.classList.add('copied');
+            button.setAttribute('aria-label', 'Copied');
+            clearTimeout(timer);
+            timer = window.setTimeout(() => { button.classList.remove('copied'); button.setAttribute('aria-label', 'Copy command'); }, 1800);
           } catch {
+            input?.focus();
             input?.select();
-            button.textContent = 'Press Ctrl+C';
           }
-          setTimeout(() => { button.textContent = 'Copy'; }, 1800);
         });
       }
+
+      // The computer picker: tabs that swap which install command shows.
+      const tabs = [...document.querySelectorAll<HTMLButtonElement>('.os [role="tab"]')];
+      const pick = (tab: HTMLButtonElement) => {
+        for (const t of tabs) {
+          const on = t === tab;
+          t.setAttribute('aria-selected', String(on));
+          t.tabIndex = on ? 0 : -1;
+          document.getElementById(t.getAttribute('aria-controls')!)!.hidden = !on;
+        }
+      };
+      tabs.forEach((t, i) => {
+        t.addEventListener('click', () => pick(t));
+        t.addEventListener('keydown', e => {
+          const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+          if (!step) return;
+          const next = tabs[(i + step + tabs.length) % tabs.length];
+          pick(next); next.focus();
+        });
+      });
+      if (/Win/.test(navigator.platform || navigator.userAgent)) { const w = tabs.find(t => t.id === 'os-windows'); if (w) pick(w); }
     </script>
   </body>
 </html>
