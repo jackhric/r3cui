@@ -26,7 +26,7 @@ docker run --rm \
         export PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_SYSROOT_DIR=$sysroot
         export PKG_CONFIG_LIBDIR=$sysroot/usr/lib/pkgconfig:$sysroot/usr/share/pkgconfig
         export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$sysroot"
-        cargo build --release -p remote-ui --no-default-features --features device \
+        cargo build --locked --release -p remote-ui --no-default-features --features device \
             --target aarch64-unknown-linux-gnu --target-dir /src/target-device
         chown -R '"$(id -u):$(id -g)"' /src/target-device
     '
