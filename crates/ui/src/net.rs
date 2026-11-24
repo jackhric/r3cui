@@ -100,6 +100,11 @@ async fn get(core: &coreapi::Core, msg: &str) -> Option<Value> {
 
 /// The connected network's name (empty when disconnected) and what the last scan found.
 pub async fn wifi(core: &coreapi::Core) -> (String, Vec<Network>) {
+    // The simulator has no Wi-Fi; previews of it can name a network to show as joined.
+    #[cfg(feature = "preview")]
+    if let Ok(ssid) = std::env::var("UC_PREVIEW_WIFI") {
+        return (ssid.clone(), demo_networks(&ssid));
+    }
     let (status, scan) = tokio::join!(get(core, "get_wifi_status"), get(core, "get_wifi_scan_status"));
     let field = |v: &Value, key: &str| v.get(key).and_then(Value::as_str).unwrap_or_default().to_string();
     let connected = status.as_ref().filter(|s| field(s, "wpa_state") == "COMPLETED");

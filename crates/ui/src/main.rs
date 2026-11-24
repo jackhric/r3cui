@@ -355,7 +355,21 @@ fn main() -> anyhow::Result<()> {
     });
 
     if let Some(page) = arg("--page").and_then(|p| p.parse().ok()) {
-        app.invoke_go(page, 0);
+        // Pages blur the screen behind them, which needs the window to be showing.
+        let weak = app.as_weak();
+        slint::Timer::single_shot(Duration::from_millis(1500), move || {
+            if let Some(app) = weak.upgrade() {
+                app.invoke_go(page, 0);
+            }
+        });
+    }
+    // `--press <key>`: one key press shortly before `--snap` takes its picture.
+    #[cfg(feature = "preview")]
+    if let Some(key) = arg("--press").cloned() {
+        let tx = act_tx.clone();
+        slint::Timer::single_shot(Duration::from_millis(4000), move || {
+            let _ = tx.send(UiAction::Key(key));
+        });
     }
     #[cfg(feature = "preview")]
     let _snap = arg("--snap").map(|out| shots::snap(&app, out.into(), device::Device::load_opt(arg("--frame"))));
@@ -1373,6 +1387,10 @@ const MAX_VOLUME: i32 = 98;
 
 /// Whether the remote is on its charger, from any message that says.
 fn on_power(v: &Value) -> Option<bool> {
+    // The simulator is always on its charger; previews of it can pretend otherwise.
+    if cfg!(feature = "preview") && std::env::var_os("UC_PREVIEW_ON_BATTERY").is_some() {
+        return Some(false);
+    }
     v.get("power_supply").or_else(|| v.pointer("/battery/power_supply")).and_then(Value::as_bool)
 }
 
