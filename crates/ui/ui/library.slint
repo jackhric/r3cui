@@ -13,6 +13,63 @@ export struct LibItem {
     progress: float,
 }
 
+// A library poster; until it arrives, a frosted stand-in with the title and a spinner.
+component PosterTile inherits Rectangle {
+    in property <image> poster;
+    in property <string> title;
+    property <bool> loaded: root.poster.width > 0;
+    clip: true;
+    background: @linear-gradient(165deg, #3A3E45 0%, #25282D 55%, #1A1C20 100%);
+    Rectangle { background: @linear-gradient(135deg, #FFFFFF12 0%, #FFFFFF00 45%, #FFFFFF08 100%); }
+    Rectangle { border-width: 1px; border-color: #FFFFFF10; }
+    if !root.loaded: Rectangle {
+        x: (parent.width - 24px) / 2;
+        y: parent.height * 0.34 - 12px;
+        width: 24px;
+        height: 24px;
+        Path {
+            width: 100%;
+            height: 100%;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18";
+            stroke: #FFFFFF14;
+            stroke-width: 2px;
+        }
+        Path {
+            width: 100%;
+            height: 100%;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: "M12 3a9 9 0 0 1 9 9";
+            stroke: Theme.t2;
+            stroke-width: 2px;
+            transform-origin: { x: self.width / 2, y: self.height / 2 };
+            transform-rotation: animation-tick() / 1ms * 0.36deg;
+        }
+    }
+    if !root.loaded: Text {
+        x: 10px;
+        y: parent.height * 0.52;
+        width: parent.width - 20px;
+        height: parent.height * 0.4;
+        text: root.title;
+        font-size: 13px;
+        color: Theme.t3;
+        wrap: word-wrap;
+        overflow: elide;
+        horizontal-alignment: center;
+    }
+    Image {
+        width: 100%;
+        height: 100%;
+        image-fit: cover;
+        source: root.poster;
+        opacity: root.loaded ? 1 : 0;
+        animate opacity { duration: 220ms; }
+    }
+}
+
 component River inherits Rectangle {
     in property <[image]> posters;
     in property <float> dim: 0.42;
@@ -68,7 +125,7 @@ component Card inherits Rectangle {
         background: #111111;
         drop-shadow-blur: 24px;
         drop-shadow-color: #000000C0;
-        Image { width: 100%; height: 100%; image-fit: cover; source: root.item.poster; }
+        PosterTile { poster: root.item.poster; title: root.item.title; }
     }
     VerticalLayout {
         x: 192px;
@@ -155,7 +212,7 @@ export component Library inherits Rectangle {
             y: 330px - self.height / 2;
             border-radius: 0;
             clip: true;
-            Image { width: 100%; height: 100%; image-fit: cover; source: it.poster; }
+            PosterTile { poster: it.poster; title: it.title; }
             Rectangle { background: #000000; opacity: min(abs(parent.d), 2) * 0.3; }
         }
         for it[i] in root.items: Rectangle {
@@ -171,7 +228,7 @@ export component Library inherits Rectangle {
             drop-shadow-blur: 30px;
             drop-shadow-color: #000000E0;
             clip: true;
-            Image { width: 100%; height: 100%; image-fit: cover; source: it.poster; }
+            PosterTile { poster: it.poster; title: it.title; }
         }
         VerticalLayout {
             y: 520px;
@@ -216,7 +273,7 @@ export component Library inherits Rectangle {
             Rectangle {
                 border-radius: 0;
                 clip: true;
-                Image { width: 100%; height: 100%; image-fit: cover; source: it.poster; }
+                PosterTile { poster: it.poster; title: it.title; }
                 Rectangle { background: #000000; opacity: cell.on ? 0 : 0.5; animate opacity { duration: 200ms; } }
             }
             Rectangle {

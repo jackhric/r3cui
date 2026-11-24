@@ -567,11 +567,16 @@ fn shelf(kind: &str) -> Shelf {
     let mut items = Vec::new();
     for it in &list {
         let Some(file) = it["file"].as_str() else { continue };
-        let Ok(img) = image::open(dir.join(file)) else { continue };
-        let img = img.resize_to_fill(200, 300, image::imageops::FilterType::Triangle).to_rgb8();
-        let buf = slint::SharedPixelBuffer::<slint::Rgb8Pixel>::clone_from_slice(img.as_raw(), 200, 300);
-        let poster = slint::Image::from_rgb8(buf);
-        posters.push(poster.clone());
+        // A missing file stands for a poster still on its way.
+        let poster = match image::open(dir.join(file)) {
+            Ok(img) => {
+                let img = img.resize_to_fill(200, 300, image::imageops::FilterType::Triangle).to_rgb8();
+                let poster = slint::Image::from_rgb8(slint::SharedPixelBuffer::clone_from_slice(img.as_raw(), 200, 300));
+                posters.push(poster.clone());
+                poster
+            }
+            Err(_) => slint::Image::default(),
+        };
         items.push(crate::library::item(&crate::library::entry(it, shows), poster));
     }
     let count = if shows { format!("{} shows", list.len()) } else { format!("{} films", list.len()) };

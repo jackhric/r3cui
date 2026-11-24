@@ -1084,7 +1084,18 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                 let Some(ev) = ev else { break };
                 tracing::debug!(msg = %ev.msg, cat = ?ev.cat, data = %ev.data, "event");
                 if ev.msg == "power_mode_change" {
+                    tracing::info!(mode = ?ev.data.get("mode"), "power mode");
                     session.awake = is_awake(ev.data.get("mode").and_then(Value::as_str));
+                    if ev.data.get("mode").and_then(Value::as_str) == Some("NORMAL") {
+                        keys.repaint();
+                        // The core restores its own idea of the keys as it wakes; paint over it
+                        // again once it has.
+                        let keys = keys.clone();
+                        tokio::spawn(async move {
+                            tokio::time::sleep(Duration::from_millis(400)).await;
+                            keys.repaint();
+                        });
+                    }
                     if let Some(on) = on_power(&ev.data) {
                         session.charging = on;
                     }

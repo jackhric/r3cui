@@ -15,8 +15,10 @@
 //! keys.show(Keys { power: Rgb::GREEN, rest: Rgb::OFF });
 //! ```
 //!
-//! Two things about the core's `set_button_cfg` worth knowing: it accepts unknown zone names
-//! without lighting anything, and it only repaints the zones an update names.
+//! Things about the core's `set_button_cfg` worth knowing: it accepts unknown zone names without
+//! lighting anything, and it only repaints the zones an update names. It also dims the keys by
+//! itself when the remote idles, and on waking restores only the zones it was last given, so
+//! every change of power mode calls for a full repaint ([`Backlight::repaint`]).
 
 use crate::{AppWindow, Theme};
 use serde_json::json;
@@ -55,11 +57,11 @@ impl Keys {
 
 /// Handle to the task that keeps the remote's keys showing the latest request.
 #[derive(Clone)]
-pub struct Backlight(Arc<watch::Sender<Keys>>);
+pub struct Backlight(Arc<watch::Sender<(Keys, u64)>>);
 
 impl Backlight {
     pub fn start(core: coreapi::Core) -> Self {
-        let (tx, mut wanted) = watch::channel(Keys::OFF);
+        let (tx, mut wanted) = watch::channel((Keys::OFF, 0u64));
         tokio::spawn(async move {
             let paint = |colour: Rgb, zones: Vec<u8>| {
                 let names: Vec<String> = zones.iter().map(|z| format!("ZONE_{z}")).collect();
@@ -69,8 +71,13 @@ impl Backlight {
             };
             // Nothing is known about the keys at first, so the first request paints both groups.
             let mut shown: Option<Keys> = None;
+            let mut painted = 0u64;
             while wanted.changed().await.is_ok() {
-                let want = *wanted.borrow_and_update();
+                let (want, generation) = *wanted.borrow_and_update();
+                if generation != painted {
+                    painted = generation;
+                    shown = None;
+                }
                 let mut ok = true;
                 if shown.map(|s| s.rest) != Some(want.rest) {
                     ok &= paint(want.rest, (1..=ZONES).filter(|z| *z != POWER_ZONE).collect()).await;
@@ -86,7 +93,12 @@ impl Backlight {
     }
 
     pub fn show(&self, keys: Keys) {
-        let _ = self.0.send(keys);
+        self.0.send_if_modified(|(k, _)| std::mem::replace(k, keys) != keys);
+    }
+
+    /// Paint every zone again, whatever the core is believed to show.
+    pub fn repaint(&self) {
+        self.0.send_modify(|(_, generation)| *generation += 1);
     }
 }
 

@@ -180,7 +180,62 @@ pub fn list(base: &str, b: &Browsing) -> anyhow::Result<Vec<Value>> {
     let mut files = v.get("files").and_then(Value::as_array).cloned().unwrap_or_default();
     for f in &mut files {
         let art = f.pointer("/art/poster").or_else(|| f.pointer("/art/thumb")).and_then(Value::as_str).unwrap_or("").to_string();
-        f["poster"] = Value::String(if art.is_empty() { art } else { image(base, &art) });
+        f["poster"] = Value::String(if art.is_empty() { art } else { image(base, &smaller(&art, 136, 204)) });
     }
     Ok(files)
+}
+
+/// Kodi's art for Jellyfin items points at the full-size original. Asking Jellyfin for a resized
+/// copy instead, still through Kodi's image cache, cuts a poster from ~40 KB to ~5 KB. Other art
+/// is left alone.
+pub fn smaller(art: &str, w: u32, h: u32) -> String {
+    let Some(inner) = art.strip_prefix("image://").map(|a| a.trim_end_matches('/')) else { return art.to_string() };
+    let url = decode(inner);
+    if !url.contains("/Images/") || !url.contains("Format=original") {
+        return art.to_string();
+    }
+    let url = url.replace("Format=original", &format!("fillWidth={w}&fillHeight={h}&quality=85"));
+    let mut out = String::from("image://");
+    for b in url.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02x}"));
+        }
+    }
+    out.push('/');
+    out
+}
+
+fn decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+#[cfg(test)]
+mod small_art_tests {
+    use super::*;
+
+    #[test]
+    fn jellyfin_posters_are_asked_for_small() {
+        let art = "image://https%3a%2f%2fmedia.example.com%2fItems%2fabc%2fImages%2fPrimary%2f0%3fFormat%3doriginal%26Tag%3d123/";
+        assert_eq!(
+            smaller(art, 136, 204),
+            "image://https%3a%2f%2fmedia.example.com%2fItems%2fabc%2fImages%2fPrimary%2f0%3ffillWidth%3d136%26fillHeight%3d204%26quality%3d85%26Tag%3d123/"
+        );
+        assert_eq!(smaller("image://DefaultVideo.png/", 136, 204), "image://DefaultVideo.png/");
+    }
 }
