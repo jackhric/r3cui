@@ -7,6 +7,8 @@ mod backlight;
 mod device;
 #[cfg(feature = "device")]
 mod evdev_input;
+#[cfg(feature = "device")]
+mod frames;
 mod haptics;
 mod input;
 mod keyboard;
@@ -131,9 +133,15 @@ fn main() -> anyhow::Result<()> {
         .with_ansi(cfg!(not(feature = "device")))
         .init();
 
+    for (key, value) in &settings::get().env {
+        std::env::set_var(key, value);
+    }
     #[cfg(feature = "device")]
     select_device_renderer();
     let app = AppWindow::new()?;
+    app.global::<Theme>().set_touch_only(cfg!(feature = "device"));
+    #[cfg(feature = "device")]
+    frames::install(&app);
     #[cfg(feature = "device")]
     evdev_input::start(&app);
     // UC_ACCENT pins one colour; without it the colour follows the input (see `apply`).
@@ -960,8 +968,25 @@ fn render(weak: &slint::Weak<AppWindow>, m: &Model) {
     ui(weak, move |app| apply(&app, &m));
 }
 
+/// A model change that alters what is on screen starts a transition; the playback position
+/// ticking along does not count.
+#[cfg(feature = "device")]
+fn kick_if_changed(m: &Model) {
+    use std::hash::{Hash, Hasher};
+    thread_local!(static LAST: std::cell::Cell<u64> = const { std::cell::Cell::new(0) });
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (m.volume, m.muted, &m.source, &m.title, m.paused, m.awake, m.receiver_on, &m.warning, m.scanning, m.wifi.len()).hash(&mut h);
+    format!("{:?}", m.keys).hash(&mut h);
+    let now = h.finish();
+    if LAST.with(|l| l.replace(now)) != now {
+        frames::kick();
+    }
+}
+
 /// Push a model into the window. UI thread only.
 pub fn apply(app: &AppWindow, m: &Model) {
+    #[cfg(feature = "device")]
+    kick_if_changed(m);
     let now = chrono::Local::now();
     let logos = app.global::<Logos>();
 

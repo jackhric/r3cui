@@ -119,6 +119,7 @@ fn read_slider(mut device: Device, weak: slint::Weak<AppWindow>) {
                 let (weak, touch, pos) = (weak.clone(), touching, position.unwrap_or(0.0).clamp(0.0, 1.0));
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(app) = weak.upgrade() {
+                        crate::frames::kick();
                         app.set_slider_touch(touch);
                         app.set_slider_pos(pos);
                         app.set_slider_raw(raw.into());
@@ -133,6 +134,7 @@ fn send(weak: &slint::Weak<AppWindow>, event: WindowEvent) {
     let weak = weak.clone();
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(app) = weak.upgrade() {
+            crate::frames::kick();
             app.window().dispatch_event(event);
         }
     });

@@ -2,6 +2,10 @@
 // `app.global::<Theme>().set_accent(color)`.
 export global Theme {
     in-out property <color> accent: #E8343A;
+    // Set on the remote, which has no mouse: the display backend would otherwise draw an arrow
+    // under every touch.
+    in-out property <bool> touch-only: false;
+    out property <MouseCursor> cursor: self.touch-only ? MouseCursor.none : MouseCursor.default;
     // Fixed meanings, independent of the accent: red turns off, green turns on.
     out property <color> good: #3DDC84;
     out property <color> off: #E8343A;
@@ -127,6 +131,7 @@ export component StatusBar inherits Rectangle {
         background: Theme.t2;
     }
     if root.show-menu: TouchArea {
+        mouse-cursor: Theme.cursor;
         x: 400px;
         width: 72px;
         height: 60px;
@@ -198,6 +203,7 @@ export component ListRow inherits Rectangle {
         tint: Theme.text;
     }
     TouchArea {
+        mouse-cursor: Theme.cursor;
         clicked => { root.tapped(); }
     }
 }
@@ -225,6 +231,7 @@ export component PageHeader inherits Rectangle {
         color: Theme.text;
     }
     TouchArea {
+        mouse-cursor: Theme.cursor;
         clicked => { root.back(); }
     }
 }

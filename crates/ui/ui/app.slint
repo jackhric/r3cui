@@ -70,6 +70,7 @@ component WarningRow inherits Rectangle {
         }
     }
     TouchArea {
+        mouse-cursor: Theme.cursor;
         clicked => { root.tapped(); }
     }
 }
@@ -91,6 +92,7 @@ component Pill inherits Rectangle {
         color: root.focused ? Theme.text : Theme.t2;
     }
     TouchArea {
+        mouse-cursor: Theme.cursor;
         clicked => { root.tapped(); }
     }
 }
@@ -194,6 +196,7 @@ component ActionButton inherits Rectangle {
         }
     }
     touch := TouchArea {
+        mouse-cursor: Theme.cursor;
         clicked => { root.tapped(); }
     }
 }
@@ -487,6 +490,11 @@ export component AppWindow inherits Window {
             triggered => { root.power-latched = false; }
         }
 
+        // Catches touches that land on nothing, so the pointer stays hidden there too.
+        TouchArea {
+            mouse-cursor: Theme.cursor;
+        }
+
         // Home
         Page {
             depth: 0;
@@ -531,6 +539,7 @@ export component AppWindow inherits Window {
                     }
                 }
                 TouchArea {
+                    mouse-cursor: Theme.cursor;
                     y: 100px;
                     height: 170px;
                     clicked => { root.go(1, root.source-index); }
@@ -704,6 +713,7 @@ export component AppWindow inherits Window {
             }
             // On the Kodi views the current input sits in the status line; tapping it opens the list.
             if root.home-view != 0 && root.home-view != 3 && root.sources.length > 0: TouchArea {
+                mouse-cursor: Theme.cursor;
                 x: 150px;
                 y: 0;
                 width: 180px;
@@ -881,6 +891,7 @@ export component AppWindow inherits Window {
                 handle: true;
             }
             TouchArea {
+                mouse-cursor: Theme.cursor;
                 x: 24px;
                 y: 220px;
                 width: 432px;
@@ -1104,6 +1115,7 @@ export component AppWindow inherits Window {
                         tint: key.focused ? #000000 : Theme.text;
                     }
                     TouchArea {
+                        mouse-cursor: Theme.cursor;
                         clicked => { root.kb-tap(i); }
                     }
                 }
@@ -1339,5 +1351,5 @@ export component AppWindow inherits Window {
         }
     }
 
-    if !root.awake: TouchArea { }
+    if !root.awake: TouchArea { mouse-cursor: Theme.cursor; }
 }

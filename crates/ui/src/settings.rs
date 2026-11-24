@@ -14,6 +14,9 @@ pub struct Settings {
     /// Device only: "femtovg" (GLES2, the default) or "software".
     #[cfg_attr(not(feature = "device"), allow(dead_code))]
     pub renderer: Option<String>,
+    /// Environment variables to set before the display starts, for diagnostics such as
+    /// `SLINT_DEBUG_PERFORMANCE`.
+    pub env: Vec<(String, String)>,
     /// Entity-id endings of the Home Assistant helpers that steer the key backlight.
     pub keys_light: String,
     pub keys_mode: String,
@@ -69,6 +72,11 @@ fn parse(text: &str) -> Result<Settings, String> {
             .map(|m| m.iter().filter_map(|(k, c)| Some((k.to_lowercase(), c.as_str()?.to_string()))).collect())
             .unwrap_or_default(),
         renderer: v.get("renderer").and_then(Value::as_str).map(String::from),
+        env: v
+            .get("env")
+            .and_then(Value::as_object)
+            .map(|m| m.iter().filter_map(|(k, x)| Some((k.clone(), x.as_str()?.to_string()))).collect())
+            .unwrap_or_default(),
         keys_light: string_or(&v, "keys_light", "light.theater_remote_keys"),
         keys_mode: string_or(&v, "keys_mode", "theater_remote_keys_mode"),
         hidden_sources: v
