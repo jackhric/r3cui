@@ -931,13 +931,14 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     };
     let mut tick = tokio::time::interval(Duration::from_secs(1));
     let mut ticks = 0u64;
+    let commands = Commands::new(core.clone());
     let mut volume_gate = slider::Pacer::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(250)), Duration::from_millis(600));
     // Spawns the timer a `Send::Later` asks for, or sends at once.
     let pace = |send: slider::Send, session: &Session, moves: u32| match send {
         slider::Send::Now(v) => {
             tracing::info!("slider volume {v} (from {moves} moves)");
             if let Some(entity) = session.target(Target::Volume) {
-                send_command(&core, entity, "volume".into(), json!({ "volume": v }));
+                commands.send(entity, "volume".into(), json!({ "volume": v }));
             }
         }
         slider::Send::Later(wait) => {
@@ -1201,7 +1202,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     cmd
                 };
                 let Some(entity) = session.target(target) else { continue };
-                send_command(&core, entity, cmd, params);
+                commands.send(entity, cmd, params);
             }
         }
     }
@@ -1478,18 +1479,43 @@ fn flash_volume(weak: &slint::Weak<AppWindow>, generation: &Arc<AtomicU64>) {
     });
 }
 
-fn send_command(core: &coreapi::Core, entity: &Value, cmd: String, params: Value) {
-    let id = entity_id(entity).to_string();
-    let line = format!("{} · {cmd}", entity_name(entity));
-    let core = core.clone();
-    tokio::spawn(async move {
-        let outcome = match core.execute_entity_command(&id, &cmd, params).await {
-            Ok(r) if (200..300).contains(&r.code) => "ok".to_string(),
-            Ok(r) => r.data.get("message").and_then(Value::as_str).unwrap_or("failed").to_string(),
-            Err(e) => format!("{e:#}"),
-        };
-        tracing::info!("{line} — {outcome}");
-    });
+type Queued = (String, Value, Instant);
+
+/// One queue per entity, for one core session: commands for an entity go out one at a time, in
+/// the order they were made. Sent all at once, the integration handles them in parallel and
+/// Kodi can see a burst of presses in a different order.
+struct Commands {
+    core: coreapi::Core,
+    queues: RefCell<HashMap<String, mpsc::UnboundedSender<Queued>>>,
+}
+
+impl Commands {
+    fn new(core: coreapi::Core) -> Self {
+        Self { core, queues: RefCell::new(HashMap::new()) }
+    }
+
+    fn send(&self, entity: &Value, cmd: String, params: Value) {
+        let id = entity_id(entity).to_string();
+        let mut queues = self.queues.borrow_mut();
+        let tx = queues.entry(id.clone()).or_insert_with(|| {
+            let (tx, mut rx) = mpsc::unbounded_channel::<Queued>();
+            let (core, name) = (self.core.clone(), entity_name(entity));
+            tokio::spawn(async move {
+                while let Some((cmd, params, made)) = rx.recv().await {
+                    let waited = made.elapsed();
+                    let sent = Instant::now();
+                    let outcome = match core.execute_entity_command(&id, &cmd, params).await {
+                        Ok(r) if (200..300).contains(&r.code) => "ok".to_string(),
+                        Ok(r) => r.data.get("message").and_then(Value::as_str).unwrap_or("failed").to_string(),
+                        Err(e) => format!("{e:#}"),
+                    };
+                    tracing::info!("{name} · {cmd} — {outcome} in {} ms (queued {} ms)", sent.elapsed().as_millis(), waited.as_millis());
+                }
+            });
+            tx
+        });
+        let _ = tx.send((cmd, params, Instant::now()));
+    }
 }
 
 /// Env override first; otherwise prefer a Kodi media_player, then any matching media_player.

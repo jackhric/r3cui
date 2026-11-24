@@ -173,6 +173,10 @@ fn read(mut device: Device, is_touch: bool, weak: slint::Weak<AppWindow>) {
             if kind == EventType::KEY && code == BTN_TOUCH {
                 down = value != 0;
             } else if kind == EventType::KEY {
+                // Timing for diagnosing slow presses: compare with the command log lines.
+                if value != 2 {
+                    tracing::info!("key {code} {}", if value == 1 { "down" } else { "up" });
+                }
                 match key_text(code) {
                     Some(text) => send(&weak, match value {
                         0 => WindowEvent::KeyReleased { text },
