@@ -46,7 +46,7 @@
 This is beta software. Things may break, and things are 100% bound to change.
 
 r3cui works closely with [Kodi](https://kodi.tv) and [Home Assistant](https://www.home-assistant.io).
-It's not plug and play yet. You'll need to clone the project and modify it to suit your home
+<b>It's not plug and play yet.</b> You'll need to clone the project and modify it to suit your home
 theater configuration and setup.
 
 ## Warranty
@@ -61,21 +61,21 @@ screen was installed. That record stays even if you go back to the original UI.
 ### Requirements
 
 - An [Unfolded Circle Remote 3](https://www.unfoldedcircle.com/) with firmware 2.8.4 or
-  newer (the version r3cui is tested on).
+  newer
 - [Kodi](https://kodi.tv) and [Home Assistant](https://www.home-assistant.io), both already set up
-  on your remote.
-- A receiver (amplifier) that Home Assistant can control.
-- A computer on the same network as the remote.
-- Your remote's IP address and web configurator PIN. You can find both in the remote's settings.
+  on your remote
+- A receiver (amplifier) that Home Assistant can control
+- A computer on the same network as the remote
+- Your remote's IP address and web configurator PIN. You can find both in the remote's settings
 
 ### 1. Download
 
-Download `remote-ui.tar.gz` from the [Releases](https://github.com/jackhric/r3cui/releases) page.
+Download `remote-ui.tar.gz` from the [Releases](https://github.com/jackhric/r3cui/releases) page
 
 ### 2. Install
 
 Open a terminal in the folder with the file and run this command. Put your PIN and IP address in
-place of `<PIN>` and `<IP>`.
+place of `<PIN>` and `<IP>`
 
 ```sh
 curl -u 'web-configurator:<PIN>' \
@@ -85,7 +85,7 @@ curl -u 'web-configurator:<PIN>' \
 
 ### 3. Wait
 
-Wait for the remote to show the new screen. If it does not, restart the remote.
+Wait for the remote to show the new screen. If it does not, restart the remote
 
 ## Go back to the original UI
 
@@ -99,7 +99,7 @@ To remove r3cui completely:
 curl -u 'web-configurator:<PIN>' -X DELETE 'http://<IP>/api/system/install/ui'
 ```
 
-If r3cui fails to start many times in a row, the remote goes back to the original UI by itself.
+If r3cui fails to start many times in a row, the remote goes back to the original UI by itself
 
 ## Credits
 
