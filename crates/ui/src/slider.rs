@@ -3,8 +3,9 @@
 
 use std::time::{Duration, Instant};
 
-/// How far a finger travels for one volume step: the whole strip is 30 steps.
-const STEP: f32 = 1.0 / 30.0;
+/// How far a finger travels for one step: the whole strip is 100 steps, which the caller maps
+/// onto the receiver's usable range.
+const STEP: f32 = 1.0 / 100.0;
 /// Further than this and a touch is a slide, not a tap.
 const TAP_TRAVEL: f32 = 0.05;
 const TAP_TIME: Duration = Duration::from_millis(300);
@@ -76,6 +77,8 @@ pub struct Pacer {
     max_wait: Duration,
     sent: Option<(i32, Instant)>,
     confirmed: bool,
+    /// The level the receiver last reported.
+    level: Option<i32>,
     pending: Option<i32>,
     /// Moves folded into the next send, for the log.
     pub merged: u32,
@@ -95,7 +98,7 @@ pub enum Send {
 
 impl Pacer {
     pub fn new(min_gap: Duration, max_wait: Duration) -> Self {
-        Self { min_gap, max_wait, sent: None, confirmed: true, pending: None, merged: 0, scheduled: None }
+        Self { min_gap, max_wait, sent: None, confirmed: true, level: None, pending: None, merged: 0, scheduled: None }
     }
 
     pub fn offer(&mut self, value: i32, now: Instant) -> Send {
@@ -106,6 +109,7 @@ impl Pacer {
 
     /// The receiver reported this level.
     pub fn reported(&mut self, value: i32, now: Instant) -> Send {
+        self.level = Some(value);
         if self.sent.is_some_and(|(v, _)| v == value) {
             self.confirmed = true;
         }
@@ -122,6 +126,12 @@ impl Pacer {
 
     fn next(&mut self, now: Instant) -> Send {
         let Some(value) = self.pending else { return Send::Wait };
+        // The receiver reports only changes, so asking for the level it is already at would
+        // never be answered. Safe to skip only when nothing else is on its way.
+        if self.confirmed && self.level == Some(value) {
+            self.pending = None;
+            return Send::Wait;
+        }
         if let Some((_, at)) = self.sent {
             let ready = at + if self.confirmed { self.min_gap } else { self.max_wait };
             if now < ready {
@@ -170,14 +180,26 @@ mod tests {
     }
 
     #[test]
+    fn pacer_skips_the_level_the_receiver_is_at() {
+        let t0 = Instant::now();
+        let mut p = Pacer::new(Duration::from_millis(250), Duration::from_millis(600));
+        p.reported(72, t0);
+        assert_eq!(p.offer(72, ms(t0, 10)), Send::Wait);
+        assert_eq!(p.offer(70, ms(t0, 20)), Send::Now(70));
+        // Back to 72 while 70 is still on its way: 72 must still go, or the receiver ends at 70.
+        assert_eq!(p.offer(72, ms(t0, 30)), Send::Later(Duration::from_millis(590)));
+        assert_eq!(p.reported(70, ms(t0, 300)), Send::Now(72));
+    }
+
+    #[test]
     fn sliding_steps_both_ways() {
         let t0 = Instant::now();
         let mut s = Slider::default();
         assert_eq!(s.feed(true, 0.5, t0), None);
-        assert_eq!(s.feed(true, 0.52, ms(t0, 20)), None);
+        assert_eq!(s.feed(true, 0.5 + 0.5 * STEP, ms(t0, 20)), None);
         assert_eq!(s.feed(true, 0.5 + 2.5 * STEP, ms(t0, 40)), Some(Gesture::Steps(2)));
         assert_eq!(s.feed(true, 0.5 + 3.2 * STEP, ms(t0, 60)), Some(Gesture::Steps(1)));
-        assert_eq!(s.feed(true, 0.5, ms(t0, 80)), Some(Gesture::Steps(-3)));
+        assert_eq!(s.feed(true, 0.5 - 0.4 * STEP, ms(t0, 80)), Some(Gesture::Steps(-3)));
         assert_eq!(s.feed(false, 0.5, ms(t0, 100)), None);
     }
 

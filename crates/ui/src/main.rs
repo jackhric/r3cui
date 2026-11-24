@@ -931,7 +931,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     };
     let mut tick = tokio::time::interval(Duration::from_secs(1));
     let mut ticks = 0u64;
-    let mut volume_gate = slider::Pacer::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(250)), Duration::from_secs(1));
+    let mut volume_gate = slider::Pacer::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(250)), Duration::from_millis(600));
     // Spawns the timer a `Send::Later` asks for, or sends at once.
     let pace = |send: slider::Send, session: &Session, moves: u32| match send {
         slider::Send::Now(v) => {
@@ -1134,7 +1134,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         continue;
                     }
                     UiAction::Slider(slider::Gesture::Steps(n)) => {
-                        let v = (session.volume_base() + n).clamp(0, session.volume_max());
+                        let v = slide(session.volume_base(), n, session.volume_max());
                         session.slider_volume = Some((v, Instant::now()));
                         flash_volume(weak, &overlay);
                         render(weak, &session.model());
@@ -1423,7 +1423,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                 }
                 UiAction::PickTrack(_, i) => demo_subtitle = i as usize,
                 UiAction::Slider(slider::Gesture::Steps(n)) => {
-                    m.volume = (m.volume + n).clamp(0, m.volume_max);
+                    m.volume = slide(m.volume, n, m.volume_max);
                     m.muted = false;
                     flash_volume(weak, &overlay);
                 }
@@ -1676,6 +1676,13 @@ fn apply_now(app: &AppWindow, m: &Model) {
     app.set_media_format_label(label.into());
 }
 
+/// The strip is 100 steps from silence to the receiver's limit; never less than one level a step.
+fn slide(from: i32, steps: i32, max: i32) -> i32 {
+    let by = (steps as f64 * max as f64 / 100.0).round() as i32;
+    let by = if by == 0 { steps.signum() } else { by };
+    (from + by).clamp(0, max)
+}
+
 fn volume_percent(volume: i32, max: i32) -> i32 {
     ((volume.max(0) as f64 / max.max(1) as f64) * 100.0).round().min(100.0) as i32
 }
@@ -1872,6 +1879,9 @@ mod tests {
         assert_eq!(volume_percent(72, 72), 100);
         assert_eq!(volume_percent(36, 72), 50);
         assert_eq!(volume_percent(80, 72), 100);
+        assert_eq!(slide(0, 100, 72), 72);
+        assert_eq!(slide(36, 1, 72), 37);
+        assert_eq!(slide(36, -50, 72), 0);
         assert_eq!(clock(4328.0), "1:12:08");
         assert_eq!(clock(548.0), "9:08");
         assert_eq!(episode("episode", "S1E4"), "Season 1 · Episode 4");
