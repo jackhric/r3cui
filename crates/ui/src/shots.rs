@@ -56,13 +56,10 @@ const STEPS: &[Step] = &[
     ("05-volume", |app, m| {
         m.title = Model::demo().title;
         m.volume = 64;
-        // Blur Now playing, not the stage it replaces, so wait out the switch first.
-        let weak = app.as_weak();
-        slint::Timer::single_shot(Duration::from_millis(900), move || {
-            if let Some(app) = weak.upgrade() {
-                crate::capture(&app, 1);
-                app.set_volume_overlay(true);
-            }
+        // Blur Now playing, not the stage it replaces.
+        after_swap(app, |app| {
+            crate::capture(app, 1);
+            app.set_volume_overlay(true);
         });
     }),
     ("06-muted", |_, m| m.muted = true),
@@ -226,6 +223,19 @@ const STEPS: &[Step] = &[
     }),
 ];
 
+/// Run `f` once the stage swap under way has finished.
+fn after_swap(app: &AppWindow, f: impl FnOnce(&AppWindow) + 'static) {
+    let weak = app.as_weak();
+    slint::Timer::single_shot(Duration::from_millis(300), move || {
+        let Some(app) = weak.upgrade() else { return };
+        if app.get_swapping() {
+            after_swap(&app, f);
+        } else {
+            f(&app);
+        }
+    });
+}
+
 pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::Result<()> {
     std::fs::create_dir_all(&dir)?;
     apply_demo_settings(&app);
@@ -237,9 +247,18 @@ pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::R
     let timer = slint::Timer::default();
     let weak = app.as_weak();
     let mut next = 0usize;
-    // Long enough for the page transition to settle before the frame is grabbed.
-    timer.start(slint::TimerMode::Repeated, Duration::from_millis(1500), move || {
+    let mut since = Instant::now();
+    timer.start(slint::TimerMode::Repeated, Duration::from_millis(100), move || {
         let Some(app) = weak.upgrade() else { return };
+        // A stage swap can outlast its nominal 620 ms while the blur pictures are built, so wait
+        // for it to end and then for the page slide and fades to settle.
+        if app.get_swapping() {
+            since = Instant::now();
+        }
+        if since.elapsed() < Duration::from_millis(1500) {
+            return;
+        }
+        since = Instant::now();
         if next > 0 {
             let path = dir.join(format!("{}.png", STEPS[next - 1].0));
             let saved = app.window().take_snapshot().map_err(anyhow::Error::from).and_then(|buf| {
