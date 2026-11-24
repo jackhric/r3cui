@@ -35,18 +35,18 @@
 
 ## Features
 
-- Dead nuts simple and single purpose remote frontend
 - Deep [Kodi](https://kodi.tv) integration: control playback, audio tracks, subtitles, etc. easily
 - Easy input switching for receivers
 - Global volume controls
 - Reactive and dynamic backlighting depending on input, currently playing media, etc.
-
+- Focuses on simplicity and single purpose
+  
 ## Beta software
 
 This is beta software. Things may break, and things are 100% bound to change.
 
 r3cui works closely with [Kodi](https://kodi.tv) and [Home Assistant](https://www.home-assistant.io).
-It is not plug and play yet. You'll need to clone the project and modify it to suit your home
+It's not plug and play yet. You'll need to clone the project and modify it to suit your home
 theater configuration and setup.
 
 ## Warranty
@@ -54,7 +54,7 @@ theater configuration and setup.
 These be treacherous waters. Ye be warned!
 
 **Installing r3cui voids your Remote 3 warranty.** The remote keeps a permanent record that a custom
-screen was installed. That record stays even if you go back to the Normal UI.
+screen was installed. That record stays even if you go back to the original UI.
 
 ## Getting started
 
@@ -87,7 +87,7 @@ curl -u 'web-configurator:<PIN>' \
 
 Wait for the remote to show the new screen. If it does not, restart the remote.
 
-## Go back to the Normal UI
+## Go back to the original UI
 
 ```sh
 curl -u 'web-configurator:<PIN>' -X PUT 'http://<IP>/api/system/install/ui?enable=false'
@@ -99,7 +99,7 @@ To remove r3cui completely:
 curl -u 'web-configurator:<PIN>' -X DELETE 'http://<IP>/api/system/install/ui'
 ```
 
-If r3cui fails to start many times in a row, the remote goes back to the Normal UI by itself.
+If r3cui fails to start many times in a row, the remote goes back to the original UI by itself.
 
 ## Credits
 
