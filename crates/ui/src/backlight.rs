@@ -22,6 +22,8 @@ pub fn observe(app: &AppWindow) -> (UiState, [u8; 3]) {
 }
 
 /// Zone numbers as reported by `/cfg/device/button_layout` on the UCR3, where zone n is named `ZONE_n`.
+pub const ZONE_COUNT: u8 = 12;
+
 pub mod zone {
     pub const HOME: u8 = 1;
     pub const VOLUME_UP_BACK: u8 = 2;

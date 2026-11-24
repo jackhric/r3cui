@@ -510,6 +510,8 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
 
     let overlay = Arc::new(AtomicU64::new(0));
     let (later_tx, mut later_rx) = mpsc::unbounded_channel::<Later>();
+    let (backlight_tx, backlight_rx) = tokio::sync::watch::channel((Vec::<u8>::new(), [0u8; 3]));
+    tokio::spawn(drive_backlight(core.clone(), backlight_rx));
     let refresh_wifi = |delay: Duration| {
         let (core, tx) = (core.clone(), later_tx.clone());
         tokio::spawn(async move {
@@ -595,18 +597,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         (Target::Volume, if on { "off" } else { "on" }.to_string(), Value::Null)
                     }
                     UiAction::Backlight(zones, rgb) => {
-                        // An empty zone list means "all" to the core; when asleep it turns the keys off itself.
-                        if !zones.is_empty() {
-                            let core = core.clone();
-                            // The core names them ZONE_1..ZONE_12; it accepts anything else without lighting anything.
-                            let zones: Vec<String> = zones.iter().map(|z| format!("ZONE_{z}")).collect();
-                            tokio::spawn(async move {
-                                let cfg = json!({ "static_color": { "rgb": rgb, "zones": zones } });
-                                if let Err(e) = core.request("set_button_cfg", cfg).await {
-                                    tracing::debug!("backlight: {e:#}");
-                                }
-                            });
-                        }
+                        let _ = backlight_tx.send((zones, rgb));
                         continue;
                     }
                     UiAction::WifiScan => {
@@ -664,6 +655,28 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         }
     }
     Ok(())
+}
+
+/// Keeps the key backlight in step with the latest request. The core only changes the zones named
+/// in an update and leaves the rest showing what they had, so each change is two updates: black
+/// for the zones that should be off, then the colour for the ones that should be on. Running them
+/// from one task keeps the pairs in order, and a newer request replaces one not yet sent.
+async fn drive_backlight(core: coreapi::Core, mut wanted: tokio::sync::watch::Receiver<(Vec<u8>, [u8; 3])>) {
+    let names = |zones: &[u8]| zones.iter().map(|z| format!("ZONE_{z}")).collect::<Vec<_>>();
+    while wanted.changed().await.is_ok() {
+        let (lit, rgb) = wanted.borrow_and_update().clone();
+        let dark: Vec<u8> = (1..=backlight::ZONE_COUNT).filter(|z| !lit.contains(z)).collect();
+        for (zones, rgb) in [(dark, [0, 0, 0]), (lit, rgb)] {
+            if zones.is_empty() {
+                continue;
+            }
+            let cfg = json!({ "static_color": { "rgb": rgb, "zones": names(&zones) } });
+            match core.request("set_button_cfg", cfg).await {
+                Ok(r) if (200..300).contains(&r.code) => {}
+                other => tracing::debug!("backlight: {other:?}"),
+            }
+        }
+    }
 }
 
 /// Leave the keyboard for the network list, or for the failure page.
