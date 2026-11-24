@@ -253,12 +253,12 @@ const columns = riverColumns(15);
   /* A small white beta banner, angled over the top of the r. Sized from the logo's width so it keeps its place at
      every size. */
   .beta {
-    position: absolute; z-index: 1; left: calc(var(--logo-w) * -0.094); top: calc(var(--logo-w) * -0.017);
-    width: calc(var(--logo-w) * 0.278); padding-block: calc(var(--logo-w) * 0.012); rotate: -28deg;
+    position: absolute; z-index: 1; left: calc(var(--logo-w) * 0.06); top: calc(var(--logo-w) * 0.05); translate: -50% 0;
+    padding: calc(var(--logo-w) * 0.011) calc(var(--logo-w) * 0.022) calc(var(--logo-w) * 0.011) calc(var(--logo-w) * 0.026); rotate: -28deg;
     display: grid; place-items: center; border-radius: calc(var(--logo-w) * 0.008); pointer-events: none;
     background: #fff; color: var(--primary); text-shadow: none;
     font: 800 calc(var(--logo-w) * 0.036) / 1 'Plus Jakarta Sans Variable', system-ui, sans-serif;
-    letter-spacing: 0.16em; padding-left: 0.16em; text-transform: uppercase;
+    letter-spacing: 0.16em; text-transform: uppercase;
     box-shadow: 0 4px 12px rgb(0 0 0 / 0.45);
   }
   /* Once the lens has drawn the logo, the canvas shows it and the SVG only holds its place. */
