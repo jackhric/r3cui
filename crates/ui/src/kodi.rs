@@ -126,3 +126,61 @@ mod tests {
         assert_eq!(subtitle_label(&json!({"name": "", "language": "fre", "isforced": true})), "fre · Forced");
     }
 }
+
+/// What Kodi's own window is showing, for the remote's library wall.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Browsing {
+    /// `movies`, `tvshows`, … or empty outside a library list.
+    pub content: String,
+    pub path: String,
+    pub sort: String,
+    pub order: String,
+    /// Library id of the highlighted item.
+    pub focus: i64,
+}
+
+pub fn browsing(base: &str) -> anyhow::Result<Browsing> {
+    let labels = ["Container.Content", "Container.FolderPath", "Container.SortMethod", "Container.SortOrder", "ListItem.DBID"];
+    let v = call(base, "XBMC.GetInfoLabels", json!({ "labels": labels }))?;
+    let get = |k: &str| v.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+    Ok(Browsing {
+        content: get("Container.Content"),
+        path: get("Container.FolderPath"),
+        sort: get("Container.SortMethod"),
+        order: get("Container.SortOrder"),
+        focus: get("ListItem.DBID").parse().unwrap_or(-1),
+    })
+}
+
+/// The list behind `b`, in the order Kodi shows it, with each poster as a full image URL.
+pub fn list(base: &str, b: &Browsing) -> anyhow::Result<Vec<Value>> {
+    let shows = b.content == "tvshows";
+    let fields: &[&str] = if shows {
+        &["title", "year", "art", "rating", "genre", "plot", "season", "episode", "watchedepisodes", "mpaa"]
+    } else {
+        &["title", "year", "art", "runtime", "rating", "genre", "plot", "resume", "playcount", "mpaa"]
+    };
+    // Kodi reports its sort by the name shown in its menu.
+    let method = match b.sort.to_lowercase().as_str() {
+        "year" => "year",
+        "date added" => "dateadded",
+        "rating" | "user rating" => "rating",
+        "last played" => "lastplayed",
+        "play count" => "playcount",
+        "duration" | "runtime" => "runtime",
+        "mpaa" => "mpaa",
+        _ => "title",
+    };
+    let order = if b.order.eq_ignore_ascii_case("descending") { "descending" } else { "ascending" };
+    let params = json!({
+        "directory": b.path, "media": "video", "properties": fields,
+        "sort": { "method": method, "order": order, "ignorearticle": true },
+    });
+    let v = call(base, "Files.GetDirectory", params)?;
+    let mut files = v.get("files").and_then(Value::as_array).cloned().unwrap_or_default();
+    for f in &mut files {
+        let art = f.pointer("/art/poster").or_else(|| f.pointer("/art/thumb")).and_then(Value::as_str).unwrap_or("").to_string();
+        f["poster"] = Value::String(if art.is_empty() { art } else { image(base, &art) });
+    }
+    Ok(files)
+}

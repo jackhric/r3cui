@@ -456,7 +456,7 @@ export component AppWindow inherits Window {
     property <bool> home-used;
     property <bool> home-rumbling;
     // 1 Kodi is playing, 2 the input's mark (every input, Kodi included, when idle), 3 receiver off
-    property <int> home-view: !root.receiver-on ? 3 : root.kodi && root.media-title != "" ? 1 : 2;
+    property <int> home-view: !root.receiver-on ? 3 : root.kodi && root.media-title != "" ? 1 : root.lib-mode > 0 ? 4 : 2;
 
     // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
     public function go(p: int, f: int) {
@@ -772,13 +772,13 @@ export component AppWindow inherits Window {
                             y: 84px;
                             width: 192px;
                             height: 288px;
-                            border-radius: 6px;
+                            border-radius: 0;
                             drop-shadow-blur: 28px;
                             drop-shadow-color: #000000CC;
                             drop-shadow-offset-y: 10px;
                             background: #111;
                             Rectangle {
-                                border-radius: 6px;
+                                border-radius: 0;
                                 clip: true;
                                 if root.poster.width == 0: PosterStandIn {
                                     title: root.media-title;
@@ -1008,6 +1008,18 @@ export component AppWindow inherits Window {
                             font-size: 26px;
                             color: Theme.t2;
                         }
+                    }
+
+                    // Kodi's Movies or TV list, mirrored; also the previews' library variations.
+                    Library {
+                        mode: root.lib-mode;
+                        heading: root.lib-heading;
+                        count: root.lib-count;
+                        posters: root.lib-posters;
+                        items: root.lib-items;
+                        at: root.lib-focus;
+                        opacity: root.home-view == 4 ? 1 : 0;
+                        visible: self.opacity > 0 && root.lib-mode > 0;
                     }
 
                     if !root.connected: Text {
@@ -1614,15 +1626,6 @@ export component AppWindow inherits Window {
                 root.activity();
             }
         }
-    }
-
-    Library {
-        mode: root.lib-mode;
-        heading: root.lib-heading;
-        count: root.lib-count;
-        posters: root.lib-posters;
-        items: root.lib-items;
-        at: root.lib-focus;
     }
 
     // The navbar belongs to no layer: it stays put through every transition, fading only with

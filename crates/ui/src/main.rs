@@ -12,6 +12,7 @@ mod feedback;
 #[cfg(feature = "device")]
 mod frames;
 mod vibrant;
+mod library;
 mod input;
 mod keyboard;
 mod kodi;
@@ -335,6 +336,7 @@ fn main() -> anyhow::Result<()> {
                 run_demo(&weak, &mut act_rx).await;
                 return;
             }
+            library::start(weak.clone());
             loop {
                 match run(&weak, &mut act_rx).await {
                     Ok(()) => set_status(&weak, false, "Disconnected, retrying…".to_string()),
@@ -977,6 +979,9 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     session.sync_poster(weak);
     session.position = attr_f64(session.target(Target::Screen), "media_position");
     tracing::info!(screen = ?session.screen, volume = ?session.volume, "targets");
+    if let Some(screen) = &session.screen {
+        library::set_kodi(screen);
+    }
 
     render(weak, &session.model());
     set_status(weak, true, String::new());
@@ -1289,6 +1294,9 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                 };
                 let Some(entity) = session.target(target) else { continue };
                 commands.send(entity, cmd, params);
+                if target == Target::Screen {
+                    library::poke();
+                }
             }
         }
     }
@@ -1379,7 +1387,7 @@ async fn wifi_band(core: &coreapi::Core) -> String {
 }
 
 /// Plain HTTP only: Kodi serves its artwork from its own web server on the LAN.
-fn fetch_image(url: &str) -> anyhow::Result<image::DynamicImage> {
+pub(crate) fn fetch_image(url: &str) -> anyhow::Result<image::DynamicImage> {
     use std::io::Read;
     let mut bytes = Vec::new();
     ureq::get(url).timeout(Duration::from_secs(8)).call()?.into_reader().take(24 << 20).read_to_end(&mut bytes)?;
@@ -1679,6 +1687,10 @@ fn has_feature(e: &Value, feature: &str) -> bool {
         .is_some_and(|f| f.iter().any(|v| v.as_str() == Some(feature)))
 }
 
+pub(crate) fn ui_call(weak: &slint::Weak<AppWindow>, f: impl FnOnce(AppWindow) + Send + 'static) {
+    ui(weak, f)
+}
+
 fn ui(weak: &slint::Weak<AppWindow>, f: impl FnOnce(AppWindow) + Send + 'static) {
     let weak = weak.clone();
     let _ = slint::invoke_from_event_loop(move || {
@@ -1736,6 +1748,7 @@ fn apply_now(app: &AppWindow, m: &Model) {
     }
     app.set_awake(m.awake);
     app.set_receiver_on(m.receiver_on);
+    library::allow(m.receiver_on && m.on_kodi() && m.title.is_empty() && m.awake);
     backlight::set_ha(m.keys);
     app.set_battery(m.battery);
     if m.charging != app.get_charging() {

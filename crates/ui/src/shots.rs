@@ -572,34 +572,7 @@ fn shelf(kind: &str) -> Shelf {
         let buf = slint::SharedPixelBuffer::<slint::Rgb8Pixel>::clone_from_slice(img.as_raw(), 200, 300);
         let poster = slint::Image::from_rgb8(buf);
         posters.push(poster.clone());
-        let year = it["year"].as_i64().unwrap_or(0);
-        let rating = it["rating"].as_f64().unwrap_or(0.0);
-        let genre: Vec<&str> = it["genre"].as_array().map(|g| g.iter().filter_map(Value::as_str).take(3).collect()).unwrap_or_default();
-        let (meta, detail, progress) = if shows {
-            let (eps, seen) = (it["episode"].as_i64().unwrap_or(0), it["watchedepisodes"].as_i64().unwrap_or(0));
-            let seasons = it["season"].as_i64().unwrap_or(0);
-            let meta = format!("{year} · {seasons} season{} · ★ {rating:.1}", if seasons == 1 { "" } else { "s" });
-            (meta, format!("{seen} of {eps} episodes watched"), if eps > 0 { seen as f32 / eps as f32 } else { 0.0 })
-        } else {
-            let mins = it["runtime"].as_i64().unwrap_or(0) / 60;
-            let mpaa = it["mpaa"].as_str().unwrap_or("").trim_start_matches("Rated ").to_string();
-            let mut meta = format!("{year} · {}h {:02}m · ★ {rating:.1}", mins / 60, mins % 60);
-            if !mpaa.is_empty() {
-                meta = format!("{meta} · {mpaa}");
-            }
-            let (pos, total) = (it["resume"]["position"].as_f64().unwrap_or(0.0), it["resume"]["total"].as_f64().unwrap_or(0.0));
-            let detail = if pos > 0.0 { format!("Resume from {}:{:02}", pos as i64 / 3600, pos as i64 / 60 % 60) } else if it["playcount"].as_i64().unwrap_or(0) > 0 { "Watched".into() } else { String::new() };
-            (meta, detail, if total > 0.0 { (pos / total) as f32 } else { 0.0 })
-        };
-        items.push(crate::LibItem {
-            poster,
-            title: it["title"].as_str().unwrap_or("").into(),
-            meta: meta.into(),
-            genre: genre.join(" · ").into(),
-            plot: it["plot"].as_str().unwrap_or("").into(),
-            detail: detail.into(),
-            progress,
-        });
+        items.push(crate::library::item(&crate::library::entry(it, shows), poster));
     }
     let count = if shows { format!("{} shows", list.len()) } else { format!("{} films", list.len()) };
     Shelf { posters, items, count }
