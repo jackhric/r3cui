@@ -77,6 +77,8 @@ pub struct Pacer {
     sent: Option<(i32, Instant)>,
     confirmed: bool,
     pending: Option<i32>,
+    /// Moves folded into the next send, for the log.
+    pub merged: u32,
     /// When the timer already asked for will fire. An extra timer is harmless; one firing too
     /// late is not, so a sooner moment always asks again.
     scheduled: Option<Instant>,
@@ -93,11 +95,12 @@ pub enum Send {
 
 impl Pacer {
     pub fn new(min_gap: Duration, max_wait: Duration) -> Self {
-        Self { min_gap, max_wait, sent: None, confirmed: true, pending: None, scheduled: None }
+        Self { min_gap, max_wait, sent: None, confirmed: true, pending: None, merged: 0, scheduled: None }
     }
 
     pub fn offer(&mut self, value: i32, now: Instant) -> Send {
         self.pending = Some(value);
+        self.merged += 1;
         self.next(now)
     }
 
