@@ -125,7 +125,24 @@ impl Model {
             wifi: net::demo_networks("HomeNetwork"),
             ..Default::default()
         }
+        .with_demo_overrides()
         .with_demo_health()
+    }
+
+    /// Demo only: `UC_DEMO_TITLE`, `UC_DEMO_SOURCE` and `UC_DEMO_FORMAT` pick what the demo shows,
+    /// for previews of other films.
+    fn with_demo_overrides(mut self) -> Self {
+        let var = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+        if let Some(t) = var("UC_DEMO_TITLE") {
+            self.title = t;
+        }
+        if let Some(s) = var("UC_DEMO_SOURCE") {
+            self.source = s;
+        }
+        if let Some(f) = var("UC_DEMO_FORMAT") {
+            self.media_format = f;
+        }
+        self
     }
 
     /// Demo only: derive the status rows from the rest of the model.
