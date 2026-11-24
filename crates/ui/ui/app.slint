@@ -309,6 +309,8 @@ export component AppWindow inherits Window {
     in property <bool> kodi;
     in property <string> media-title;
     in property <image> poster;
+    in-out property <color> poster-accent;
+    in-out property <bool> poster-tinted;
     in property <float> progress;
     in property <string> time-left;
     in property <string> ends-at;
@@ -844,16 +846,17 @@ export component AppWindow inherits Window {
                             width: 84px;
                             height: 84px;
                             border-radius: 42px;
-                            background: Theme.accent;
-                            opacity: play-touch.pressed ? 0.6 : 1;
+                            background: #FFFFFF;
+                            opacity: play-touch.pressed ? 0.7 : 1;
+                            // The play mark's geometry already sits it right of centre by its
+                            // visual weight, so both marks fill the same centred box.
                             Path {
-                                x: root.paused ? 30px : 26px;
-                                width: 32px;
-                                height: 32px;
+                                width: 42px;
+                                height: 42px;
                                 viewbox-width: 24;
                                 viewbox-height: 24;
                                 commands: root.paused ? Marks.play : Marks.pause;
-                                fill: Theme.bg;
+                                fill: #000000;
                             }
                             play-touch := TouchArea {
                                 mouse-cursor: Theme.cursor;

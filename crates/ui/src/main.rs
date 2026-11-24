@@ -11,6 +11,7 @@ mod evdev_input;
 mod feedback;
 #[cfg(feature = "device")]
 mod frames;
+mod vibrant;
 mod input;
 mod keyboard;
 mod kodi;
@@ -615,6 +616,23 @@ pub fn set_accent(app: &AppWindow, color: slint::Color) {
     app.global::<Theme>().set_accent(color);
 }
 
+/// The colour picked from the current poster; while the film is on screen it stands in for the
+/// input's accent, and the keys follow it.
+fn set_poster_accent(app: &AppWindow, tint: Option<(u8, u8, u8)>) {
+    if let Some((r, g, b)) = tint {
+        tracing::info!("poster accent #{r:02X}{g:02X}{b:02X}");
+    }
+    app.set_poster_tinted(tint.is_some());
+    if let Some((r, g, b)) = tint {
+        app.set_poster_accent(slint::Color::from_rgb_u8(r, g, b));
+    }
+    // The poster arrives after the film is already showing, so take the colour up at once.
+    let film_on_screen = app.get_receiver_on() && app.get_kodi() && !app.get_media_title().is_empty();
+    if film_on_screen && tint.is_some() && std::env::var_os("UC_ACCENT").is_none() {
+        set_accent(app, app.get_poster_accent());
+    }
+}
+
 /// `#RRGGBB` or `RRGGBB`.
 pub fn parse_color(s: &str) -> Option<slint::Color> {
     let hex = s.trim().trim_start_matches('#');
@@ -631,6 +649,7 @@ pub fn apply_demo_settings(app: &AppWindow) {
     let poster = art("UC_DEMO_POSTER");
     if let Some(p) = &poster {
         app.set_poster(slint::Image::from_rgba8(poster_pixels(p)));
+        set_poster_accent(app, vibrant::accent(p));
     }
     if let Some(b) = art("UC_DEMO_FANART").or(poster) {
         app.set_backdrop(slint::Image::from_rgba8(backdrop_pixels(&b)));
@@ -757,8 +776,10 @@ impl Session {
                 .filter(|f| !f.is_empty())
                 .and_then(|f| fetch_image(&f).map_err(|e| tracing::warn!("fanart {f}: {e:#}")).ok());
             let backdrop = fanart.as_ref().or(poster.as_ref()).map(backdrop_pixels);
+            let tint = poster.as_ref().and_then(vibrant::accent);
             let poster = poster.as_ref().map(poster_pixels);
             ui(&weak, move |app| {
+                set_poster_accent(&app, tint);
                 app.set_poster(poster.map(slint::Image::from_rgba8).unwrap_or_default());
                 app.set_backdrop(backdrop.map(slint::Image::from_rgba8).unwrap_or_default());
             });
@@ -1707,7 +1728,9 @@ fn apply_now(app: &AppWindow, m: &Model) {
 
     app.set_clock(now.format("%H:%M").to_string().into());
     if std::env::var_os("UC_ACCENT").is_none() {
-        if let Some(accent) = settings::get().accent_for(&m.source).and_then(parse_color) {
+        let film_on_screen = m.receiver_on && m.on_kodi() && !m.title.is_empty() && app.get_poster_tinted();
+        let accent = if film_on_screen { Some(app.get_poster_accent()) } else { settings::get().accent_for(&m.source).and_then(parse_color) };
+        if let Some(accent) = accent {
             set_accent(app, accent);
         }
     }
