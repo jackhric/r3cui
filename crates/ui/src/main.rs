@@ -359,8 +359,12 @@ fn stage_change(app: &AppWindow, m: &Model, change: impl FnOnce()) {
     change();
     let new = snapshot_stage(app);
     let (Some(old), Some(new)) = (old, new) else { return };
-    app.set_swap_out_blur(soften(&old, 2.2));
-    app.set_swap_in_blur(soften(&new, 2.2));
+    let plain = before.is_some_and(|b| b.receiver_on == key.receiver_on && b.source == key.source);
+    app.set_swap_plain(plain);
+    if !plain {
+        app.set_swap_out_blur(soften(&old, 2.2));
+        app.set_swap_in_blur(soften(&new, 2.2));
+    }
     app.set_swap_out(slint::Image::from_rgba8(pixels(old)));
     app.invoke_hold_swap();
     let weak = app.as_weak();

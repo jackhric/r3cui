@@ -424,6 +424,8 @@ export component AppWindow inherits Window {
         root.swap-start = animation-tick();
         root.swap-held = false;
     }
+    // Between the idle mark and Now playing: a crossfade only, no zoom or blur.
+    in property <bool> swap-plain;
     in property <image> swap-out;
     in property <image> swap-out-blur;
     in property <image> swap-in-blur;
@@ -681,7 +683,7 @@ export component AppWindow inherits Window {
 
             stage := Rectangle {
                 transform-origin: { x: self.width / 2, y: self.height / 2 };
-                transform-scale: root.capturing == 1 ? 1 : (1 - 0.08 * root.recede) * (root.swapping ? 0.97 + 0.03 * root.swap : 1);
+                transform-scale: root.capturing == 1 ? 1 : (1 - 0.08 * root.recede) * (root.swapping && !root.swap-plain ? 0.97 + 0.03 * root.swap : 1);
                 opacity: root.capturing == 1 ? 1 : 1 - 0.55 * root.recede;
 
 
@@ -937,14 +939,14 @@ export component AppWindow inherits Window {
                 // the new one blurred, which sharpens into the live stage beneath.
                 Rectangle {
                     visible: root.swapping && root.capturing == 0;
-                    Image {
+                    if !root.swap-plain: Image {
                         width: 480px;
                         height: 800px;
                         source: root.swap-in-blur;
                         image-fit: fill;
                         opacity: 1 - clamp((root.swap - 0.55) / 0.45, 0, 1);
                     }
-                    Image {
+                    if !root.swap-plain: Image {
                         width: 480px;
                         height: 800px;
                         transform-origin: { x: self.width / 2, y: self.height / 2 };
@@ -953,14 +955,15 @@ export component AppWindow inherits Window {
                         image-fit: fill;
                         opacity: 1 - clamp((root.swap - 0.25) / 0.35, 0, 1);
                     }
+                    // A plain swap is the old stage fading over the new, nothing more.
                     Image {
                         width: 480px;
                         height: 800px;
                         transform-origin: { x: self.width / 2, y: self.height / 2 };
-                        transform-scale: 1 + 0.05 * root.swap;
+                        transform-scale: root.swap-plain ? 1 : 1 + 0.05 * root.swap;
                         source: root.swap-out;
                         image-fit: fill;
-                        opacity: 1 - clamp(root.swap / 0.3, 0, 1);
+                        opacity: root.swap-plain ? 1 - root.swap : 1 - clamp(root.swap / 0.3, 0, 1);
                     }
                 }
 
@@ -1747,16 +1750,20 @@ export component AppWindow inherits Window {
             menu => { root.go(2, 0); }
         }
         // While something plays the input's mark sits in the middle; tapping it opens the list.
-        if root.page == 0 && root.home-view == 1 && root.sources.length > 0: TouchArea {
+        TouchArea {
+            property <bool> shown: root.page == 0 && root.home-view == 1 && root.sources.length > 0;
             mouse-cursor: Theme.cursor;
             x: 190px;
             width: 100px;
             height: 64px;
+            enabled: self.shown;
             clicked => { root.go(1, root.source-index); }
             Logo {
                 size: 32px;
                 commands: root.source-icon;
                 tint: Theme.t2;
+                opacity: parent.shown ? 1 : 0;
+                animate opacity { duration: 620ms; easing: ease-in-out; }
             }
         }
     }
