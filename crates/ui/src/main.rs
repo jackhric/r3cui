@@ -53,6 +53,7 @@ pub enum UiAction {
     Power(String),
     PowerHeld,
     WifiScan,
+    WifiBand,
     WifiJoin { ssid: String, hex: String, password: String },
     Backlight(backlight::Keys),
     Seek(i32),
@@ -106,6 +107,8 @@ pub struct Model {
     pub receiver_on: bool,
     pub wifi_ssid: String,
     pub wifi: Vec<net::Network>,
+    /// The preferred Wi-Fi band as the core names it: "a" 5 GHz, "b" 2.4 GHz; empty when unknown.
+    pub wifi_band: String,
     pub scanning: bool,
     pub status: Vec<net::StatusLine>,
     pub warning: String,
@@ -139,6 +142,7 @@ impl Model {
             receiver_on: true,
             wifi_ssid: "HomeNetwork".into(),
             wifi: net::demo_networks("HomeNetwork"),
+            wifi_band: "b".into(),
             ..Default::default()
         }
         .with_demo_overrides()
@@ -248,6 +252,12 @@ fn main() -> anyhow::Result<()> {
         let tx = act_tx.clone();
         move || {
             let _ = tx.send(UiAction::WifiScan);
+        }
+    });
+    app.on_wifi_band({
+        let tx = act_tx.clone();
+        move || {
+            let _ = tx.send(UiAction::WifiBand);
         }
     });
     app.on_wifi_join({
@@ -651,6 +661,7 @@ struct Session {
     awake: bool,
     wifi_ssid: String,
     wifi: Vec<net::Network>,
+    wifi_band: String,
     scanning: bool,
     integrations: HashMap<String, bool>,
     title: StableTitle,
@@ -807,6 +818,7 @@ impl Session {
             keys: self.keys(),
             wifi_ssid: self.wifi_ssid.clone(),
             wifi: self.wifi.clone(),
+            wifi_band: self.wifi_band.clone(),
             scanning: self.scanning,
             status,
             warning,
@@ -890,6 +902,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         poster_url: String::new(),
         wifi_ssid: String::new(),
         wifi: Vec::new(),
+        wifi_band: String::new(),
         scanning: false,
         integrations: HashMap::new(),
         joining: None,
@@ -906,6 +919,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     };
     load_settings(weak, &core).await;
     (session.wifi_ssid, session.wifi) = net::wifi(&core).await;
+    session.wifi_band = wifi_band(&core).await;
     session.integrations = net::integrations(&core).await;
     session.settle_title();
     session.sync_poster(weak);
@@ -1148,6 +1162,21 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         flash_volume(weak, &overlay);
                         (Target::Volume, "mute_toggle".to_string(), Value::Null)
                     }
+                    UiAction::WifiBand => {
+                        let Some(next) = (match session.wifi_band.as_str() { "a" => Some("b"), "b" => Some("a"), _ => None }) else { continue };
+                        let cfg = json!({ "wifi": { "band": next } });
+                        match core.request("set_network_cfg", cfg).await {
+                            Ok(r) if (200..300).contains(&r.code) => {
+                                tracing::info!("wifi band now {next}");
+                                session.wifi_band = r.data.pointer("/wifi/band").and_then(Value::as_str).unwrap_or(next).to_string();
+                            }
+                            other => tracing::warn!("set_network_cfg band {next}: {other:?}"),
+                        }
+                        render(weak, &session.model());
+                        // The remote reconnects on the new band; look again once it has.
+                        refresh_wifi(Duration::from_secs(10));
+                        continue;
+                    }
                     UiAction::WifiScan => {
                         session.scanning = true;
                         render(weak, &session.model());
@@ -1207,6 +1236,14 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         }
     }
     Ok(())
+}
+
+fn band_label(band: &str) -> Option<&'static str> {
+    match band {
+        "a" => Some("5 GHz"),
+        "b" => Some("2.4 GHz"),
+        _ => None,
+    }
 }
 
 /// The Denon tops out at 98 (+18 dB).
@@ -1273,6 +1310,15 @@ fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
         app.set_join_state(if ok { 0 } else { 2 });
         app.invoke_go(if ok { 5 } else { 8 }, 0);
     });
+}
+
+/// The preferred Wi-Fi band ("a" or "b"), or empty when the core does not say.
+async fn wifi_band(core: &coreapi::Core) -> String {
+    core.request("get_network_cfg", json!({}))
+        .await
+        .ok()
+        .and_then(|r| r.data.pointer("/wifi/band").and_then(Value::as_str).map(String::from))
+        .unwrap_or_default()
 }
 
 /// Plain HTTP only: Kodi serves its artwork from its own web server on the LAN.
@@ -1398,6 +1444,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                 }
             },
             Some(action) = actions.recv() => match action {
+                UiAction::WifiBand => m.wifi_band = if m.wifi_band == "a" { "b".into() } else { "a".into() },
                 UiAction::WifiScan => {
                     m.scanning = true;
                     let mut found = net::demo_networks(&m.wifi_ssid);
@@ -1666,6 +1713,10 @@ fn apply_now(app: &AppWindow, m: &Model) {
         })
         .collect();
     networks.push(Choice { label: if m.scanning { "Scanning…" } else { "Scan again" }.into(), ..Default::default() });
+    if let Some(band) = band_label(&m.wifi_band) {
+        networks.push(Choice { label: "Band".into(), value: band.into(), ..Default::default() });
+    }
+    app.set_wifi_band_known(band_label(&m.wifi_band).is_some());
     if app.get_wifi_choices().iter().ne(networks.iter().cloned()) {
         app.set_wifi_choices(ModelRc::new(VecModel::from(networks)));
     }

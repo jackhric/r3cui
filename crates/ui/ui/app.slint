@@ -368,6 +368,9 @@ export component AppWindow inherits Window {
     callback select-source(string);
     callback power-action(string);
     callback wifi-scan();
+    // Switch the remote's preferred Wi-Fi band between 2.4 and 5 GHz.
+    callback wifi-band();
+    in property <bool> wifi-band-known;
     // ssid, ssid-hex, password ("" for an open network)
     callback wifi-join(string, string, string);
     callback kb-reset();
@@ -467,7 +470,7 @@ export component AppWindow inherits Window {
         }
     }
     function row-count() -> int {
-        root.page == 1 ? root.sources.length : root.page == 2 ? 6 : root.page == 3 ? 3 : root.page == 4 ? 4 : root.page == 5 ? root.wifi-rows.length + 1 : root.page == 8 ? 2 : root.page == 9 ? root.tracks.length : 1
+        root.page == 1 ? root.sources.length : root.page == 2 ? 6 : root.page == 3 ? 3 : root.page == 4 ? 4 : root.page == 5 ? root.wifi-rows.length + (root.wifi-band-known ? 2 : 1) : root.page == 8 ? 2 : root.page == 9 ? root.tracks.length : 1
     }
     public function move(d: int) {
         root.focus-index = max(0, min(root.row-count() - 1, root.focus-index + d));
@@ -494,7 +497,9 @@ export component AppWindow inherits Window {
                 root.display-changed();
             }
         } else if (root.page == 5) {
-            if (i >= root.wifi-rows.length) {
+            if (i == root.wifi-rows.length + 1) {
+                root.wifi-band();
+            } else if (i >= root.wifi-rows.length) {
                 root.wifi-scan();
             } else if (!root.wifi-rows[i].connected) {
                 root.wifi-target = root.wifi-rows[i];
