@@ -25,8 +25,15 @@ const features: Feature[] = [
     text: "Every input on your receiver, a tap away. r3cui controls your receiver's media player in Home Assistant." },
   { title: 'Global volume', clip: clip('matrix-volume'),
     text: 'The touch slider under the screen and the volume keys drive your receiver, wherever you are in the UI.' },
-  { title: 'Reactive backlighting', clip: clip('ts-switch'),
-    text: "The buttons light up to match your input and what's playing." },
+];
+
+// The backlighting card shows one remote per input, its keys lit in that input's colour.
+const lightStills = import.meta.glob<string>('../assets/lights/*.webp', { query: '?url', import: 'default', eager: true });
+const lights = [
+  { name: 'Kodi', colour: '#E8343A', still: lightStills['../assets/lights/kodi.webp'] },
+  { name: 'PlayStation', colour: '#2E7BFF', still: lightStills['../assets/lights/playstation.webp'] },
+  { name: 'Xbox', colour: '#4CD137', still: lightStills['../assets/lights/xbox.webp'] },
+  { name: 'Android TV', colour: '#2ED9E6', still: lightStills['../assets/lights/android.webp'] },
 ];
 ---
 
@@ -57,6 +64,20 @@ const features: Feature[] = [
         </div>
       </article>
     ))}
+    <article class="card lights-card" tabindex="0">
+      <div class="copy">
+        <h3>Reactive backlighting</h3>
+        <p>The buttons light up in the colour of the input you're on, and change with it. Switch from Kodi to the
+          PlayStation and the whole keypad turns blue.</p>
+      </div>
+      <ul class="lights" aria-label="Key colours by input">
+        {lights.map(l => (
+          <li style={`--glow:${l.colour}`}>
+            <div class="remote"><img src={l.still} alt={`Remote on ${l.name}, keys lit in its colour`} width="200" height="864" decoding="async" /></div>
+          </li>
+        ))}
+      </ul>
+    </article>
   </div>
 </section>
 
@@ -106,14 +127,18 @@ const features: Feature[] = [
   .one-ring:hover { rotate: -12deg; scale: 1.08; }
   .features { padding-block: 32px 56px; }
 
-  /* Six columns: Kodi wide beside input switching, then volume and backlighting sharing the second row. */
-  .bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
-  .card { grid-column: span 3; }
-  .card:nth-child(2) { grid-column: span 2; }
+  /* Three rows: Kodi across the top, input switching and volume side by side, then the backlighting row. */
+  .bento { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .card { grid-column: span 1; }
   .card {
     position: relative; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px;
     background: var(--card); border: 1px solid var(--border); outline: none;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  /* Hovering a card plays its clip, so the cursor becomes a small play button: a hint that something happens here
+     without implying a click goes anywhere. The backlighting card has no clip and keeps the normal cursor. */
+  .card:has(video) {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23e5332f' stroke='white' stroke-width='2'/%3E%3Cpath d='M13 10.5v11l9-5.5z' fill='white'/%3E%3C/svg%3E") 16 16, default;
   }
   .card:hover, .card:focus-visible { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); box-shadow: 0 18px 40px -18px var(--feature-hover-shadow); }
   .card:focus-visible { box-shadow: 0 0 0 2px var(--primary); }
@@ -139,9 +164,11 @@ const features: Feature[] = [
   }
   .remote {
     position: relative; width: 190px; aspect-ratio: 200 / 864; flex: none; overflow: hidden;
-    border-radius: 2% 2% 15% 15% / 0.46% 0.46% 3.5% 3.5%; box-shadow: 0 20px 40px -10px rgb(0 0 0 / 0.35);
-    transition: translate 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+    border-radius: 2% 2% 15% 15% / 0.46% 0.46% 3.5% 3.5%; box-shadow: 0 6px 16px rgb(0 0 0 / 0.16);
+    /* iOS-style curve: moves off at once and settles softly, with no slow ease-in. Leaving returns a little faster. */
+    transition: translate 0.35s cubic-bezier(0.32, 0.72, 0, 1);
   }
+  .card:hover .remote, .card:focus-visible .remote { transition-duration: 0.5s; }
   /* On hover the remote eases up into view, bringing more of the screen above the cut. */
   .card:hover .remote, .card:focus-visible .remote { translate: 0 -18px; }
   .remote img, .remote video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
@@ -150,20 +177,39 @@ const features: Feature[] = [
 
   /* The wide card: text beside a larger remote, the text setting the height (contain: size keeps the remote from
      growing the card). */
-  .card.wide { grid-column: span 4; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+  .card.wide, .lights-card { grid-column: span 2; }
+  .card.wide { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
   .card.wide .copy { padding: 26px; align-self: center; }
   .card.wide h3 { font-size: 1.3rem; }
   .card.wide .crop { contain: size; height: auto; min-height: 420px; margin: 0; padding-top: 30px; }
   .card.wide .remote { width: 220px; }
 
-  @media (max-width: 900px) {
-    .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .card, .card:nth-child(2) { grid-column: span 1; }
-    .card.wide, .card:last-child { grid-column: span 2; }
+  /* Backlighting: text beside four remotes, each cut below its keypad with a glow of its key colour behind it. */
+  .lights-card { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr); align-items: center; }
+  .lights-card .copy { padding: 26px; }
+  .lights {
+    list-style: none; margin: 0; padding: 30px 26px 0 0; height: 420px; overflow: hidden; contain: size;
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-self: stretch;
+  }
+  .lights li { position: relative; display: flex; justify-content: center; }
+  .lights li::before {
+    content: ''; position: absolute; left: 50%; top: 52%; width: 150%; height: 60%; translate: -50% 0; pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) 22%, transparent), transparent);
+  }
+  .lights .remote { width: min(140px, 100%); }
+  .lights-card:hover li:nth-child(2) .remote { transition-delay: 0.03s; }
+  .lights-card:hover li:nth-child(3) .remote { transition-delay: 0.06s; }
+  .lights-card:hover li:nth-child(4) .remote { transition-delay: 0.09s; }
+  .lights-card:hover .remote, .lights-card:focus-visible .remote { translate: 0 -18px; }
+
+  @media (max-width: 760px) {
+    .lights-card { grid-template-columns: minmax(0, 1fr); }
+    .lights-card .copy { padding: 22px 22px 0; }
+    .lights { padding: 22px 16px 0; height: 330px; gap: 10px; }
   }
   @media (max-width: 600px) {
     .bento { grid-template-columns: minmax(0, 1fr); }
-    .card, .card:nth-child(2), .card.wide { grid-column: span 1; }
+    .card, .card.wide, .lights-card { grid-column: span 1; }
     .card.wide { display: flex; }
     .card.wide .copy { padding: 22px 22px 16px; }
     .card.wide .crop { contain: none; min-height: 0; height: 360px; padding-top: 22px; }
