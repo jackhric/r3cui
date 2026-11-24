@@ -113,13 +113,17 @@ component FormatBadge inherits HorizontalLayout {
     in property <float> logo-height: 24;
     in property <string> label;
     in property <length> size: 30px;
+    in property <bool> on-baseline;
     alignment: center;
     spacing: 12px;
     height: 40px;
-    if root.logo != "": VerticalLayout {
-        alignment: center;
+    if root.logo != "": Rectangle {
+        width: root.size * root.logo-width / root.logo-height;
         Path {
-            width: root.size * root.logo-width / root.logo-height;
+            // A wordmark sits on the label's baseline (27px down the 40px row, measured for
+            // 22px Hanken Grotesk); a mark is centred.
+            y: root.on-baseline ? 27px - root.size : (40px - root.size) / 2;
+            width: parent.width;
             height: root.size;
             viewbox-y: root.logo-top;
             viewbox-width: root.logo-width;
@@ -318,6 +322,7 @@ export component AppWindow inherits Window {
     in property <float> media-format-logo-top: 0;
     in property <float> media-format-logo-height: 24;
     in property <length> media-format-logo-size: 30px;
+    in property <bool> media-format-logo-baseline;
     in property <string> media-format-label;
     // The audio or subtitle picker: 0 audio, 1 subtitles.
     in-out property <int> picker;
@@ -817,6 +822,7 @@ export component AppWindow inherits Window {
                         logo-top: root.media-format-logo-top;
                         logo-height: root.media-format-logo-height;
                         size: root.media-format-logo-size;
+                        on-baseline: root.media-format-logo-baseline;
                                 label: root.media-format-label;
                             }
                             if root.media-format-label != "" || root.media-format-logo != "": Text {

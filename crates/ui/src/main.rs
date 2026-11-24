@@ -1516,6 +1516,7 @@ fn apply_now(app: &AppWindow, m: &Model) {
     app.set_media_format_logo_width(mark.width);
     app.set_media_format_logo_height(mark.height);
     app.set_media_format_logo_size(mark.size);
+    app.set_media_format_logo_baseline(mark.baseline);
     app.set_media_format_label(label.into());
 }
 
@@ -1631,16 +1632,18 @@ struct CodecLogo {
     height: f32,
     /// How tall it is drawn, in logical pixels.
     size: f32,
+    /// A wordmark with no descenders, set on the label's baseline instead of centred.
+    baseline: bool,
 }
 
 fn codec_logo(app: &AppWindow, id: &str) -> CodecLogo {
     let c = app.global::<Codecs>();
-    let lockup = |path: SharedString, width: f32| CodecLogo { path, top: 0.0, width, height: 24.0, size: 30.0 };
+    let lockup = |path: SharedString, width: f32| CodecLogo { path, top: 0.0, width, height: 24.0, size: 30.0, baseline: false };
     match id {
         // The simple-icons DTS mark sits in a 24x24 box with empty space above and below.
-        "dolby" => CodecLogo { path: c.get_dolby_box(), top: 0.0, width: 33.03, height: 24.0, size: 20.0 },
-        "dts" => CodecLogo { path: app.global::<Logos>().get_dts(), top: 7.12, width: 24.0, height: 9.76, size: 17.0 },
-        "flac" => lockup(c.get_flac(), 49.63),
+        "dolby" => CodecLogo { path: c.get_dolby_box(), top: 0.0, width: 33.03, height: 24.0, size: 20.0, baseline: false },
+        "dts" => CodecLogo { path: app.global::<Logos>().get_dts(), top: 7.12, width: 24.0, height: 9.76, size: 17.0, baseline: true },
+        "flac" => CodecLogo { size: 18.0, baseline: true, ..lockup(c.get_flac(), 49.63) },
         "opus" => lockup(c.get_opus(), 42.19),
         "alac" => lockup(c.get_alac(), 44.99),
         "mp3" => lockup(c.get_mp3(), 47.89),
