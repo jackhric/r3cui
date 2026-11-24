@@ -2,6 +2,7 @@
 import { Badge } from '@/components/starwind/badge';
 import { Card } from '@/components/starwind/card';
 import Glyph from './Glyph.astro';
+import ring from '../assets/one-ring.webp?url';
 
 const card = 'bento-card group relative gap-0 px-6 py-[22px] rounded-2xl max-[600px]:p-5';
 const inputs = ['Kodi', 'PlayStation 5', 'Xbox 360', 'Android TV'];
@@ -14,7 +15,12 @@ const lights = [
 ---
 
 <section id="features" class="features">
-  <h2>One frontend to rule them all</h2>
+  <h2>
+    <a class="one-ring" href="https://www.youtube.com/watch?v=GI_fvDOUCu8" title="One ring to rule them all">
+      <img src={ring} alt="The One Ring" width="51" height="48" />
+    </a>
+    One frontend to rule them all
+  </h2>
   <div class="grid">
     <Card class={`${card} col-span-2 max-[600px]:col-span-1`}>
       <div class="lead">
@@ -68,7 +74,14 @@ const lights = [
 </section>
 
 <style>
-  h2 { font-size: clamp(1.35rem, 2.6vw, 1.85rem); text-align: center; margin: 0 0 28px; letter-spacing: -0.015em; }
+  h2 {
+    font-size: clamp(1.35rem, 2.6vw, 1.85rem); text-align: center; margin: 0 0 28px; letter-spacing: -0.015em;
+    display: flex; align-items: center; justify-content: center; gap: 0.45em; flex-wrap: wrap;
+  }
+  .one-ring { display: inline-flex; flex: none; transition: rotate 0.4s ease, scale 0.4s ease; }
+  .one-ring img { height: 1.6em; width: auto; filter: drop-shadow(0 3px 8px rgb(180 120 20 / 0.35)); }
+  .one-ring:hover { rotate: -12deg; scale: 1.08; }
+  @media (prefers-reduced-motion: reduce) { .one-ring { transition: none; } }
   .features { padding-block: 32px 56px; }
   .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 

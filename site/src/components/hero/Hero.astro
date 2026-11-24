@@ -56,8 +56,7 @@ const columns = riverColumns(15);
       </span>
     </h1>
     <p class="summary">
-      A custom, simplified UI for the
-      <a class="uc" href="https://www.unfoldedcircle.com/"><svg viewBox="0 0 45 30" role="img" aria-label="Unfolded Circle"><path d="M30 15a15 15 0 0 1-30 0M45 30a15 15 0 0 1 0-30" fill="currentColor" /></svg>Remote&nbsp;3</a>
+      A custom, simplified UI for the{' '}<a class="uc" href="https://www.unfoldedcircle.com/"><svg viewBox="0 0 45 30" role="img" aria-label="Unfolded Circle"><path d="M30 15a15 15 0 0 1-30 0M45 30a15 15 0 0 1 0-30" fill="currentColor" /></svg>Remote&nbsp;3</a>
     </p>
   </div>
 </section>
@@ -235,7 +234,12 @@ const columns = riverColumns(15);
   }
   h1 { margin: 0; }
   .uc { color: inherit; text-decoration: none; white-space: nowrap; }
-  .uc svg { display: inline-block; height: 0.78em; width: auto; margin: 0 0.3em 0 0.1em; vertical-align: -0.04em; filter: drop-shadow(0 2px 10px rgb(0 0 0 / 0.8)); }
+  /* Centred on the capitals of "Remote 3": the mark's middle sits at half the cap height. */
+  .uc svg {
+    display: inline-block; height: 0.72em; width: auto; margin: 0 0.32em 0 0.12em;
+    vertical-align: -0.01em; vertical-align: calc(0.5cap - 0.36em);
+    filter: drop-shadow(0 2px 10px rgb(0 0 0 / 0.8));
+  }
   .uc:hover { text-decoration: underline; text-underline-offset: 4px; }
   .summary { margin: 22px 0 0; font-size: clamp(1.05rem, 2.2vw, 1.4rem); font-weight: 600; color: var(--hero-text); text-wrap: balance; }
   .lens {
