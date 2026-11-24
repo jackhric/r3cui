@@ -210,6 +210,9 @@ const lights = [
   .lights-card .copy { padding: 26px; }
   .lights {
     list-style: none; margin: 0; padding: 30px 26px 0 0; height: 420px; contain: size; overflow-anchor: none;
+    /* A faint fade at the bottom edge, so the remotes ease out of the card instead of stopping at a hard line. */
+    -webkit-mask: linear-gradient(to bottom, #000 calc(100% - 56px), rgb(0 0 0 / 0.6));
+    mask: linear-gradient(to bottom, #000 calc(100% - 56px), rgb(0 0 0 / 0.6));
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-self: stretch;
   }
   .lights li { position: relative; display: flex; justify-content: center; }
