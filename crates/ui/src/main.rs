@@ -1345,7 +1345,13 @@ pub fn demo_tracks(m: &Model, kind: i32, subtitle: usize) -> (Vec<(String, Strin
         let current = m.audio_tracks.iter().position(|t| *t == m.audio_track).unwrap_or(usize::MAX);
         (m.audio_tracks.iter().map(|t| split_track(t)).collect(), current)
     } else {
-        let rows = ["Off", "English", "English SDH", "French · Forced"].map(|l| (l.to_string(), String::new()));
+        // As many as a typical remux carries, so the picker has to scroll.
+        let rows = [
+            "Off", "English", "English SDH", "French · Forced", "French", "German", "Spanish", "Spanish (Latin America)",
+            "Italian", "Portuguese (Brazil)", "Dutch", "Danish", "Finnish", "Norwegian", "Swedish", "Polish", "Czech",
+            "Japanese", "Korean", "Chinese (Simplified)",
+        ]
+        .map(|l| (l.to_string(), String::new()));
         (rows.to_vec(), subtitle)
     }
 }

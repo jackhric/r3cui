@@ -614,6 +614,26 @@ fn library_script() -> Vec<(u64, Act)> {
     s
 }
 
+/// The subtitle picker with a long list: walk down past the screen and back.
+fn picker_script() -> Vec<(u64, Act)> {
+    let open: Act = Box::new(|app, _| {
+        app.set_picker(1);
+        app.invoke_go(9, 0);
+        let (rows, current) = crate::demo_tracks(&crate::Model::default(), 1, 1);
+        crate::show_tracks(&app.as_weak(), rows, current);
+    });
+    let mut s: Vec<(u64, Act)> = vec![(600, open)];
+    for _ in 0..16 {
+        s.push((260, ui(|a| a.invoke_move(1))));
+    }
+    s.push((900, ui(|_| {})));
+    for _ in 0..8 {
+        s.push((260, ui(|a| a.invoke_move(-1))));
+    }
+    s.push((1200, ui(|_| {})));
+    s
+}
+
 fn lava_script() -> Vec<(u64, Act)> {
     let source = |name: &'static str| -> Act {
         Box::new(move |_, tx| {
@@ -639,6 +659,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         Some("stages") => return stages_script(),
         Some("switch") => return switch_script(),
         Some("library") => return library_script(),
+        Some("picker") => return picker_script(),
         _ => {}
     }
     if name == Some("home") {
