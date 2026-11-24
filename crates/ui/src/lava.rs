@@ -20,6 +20,11 @@ pub fn palette(accent: (u8, u8, u8), strength: f32) -> [[u8; 3]; 3] {
     [[0, 0, 0], scale(base, 0.07), scale(base, 0.12)]
 }
 
+/// The same three colours the other way round: a faint wash with darker holes where the wax is.
+pub fn inverted(colours: [[u8; 3]; 3]) -> [[u8; 3]; 3] {
+    [colours[2], colours[1], colours[0]]
+}
+
 pub fn render(t: f32, colours: [[u8; 3]; 3]) -> SharedPixelBuffer<Rgb8Pixel> {
     let mut buf = SharedPixelBuffer::<Rgb8Pixel>::new(W, H);
     let aspect = W as f32 / H as f32;

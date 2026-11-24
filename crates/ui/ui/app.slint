@@ -329,9 +329,9 @@ export component AppWindow inherits Window {
     in property <[Choice]> input-choices;
     in property <[Choice]> wifi-choices;
     in property <[Choice]> status-choices;
-    // The menu's animated background.
+    // The idle home screen's animated background.
     in property <image> lava;
-    out property <bool> lava-on: root.page == 2 && root.lit;
+    out property <bool> lava-on: root.page == 0 && root.home-view == 2 && root.lit;
     in property <bool> charging;
     // On the charger the screen and keys go dark after a short while; any input brings them back.
     in-out property <bool> resting;
@@ -402,7 +402,6 @@ export component AppWindow inherits Window {
     property <bool> power-latched;
     // Stays set through the fade-out so the label does not flip back while disappearing.
     property <bool> power-completed;
-    property <float> hold: 0;
     property <color> power-tint: root.power-turning-off ? Theme.off : Theme.on;
 
     // Lists one step from the stage share a depth, so opening one from the stage is the layer
@@ -450,7 +449,11 @@ export component AppWindow inherits Window {
     // 1 Kodi is playing, 2 the input's mark (every input, Kodi included, when idle), 3 receiver off
     property <int> home-view: !root.receiver-on ? 3 : root.kodi && root.media-title != "" ? 1 : 2;
 
+    // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
     public function go(p: int, f: int) {
+        if (p != root.page) {
+            root.haptic("page");
+        }
         if (root.page == 0 && p != 0) {
             root.capture(0);
         }
@@ -458,7 +461,6 @@ export component AppWindow inherits Window {
         root.page = p;
     }
     public function back() {
-        root.haptic("back");
         if (root.page == 10) {
             let focus = root.lab-back();
             if (focus < 0) {
@@ -487,15 +489,12 @@ export component AppWindow inherits Window {
         root.page == 1 ? root.sources.length : root.page == 2 ? 6 : root.page == 3 ? 3 : root.page == 4 ? 4 : root.page == 5 ? root.wifi-rows.length + (root.wifi-band-known ? 2 : 1) : root.page == 8 ? 2 : root.page == 9 ? root.tracks.length : root.page == 10 ? root.lab-rows.length : 1
     }
     public function move(d: int) {
-        let next = max(0, min(root.row-count() - 1, root.focus-index + d));
-        if (next != root.focus-index) {
-            root.haptic("tick");
-        }
-        root.focus-index = next;
+        root.focus-index = max(0, min(root.row-count() - 1, root.focus-index + d));
     }
     public function activate(i: int) {
         root.focus-index = i;
-        if (root.page != 10) {
+        // A pick that opens another page already gets the page's haptic.
+        if (root.page != 10 && root.page != 1 && root.page != 2 && root.page != 9) {
             root.haptic("select");
         }
         if (root.page == 10) {
@@ -580,6 +579,8 @@ export component AppWindow inherits Window {
                     root.power-turning-off = root.receiver-on;
                     root.power-completed = false;
                     root.capture(1);
+                    root.hold-look = 2;
+                    root.power-hold-start = animation-tick();
                     root.power-holding = true;
                     root.haptic("power-hold");
                 }
@@ -635,8 +636,8 @@ export component AppWindow inherits Window {
                     return accept;
                 }
             }
-            if (!event.repeat) {
-                root.haptic("tap");
+            if (!event.repeat && event.text == Key.Return) {
+                root.haptic("select");
             }
             root.key(event.text);
             return accept;
@@ -680,6 +681,8 @@ export component AppWindow inherits Window {
             running: root.home-down && !root.home-used && !root.home-rumbling;
             triggered => {
                 root.capture(1);
+                root.hold-look = 1;
+                root.home-hold-start = animation-tick();
                 root.home-rumbling = true;
                 root.haptic("home-hold");
             }
@@ -909,6 +912,26 @@ export component AppWindow inherits Window {
                         opacity: root.home-view == 2 ? 1 : 0;
                         visible: self.opacity > 0;
 
+                        // The colour wash behind the mark, faded out at the top and bottom so the navbar
+                        // and the volume line sit on plain black.
+                        Image {
+                            width: 480px;
+                            height: 800px;
+                            source: root.lava;
+                            image-fit: fill;
+                            image-rendering: pixelated;
+                        }
+                        Rectangle {
+                            height: 260px;
+                            y: 0;
+                            background: @linear-gradient(180deg, #000000 0%, #000000 25%, #00000000 100%);
+                        }
+                        Rectangle {
+                            y: 520px;
+                            height: 280px;
+                            background: @linear-gradient(180deg, #00000000 0%, #000000 75%, #000000 100%);
+                        }
+
                         // While the receiver is still switching, a faint sheen sweeps across the mark.
                         property <float> sheen: mod(animation-tick() / 1400ms, 1.0) * 1.6 - 0.3;
                         Path {
@@ -1058,13 +1081,6 @@ export component AppWindow inherits Window {
                 current-depth: root.depth;
                 active: root.page == 2;
 
-                Image {
-                    width: 480px;
-                    height: 800px;
-                    source: root.lava;
-                    image-fit: fill;
-                    image-rendering: pixelated;
-                }
                 ChoiceList {
                     title: "Menu";
                     rows: [
@@ -1451,19 +1467,30 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Holding home: a ring fills around the current input's mark, and the input list opens when
-    // it closes, timed with the rumble.
+    // Holding power or Home: one overlay. A ring fills around a mark placed exactly where the home
+    // screen's mark sits. Progress runs from the clock, so every hold starts from an empty ring.
     property <bool> home-holding: root.home-down && root.home-rumbling && !root.home-used;
-    property <float> home-hold: 0;
-    property <float> ring: min(root.home-hold, 0.9999);
+    property <duration> home-hold-start;
+    property <duration> power-hold-start;
+    // Which hold the overlay shows: 1 Home (inputs), 2 power. Kept through the fade-out so the
+    // overlay does not change look while it disappears.
+    property <int> hold-look: 1;
+    property <bool> hold-shown: root.power-overlay || root.home-holding;
+    property <float> hold-linear: root.power-latched ? 1
+        : root.power-holding ? clamp((animation-tick() - root.power-hold-start) / 1200ms, 0, 1)
+        : root.home-holding ? clamp((animation-tick() - root.home-hold-start) / 490ms, 0, 1)
+        : 0;
+    property <float> hold-progress: root.hold-linear * root.hold-linear * (3 - 2 * root.hold-linear);
+    property <float> ring: min(root.hold-progress, 0.9999);
+    property <color> ring-tint: root.hold-look == 2 ? root.power-tint : Theme.accent;
     Rectangle {
         background: #000000A6;
-        opacity: root.home-holding ? 1 : 0;
+        opacity: root.hold-shown ? 1 : 0;
         visible: self.opacity > 0 && root.capturing == 0;
-        animate opacity { duration: 140ms; easing: ease-out; }
+        animate opacity { duration: 160ms; easing: ease-out; }
         Path {
             x: 120px;
-            y: 240px;
+            y: 280px;
             width: 240px;
             height: 240px;
             viewbox-width: 24;
@@ -1475,96 +1502,42 @@ export component AppWindow inherits Window {
         }
         Path {
             x: 120px;
-            y: 240px;
+            y: 280px;
             width: 240px;
             height: 240px;
             viewbox-width: 24;
             viewbox-height: 24;
             commands: "M12 1.5A10.5 10.5 0 " + (root.ring > 0.5 ? "1" : "0") + " 1 " + (12 + 10.5 * sin(root.ring * 360deg)) + " " + (12 - 10.5 * cos(root.ring * 360deg));
             fill: transparent;
-            stroke: Theme.accent;
+            stroke: root.ring-tint;
             stroke-width: 10px;
             stroke-line-cap: round;
+            opacity: root.hold-progress > 0.001 ? 1 : 0;
         }
-        Logo {
-            y: 312px;
-            size: 96px;
+        if root.hold-look == 1: Logo {
+            y: 330px;
+            size: 140px;
             commands: root.source == "" ? Logos.kodi : root.source-icon;
             tint: Theme.text;
         }
-        Text {
-            y: 516px;
-            width: 480px;
-            horizontal-alignment: center;
-            text: "Inputs";
-            font-size: 26px;
-            font-weight: 300;
-            color: Theme.t2;
-        }
-    }
-
-    // Hold-to-power overlay: the symbol fills and a wash of the same colour rises behind it.
-    Rectangle {
-        background: #000000A6;
-        opacity: root.power-overlay ? 1 : 0;
-        visible: self.opacity > 0 && root.capturing == 0;
-        animate opacity { duration: 240ms; easing: ease-out; }
-
-        Rectangle {
-            x: 0;
-            y: parent.height * (1 - root.hold);
-            width: parent.width;
-            height: parent.height * root.hold;
-            background: @linear-gradient(0deg, root.power-tint.with-alpha(0.38) 0%, root.power-tint.with-alpha(0) 100%);
-        }
-        Glyph {
-            y: 290px;
-            size: 176px;
+        if root.hold-look == 2: Glyph {
+            y: 345px;
+            size: 110px;
             commands: Icons.power;
-            tint: Theme.t3;
-        }
-        Rectangle {
-            x: 152px;
-            y: 290px + 176px * (1 - root.hold);
-            width: 176px;
-            height: 176px * root.hold;
-            clip: true;
-            Glyph {
-                x: 0;
-                y: -176px * (1 - root.hold);
-                size: 176px;
-                commands: Icons.power;
-                tint: root.power-tint;
-            }
+            tint: root.power-completed ? root.power-tint : Theme.text;
         }
         Text {
-            y: 560px;
+            y: 548px;
             width: 480px;
             horizontal-alignment: center;
-            text: root.power-completed ? (root.power-turning-off ? "Off" : "On") : (root.power-turning-off ? "Hold to turn off" : "Hold to turn on");
+            text: root.hold-look == 1 ? "Inputs"
+                : root.power-completed ? (root.power-turning-off ? "Off" : "On")
+                : (root.power-turning-off ? "Hold to turn off" : "Hold to turn on");
             font-size: 26px;
             font-weight: 300;
-            color: root.power-completed ? Theme.text : Theme.t2;
+            color: root.hold-look == 2 && root.power-completed ? Theme.text : Theme.t2;
         }
     }
-
-    states [
-        homing when root.home-holding: {
-            root.home-hold: 1;
-            in {
-                animate root.home-hold { duration: 490ms; easing: linear; }
-            }
-        }
-        filling when root.power-holding || root.power-latched: {
-            root.hold: 1;
-            in {
-                animate root.hold { duration: 1200ms; easing: ease-in-out; }
-            }
-            out {
-                animate root.hold { duration: 420ms; easing: ease-in-out; }
-            }
-        }
-    ]
 
     // Charging: the battery, full screen, until the first touch or key.
     Rectangle {

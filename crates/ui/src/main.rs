@@ -486,7 +486,7 @@ fn rest_on_charger(app: &AppWindow) -> slint::Timer {
     timer
 }
 
-/// Redraws the menu's background while the menu is on screen, at a calm 20 fps.
+/// Redraws the idle home screen's background while it is on screen, at a calm 20 fps.
 pub fn animate_lava(app: &AppWindow) -> slint::Timer {
     let weak = app.as_weak();
     let start = Instant::now();
@@ -497,7 +497,7 @@ pub fn animate_lava(app: &AppWindow) -> slint::Timer {
             return;
         }
         let a = app.global::<Theme>().get_accent();
-        let colours = lava::palette((a.red(), a.green(), a.blue()), settings::get().lava.unwrap_or(1.0));
+        let colours = lava::inverted(lava::palette((a.red(), a.green(), a.blue()), settings::get().lava.unwrap_or(1.0)));
         app.set_lava(slint::Image::from_rgb8(lava::render(start.elapsed().as_secs_f32() * 0.6, colours)));
     });
     timer
@@ -1177,9 +1177,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     }
                     UiAction::Slider(slider::Gesture::Steps(n)) => {
                         let v = slide(session.volume_base(), n, session.volume_max());
-                        if v == session.volume_base() {
-                            feedback::play(feedback::SLIDER_LIMIT);
-                        }
+                        feedback::play(if v == session.volume_base() { feedback::SLIDER_LIMIT } else { feedback::VOLUME });
                         session.slider_volume = Some((v, Instant::now()));
                         flash_volume(weak, &overlay);
                         render(weak, &session.model());
@@ -1241,6 +1239,9 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                             let (target, cmd) = b.route();
                             if target == Target::Volume {
                                 flash_volume(weak, &overlay);
+                                if matches!(b, Button::VolumeUp | Button::VolumeDown) {
+                                    feedback::play(feedback::VOLUME);
+                                }
                             }
                             (target, cmd.to_string(), Value::Null)
                         }
@@ -1510,9 +1511,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                 UiAction::Slider(slider::Gesture::Steps(n)) => {
                     let before = m.volume;
                     m.volume = slide(m.volume, n, m.volume_max);
-                    if m.volume == before {
-                        feedback::play(feedback::SLIDER_LIMIT);
-                    }
+                    feedback::play(if m.volume == before { feedback::SLIDER_LIMIT } else { feedback::VOLUME });
                     m.muted = false;
                     flash_volume(weak, &overlay);
                 }
@@ -1534,8 +1533,8 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                 // Stand-in for the core's power-mode event.
                 UiAction::Key(text) if text == "z" => m.awake = !m.awake,
                 UiAction::Key(text) => match Button::from_key(&text) {
-                    Some(Button::VolumeUp) => { m.volume = (m.volume + 1).min(98); m.muted = false; flash_volume(weak, &overlay); }
-                    Some(Button::VolumeDown) => { m.volume = (m.volume - 1).max(0); m.muted = false; flash_volume(weak, &overlay); }
+                    Some(Button::VolumeUp) => { m.volume = (m.volume + 1).min(m.volume_max); m.muted = false; flash_volume(weak, &overlay); feedback::play(feedback::VOLUME); }
+                    Some(Button::VolumeDown) => { m.volume = (m.volume - 1).max(0); m.muted = false; flash_volume(weak, &overlay); feedback::play(feedback::VOLUME); }
                     Some(Button::Mute) => { m.muted = !m.muted; flash_volume(weak, &overlay); }
                     Some(Button::Play) if m.title.is_empty() => m.title = title.clone(),
                     Some(Button::Play) => m.paused = !m.paused,

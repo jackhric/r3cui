@@ -106,6 +106,7 @@ pub struct Spec {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cue {
     Tap,
+    Volume,
     Select,
     Back,
     Tick,
@@ -124,8 +125,9 @@ pub enum Cue {
 }
 
 impl Cue {
-    pub const ALL: [Cue; 16] = [
+    pub const ALL: [Cue; 17] = [
         Self::Tap,
+        Self::Volume,
         Self::Select,
         Self::Back,
         Self::Tick,
@@ -146,6 +148,7 @@ impl Cue {
     pub fn name(self) -> &'static str {
         match self {
             Self::Tap => "Tap",
+            Self::Volume => "Volume",
             Self::Select => "Select",
             Self::Back => "Back",
             Self::Tick => "Tick",
@@ -173,6 +176,8 @@ impl Cue {
         }
         match self {
             Self::Tap => base(&[s!(Click, 0, 35)], Medium),
+            // Effect 9: a soft bump, chosen by feel. Steps come fast, so each replaces the last.
+            Self::Volume => Spec { min_gap_ms: 25, ..base(&[s!(Bump, 0, 30)], Soft) },
             Self::Select => Spec { priority: 2, sound: Some(Sound::Confirm), ..base(&[s!(Click, 0, 40)], Strong) },
             Self::Back => base(&[s!(Sharp, 0, 35)], Medium),
             Self::Tick => Spec { priority: 0, drop_if_busy: true, min_gap_ms: 50, ..base(&[s!(Tick, 0, 30)], Soft) },
@@ -233,6 +238,7 @@ impl Cue {
 /// What the screen's events play. `None` stops whatever hold feedback is running.
 pub const UI_EVENTS: &[(&str, Option<Cue>)] = &[
     ("tap", Some(Cue::Tap)),
+    ("page", Some(Cue::Tap)),
     ("tick", Some(Cue::Tick)),
     ("select", Some(Cue::Select)),
     ("back", Some(Cue::Back)),
@@ -246,6 +252,8 @@ pub const UI_EVENTS: &[(&str, Option<Cue>)] = &[
 ];
 
 pub const SLIDER_MUTE: Cue = Cue::Select;
+/// Every volume change, from the keys or the slider.
+pub const VOLUME: Cue = Cue::Volume;
 pub const SLIDER_LIMIT: Cue = Cue::Limit;
 
 pub fn from_ui(name: &str) -> Option<Option<Cue>> {
@@ -517,8 +525,8 @@ fn row(label: &str, detail: &str, value: &str, opens: bool) -> LabRow {
 }
 
 /// The cues the remote itself uses, in the order the Patterns screen lists them.
-const UI_CUES: [Cue; 10] =
-    [Cue::Tap, Cue::Tick, Cue::Select, Cue::Back, Cue::Limit, Cue::Success, Cue::Error, Cue::HoldRamp, Cue::HoldComplete, Cue::Rumble];
+const UI_CUES: [Cue; 11] =
+    [Cue::Tap, Cue::Volume, Cue::Tick, Cue::Select, Cue::Back, Cue::Limit, Cue::Success, Cue::Error, Cue::HoldRamp, Cue::HoldComplete, Cue::Rumble];
 /// Named effects with no place in the UI yet, to feel on the Raw effects screen.
 const EXTRA_CUES: [Cue; 6] = [Cue::Alert, Cue::LongBuzz, Cue::RampUp, Cue::RampDown, Cue::Triple, Cue::Double];
 
@@ -526,10 +534,11 @@ impl Cue {
     /// Where the remote uses this cue.
     fn purpose(self) -> &'static str {
         match self {
-            Self::Tap => "A hard key on the home screen",
-            Self::Tick => "Moving through a list",
-            Self::Select => "Choosing a row; slider double tap",
-            Self::Back => "Going back",
+            Self::Tap => "Arriving on a new page",
+            Self::Volume => "Every volume change",
+            Self::Tick => "Not used now",
+            Self::Select => "OK, choosing a row, slider double tap",
+            Self::Back => "Not used now",
             Self::Limit => "Slider at silence or the volume limit",
             Self::Success => "Power hold completed",
             Self::Error => "Something failed (not used yet)",
