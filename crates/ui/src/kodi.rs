@@ -82,11 +82,59 @@ pub fn playing(base: &str) -> anyhow::Result<Playing> {
     Ok(Playing { fanart, subtitles, subtitle })
 }
 
+/// Kodi reports subtitle languages as ISO 639-2 codes ("eng", "ger" or "deu"); the picker shows the language's name.
+fn language_name(code: &str) -> Option<&'static str> {
+    Some(match code.to_ascii_lowercase().as_str() {
+        "eng" | "en" => "English",
+        "ara" | "ar" => "Arabic",
+        "chi" | "zho" | "zh" => "Chinese",
+        "hrv" | "hr" => "Croatian",
+        "cze" | "ces" | "cs" => "Czech",
+        "dan" | "da" => "Danish",
+        "dut" | "nld" | "nl" => "Dutch",
+        "fin" | "fi" => "Finnish",
+        "fre" | "fra" | "fr" => "French",
+        "ger" | "deu" | "de" => "German",
+        "gre" | "ell" | "el" => "Greek",
+        "heb" | "he" => "Hebrew",
+        "hin" | "hi" => "Hindi",
+        "hun" | "hu" => "Hungarian",
+        "ice" | "isl" | "is" => "Icelandic",
+        "ind" | "id" => "Indonesian",
+        "ita" | "it" => "Italian",
+        "jpn" | "ja" => "Japanese",
+        "kor" | "ko" => "Korean",
+        "may" | "msa" | "ms" => "Malay",
+        "nor" | "nob" | "no" | "nb" => "Norwegian",
+        "pol" | "pl" => "Polish",
+        "por" | "pt" => "Portuguese",
+        "rum" | "ron" | "ro" => "Romanian",
+        "rus" | "ru" => "Russian",
+        "slo" | "slk" | "sk" => "Slovak",
+        "slv" | "sl" => "Slovenian",
+        "spa" | "es" => "Spanish",
+        "srp" | "sr" => "Serbian",
+        "swe" | "sv" => "Swedish",
+        "tha" | "th" => "Thai",
+        "tur" | "tr" => "Turkish",
+        "ukr" | "uk" => "Ukrainian",
+        "vie" | "vi" => "Vietnamese",
+        "bul" | "bg" => "Bulgarian",
+        "cat" | "ca" => "Catalan",
+        "est" | "et" => "Estonian",
+        "lav" | "lv" => "Latvian",
+        "lit" | "lt" => "Lithuanian",
+        "per" | "fas" | "fa" => "Persian",
+        _ => return None,
+    })
+}
+
 fn subtitle_label(s: &Value) -> String {
     let field = |k: &str| s.get(k).and_then(Value::as_str).unwrap_or_default().trim().to_string();
-    let (name, language) = (field("name"), field("language"));
+    let (name, code) = (field("name"), field("language"));
+    let language = language_name(&code).map(str::to_string).unwrap_or(code);
     let mut label = match (name.is_empty(), language.is_empty()) {
-        (false, false) if !name.to_lowercase().contains(&language.to_lowercase()) => format!("{name} ({language})"),
+        (false, false) if !name.to_lowercase().contains(&language.to_lowercase()) => format!("{language} ({name})"),
         (false, _) => name,
         (true, false) => language,
         (true, true) => "Unnamed".to_string(),
@@ -121,9 +169,12 @@ mod tests {
 
     #[test]
     fn labels() {
-        assert_eq!(subtitle_label(&json!({"name": "SDH", "language": "eng"})), "SDH (eng)");
+        assert_eq!(subtitle_label(&json!({"name": "SDH", "language": "eng"})), "English (SDH)");
         assert_eq!(subtitle_label(&json!({"name": "English", "language": "eng"})), "English");
-        assert_eq!(subtitle_label(&json!({"name": "", "language": "fre", "isforced": true})), "fre · Forced");
+        assert_eq!(subtitle_label(&json!({"name": "", "language": "fre", "isforced": true})), "French · Forced");
+        assert_eq!(subtitle_label(&json!({"name": "Simplified", "language": "chi"})), "Chinese (Simplified)");
+        assert_eq!(subtitle_label(&json!({"name": "", "language": "ara"})), "Arabic");
+        assert_eq!(subtitle_label(&json!({"name": "", "language": "xyz"})), "xyz");
     }
 }
 
