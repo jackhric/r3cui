@@ -1,0 +1,151 @@
+---
+import { Button } from '@/components/starwind/button';
+import Icon from '../Icon.astro';
+import Logo from '../Logo.astro';
+import { riverColumns } from './river';
+
+interface Props { repo: string; download: string }
+const { repo, download } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const iconButton = 'text-(--hero-text) rounded-lg hover:bg-(--hero-text)/8 hover:text-(--hero-text) select-none';
+const docsButton = `docs text-base px-2.5 -ml-2.5 ${iconButton}`;
+const columns = riverColumns(9);
+---
+
+<section class="hero">
+  <div class="stage" aria-hidden="true">
+    <div class="glow"></div>
+    <div class="river">
+      {columns.map(col => (
+        <div class="column" style={col.style}>
+          <div class="flow">
+            {[...col.remotes, ...col.remotes].map(src => (
+              <img src={src} alt="" width="136" height="450" decoding="async" draggable="false" />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+  <div class="shade"></div>
+
+  <header class="top">
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#get-started">Get started</a>
+      <a href={`${base}/docs/faq/`}>FAQ</a>
+      <Button href={`${base}/docs/`} variant="ghost" size="sm" class={docsButton}>
+        Docs
+      </Button>
+      <span class="icons">
+        <Button href={repo} title="GitHub" variant="ghost" size="icon-sm" class={iconButton}>
+          <Icon name="github" label="GitHub" class="size-5" />
+        </Button>
+      </span>
+    </nav>
+  </header>
+
+  <div class="content">
+    <Logo class="logo" />
+    <h1>
+      <span class="line">A simplified Remote&nbsp;3 interface</span>{' '}
+      <span class="line">for your big ass</span>{' '}
+      <span class="line">home theater setup</span>
+    </h1>
+    <div class="ctas">
+      <Button href={download} variant="primary" size="lg" class="select-none">Download</Button>
+      <Button href={repo} variant="outline" size="lg" class="select-none cta-outline">
+        <Icon name="github" class="size-[18px]" />View on GitHub
+      </Button>
+    </div>
+    <p class="beta">Beta. Installing it voids your Remote&nbsp;3 warranty.</p>
+  </div>
+</section>
+
+<script>
+  // Off screen the river costs nothing: its animations pause.
+  const hero = document.querySelector<HTMLElement>('.hero')!;
+  new IntersectionObserver(([e]) => hero.classList.toggle('away', !e.isIntersecting)).observe(hero);
+</script>
+
+<style>
+  .hero {
+    position: relative; overflow: hidden; isolation: isolate; color: var(--hero-text); background: var(--hero-bg);
+    min-height: min(92vh, 880px); display: flex; flex-direction: column;
+  }
+  .stage { position: absolute; inset: 0; user-select: none; -webkit-user-select: none; pointer-events: none; }
+  .glow {
+    position: absolute; left: 35%; top: -20%; width: 80%; height: 140%;
+    background: radial-gradient(closest-side, var(--hero-glow), color-mix(in srgb, var(--hero-glow) 30%, transparent) 55%, transparent 75%);
+    animation: glow-in 2.4s ease-out backwards;
+  }
+  @keyframes glow-in { from { opacity: 0; transform: scale(0.85); } }
+
+  /* Flat, top-down: columns of whole remotes drifting down the page, each at its own pace and offset. */
+  .river {
+    position: absolute; top: 0; bottom: 0; left: 34%; display: flex; gap: 28px;
+    animation: river-in 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s backwards;
+  }
+  @keyframes river-in { from { opacity: 0; translate: 0 -60px; } }
+  .column { flex: none; width: 136px; height: 100%; overflow: visible; margin-top: var(--lag, 0px); }
+  .flow {
+    display: grid; gap: 28px; will-change: transform;
+    animation: drift var(--speed, 80s) linear var(--delay, 0s) infinite;
+  }
+  .flow img { display: block; width: 136px; height: auto; filter: drop-shadow(0 18px 28px rgb(0 0 0 / 0.55)); }
+  /* Two copies of the column stacked; sliding by one copy's height loops seamlessly. */
+  @keyframes drift { from { transform: translateY(calc(-50% - 14px)); } to { transform: translateY(0); } }
+  .hero.away .flow { animation-play-state: paused; }
+
+  .shade {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      linear-gradient(90deg, var(--hero-bg) 10%, color-mix(in srgb, var(--hero-bg) 92%, transparent) 32%, color-mix(in srgb, var(--hero-bg) 45%, transparent) 52%, color-mix(in srgb, var(--hero-bg) 10%, transparent) 72%, transparent 100%),
+      linear-gradient(to bottom, var(--hero-bg), transparent 18%, transparent 78%, var(--hero-bg));
+  }
+
+  .top {
+    position: relative; z-index: 3; width: 100%; max-width: 1160px; margin: 0 auto; padding: 18px 28px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex-wrap: wrap;
+  }
+  .top nav { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .top nav a { color: var(--hero-muted); text-decoration: none; font-weight: 500; }
+  .top nav a:hover { color: var(--hero-text); }
+  .icons { display: flex; gap: 4px; }
+
+  .content {
+    position: relative; z-index: 2; width: 100%; max-width: 1160px; margin: auto; padding: 64px 28px 112px;
+  }
+  .content :global(.logo) { width: min(360px, 75%); height: auto; margin: 0 0 30px; color: var(--hero-text); }
+  h1 {
+    margin: 0 0 32px; font-size: clamp(2rem, 4.6vw, 3.3rem); line-height: 1.12; letter-spacing: -0.025em;
+    text-wrap: balance; text-shadow: 0 2px 24px rgb(0 0 0 / 0.45);
+  }
+  @media (min-width: 761px) { h1 .line { display: block; } }
+  .ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+  .ctas :global(.cta-outline) { color: var(--hero-text); border-color: color-mix(in srgb, var(--hero-text) 30%, transparent); background: transparent; }
+  .ctas :global(.cta-outline:hover) { background: color-mix(in srgb, var(--hero-text) 8%, transparent); color: var(--hero-text); }
+  .beta { margin: 18px 0 0; color: var(--hero-muted); font-size: 0.9rem; }
+
+  @media (max-width: 1100px) { .river { left: 40%; } }
+  @media (max-width: 760px) {
+    .hero { min-height: 100svh; }
+    .top nav > a:not(.docs) { display: none; }
+    .content { margin: auto 0 0; padding: max(34vh, 220px) 20px 48px; }
+    .river { left: -40px; gap: 20px; }
+    .column, .flow img { width: 110px; }
+    .flow { gap: 20px; }
+    .glow { left: -20%; width: 140%; }
+    .shade {
+      background: linear-gradient(to bottom, var(--hero-bg) 0%, color-mix(in srgb, var(--hero-bg) 30%, transparent) 14%, color-mix(in srgb, var(--hero-bg) 30%, transparent) 34%, color-mix(in srgb, var(--hero-bg) 92%, transparent) 56%, var(--hero-bg) 68%);
+    }
+  }
+  @media (max-width: 400px) {
+    .top { padding: 14px 16px; }
+    .top nav { gap: 8px; }
+    .content { padding-inline: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .flow, .river, .glow { animation: none; }
+  }
+</style>

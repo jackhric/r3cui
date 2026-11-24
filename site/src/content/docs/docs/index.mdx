@@ -1,0 +1,22 @@
+---
+title: Overview
+description: What r3cui is and where to start.
+---
+
+import { LinkCard } from '@astrojs/starlight/components';
+
+r3cui replaces the touchscreen UI on the [Unfolded Circle Remote 3](https://www.unfoldedcircle.com/) with a simple,
+single-purpose remote for a home theater. It shows what's playing in Kodi, your movie and TV library as a wall of
+posters, your receiver's inputs and the volume, and lights the buttons to match the input you're on.
+
+It runs on the remote through the custom UI slot that Unfolded Circle provides for exactly this. It's written in Rust
+with [Slint](https://slint.rs).
+
+:::caution[Beta software]
+Things may break, and things are 100% bound to change. r3cui works closely with [Kodi](https://kodi.tv) and
+[Home Assistant](https://www.home-assistant.io) and isn't plug and play yet: you'll need to clone the project and
+modify it to suit your home theater configuration and setup.
+:::
+
+<LinkCard title="Getting started" description="Download, install, and go back to the Normal UI." href="getting-started/" />
+<LinkCard title="FAQ" description="Warranty, requirements, licensing and more." href="faq/" />

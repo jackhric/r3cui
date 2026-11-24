@@ -1,0 +1,112 @@
+---
+import { Button } from '@/components/starwind/button';
+import { Card } from '@/components/starwind/card';
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/starwind/input-group';
+import remote from '../assets/remotes/now-playing.webp?url';
+import Icon from './Icon.astro';
+
+interface Props { repo: string; download: string }
+const { repo, download } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const install = `curl -u 'web-configurator:<PIN>' 'http://<IP>/api/system/install/ui?void_warranty=yes' --form 'file=@remote-ui.tar.gz'`;
+---
+
+<section id="get-started" class="cta" aria-labelledby="cta-title">
+  <Card class="cta-card relative overflow-hidden gap-0 p-0 rounded-[20px]">
+    <div class="grid">
+      <div class="copy">
+        <h2 id="cta-title">Put r3cui on your Remote 3</h2>
+
+        <ol class="installs">
+          <li>
+            <span class="where"><b>1</b>Download the latest release</span>
+            <div class="buttons">
+              <Button href={download} variant="default" class="select-none">Download remote-ui.tar.gz</Button>
+              <Button href={`${base}/docs/getting-started/`} variant="outline" class="select-none">Read the guide</Button>
+            </div>
+          </li>
+          <li>
+            <span class="where"><b>2</b>Install it from a computer on the same network</span>
+            <InputGroup class="bg-muted">
+              <InputGroupInput id="cta-install" readonly value={install} aria-label="Install command"
+                class="font-mono text-[0.8rem] min-w-0 bg-transparent" />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton variant="primary" data-copy="cta-install" class="font-semibold">Copy</InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+            <span class="hint">Use your remote's IP address and web configurator PIN.</span>
+          </li>
+        </ol>
+
+        <p class="warn"><b>These be treacherous waters.</b> Installing r3cui voids your Remote 3 warranty. The remote keeps
+          a permanent record that a custom UI was installed, even after you go back to the Normal UI.</p>
+      </div>
+
+      <div class="media" aria-hidden="true">
+        <img src={remote} alt="" width="272" height="900" loading="lazy" decoding="async" />
+      </div>
+    </div>
+  </Card>
+</section>
+
+<footer class="site-footer">
+  <nav aria-label="Project links">
+    <a href={`${base}/docs/`}>Docs</a>
+    <a href={`${base}/docs/faq/`}>FAQ</a>
+    <a href={repo}><Icon name="github" class="inline size-4 -mt-0.5 mr-1" />GitHub</a>
+    <a href={`${repo}/releases`}>Releases</a>
+    <a href={`${repo}/blob/main/LICENSE`}>GPL-3.0 License</a>
+  </nav>
+  <p class="small">Not made by or affiliated with Unfolded Circle.</p>
+</footer>
+
+<style>
+  .cta { max-width: 1040px; margin: 0 auto; padding: 8px 20px 40px; }
+  .cta :global(.cta-card)::before {
+    content: ''; position: absolute; right: -10%; top: -30%; width: 70%; height: 160%; pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--primary) 18%, transparent), transparent 75%);
+  }
+  .grid {
+    position: relative; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: center; gap: 44px; padding: 44px 48px;
+  }
+  .copy { min-width: 0; }
+  h2 {
+    margin: 0 0 24px; text-align: left; font-size: clamp(1.5rem, 3vw, 2.1rem); line-height: 1.15;
+    letter-spacing: -0.02em; text-wrap: balance;
+  }
+  .installs { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+  .installs li { display: grid; gap: 8px; min-width: 0; }
+  .where { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 700; }
+  .where b {
+    display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 0.75rem;
+    background: var(--primary); color: var(--primary-foreground);
+  }
+  .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .hint { font-size: 0.82rem; color: var(--muted-foreground); }
+  .then { margin: 20px 0 0; font-size: 0.92rem; color: var(--muted-foreground); }
+
+  .media { min-width: 0; display: grid; place-items: center; user-select: none; -webkit-user-select: none; pointer-events: none; }
+  .media img { width: min(190px, 60%); height: auto; filter: drop-shadow(0 24px 36px rgb(0 0 0 / 0.35)); }
+  .warn { margin: 16px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 0.86rem; line-height: 1.45;
+    color: var(--foreground); background: color-mix(in srgb, var(--primary) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent); }
+
+  .site-footer {
+    max-width: 1040px; margin: 0 auto; padding: 24px 20px 40px; display: flex; justify-content: space-between;
+    align-items: center; gap: 12px 24px; flex-wrap: wrap; color: var(--muted-foreground); font-size: 0.9rem;
+  }
+  nav { display: flex; gap: 6px 20px; flex-wrap: wrap; }
+  nav a { color: var(--foreground); text-decoration: none; font-weight: 500; }
+  nav a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .small { margin: 0; font-size: 0.85rem; }
+
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 36px 32px; }
+  }
+  @media (max-width: 560px) {
+    .grid { padding: 28px 18px; }
+    .buttons :global(a) { flex: 1 1 100%; }
+    .site-footer, nav { justify-content: center; text-align: center; }
+  }
+</style>
