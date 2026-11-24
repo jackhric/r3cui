@@ -1,7 +1,7 @@
 # Prototype brief — single-purpose home theater remote
 
 HTML mockups of the on-device UI for an Unfolded Circle Remote 3 running a custom frontend.
-Each variant is one HTML fragment in `design/variants/<slug>.html`; `design/build.sh` stitches
+Each variant is one HTML fragment in `docs/design/variants/<slug>.html`; `docs/design/build.sh` stitches
 them into one flick-through page. The real UI will later be rebuilt in Slint, so keep to things
 a 2D GLES2 toolkit can draw: flat fills, gradients, rounded rects, strokes, arcs, text, opacity.
 No backdrop-filter blur, no CSS 3D.

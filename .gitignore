@@ -14,7 +14,7 @@ ws-token
 CLAUDE.md
 
 # Manufacturer product photo used only for local previews; not ours to redistribute.
-design/device/
+docs/design/device/
 
 # Generated previews (stills and recordings); they include the manufacturer photo.
-design/poc-shots/
+docs/design/poc-shots/

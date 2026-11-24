@@ -39,7 +39,7 @@ quickly.
 
 ## Fragment contract (the page depends on it)
 
-Write exactly one file, `design/keyboard/<slug>.html`, containing in this order:
+Write exactly one file, `docs/design/keyboard/<slug>.html`, containing in this order:
 
 ```html
 <style> /* every selector starts with .kb-<slug>; keyframes named <slug>-... */ </style>
