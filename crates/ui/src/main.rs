@@ -70,6 +70,8 @@ enum Later {
     Subtitles(Vec<(Option<i64>, String)>, usize),
     /// Demo only: the receiver has caught up with an input change.
     Switched,
+    /// The slider's throttled volume command is due.
+    SendVolume,
 }
 
 /// Everything the screen shows, independent of where it came from (core or demo).
@@ -890,6 +892,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
     };
     let mut tick = tokio::time::interval(Duration::from_secs(1));
     let mut ticks = 0u64;
+    let mut volume_gate = slider::Throttle::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(100)));
     loop {
         tokio::select! {
             _ = tick.tick() => {
@@ -935,6 +938,11 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         show_tracks(weak, labels.iter().map(|l| (l.clone(), String::new())).collect(), current);
                     }
                     Later::Switched => {}
+                    Later::SendVolume => {
+                        if let (Some(v), Some(entity)) = (volume_gate.due(Instant::now()), session.target(Target::Volume)) {
+                            send_command(&core, entity, "volume".into(), json!({ "volume": v }));
+                        }
+                    }
                     Later::JoinDone(ok) => {
                         if session.joining.take().is_some() {
                             finish_join(weak, ok);
@@ -1065,7 +1073,18 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         session.slider_volume = Some((v, Instant::now()));
                         flash_volume(weak, &overlay);
                         render(weak, &session.model());
-                        (Target::Volume, "volume".to_string(), json!({ "volume": v }))
+                        match volume_gate.offer(v, Instant::now()) {
+                            slider::Send::Now(v) => (Target::Volume, "volume".to_string(), json!({ "volume": v })),
+                            slider::Send::Later(wait) => {
+                                let tx = later_tx.clone();
+                                tokio::spawn(async move {
+                                    tokio::time::sleep(wait).await;
+                                    let _ = tx.send(Later::SendVolume);
+                                });
+                                continue;
+                            }
+                            slider::Send::Merged => continue,
+                        }
                     }
                     UiAction::Slider(slider::Gesture::DoubleTap) => {
                         flash_volume(weak, &overlay);
@@ -1306,6 +1325,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
                 Later::Wifi(_, networks) => (m.wifi, m.scanning) = (networks, false),
                 Later::Integrations(_) | Later::Entities(_) | Later::Subtitles(..) => {}
                 Later::Switched => m.switching = false,
+                Later::SendVolume => {}
                 Later::JoinDone(ok) => {
                     if ok {
                         m.wifi_ssid = std::mem::take(&mut joining);

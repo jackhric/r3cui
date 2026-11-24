@@ -67,12 +67,78 @@ impl Slider {
     }
 }
 
+/// At most one volume command per interval. The first change goes out at once; changes during
+/// the gap are merged, and the latest goes out when the gap ends, so the receiver always lands on
+/// where the finger stopped.
+pub struct Throttle {
+    every: Duration,
+    last: Option<Instant>,
+    pending: Option<i32>,
+    scheduled: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Send {
+    Now(i32),
+    /// Call `due` after this long.
+    Later(Duration),
+    /// A send is already scheduled; it will carry this value.
+    Merged,
+}
+
+impl Throttle {
+    pub fn new(every: Duration) -> Self {
+        Self { every, last: None, pending: None, scheduled: false }
+    }
+
+    pub fn offer(&mut self, value: i32, now: Instant) -> Send {
+        if self.scheduled {
+            self.pending = Some(value);
+            return Send::Merged;
+        }
+        match self.last.map(|t| now.duration_since(t)) {
+            Some(gap) if gap < self.every => {
+                self.pending = Some(value);
+                self.scheduled = true;
+                Send::Later(self.every - gap)
+            }
+            _ => {
+                self.last = Some(now);
+                Send::Now(value)
+            }
+        }
+    }
+
+    /// The scheduled send: the latest value offered during the gap.
+    pub fn due(&mut self, now: Instant) -> Option<i32> {
+        self.scheduled = false;
+        let v = self.pending.take()?;
+        self.last = Some(now);
+        Some(v)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn ms(t0: Instant, n: u64) -> Instant {
         t0 + Duration::from_millis(n)
+    }
+
+    #[test]
+    fn throttle_sends_first_then_latest_per_interval() {
+        let t0 = Instant::now();
+        let mut t = Throttle::new(Duration::from_millis(100));
+        assert_eq!(t.offer(60, t0), Send::Now(60));
+        assert_eq!(t.offer(61, ms(t0, 30)), Send::Later(Duration::from_millis(70)));
+        assert_eq!(t.offer(62, ms(t0, 60)), Send::Merged);
+        assert_eq!(t.offer(63, ms(t0, 90)), Send::Merged);
+        assert_eq!(t.due(ms(t0, 100)), Some(63));
+        assert_eq!(t.offer(64, ms(t0, 150)), Send::Later(Duration::from_millis(50)));
+        assert_eq!(t.due(ms(t0, 200)), Some(64));
+        // After a quiet spell the next change goes straight out.
+        assert_eq!(t.offer(65, ms(t0, 500)), Send::Now(65));
     }
 
     #[test]
