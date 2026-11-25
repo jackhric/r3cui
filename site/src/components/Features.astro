@@ -42,7 +42,7 @@ const arrow = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7"/
 type Feature = { title: string; text: string; clip: ReturnType<typeof clip>; wide?: boolean; brand?: keyof typeof brands; cinema?: boolean; icon?: string; doc: string };
 const features: Feature[] = [
   { doc: 'kodi', brand: 'kodi', title: 'Kodi integration', wide: true, cinema: true, clip: clip('kodi-deep'),
-    text: "r3cui ties deep into Kodi and uses rich metadata to give you a second screen that follows library navigation + media playback. It looks nice too!" },
+    text: "r3cui talks to Kodi directly, turning your remote into a second screen. It follows along as you browse your library, then shows what's playing: the poster, the time left, and your audio and subtitle tracks by name. It looks nice too!" },
   { doc: 'input-switching', brand: 'ha', title: 'Easy input switching', clip: clip('inputs-lava'),
     text: "Every input on your receiver, a tap away. r3cui controls your receiver's media player in Home Assistant." },
   { doc: 'volume', title: 'Global volume', icon: volumeIcon, clip: clip('matrix-volume'),
