@@ -322,16 +322,17 @@ fn key(k: &'static str) -> Act {
     })
 }
 
-/// Hold Kodi still (and reload its subtitles) or let it go on, directly rather than through the remote,
+/// Pause (and reload Kodi's subtitles, from a little way back) or play on, with the remote's own play/pause key so it follows along,
 /// printing when, for the edit.
 fn kodi_hold(hold: bool) -> Act {
-    Box::new(move |_, _| {
+    Box::new(move |_, tx| {
         println!("record {} {:.3}", if hold { "hold" } else { "release" }, unix_now());
-        if let Some(base) = crate::library::kodi_base() {
+        let _ = tx.send(UiAction::Key(" ".into()));
+        if let (true, Some(base)) = (hold, crate::library::kodi_base()) {
             std::thread::spawn(move || {
-                let done = if hold { crate::kodi::pause_and_reload(&base) } else { crate::kodi::resume(&base) };
-                if let Err(e) = done {
-                    tracing::warn!("kodi hold: {e:#}");
+                std::thread::sleep(Duration::from_millis(600));
+                if let Err(e) = crate::kodi::reload(&base, 3.0) {
+                    tracing::warn!("kodi reload: {e:#}");
                 }
             });
         }
@@ -814,7 +815,7 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
         // The remote drives Kodi itself: two d-pad rights along one row of the library to 2001, OK, OK again on
         // Kodi's resume prompt, a few seconds on Now Playing, then the subtitle picker, taken slowly, to English.
         // Once it is on, Kodi is paused and its read-ahead reloaded so the subtitles show (see
-        // `kodi::pause_and_reload`); the pause, marked in the output, is cut from the video.
+        // `kodi::reload`); the pause, marked in the output, is cut from the video.
         "site-kodi-remote" => {
             const RIGHT: &str = "\u{F703}";
             vec![
@@ -823,11 +824,12 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
                 (1400, key("\n")),
                 (1500, key("\n")),
                 (4600, tap_at(132.0, 746.0)),
-                (1400, ui(|a| a.invoke_move(1))),
-                (1300, ui(|a| a.invoke_activate(a.get_focus_index()))),
+                (1800, ui(|a| a.invoke_move(1))),
+                (1700, ui(|a| a.invoke_activate(a.get_focus_index()))),
                 (300, kodi_hold(true)),
                 (3000, kodi_hold(false)),
-                (3000, ui(|_| {})),
+                // Kodi replays the seconds it went back over, which the edit cuts too.
+                (6500, ui(|_| {})),
             ]
         }
         // Kodi's library on the wall while a helper steps Kodi across to a film and plays it (about 11 s), then the
