@@ -6,6 +6,9 @@ license.workspace = true
 description = "r3cui's own Kodi client: typed JSON-RPC over WebSocket and HTTP, and Kodi's state for the UI."
 
 [dependencies]
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 tracing.workspace = true
@@ -13,3 +16,4 @@ thiserror = "2"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
+tracing-subscriber.workspace = true
