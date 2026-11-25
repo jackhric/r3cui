@@ -36,7 +36,7 @@ pub(crate) const SWITCH_TIMEOUT: Duration = Duration::from_secs(10);
 pub(crate) const POWER_TIMEOUT: Duration = Duration::from_secs(120);
 /// Whenever the driver's title changes, ask Kodi what is playing.
 pub(crate) fn ask_title(session: &mut Session, tx: &mpsc::UnboundedSender<Later>) {
-    let (Some(media), Some(base)) = (session.title.lookup(), library::kodi_base()) else { return };
+    let (Some(media), Some(base)) = (session.title.lookup(), kodi::endpoint()) else { return };
     let tx = tx.clone();
     tokio::task::spawn_blocking(move || match kodi::title(&base) {
         Ok(title) => {
@@ -51,7 +51,7 @@ pub(crate) fn ask_position(session: &mut Session, tx: &mpsc::UnboundedSender<Lat
     if !std::mem::take(&mut session.timing) {
         return;
     }
-    let Some(base) = library::kodi_base() else { return };
+    let Some(base) = kodi::endpoint() else { return };
     let tx = tx.clone();
     tokio::task::spawn_blocking(move || {
         let asked = Instant::now();
@@ -151,10 +151,12 @@ impl Session {
             return;
         }
         self.poster_url = url.clone();
+        kodi::learn_from_image(&url);
         let weak = weak.clone();
         tokio::task::spawn_blocking(move || {
             let poster = (!url.is_empty()).then(|| fetch_image(&url).map_err(|e| tracing::warn!("poster {url}: {e:#}")).ok()).flatten();
-            let fanart = kodi::base(&url)
+            let fanart = kodi::endpoint()
+                .filter(|_| !url.is_empty())
                 .and_then(|base| kodi::playing(&base).map_err(|e| tracing::info!("kodi json-rpc: {e:#}")).ok())
                 .map(|p| p.fanart)
                 .filter(|f| !f.is_empty())
@@ -356,7 +358,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
     session.position = attr_f64(session.target(Target::Screen), "media_position");
     tracing::info!(screen = ?session.screen, volume = ?session.volume, "targets");
     if let Some(screen) = &session.screen {
-        library::set_kodi(screen);
+        kodi::learn_from_entity(screen);
     }
 
     render(weak, &session.model());
@@ -576,7 +578,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     }
                     UiAction::OpenPicker(_) => {
                         show_tracks(weak, Vec::new(), usize::MAX);
-                        let Some(base) = kodi::base(&session.poster_url) else { continue };
+                        let Some(base) = kodi::endpoint() else { continue };
                         let tx = later_tx.clone();
                         tokio::task::spawn_blocking(move || match kodi::playing(&base) {
                             Ok(p) => {
@@ -593,7 +595,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         (Target::Screen, "select_sound_mode".to_string(), json!({ "mode": mode }))
                     }
                     UiAction::PickTrack(_, i) => {
-                        let (Some(base), Some(id)) = (kodi::base(&session.poster_url), session.subtitle_ids.get(i as usize).copied()) else { continue };
+                        let (Some(base), Some(id)) = (kodi::endpoint(), session.subtitle_ids.get(i as usize).copied()) else { continue };
                         tokio::task::spawn_blocking(move || {
                             if let Err(e) = kodi::set_subtitle(&base, id) {
                                 tracing::warn!("set subtitle: {e:#}");

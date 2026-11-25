@@ -328,7 +328,7 @@ fn kodi_hold(hold: bool) -> Act {
     Box::new(move |_, tx| {
         println!("record {} {:.3}", if hold { "hold" } else { "release" }, unix_now());
         let _ = tx.send(UiAction::Key(" ".into()));
-        if let (true, Some(base)) = (hold, crate::integrations::library::kodi_base()) {
+        if let (true, Some(base)) = (hold, crate::integrations::kodi::endpoint()) {
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(600));
                 if let Err(e) = crate::integrations::kodi::reload(&base, 3.0) {

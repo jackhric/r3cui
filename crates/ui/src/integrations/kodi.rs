@@ -4,6 +4,7 @@
 
 use anyhow::Context;
 use serde_json::{json, Value};
+use std::sync::RwLock;
 use std::time::Duration;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -16,8 +17,39 @@ pub struct Playing {
     pub subtitle: Option<usize>,
 }
 
+/// Where Kodi's web server is, the one place every call reads it from. The Kodi driver's entity id names the host
+/// (on Kodi's default port) as soon as the core connects; each artwork URL it reports then gives the real host and
+/// port, since it points at that same server.
+static ENDPOINT: RwLock<Option<String>> = RwLock::new(None);
+
+pub fn endpoint() -> Option<String> {
+    ENDPOINT.read().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// `kodi_driver.main.media_player.<host>` → `http://<host>:8080`, unless an artwork URL has already said better.
+pub fn learn_from_entity(entity_id: &str) {
+    let host = entity_id.rsplit_once("media_player.").map(|(_, h)| h).unwrap_or("");
+    if entity_id.starts_with("kodi") && !host.is_empty() {
+        let mut e = ENDPOINT.write().unwrap_or_else(|e| e.into_inner());
+        if e.is_none() {
+            *e = Some(format!("http://{host}:8080"));
+        }
+    }
+}
+
+/// An artwork URL the driver reported: its host and port are Kodi's web server.
+pub fn learn_from_image(url: &str) {
+    if let Some(found) = base(url) {
+        let mut e = ENDPOINT.write().unwrap_or_else(|e| e.into_inner());
+        if e.as_deref() != Some(&found) {
+            tracing::info!("kodi at {found}");
+            *e = Some(found);
+        }
+    }
+}
+
 /// `http://:@host:8080/image/...` → `http://host:8080`
-pub fn base(image_url: &str) -> Option<String> {
+fn base(image_url: &str) -> Option<String> {
     let rest = image_url.strip_prefix("http://")?;
     let host = rest.split('/').next()?;
     let host = host.rsplit('@').next()?;
@@ -206,6 +238,18 @@ mod tests {
         assert_eq!(image("http://k", "image://a b/"), "http://k/image/image%3a%2f%2fa%20b%2f");
         assert_eq!(decode("a%2Fb%2fc%"), "a/b/c%");
         assert_eq!(decode("%é"), "%é");
+    }
+
+    #[test]
+    fn one_endpoint_from_the_entity_then_the_artwork() {
+        learn_from_entity("hass.main.media_player.receiver");
+        assert_eq!(endpoint(), None, "only the Kodi driver's entities name Kodi");
+        learn_from_entity("kodi_driver.main.media_player.kodi.lan");
+        assert_eq!(endpoint().as_deref(), Some("http://kodi.lan:8080"));
+        learn_from_image("http://:@kodi.lan:8081/image/image%3a%2f%2fx%2f");
+        assert_eq!(endpoint().as_deref(), Some("http://kodi.lan:8081"), "the artwork's port wins");
+        learn_from_entity("kodi_driver.main.media_player.kodi.lan");
+        assert_eq!(endpoint().as_deref(), Some("http://kodi.lan:8081"), "and isn't undone by the entity");
     }
 
     #[test]

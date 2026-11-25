@@ -19,7 +19,6 @@ const AHEAD: usize = 15;
 /// Kodi's web address while the wall may show; `None` otherwise.
 static GATE: OnceLock<watch::Sender<Option<String>>> = OnceLock::new();
 static POKE: OnceLock<Arc<Notify>> = OnceLock::new();
-static BASE: OnceLock<String> = OnceLock::new();
 /// Bumped for each new list, so posters for an old one are dropped.
 static LIST: AtomicU64 = AtomicU64::new(0);
 static CURSOR: Mutex<Cursor> = Mutex::new(Cursor { at: 0, len: 0, column: -1, columns: 0, held: None, vertical: None });
@@ -47,11 +46,6 @@ fn demo_hidden(it: &Value) -> bool {
         std::env::var("UC_DEMO_HIDE").unwrap_or_default().split('|').map(str::trim).filter(|t| !t.is_empty()).map(String::from).collect()
     });
     !hide.is_empty() && it["label"].as_str().is_some_and(|l| hide.iter().any(|h| h == l))
-}
-
-/// Kodi's web address, once the screen entity has named it.
-pub fn kodi_base() -> Option<String> {
-    BASE.get().cloned()
 }
 
 /// A d-pad key went to Kodi: move the wall's highlight where Kodi's will go. Kodi's panel stops at the end
@@ -83,18 +77,9 @@ pub fn predict(weak: &slint::Weak<AppWindow>, cmd: &str) {
     });
 }
 
-/// `kodi_driver.main.media_player.<host>` → `http://<host>:8080`: the Kodi driver names its
-/// entities after the host, and the remote already reaches Kodi's artwork there.
-pub fn set_kodi(screen_entity: &str) {
-    let host = screen_entity.rsplit_once("media_player.").map(|(_, h)| h).unwrap_or("");
-    if screen_entity.starts_with("kodi") && !host.is_empty() {
-        let _ = BASE.set(format!("http://{host}:8080"));
-    }
-}
-
 /// Called with every model change: whether the wall may show at all.
 pub fn allow(yes: bool) {
-    let want = if yes { BASE.get().cloned() } else { None };
+    let want = if yes { kodi::endpoint() } else { None };
     if let Some(gate) = GATE.get() {
         gate.send_if_modified(|v| {
             let changed = *v != want;
