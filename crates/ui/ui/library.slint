@@ -222,20 +222,23 @@ component Details inherits Rectangle {
     in property <int> lines: 4;
     // Every line has a fixed place, and the plot a box `lines` tall, so moving between titles
     // never shifts the title, year or rating, however long or short the plot.
-    height: 116px + root.lines * 25px;
+    height: 104px + root.lines * 25px;
     Text { y: 0; height: 38px; width: root.width; text: root.item.title; font-size: 30px; font-weight: 600; color: Theme.text; overflow: elide; vertical-alignment: center; }
-    MetaLine { y: 44px; height: 22px; size: 17px; item: root.item; alignment: start; }
+    meta := MetaLine { x: 0; y: 44px; height: 22px; width: self.preferred-width; size: 17px; item: root.item; alignment: start; }
     Text { y: 73px; height: 20px; width: root.width; text: root.item.genre; font-size: 15px; color: Theme.t3; overflow: elide; }
+    // How far in a started title is: at the far right of the year and rating line, a fixed length unless the line
+    // leaves it less room.
     if root.item.progress > 0: Rectangle {
-        y: 101px;
-        width: 160px;
+        width: max(32px, min(120px, root.width - meta.width - 20px));
+        x: root.width - self.width;
+        y: 44px + (22px - self.height) / 2;
         height: 4px;
         border-radius: 2px;
         background: Theme.track;
         Rectangle { x: 0; width: parent.width * root.item.progress; border-radius: 2px; background: Theme.accent; }
     }
     Text {
-        y: 116px;
+        y: 104px;
         width: root.width;
         height: root.lines * 25px;
         text: root.item.plot;
