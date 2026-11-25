@@ -795,16 +795,14 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
                 (1600, ui(|_| {})),
             ]
         }
-        // The remote drives Kodi itself: four d-pad rights along the library to 2001, OK, OK again on Kodi's resume
-        // prompt, then the audio and subtitle pickers over the film.
+        // The remote drives Kodi itself: two d-pad rights along one row of the library to 2001, OK, OK again on
+        // Kodi's resume prompt, then the audio and subtitle pickers over the film.
         "site-kodi-remote" => {
             const RIGHT: &str = "\u{F703}";
             vec![
                 (3500, key(RIGHT)),
-                (800, key(RIGHT)),
-                (800, key(RIGHT)),
-                (800, key(RIGHT)),
-                (1200, key("\n")),
+                (1000, key(RIGHT)),
+                (1400, key("\n")),
                 (1800, key("\n")),
                 (3800, tap_at(348.0, 746.0)),
                 (1500, ui(|a| a.invoke_move(1))),

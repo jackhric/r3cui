@@ -39,6 +39,16 @@ struct Cursor {
     vertical: Option<usize>,
 }
 
+/// For recordings: titles named in `UC_DEMO_HIDE` (separated by `|`) are left off the wall, to put a film in
+/// the column a take needs. Kodi's own list is untouched.
+fn demo_hidden(it: &Value) -> bool {
+    static HIDE: OnceLock<Vec<String>> = OnceLock::new();
+    let hide = HIDE.get_or_init(|| {
+        std::env::var("UC_DEMO_HIDE").unwrap_or_default().split('|').map(str::trim).filter(|t| !t.is_empty()).map(String::from).collect()
+    });
+    !hide.is_empty() && it["label"].as_str().is_some_and(|l| hide.iter().any(|h| h == l))
+}
+
 /// A d-pad key went to Kodi: move the wall's highlight where Kodi's will go. Kodi's panel stops at the end
 /// of a row and moves a whole row of its own up or down.
 pub fn predict(weak: &slint::Weak<AppWindow>, cmd: &str) {
@@ -196,6 +206,7 @@ pub fn start(weak: slint::Weak<AppWindow>) {
                             wait(&mut gate, &poke).await;
                             continue;
                         };
+                        let list: Vec<Value> = list.into_iter().filter(|it| !demo_hidden(it)).collect();
                         let shows = view.content == "tvshows";
                         let entries: Vec<Entry> = list.iter().map(|it| entry(it, shows)).collect();
                         let urls: Vec<String> = list.iter().map(|it| it["poster"].as_str().unwrap_or("").to_string()).collect();
