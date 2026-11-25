@@ -19,5 +19,9 @@ thiserror = "2"
 testing = []
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["test-util", "signal"] }
 tracing-subscriber.workspace = true
+
+[[example]]
+name = "fake"
+required-features = ["testing"]

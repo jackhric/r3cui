@@ -15,7 +15,7 @@ tracing.workspace = true
 thiserror = "2"
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["test-util", "signal"] }
 tracing-subscriber.workspace = true
 
 [features]
@@ -23,5 +23,9 @@ tracing-subscriber.workspace = true
 testing = []
 
 [[test]]
+name = "fake"
+required-features = ["testing"]
+
+[[example]]
 name = "fake"
 required-features = ["testing"]

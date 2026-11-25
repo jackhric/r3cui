@@ -419,7 +419,12 @@ pub struct FakeKodi {
 
 impl FakeKodi {
     pub async fn start() -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind a loopback port");
+        Self::start_on("127.0.0.1:0").await
+    }
+
+    /// On a given address, to run it as a stand-in Kodi for the desktop UI.
+    pub async fn start_on(addr: &str) -> Self {
+        let listener = TcpListener::bind(addr).await.expect("bind");
         let port = listener.local_addr().expect("bound").port();
         let (notes, _) = broadcast::channel(64);
         let shared = Arc::new(Shared {

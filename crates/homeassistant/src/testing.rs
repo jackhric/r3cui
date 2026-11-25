@@ -40,7 +40,12 @@ pub struct FakeHa {
 
 impl FakeHa {
     pub async fn start(token: &str) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        Self::start_on("127.0.0.1:0", token).await
+    }
+
+    /// On a given address, to run it as a stand-in Home Assistant for the desktop UI.
+    pub async fn start_on(addr: &str, token: &str) -> Self {
+        let listener = TcpListener::bind(addr).await.expect("bind");
         let addr = listener.local_addr().expect("addr");
         let shared = Arc::new(Shared {
             token: token.to_owned(),
