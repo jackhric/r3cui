@@ -1,7 +1,8 @@
 //! User settings, read once at launch from `settings.json` in `UC_CONFIG_HOME` (the archive's
 //! `config/` directory on the remote) or `./config` on the desktop.
 
-use serde_json::Value;
+use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -73,40 +74,46 @@ pub fn get() -> &'static Settings {
     })
 }
 
-fn string_or(v: &Value, key: &str, default: &str) -> String {
-    v.get(key).and_then(Value::as_str).unwrap_or(default).to_string()
+/// `settings.json` as written. Every field is optional; unknown ones are ignored.
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct File {
+    accent: Option<String>,
+    source_accents: BTreeMap<String, String>,
+    renderer: Option<String>,
+    env: BTreeMap<String, String>,
+    keys_light: Option<String>,
+    keys_mode: Option<String>,
+    hidden_sources: Vec<String>,
+    lava: Option<f32>,
+    volume_interval_ms: Option<u64>,
+    volume_limit_sensor: Option<String>,
+    haptics_enabled: Option<bool>,
+    haptics_intensity: Option<f32>,
+    sound_enabled: Option<bool>,
+    sound_volume: Option<f32>,
+    wall_style: Option<i32>,
 }
 
 fn parse(text: &str) -> Result<Settings, String> {
-    let v: Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    let f: File = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    let unit = |x: Option<f32>| x.map(|x| x.clamp(0.0, 1.0));
     Ok(Settings {
-        accent: v.get("accent").and_then(Value::as_str).map(String::from),
-        source_accents: v
-            .get("source_accents")
-            .and_then(Value::as_object)
-            .map(|m| m.iter().filter_map(|(k, c)| Some((k.to_lowercase(), c.as_str()?.to_string()))).collect())
-            .unwrap_or_default(),
-        renderer: v.get("renderer").and_then(Value::as_str).map(String::from),
-        env: v
-            .get("env")
-            .and_then(Value::as_object)
-            .map(|m| m.iter().filter_map(|(k, x)| Some((k.clone(), x.as_str()?.to_string()))).collect())
-            .unwrap_or_default(),
-        keys_light: string_or(&v, "keys_light", "light.theater_remote_keys"),
-        keys_mode: string_or(&v, "keys_mode", "theater_remote_keys_mode"),
-        hidden_sources: v
-            .get("hidden_sources")
-            .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
-            .unwrap_or_default(),
-        volume_limit_sensor: string_or(&v, "volume_limit_sensor", "sensor.theater_receiver_volume_limit"),
-        volume_interval_ms: v.get("volume_interval_ms").and_then(Value::as_u64),
-        lava: v.get("lava").and_then(Value::as_f64).map(|x| x.clamp(0.0, 1.0) as f32),
-        haptics_enabled: v.get("haptics_enabled").and_then(Value::as_bool),
-        haptics_intensity: v.get("haptics_intensity").and_then(Value::as_f64).map(|x| x.clamp(0.0, 1.0) as f32),
-        sound_enabled: v.get("sound_enabled").and_then(Value::as_bool),
-        sound_volume: v.get("sound_volume").and_then(Value::as_f64).map(|x| x.clamp(0.0, 1.0) as f32),
-        wall_style: v.get("wall_style").and_then(Value::as_i64).map(|x| x.clamp(1, 3) as i32),
+        accent: f.accent,
+        source_accents: f.source_accents.into_iter().map(|(k, c)| (k.to_lowercase(), c)).collect(),
+        renderer: f.renderer,
+        env: f.env.into_iter().collect(),
+        keys_light: f.keys_light.unwrap_or_else(|| "light.theater_remote_keys".into()),
+        keys_mode: f.keys_mode.unwrap_or_else(|| "theater_remote_keys_mode".into()),
+        hidden_sources: f.hidden_sources,
+        volume_limit_sensor: f.volume_limit_sensor.unwrap_or_else(|| "sensor.theater_receiver_volume_limit".into()),
+        volume_interval_ms: f.volume_interval_ms,
+        lava: unit(f.lava),
+        haptics_enabled: f.haptics_enabled,
+        haptics_intensity: unit(f.haptics_intensity),
+        sound_enabled: f.sound_enabled,
+        sound_volume: unit(f.sound_volume),
+        wall_style: f.wall_style.map(|x| x.clamp(1, 3)),
     })
 }
 
@@ -127,6 +134,22 @@ mod tests {
         let s = parse(r#"{"haptics_enabled": false, "haptics_intensity": 3, "sound_volume": 0.25}"#).unwrap();
         assert_eq!((s.haptics_enabled, s.haptics_intensity, s.sound_volume), (Some(false), Some(1.0), Some(0.25)));
         assert_eq!(s.sound_enabled, None);
+    }
+
+    #[test]
+    fn defaults_fill_what_is_missing() {
+        let s = parse("{}").unwrap();
+        assert_eq!(s.keys_light, "light.theater_remote_keys");
+        assert_eq!(s.volume_limit_sensor, "sensor.theater_receiver_volume_limit");
+        assert_eq!(parse(r#"{"wall_style": 9}"#).unwrap().wall_style, Some(3));
+        let e = parse(r#"{"lava": "high"}"#).unwrap_err();
+        assert!(e.contains("line 1 column"), "{e}");
+    }
+
+    #[test]
+    fn the_shipped_file_parses() {
+        let s = parse(include_str!("../../../../config/settings.json")).unwrap();
+        assert!(s.hides("NET") && s.accent_for("PlayStation 5").is_some());
     }
 
     #[test]

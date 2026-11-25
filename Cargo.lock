@@ -3564,6 +3564,7 @@ dependencies = [
  "coreapi",
  "evdev",
  "image",
+ "serde",
  "serde_json",
  "slint",
  "slint-build",
