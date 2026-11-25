@@ -1,0 +1,198 @@
+//! The core's events the UI acts on, typed after `core-api`'s AsyncAPI spec (`components/messages`). A value the
+//! spec doesn't list (a newer core) becomes `Unknown` rather than failing the event.
+
+use serde::Deserialize;
+use serde_json::{Map, Value};
+
+use crate::Event;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CoreEvent {
+    PowerModeChange(PowerModeChange),
+    BatteryStatus(BatteryStatus),
+    WifiChange(WifiChange),
+    EntityChange(EntityChange),
+    /// Any other event, or one whose payload didn't match.
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PowerMode {
+    Normal,
+    Idle,
+    LowPower,
+    Suspend,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct PowerModeChange {
+    pub mode: PowerMode,
+    /// Not in the spec, but sent by some firmware: whether the remote sits on its charger.
+    #[serde(default)]
+    pub power_supply: Option<bool>,
+    #[serde(default)]
+    pub battery: Option<BatteryPower>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct BatteryPower {
+    #[serde(default)]
+    pub power_supply: Option<bool>,
+}
+
+impl PowerModeChange {
+    pub fn on_charger(&self) -> Option<bool> {
+        self.power_supply.or(self.battery.as_ref().and_then(|b| b.power_supply))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PowerStatus {
+    Charging,
+    Discharging,
+    NotCharging,
+    Full,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct BatteryStatus {
+    pub capacity: u8,
+    #[serde(default)]
+    pub status: Option<PowerStatus>,
+    #[serde(default)]
+    pub power_supply: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum WifiEvent {
+    Connected,
+    Disconnected,
+    ScanStarted,
+    ScanCompleted,
+    ScanFailed,
+    NetworkNotFound,
+    WrongKey,
+    NetworkAdded,
+    NetworkRemoved,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct WifiChange {
+    pub event: WifiEvent,
+    /// The network the event is about, when it concerns one.
+    #[serde(default)]
+    pub id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ChangeKind {
+    Change,
+    New,
+    Delete,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct EntityChange {
+    pub event_type: ChangeKind,
+    #[serde(default)]
+    pub entity_id: Option<String>,
+    #[serde(default)]
+    pub new_state: Option<EntityUpdate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct EntityUpdate {
+    /// Only the attributes that changed.
+    #[serde(default)]
+    pub attributes: Map<String, Value>,
+}
+
+impl EntityChange {
+    /// The changed attributes, empty when none came.
+    pub fn attributes(&self) -> &Map<String, Value> {
+        static EMPTY: std::sync::OnceLock<Map<String, Value>> = std::sync::OnceLock::new();
+        self.new_state.as_ref().map_or_else(|| EMPTY.get_or_init(Map::new), |s| &s.attributes)
+    }
+}
+
+impl Event {
+    /// The event as the UI understands it.
+    pub fn typed(&self) -> CoreEvent {
+        fn parse<T: for<'de> Deserialize<'de>>(data: &Value, wrap: fn(T) -> CoreEvent) -> CoreEvent {
+            match serde_json::from_value(data.clone()) {
+                Ok(v) => wrap(v),
+                Err(e) => {
+                    tracing::debug!("unexpected event payload: {e}");
+                    CoreEvent::Other
+                }
+            }
+        }
+        match self.msg.as_str() {
+            "power_mode_change" => parse(&self.data, CoreEvent::PowerModeChange),
+            "battery_status" => parse(&self.data, CoreEvent::BatteryStatus),
+            "wifi_change" => parse(&self.data, CoreEvent::WifiChange),
+            "entity_change" => parse(&self.data, CoreEvent::EntityChange),
+            _ => CoreEvent::Other,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn event(msg: &str, data: Value) -> Event {
+        Event { msg: msg.into(), cat: None, data }
+    }
+
+    #[test]
+    fn power_and_battery() {
+        let e = event("power_mode_change", json!({ "mode": "NORMAL", "wakeup": true }));
+        assert_eq!(e.typed(), CoreEvent::PowerModeChange(PowerModeChange { mode: PowerMode::Normal, power_supply: None, battery: None }));
+        let e = event("power_mode_change", json!({ "mode": "DEEP_NAP", "battery": { "power_supply": true } }));
+        let CoreEvent::PowerModeChange(p) = e.typed() else { panic!() };
+        assert_eq!((p.mode, p.on_charger()), (PowerMode::Unknown, Some(true)));
+        let e = event("battery_status", json!({ "capacity": 81, "status": "CHARGING", "power_supply": true }));
+        assert_eq!(e.typed(), CoreEvent::BatteryStatus(BatteryStatus { capacity: 81, status: Some(PowerStatus::Charging), power_supply: Some(true) }));
+    }
+
+    #[test]
+    fn wifi() {
+        let e = event("wifi_change", json!({ "event": "NETWORK_NOT_FOUND", "id": 3 }));
+        assert_eq!(e.typed(), CoreEvent::WifiChange(WifiChange { event: WifiEvent::NetworkNotFound, id: Some(3) }));
+        assert_eq!(event("wifi_change", json!({ "event": "SCAN_COMPLETED" })).typed(), CoreEvent::WifiChange(WifiChange { event: WifiEvent::ScanCompleted, id: None }));
+    }
+
+    #[test]
+    fn entity_change_as_the_simulator_sends_it() {
+        // Captured from the core simulator with the Kodi integration.
+        let e = event("entity_change", json!({
+            "entity_id": "kodi_driver.main.media_player.hrichouse-theater.internal",
+            "entity_type": "media_player",
+            "event_type": "CHANGE",
+            "new_state": { "attributes": { "media_title": "2001: A Space Odyssey" } }
+        }));
+        let CoreEvent::EntityChange(c) = e.typed() else { panic!() };
+        assert_eq!(c.event_type, ChangeKind::Change);
+        assert_eq!(c.attributes().get("media_title").and_then(Value::as_str), Some("2001: A Space Odyssey"));
+    }
+
+    #[test]
+    fn anything_else_is_other() {
+        assert_eq!(event("battery_status", json!({ "capacity": "full" })).typed(), CoreEvent::Other);
+        assert_eq!(event("software_update", json!({})).typed(), CoreEvent::Other);
+    }
+}

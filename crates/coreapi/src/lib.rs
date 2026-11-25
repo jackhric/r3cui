@@ -4,6 +4,10 @@
 //! issue requests and receive events. Message schemas are intentionally loose (`serde_json::Value`)
 //! until we type them against `core-api`'s AsyncAPI spec. See `docs/core-ws-protocol.md`.
 
+mod events;
+
+pub use events::*;
+
 use anyhow::{anyhow, Context, Result};
 use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};

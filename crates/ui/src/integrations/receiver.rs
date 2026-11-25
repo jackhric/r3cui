@@ -1,17 +1,8 @@
-//! The receiver, as Home Assistant reports it: its volume scale and power state.
+//! The receiver, as Home Assistant reports it: its volume scale.
 
-use serde_json::Value;
 
 /// The Denon tops out at 98 (+18 dB).
 pub(crate) const MAX_VOLUME: i32 = 98;
-/// Whether the remote is on its charger, from any message that says.
-pub(crate) fn on_power(v: &Value) -> Option<bool> {
-    // The simulator is always on its charger; previews of it can pretend otherwise.
-    if cfg!(feature = "preview") && std::env::var_os("UC_PREVIEW_ON_BATTERY").is_some() {
-        return Some(false);
-    }
-    v.get("power_supply").or_else(|| v.pointer("/battery/power_supply")).and_then(Value::as_bool)
-}
 /// The strip is 100 steps from silence to the receiver's limit; never less than one level a step.
 pub(crate) fn slide(from: i32, steps: i32, max: i32) -> i32 {
     let by = (steps as f64 * max as f64 / 100.0).round() as i32;

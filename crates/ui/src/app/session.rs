@@ -3,6 +3,7 @@
 
 use crate::AppWindow;
 use crate::app::optimistic::Optimistic;
+use coreapi::{CoreEvent, EntityChange, PowerMode, WifiEvent};
 use crate::app::{Later, UiAction, settings};
 use crate::app::entity::{attr_f64, attr_str, entity_id, entity_name, has_feature, pick_entity};
 use crate::app::model::Model;
@@ -12,7 +13,7 @@ use crate::hardware::{backlight, feedback};
 use crate::input::slider;
 use crate::integrations::{kodi, library, net};
 use crate::integrations::net::wifi_band;
-use crate::integrations::receiver::{MAX_VOLUME, on_power, slide};
+use crate::integrations::receiver::{MAX_VOLUME, slide};
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_tracks, ui};
 use crate::view::format::{audio_format, duration_label, episode, split_track};
 use crate::input::{Action, KodiAction, ReceiverCmd, Target};
@@ -113,9 +114,12 @@ impl Session {
 
     /// Merge an `entity_change` into the cached entity; returns whether it applied. A change to the screen's
     /// position or play state sets `timing`, for Kodi's exact position to be asked.
-    fn apply_change(&mut self, data: &Value) -> bool {
-        let Some(id) = data.get("entity_id").and_then(Value::as_str) else { return false };
-        let Some(attrs) = data.pointer("/new_state/attributes").and_then(Value::as_object) else { return false };
+    fn apply_change(&mut self, change: &EntityChange) -> bool {
+        let Some(id) = change.entity_id.as_deref() else { return false };
+        let attrs = change.attributes();
+        if attrs.is_empty() {
+            return false;
+        }
         let Some(entity) = self.entities.iter_mut().find(|e| entity_id(e) == id) else { return false };
         let Some(obj) = entity.as_object_mut() else { return false };
         let cached = obj.entry("attributes").or_insert_with(|| Value::Object(Default::default()));
@@ -319,12 +323,13 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
     let charger = core.request("get_battery_charger", json!({})).await.map(|r| r.data).unwrap_or(Value::Null);
     tracing::info!(%power, %charger, "power");
     let battery = power.pointer("/battery/capacity").or(charger.get("capacity")).and_then(Value::as_i64).unwrap_or(100) as i32;
-    let charging = on_power(&power).or_else(|| on_power(&charger)).unwrap_or(false);
+    let supply = |v: &Value| v.get("power_supply").or_else(|| v.pointer("/battery/power_supply")).and_then(Value::as_bool);
+    let charging = on_charger(supply(&power).or_else(|| supply(&charger))).unwrap_or(false);
     // A desktop build looks at a remote that is usually asleep on its dock, so it only follows
     // the remote's power state when asked to.
     let follow_power = std::env::var("UC_MODEL").is_ok_and(|m| m == "UCR3") || std::env::var_os("UC_FOLLOW_POWER").is_some();
     // IDLE only dims the display; treating it as asleep would black out a screen still in use.
-    let is_awake = |mode: Option<&str>| !follow_power || !matches!(mode, Some("LOW_POWER" | "SUSPEND"));
+    let is_awake = |mode: Option<PowerMode>| !follow_power || !matches!(mode, Some(PowerMode::LowPower | PowerMode::Suspend));
     let screen = pick_entity("UC_SCREEN_ENTITY", &entities, |_| true);
     let mut session = Session {
         volume: pick_entity("UC_VOLUME_ENTITY", &entities, |e| has_feature(e, "volume_up_down")),
@@ -346,7 +351,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
         pending_mute: Optimistic::new(Duration::ZERO, SLIDER_SETTLE),
         title: StableTitle::default(),
         timing: false,
-        awake: is_awake(power.get("mode").and_then(Value::as_str)),
+        awake: is_awake(power.get("mode").and_then(|m| serde_json::from_value(m.clone()).ok())),
         screen,
         entities,
     };
@@ -470,64 +475,65 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
             ev = events.recv() => {
                 let Some(ev) = ev else { break };
                 tracing::debug!(msg = %ev.msg, cat = ?ev.cat, data = %ev.data, "event");
-                if ev.msg == "power_mode_change" {
-                    tracing::info!(mode = ?ev.data.get("mode"), "power mode");
-                    session.awake = is_awake(ev.data.get("mode").and_then(Value::as_str));
-                    if ev.data.get("mode").and_then(Value::as_str) == Some("NORMAL") {
-                        keys.repaint();
-                        // The core restores its own idea of the keys as it wakes; paint over it
-                        // again once it has.
-                        let keys = keys.clone();
-                        tokio::spawn(async move {
-                            tokio::time::sleep(Duration::from_millis(400)).await;
+                match ev.typed() {
+                    CoreEvent::PowerModeChange(p) => {
+                        tracing::info!(mode = ?p.mode, "power mode");
+                        session.awake = is_awake(Some(p.mode));
+                        if p.mode == PowerMode::Normal {
                             keys.repaint();
-                        });
+                            // The core restores its own idea of the keys as it wakes; paint over it
+                            // again once it has.
+                            let keys = keys.clone();
+                            tokio::spawn(async move {
+                                tokio::time::sleep(Duration::from_millis(400)).await;
+                                keys.repaint();
+                            });
+                        }
+                        if let Some(on) = on_charger(p.on_charger()) {
+                            session.charging = on;
+                        }
+                        render(weak, &session.model());
                     }
-                    if let Some(on) = on_power(&ev.data) {
-                        session.charging = on;
+                    CoreEvent::BatteryStatus(b) => {
+                        session.battery = b.capacity.into();
+                        if let Some(on) = on_charger(b.power_supply) {
+                            session.charging = on;
+                        }
+                        render(weak, &session.model());
                     }
-                    render(weak, &session.model());
-                }
-                if ev.msg == "battery_status" {
-                    if let Some(c) = ev.data.get("capacity").and_then(Value::as_i64) {
-                        session.battery = c as i32;
-                    }
-                    if let Some(on) = on_power(&ev.data) {
-                        session.charging = on;
-                    }
-                    render(weak, &session.model());
-                }
-                if ev.msg == "wifi_change" {
-                    let event = ev.data.get("event").and_then(Value::as_str).unwrap_or_default();
-                    let id = ev.data.get("id").and_then(Value::as_i64);
-                    if let Some((ours, _)) = session.joining {
-                        // A NETWORK_NOT_FOUND without our id is only a scan notice, not the outcome.
-                        let outcome = match event {
-                            "CONNECTED" => Some(true),
-                            "WRONG_KEY" => Some(false),
-                            "NETWORK_NOT_FOUND" if id.is_some() && id == ours => Some(false),
-                            _ => None,
-                        };
-                        if let Some(ok) = outcome {
-                            let _ = later_tx.send(Later::JoinDone(ok));
+                    CoreEvent::WifiChange(w) => {
+                        if let Some((ours, _)) = session.joining {
+                            // A NETWORK_NOT_FOUND without our id is only a scan notice, not the outcome.
+                            let outcome = match w.event {
+                                WifiEvent::Connected => Some(true),
+                                WifiEvent::WrongKey => Some(false),
+                                WifiEvent::NetworkNotFound if w.id.is_some() && w.id == ours => Some(false),
+                                _ => None,
+                            };
+                            if let Some(ok) = outcome {
+                                let _ = later_tx.send(Later::JoinDone(ok));
+                            }
+                        }
+                        if matches!(w.event, WifiEvent::ScanCompleted | WifiEvent::Connected | WifiEvent::Disconnected) {
+                            refresh_wifi(Duration::ZERO);
                         }
                     }
-                    if matches!(event, "SCAN_COMPLETED" | "CONNECTED" | "DISCONNECTED") {
-                        refresh_wifi(Duration::ZERO);
+                    CoreEvent::EntityChange(change) => {
+                        if session.volume.is_some() && session.volume == change.entity_id {
+                            if let Some(v) = change.attributes().get("volume").and_then(Value::as_f64) {
+                                let send = volume_gate.reported(v.round() as i32, Instant::now());
+                                pace(&mut volume_gate, send, &session);
+                            }
+                        }
+                        if session.apply_change(&change) {
+                            session.settle_title();
+                            ask_title(&mut session, &later_tx);
+                            ask_position(&mut session, &later_tx);
+                            session.sync_poster(weak);
+                            render(weak, &session.model());
+                        }
                     }
-                }
-                if ev.msg == "entity_change" && session.volume.as_deref() == ev.data.get("entity_id").and_then(Value::as_str) {
-                    if let Some(v) = ev.data.pointer("/new_state/attributes/volume").and_then(Value::as_f64) {
-                        let send = volume_gate.reported(v.round() as i32, Instant::now());
-                        pace(&mut volume_gate, send, &session);
-                    }
-                }
-                if ev.msg == "entity_change" && session.apply_change(&ev.data) {
-                    session.settle_title();
-                    ask_title(&mut session, &later_tx);
-                    ask_position(&mut session, &later_tx);
-                    session.sync_poster(weak);
-                    render(weak, &session.model());
+                    CoreEvent::Other => {}
                 }
             }
             Some(action) = actions.recv() => {
@@ -792,4 +798,13 @@ impl Commands {
         });
         let _ = tx.send((cmd, params, Instant::now()));
     }
+}
+
+/// Whether the remote sits on its charger, as reported. Previews of the simulator (always on its charger) can
+/// pretend it is on battery.
+fn on_charger(reported: Option<bool>) -> Option<bool> {
+    if cfg!(feature = "preview") && std::env::var_os("UC_PREVIEW_ON_BATTERY").is_some() {
+        return Some(false);
+    }
+    reported
 }
