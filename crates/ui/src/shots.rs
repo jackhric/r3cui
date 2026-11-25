@@ -812,25 +812,22 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             ]
         }
         // The remote drives Kodi itself: two d-pad rights along one row of the library to 2001, OK, OK again on
-        // Kodi's resume prompt, then the audio and subtitle pickers. Once English is on, Kodi is paused and its
-        // read-ahead reloaded so the subtitles show (see `kodi::pause_and_reload`); the pause, marked in the
-        // output, is cut from the video.
+        // Kodi's resume prompt, a few seconds on Now Playing, then the subtitle picker, taken slowly, to English.
+        // Once it is on, Kodi is paused and its read-ahead reloaded so the subtitles show (see
+        // `kodi::pause_and_reload`); the pause, marked in the output, is cut from the video.
         "site-kodi-remote" => {
             const RIGHT: &str = "\u{F703}";
             vec![
                 (2500, key(RIGHT)),
-                (900, key(RIGHT)),
-                (1100, key("\n")),
-                (1300, key("\n")),
-                (2200, tap_at(348.0, 746.0)),
-                (800, ui(|a| a.invoke_move(1))),
-                (700, press("\n")),
-                (1100, tap_at(132.0, 746.0)),
-                (800, ui(|a| a.invoke_move(1))),
-                (800, ui(|a| a.invoke_activate(a.get_focus_index()))),
+                (1300, key(RIGHT)),
+                (1400, key("\n")),
+                (1500, key("\n")),
+                (4600, tap_at(132.0, 746.0)),
+                (1400, ui(|a| a.invoke_move(1))),
+                (1300, ui(|a| a.invoke_activate(a.get_focus_index()))),
                 (300, kodi_hold(true)),
                 (3000, kodi_hold(false)),
-                (3500, ui(|_| {})),
+                (3000, ui(|_| {})),
             ]
         }
         // Kodi's library on the wall while a helper steps Kodi across to a film and plays it (about 11 s), then the
