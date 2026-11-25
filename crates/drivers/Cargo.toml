@@ -1,0 +1,22 @@
+[package]
+name = "drivers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "r3cui's drivers: the contract the frontend talks to, and the drivers behind it."
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+homeassistant = { path = "../homeassistant" }
+kodi = { path = "../kodi" }
+
+[features]
+testing = []
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+homeassistant = { path = "../homeassistant", features = ["testing"] }
+kodi = { path = "../kodi", features = ["testing"] }
