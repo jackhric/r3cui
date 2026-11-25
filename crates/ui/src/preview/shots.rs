@@ -625,7 +625,7 @@ fn shelf(kind: &str) -> Shelf {
             }
             Err(_) => slint::Image::default(),
         };
-        items.push(crate::integrations::library::item(&crate::integrations::library::entry(it, shows), poster));
+        items.push(crate::integrations::library::entry::item(&crate::integrations::library::entry::entry(it, shows), poster));
     }
     let count = if shows { format!("{} shows", list.len()) } else { format!("{} films", list.len()) };
     Shelf { posters, items, count }

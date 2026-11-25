@@ -10,7 +10,8 @@ use crate::app::title::StableTitle;
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
 use crate::hardware::{backlight, feedback};
 use crate::input::slider;
-use crate::integrations::{ha_keys, health, kodi, library, system, wifi};
+use crate::integrations::{ha_keys, health, kodi, system, wifi};
+use crate::integrations::library::Library;
 use crate::integrations::receiver::{slide, Receiver};
 use crate::integrations::system::{load_settings, System};
 use crate::integrations::wifi::Wifi;
@@ -77,8 +78,16 @@ pub(crate) struct Session {
     timing: bool,
     /// What each row of the subtitle picker selects.
     subtitle_ids: Vec<Option<i64>>,
+    library: Library,
 }
 impl Session {
+    /// Put the model on screen, and let the poster wall show when it may.
+    fn show(&self, weak: &slint::Weak<AppWindow>) {
+        let m = self.model();
+        self.library.allow(m.wall_allowed());
+        render(weak, &m);
+    }
+
     fn entity(&self, id: &str) -> Option<&Entity> {
         self.entities.iter().find(|e| e.entity_id == id)
     }
@@ -217,7 +226,7 @@ impl Session {
         }
     }
 }
-pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceiver<UiAction>) -> anyhow::Result<()> {
+pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceiver<UiAction>, library: &Library) -> anyhow::Result<()> {
     let cfg = coreapi::Config::from_env()?;
     set_status(weak, false, format!("Connecting to {}…", cfg.url));
 
@@ -238,6 +247,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
         subtitle_ids: Vec::new(),
         title: StableTitle::default(),
         timing: false,
+        library: library.clone(),
         screen,
         entities,
     };
@@ -250,7 +260,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
         kodi::learn_from_entity(screen);
     }
 
-    render(weak, &session.model());
+    session.show(weak);
     set_status(weak, true, String::new());
 
     // Presses made while offline would otherwise fire in a burst on reconnect.
@@ -312,7 +322,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 }
                 session.settle_title();
                 ask_title(&mut session, &later_tx);
-                render(weak, &session.model());
+                session.show(weak);
             }
             Some(later) = later_rx.recv() => {
                 match later {
@@ -333,11 +343,11 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     }
                     Later::Position(at, when) => {
                         (session.position, session.position_at) = (at, when);
-                        render(weak, &session.model());
+                        session.show(weak);
                     }
                     Later::Title(media, title) => {
                         session.title.answer(&media, title);
-                        render(weak, &session.model());
+                        session.show(weak);
                     }
                     Later::Switched => {}
                     Later::SendVolume => {
@@ -351,7 +361,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         }
                     }
                 }
-                render(weak, &session.model());
+                session.show(weak);
             }
             ev = events.recv() => {
                 let Some(ev) = ev else { break };
@@ -368,11 +378,11 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                                 keys.repaint();
                             });
                         }
-                        render(weak, &session.model());
+                        session.show(weak);
                     }
                     CoreEvent::BatteryStatus(b) => {
                         session.system.on_battery(&b);
-                        render(weak, &session.model());
+                        session.show(weak);
                     }
                     CoreEvent::WifiChange(w) => {
                         let response = session.wifi.on_event(&w);
@@ -395,7 +405,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                             ask_title(&mut session, &later_tx);
                             ask_position(&mut session, &later_tx);
                             session.sync_poster(weak);
-                            render(weak, &session.model());
+                            session.show(weak);
                         }
                     }
                     CoreEvent::Other => {}
@@ -411,7 +421,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     }
                     UiAction::SelectSource(name) => {
                         let cmd = session.receiver.select_source(name);
-                        render(weak, &session.model());
+                        session.show(weak);
                         (Target::Volume, cmd)
                     }
                     UiAction::Power(what) => {
@@ -422,7 +432,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     UiAction::PowerHeld => {
                         let on = session.model().receiver_on;
                         let cmd = session.receiver.toggle_power(on);
-                        render(weak, &session.model());
+                        session.show(weak);
                         (Target::Volume, cmd)
                     }
                     UiAction::Backlight(wanted) => {
@@ -437,7 +447,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         let m = session.model();
                         let to = (m.position + by as f64).clamp(0.0, m.duration.max(0.0));
                         (session.position, session.position_at) = (to, Instant::now());
-                        render(weak, &session.model());
+                        session.show(weak);
                         (Target::Screen, MediaPlayerCmd::Seek(to.round() as u32))
                     }
                     UiAction::OpenPicker(Picker::Audio) => {
@@ -479,7 +489,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         feedback::play(if v == base { feedback::SLIDER_LIMIT } else { feedback::VOLUME });
                         session.receiver.slide_to(v);
                         flash_volume(weak, &overlay);
-                        render(weak, &session.model());
+                        session.show(weak);
                         let send = volume_gate.offer(v, Instant::now());
                         pace(&mut volume_gate, send, &session);
                         continue;
@@ -491,14 +501,14 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     }
                     UiAction::WifiBand => {
                         session.wifi.toggle_band(&core).await;
-                        render(weak, &session.model());
+                        session.show(weak);
                         // The remote reconnects on the new band; look again once it has.
                         refresh_wifi(Duration::from_secs(10));
                         continue;
                     }
                     UiAction::WifiScan => {
                         session.wifi.start_scan(&core);
-                        render(weak, &session.model());
+                        session.show(weak);
                         // SCAN_COMPLETED normally brings the results sooner; this covers a missed event.
                         refresh_wifi(Duration::from_secs(6));
                         continue;
@@ -531,19 +541,16 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 let cmd = if cmd == MediaPlayerCmd::MuteToggle {
                     let (muted, entity) = (session.model().muted, entity.clone());
                     let cmd = session.receiver.toggle_mute(muted, &entity);
-                    render(weak, &session.model());
+                    session.show(weak);
                     cmd
                 } else {
                     cmd
                 };
-                let Some(entity) = session.target(target) else { continue };
-                if let Some(a) = pressed {
-                    library::predict(weak, a);
-                }
-                commands.send(entity, cmd);
                 if target == Target::Screen {
-                    library::poke();
+                    session.library.pressed(pressed);
                 }
+                let Some(entity) = session.target(target) else { continue };
+                commands.send(entity, cmd);
             }
         }
     }

@@ -13,7 +13,6 @@ use crate::{AppWindow, Choice, Logos, SourceRow, StatusRow, Theme, WifiRow};
 use crate::app::settings;
 use crate::app::model::Model;
 use crate::hardware::backlight;
-use crate::integrations::library;
 use crate::integrations::receiver::{volume_db, volume_percent};
 use crate::view::format::{band_label, clock, codec_badge, codec_logo, source_logo};
 use crate::view::idle::poke;
@@ -153,7 +152,6 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     }
     app.set_awake(m.awake);
     app.set_receiver_on(m.receiver_on);
-    library::allow(m.receiver_on && m.on_kodi() && m.title.is_empty() && m.awake);
     backlight::set_ha(m.keys);
     app.set_battery(m.battery);
     if m.charging != app.get_charging() {

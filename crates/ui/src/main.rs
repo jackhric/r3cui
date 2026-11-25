@@ -18,7 +18,7 @@ use crate::app::session::{RECONNECT_DELAY, run};
 use crate::art::grain;
 use crate::hardware::{backlight, feedback};
 use crate::input::{key_action, wire_keyboard, KodiAction};
-use crate::integrations::library;
+use crate::integrations::library::Library;
 use crate::view::{parse_color, set_accent, set_status};
 use crate::view::screen::{Capture, Page, Picker, Screen};
 use crate::view::idle::{animate_lava, poke, rest_on_charger};
@@ -203,9 +203,9 @@ fn main() -> anyhow::Result<()> {
                 run_demo(&weak, &mut act_rx).await;
                 return;
             }
-            library::start(weak.clone());
+            let library = Library::start(weak.clone());
             loop {
-                match run(&weak, &mut act_rx).await {
+                match run(&weak, &mut act_rx, &library).await {
                     Ok(()) => set_status(&weak, false, "Disconnected, retrying…".to_string()),
                     Err(e) => {
                         tracing::error!("core session failed: {e:#}");

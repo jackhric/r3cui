@@ -104,6 +104,11 @@ impl Model {
     }
 
     /// With no receiver entity there is no input to follow, so the screen stays on Kodi.
+    /// Kodi's library may show on the stage: Kodi on screen, nothing playing, the remote awake.
+    pub(crate) fn wall_allowed(&self) -> bool {
+        self.receiver_on && self.on_kodi() && self.title.is_empty() && self.awake
+    }
+
     pub(crate) fn on_kodi(&self) -> bool {
         self.source.is_empty() || self.source.eq_ignore_ascii_case("kodi")
     }
