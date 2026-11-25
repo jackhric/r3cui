@@ -31,8 +31,8 @@ pub fn scaled(wav: &[u8], volume: f32) -> Vec<u8> {
     let mut out = wav.to_vec();
     let Some(at) = wav.windows(4).position(|w| w == b"data") else { return out };
     let start = at + 8;
-    for pair in out.get_mut(start..).unwrap_or_default().chunks_exact_mut(2) {
-        let v = i16::from_le_bytes([pair[0], pair[1]]);
+    for pair in out.get_mut(start..).unwrap_or_default().as_chunks_mut::<2>().0 {
+        let v = i16::from_le_bytes(*pair);
         pair.copy_from_slice(&((f32::from(v) * volume.clamp(0.0, 1.0)) as i16).to_le_bytes());
     }
     out
@@ -116,7 +116,7 @@ mod tests {
         let half = scaled(wav, 0.5);
         assert_eq!(wav.len(), half.len());
         assert_eq!(&wav[..44], &half[..44]);
-        let peak = |w: &[u8]| w[44..].chunks_exact(2).map(|p| i16::from_le_bytes([p[0], p[1]]).unsigned_abs()).max().unwrap();
+        let peak = |w: &[u8]| w[44..].as_chunks::<2>().0.iter().map(|p| i16::from_le_bytes(*p).unsigned_abs()).max().unwrap();
         assert!(peak(&half) <= peak(wav) / 2 + 1 && peak(&half) > 0);
         assert_eq!(peak(&scaled(wav, 0.0)), 0);
     }

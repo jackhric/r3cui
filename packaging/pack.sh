@@ -15,8 +15,11 @@ cp "$HERE/release.json" "$STAGE/release.json"
 cp "$BIN" "$STAGE/bin/remote-ui"
 chmod +x "$STAGE/bin/remote-ui"
 
-# settings.json: the remote exposes this directory to the UI as UC_CONFIG_HOME.
+# The remote exposes this directory to the UI as UC_CONFIG_HOME: settings.json, and modules.json when there is one
+# (the drivers' setup; a Home Assistant token is pasted into it, so the archive is then private). Copied without
+# keeping times, so a newer archive's modules.json takes over from the one the remote saved.
 cp -r "$HERE/../config" "$STAGE/config"
+[ -f "$STAGE/config/modules.json" ] && echo "including config/modules.json: it may hold tokens, keep the archive private"
 
 # No symlinks (the installer strips them); keep it a plain tar.
 tar -C "$STAGE" -czf "$OUT/remote-ui.tar.gz" release.json bin/remote-ui config

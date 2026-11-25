@@ -23,5 +23,5 @@ tokio = { workspace = true, features = ["test-util", "signal"] }
 tracing-subscriber.workspace = true
 
 [[example]]
-name = "fake"
+name = "fake-ha"
 required-features = ["testing"]

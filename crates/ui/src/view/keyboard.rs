@@ -173,11 +173,7 @@ impl Keyboard {
             "down" => self.move_row((r + 1) % self.rows.len()),
             "ok" => return self.press(r, c),
             "back" if !self.password => return Outcome::Leave,
-            "back" => {
-                if self.text.pop().is_none() {
-                    return Outcome::Leave;
-                }
-            }
+            "back" if self.text.pop().is_none() => return Outcome::Leave,
             _ => {}
         }
         Outcome::Stay

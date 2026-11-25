@@ -164,7 +164,10 @@ A driver's status may name what is wrong ("Token rejected", "media_player.x not 
 - `FakeHa` and `FakeKodi` are real WebSocket servers in-process: the clients are tested end to
   end, including reconnects.
 - `FakeDriver` lets host tests check routing without any network.
-- `scripts/test.sh` runs what CI runs: format check, clippy, the whole workspace's tests.
+- `scripts/test.sh` runs what CI runs: the whole workspace's tests, then clippy with warnings as errors.
+- On the desktop, `--steps <script> --out <dir>` drives the live window key by key and takes pictures, against the
+  core simulator and the fakes run as servers (`cargo run -p kodi --features testing --example fake-kodi`, and `fake-ha` in
+  `homeassistant`). See `scripts/dev.md`.
 
 ## Later
 

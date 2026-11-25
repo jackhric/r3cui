@@ -1,4 +1,4 @@
-//! A stand-in Kodi for the desktop UI: `cargo run -p kodi --features testing --example fake -- 127.0.0.1:9090`.
+//! A stand-in Kodi for the desktop UI: `cargo run -p kodi --features testing --example fake-kodi -- 127.0.0.1:9090`.
 //! Point the Kodi driver's address at it; its library has six films, and the d-pad walks it.
 
 #[tokio::main]

@@ -60,8 +60,8 @@ it is filled from the old `kodi` and `hidden_sources` keys of `config/settings.j
 The drivers can run against in-process fakes, so the whole UI works with no Kodi or Home Assistant at hand:
 
 ```sh
-cargo run -p kodi --features testing --example fake -- 127.0.0.1:9095            # six films, d-pad walks them
-cargo run -p homeassistant --features testing --example fake -- 127.0.0.1:8124 t # a receiver with inputs
+cargo run -p kodi --features testing --example fake-kodi -- 127.0.0.1:9095          # six films, d-pad walks them
+cargo run -p homeassistant --features testing --example fake-ha -- 127.0.0.1:8124 t # a receiver with inputs
 ```
 
 The simulator's own demo Home Assistant (`127.0.0.1:8123`, token `HASS_TOKEN` in the simulator's `docker/.env`) has

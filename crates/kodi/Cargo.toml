@@ -27,5 +27,5 @@ name = "fake"
 required-features = ["testing"]
 
 [[example]]
-name = "fake"
+name = "fake-kodi"
 required-features = ["testing"]

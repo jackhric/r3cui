@@ -209,8 +209,9 @@ impl Modules {
     }
 }
 
-/// Where `modules.json` lives: read and written in `dir`, first filled from `seed` (the copy shipped in the archive)
-/// when there is none yet.
+/// Where `modules.json` lives: read and written in `dir`, with `seed` the copy shipped in the archive. Whichever was
+/// written last wins: a new archive (with a token pasted into its copy) takes over, and changes made on the remote
+/// since it was installed stay.
 #[derive(Debug, Clone)]
 pub struct Store {
     pub path: PathBuf,
@@ -225,14 +226,12 @@ impl Store {
     /// The saved modules; `None` when there are none anywhere yet. A file that doesn't parse is an error, so a
     /// typo is never silently replaced by an empty setup.
     pub fn load(&self) -> Result<Option<Modules>, String> {
-        for path in std::iter::once(&self.path).chain(self.seed.as_ref()) {
-            match std::fs::read_to_string(path) {
-                Ok(text) => return Modules::parse(&text).map(Some).map_err(|e| format!("{}: {e}", path.display())),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(e) => return Err(format!("{}: {e}", path.display())),
-            }
-        }
-        Ok(None)
+        let written = |p: &PathBuf| std::fs::metadata(p).and_then(|m| m.modified()).ok();
+        // On a tie the remote's own copy wins: it comes last, and `max_by_key` keeps the last of equals.
+        let newest = self.seed.iter().chain(std::iter::once(&self.path)).filter_map(|p| Some((written(p)?, p))).max_by_key(|(t, _)| *t);
+        let Some((_, path)) = newest else { return Ok(None) };
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        Modules::parse(&text).map(Some).map_err(|e| format!("{}: {e}", path.display()))
     }
 
     /// Written beside and renamed over, so a power loss leaves the old file or the new one, never half of one.
@@ -335,8 +334,13 @@ mod tests {
         assert_eq!(store.load().unwrap(), Some(sample()));
         let mut m = sample();
         m.remove_driver("kodi");
+        std::thread::sleep(std::time::Duration::from_millis(20));
         store.save(&m).unwrap();
-        assert_eq!(store.load().unwrap(), Some(m));
+        assert_eq!(store.load().unwrap(), Some(m), "changes made here outlast the archive's copy");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(seed.join("modules.json"), sample().to_json()).unwrap();
+        assert_eq!(store.load().unwrap(), Some(sample()), "a newer archive's copy takes over");
+        std::thread::sleep(std::time::Duration::from_millis(20));
         std::fs::write(&store.path, "{ nope").unwrap();
         assert!(store.load().is_err());
         std::fs::remove_dir_all(&dir).unwrap();

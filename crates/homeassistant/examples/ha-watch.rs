@@ -1,5 +1,5 @@
 //! Follow entities on a Home Assistant and print them as they change; read only, it calls no services:
-//! `HA_URL=http://homeassistant.local:8123 HA_TOKEN=... cargo run -p homeassistant --example watch -- media_player.theater_receiver`.
+//! `HA_URL=http://homeassistant.local:8123 HA_TOKEN=... cargo run -p homeassistant --example ha-watch -- media_player.theater_receiver`.
 
 use homeassistant::{EntityId, HaConfig, HaService};
 

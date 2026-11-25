@@ -1,5 +1,5 @@
 //! A stand-in Home Assistant for the desktop UI:
-//! `cargo run -p homeassistant --features testing --example fake -- 127.0.0.1:8124 token`.
+//! `cargo run -p homeassistant --features testing --example fake-ha -- 127.0.0.1:8124 token`.
 //! It has a receiver (`media_player.theater_receiver`) whose volume, mute, input and power follow the remote.
 
 use serde_json::json;

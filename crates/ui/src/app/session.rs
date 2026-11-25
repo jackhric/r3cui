@@ -362,11 +362,10 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                             feedback::play(feedback::VOLUME);
                             front.host.send_volume(if key == VolumeKey::Up { VolumeIntent::Up } else { VolumeIntent::Down });
                         }
-                        Some(Route::Remote(key)) => {
-                            if !front.host.key(front.current().as_ref(), key) {
-                                tracing::info!("{key:?}: nothing in this input's remote slot");
-                            }
+                        Some(Route::Remote(key)) if !front.host.key(front.current().as_ref(), key) => {
+                            tracing::info!("{key:?}: nothing in this input's remote slot");
                         }
+                        Some(Route::Remote(_)) => {}
                         None => {}
                     },
                     UiAction::PlayPause => {
