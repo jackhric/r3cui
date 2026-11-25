@@ -1,0 +1,23 @@
+[package]
+name = "homeassistant"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "r3cui's own Home Assistant client: the WebSocket API, entity state, service calls."
+
+[dependencies]
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror = "2"
+
+[features]
+# FakeHa: an in-process Home Assistant WebSocket server for tests.
+testing = []
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tracing-subscriber.workspace = true

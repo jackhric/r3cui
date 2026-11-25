@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/coreapi", "crates/kodi", "crates/ui"]
+members = ["crates/coreapi", "crates/drivers", "crates/homeassistant", "crates/kodi", "crates/ui"]
 
 [workspace.package]
 version = "0.1.0"
