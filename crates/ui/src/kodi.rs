@@ -57,6 +57,21 @@ fn player(base: &str) -> anyhow::Result<i64> {
     pick.and_then(|p| p.get("playerid")).and_then(Value::as_i64).context("nothing playing")
 }
 
+/// Pause, and seek to where playback stands: the seek refills Kodi's read-ahead, which carries no subtitle
+/// pictures for a track that was off when it was read, so subtitles just turned on show at once.
+pub fn pause_and_reload(base: &str) -> anyhow::Result<()> {
+    let id = player(base)?;
+    call(base, "Player.PlayPause", json!({ "playerid": id, "play": false }))?;
+    let at = call(base, "Player.GetProperties", json!({ "playerid": id, "properties": ["time"] }))?;
+    let time = at.get("time").cloned().context("no time")?;
+    call(base, "Player.Seek", json!({ "playerid": id, "value": { "time": time } })).map(|_| ())
+}
+
+pub fn resume(base: &str) -> anyhow::Result<()> {
+    let id = player(base)?;
+    call(base, "Player.PlayPause", json!({ "playerid": id, "play": true })).map(|_| ())
+}
+
 /// The title of what is playing, as Kodi itself names it.
 pub fn title(base: &str) -> anyhow::Result<String> {
     let id = player(base)?;

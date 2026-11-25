@@ -725,44 +725,55 @@ pub fn apply_demo_settings(app: &AppWindow) {
     app.set_sleep_after("3 min".into());
 }
 
-/// The Kodi driver swaps the title for the audio/subtitle track names or the chapter name for a
-/// few seconds whenever one changes (its "show track name" setting). This holds the real title
-/// steady: a different title for the same film has to last before it is believed.
+/// The Kodi driver swaps the title for the audio/subtitle track names or the chapter name whenever one changes
+/// (its "show track name" setting), and restarts that flash with every update, so it can outlast any wait. So the
+/// title comes from Kodi itself (`Player.GetItem`), asked each time the driver's changes; once Kodi has answered
+/// for a film the driver's titles are ignored until the film changes. Until then, or with Kodi out of reach, the
+/// driver's flashes are recognised and a different title has to last before it is believed.
 #[derive(Default)]
 struct StableTitle {
     media: String,
     shown: String,
     pending: Option<(String, Instant)>,
-    /// The media Kodi has been asked about: a film can start on a flash and the driver's real title may not
-    /// follow for seconds, so its title is asked of Kodi itself.
+    /// The driver's title as last reported, and the media and title Kodi was last asked about.
+    raw: String,
     asked: String,
-    flashing: bool,
+    /// Kodi has named the media playing.
+    from_kodi: bool,
 }
 
 impl StableTitle {
     const SETTLE: Duration = Duration::from_secs(7);
 
-    /// The media to ask Kodi the title of: one showing only a flash so far, not yet asked about.
+    /// The media to ask Kodi the title of, when the driver's title has changed since Kodi was last asked.
     fn lookup(&mut self) -> Option<String> {
-        if !self.shown.is_empty() || !self.flashing || self.media == self.asked {
+        let key = format!("{}|{}", self.media, self.raw);
+        if self.raw.is_empty() || key == self.asked {
             return None;
         }
-        self.asked = self.media.clone();
+        self.asked = key;
         Some(self.media.clone())
     }
 
-    /// Kodi's own title for `media`, unless the driver's has arrived first.
+    /// Kodi's own title for `media`.
     fn answer(&mut self, media: &str, title: String) {
-        if media == self.media && self.shown.is_empty() {
+        if media == self.media {
             self.shown = title;
+            self.pending = None;
+            self.from_kodi = true;
         }
     }
 
     /// `tracks` is what the driver reports as the artist, `streams` the audio tracks' names and `chapter` the
     /// chapter playing: the texts it flashes in place of the title.
     fn feed(&mut self, media: &str, title: &str, tracks: &str, streams: &[String], chapter: &str, now: Instant) {
+        self.raw = title.to_string();
+        if media != self.media {
+            self.from_kodi = false;
+        } else if self.from_kodi {
+            return;
+        }
         let is_tracks = (!tracks.is_empty() && title == tracks) || (!chapter.is_empty() && title == chapter) || names_stream(title, streams);
-        self.flashing = is_tracks;
         if media != self.media {
             self.media = media.to_string();
             self.shown = if is_tracks { String::new() } else { title.to_string() };
@@ -784,7 +795,7 @@ impl StableTitle {
     }
 }
 
-/// While the driver shows only a flash for what just started, ask Kodi what it is.
+/// Whenever the driver's title changes, ask Kodi what is playing.
 fn ask_title(session: &mut Session, tx: &mpsc::UnboundedSender<Later>) {
     let (Some(media), Some(base)) = (session.title.lookup(), library::kodi_base()) else { return };
     let tx = tx.clone();
@@ -858,10 +869,22 @@ impl Session {
         let Some(entity) = self.entities.iter_mut().find(|e| entity_id(e) == id) else { return false };
         let Some(obj) = entity.as_object_mut() else { return false };
         let cached = obj.entry("attributes").or_insert_with(|| Value::Object(Default::default()));
+        let was_playing = cached.get("state").and_then(Value::as_str) == Some("PLAYING");
         for (k, v) in attrs {
             cached[k.as_str()] = v.clone();
         }
         if self.screen.as_deref() == Some(id) {
+            // The position runs on from the last report only while playing; a pause or a resume without a fresh
+            // position restarts the count from where it stood, so a pause is not counted as time played.
+            if let Some(state) = attrs.get("state").and_then(Value::as_str) {
+                let playing = state == "PLAYING";
+                if playing != was_playing {
+                    if was_playing {
+                        self.position += self.position_at.elapsed().as_secs_f64();
+                    }
+                    self.position_at = Instant::now();
+                }
+            }
             if let Some(p) = attrs.get("media_position").and_then(Value::as_f64) {
                 self.position = p;
                 self.position_at = Instant::now();
@@ -1986,7 +2009,7 @@ fn apply_now(app: &AppWindow, m: &Model) {
     let known = m.duration > 0.0;
     app.set_progress(if known { (m.position / m.duration) as f32 } else { 0.0 });
     app.set_elapsed(if known { clock(m.position).into() } else { SharedString::new() });
-    app.set_time_left(if known { format!("−{}", clock(left)).into() } else { SharedString::new() });
+    app.set_time_left(if known { format!("−{}", clock(left.ceil())).into() } else { SharedString::new() });
     app.set_ends_at(if known { (now + chrono::Duration::seconds(left as i64)).format("ends %H:%M").to_string().into() } else { SharedString::new() });
     let (logo, label) = codec_badge(&m.media_format);
     let mark = codec_logo(app, logo);
@@ -2019,9 +2042,9 @@ fn volume_db(volume: i32) -> String {
     }
 }
 
-/// 4328 → "1:12:08", 548 → "9:08"
+/// 4328 → "1:12:08", 548.9 → "9:08": whole seconds gone, as Kodi counts them.
 fn clock(secs: f64) -> String {
-    let s = secs.max(0.0).round() as i64;
+    let s = secs.max(0.0).floor() as i64;
     if s >= 3600 {
         format!("{}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
     } else {
@@ -2207,6 +2230,7 @@ mod tests {
         assert_eq!(slide(36, -50, 72), 0);
         assert_eq!(clock(4328.0), "1:12:08");
         assert_eq!(clock(548.0), "9:08");
+        assert_eq!(clock(548.9), "9:08");
         assert_eq!(episode("episode", "S1E4"), "Season 1 · Episode 4");
         assert_eq!(episode("movie", "English - English"), "");
         assert_eq!(split_track("French VF - AAC-LC stereo"), ("French VF".into(), "AAC-LC stereo".into()));
@@ -2249,16 +2273,25 @@ mod tests {
     }
 
     #[test]
-    fn a_film_starting_on_a_flash_takes_kodis_title() {
+    fn kodis_title_wins_over_the_drivers() {
         let t0 = Instant::now();
         let streams = ["English Restored and Re-mixed / DTS-HD Master Audio - DTS-HD MA 5.1(side)".to_string()];
+        let flash = "Restored And Re-Mixed / Dts-Hd Master Audio - Dts-Hd Ma 5.1(Side)";
         let mut t = StableTitle::default();
-        t.feed("m1", "Restored And Re-Mixed / Dts-Hd Master Audio - Dts-Hd Ma 5.1(Side)", "English", &streams, "", t0);
+        // A film starting on a flash: Kodi is asked once, and its answer is shown.
+        t.feed("m1", flash, "English", &streams, "", t0);
         assert_eq!(t.shown, "");
         assert_eq!(t.lookup().as_deref(), Some("m1"));
         assert_eq!(t.lookup(), None);
         t.answer("m1", "2001: A Space Odyssey".into());
         assert_eq!(t.shown, "2001: A Space Odyssey");
+        // Whatever the driver reports for the same film afterwards, however long, changes nothing; each change
+        // asks Kodi again.
+        for s in [1, 9, 20] {
+            t.feed("m1", "Something Else Entirely", "English", &streams, "", t0 + Duration::from_secs(s));
+        }
+        assert_eq!(t.shown, "2001: A Space Odyssey");
+        assert_eq!(t.lookup().as_deref(), Some("m1"));
         // An answer for a film that has since given way is dropped.
         t.feed("m2", "Alien", "", &[], "", t0);
         t.answer("m1", "2001: A Space Odyssey".into());
