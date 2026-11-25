@@ -12,7 +12,7 @@ pub(crate) mod title;
 use crate::hardware::backlight;
 use crate::input::{slider, Button, KodiAction};
 use crate::view::screen::Picker;
-use crate::integrations::net;
+use crate::integrations::wifi;
 
 use std::collections::HashMap;
 use std::time::Instant;
@@ -40,7 +40,7 @@ pub(crate) enum UiAction {
 }
 /// Results of work that finishes later than the request that started it.
 pub(crate) enum Later {
-    Wifi(String, Vec<net::Network>),
+    Wifi(String, Vec<wifi::Network>),
     Integrations(HashMap<String, bool>),
     /// The core's current list of configured entities.
     Entities(Vec<coreapi::Entity>),

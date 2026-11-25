@@ -7,7 +7,7 @@ use crate::art::{backdrop_pixels, poster_pixels, vibrant};
 use crate::hardware::feedback;
 use crate::input::{Button, slider};
 use crate::view::screen::Picker;
-use crate::integrations::net;
+use crate::integrations::wifi;
 use crate::integrations::receiver::slide;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_tracks};
 use crate::view::format::{audio_format, split_track};
@@ -81,7 +81,7 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
                 Later::JoinDone(ok) => {
                     if ok {
                         m.wifi_ssid = std::mem::take(&mut joining);
-                        m.wifi = net::demo_networks(&m.wifi_ssid);
+                        m.wifi = wifi::demo_networks(&m.wifi_ssid);
                         m.wifi.sort_by_key(|n| !n.connected);
                     }
                     finish_join(weak, ok);
@@ -91,7 +91,7 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
                 UiAction::WifiBand => m.wifi_band = if m.wifi_band == "a" { "b".into() } else { "a".into() },
                 UiAction::WifiScan => {
                     m.scanning = true;
-                    let mut found = net::demo_networks(&m.wifi_ssid);
+                    let mut found = wifi::demo_networks(&m.wifi_ssid);
                     found.sort_by_key(|n| !n.connected);
                     after(1400, Later::Wifi(m.wifi_ssid.clone(), found));
                 }

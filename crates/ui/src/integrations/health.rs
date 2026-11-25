@@ -1,22 +1,10 @@
-//! Wi-Fi networks and the health of each link the remote depends on.
+//! The health of each link the remote depends on, for the status page and the home screen's warning.
 
 use coreapi::MediaState;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::HashMap;
 
-/// How many networks fit on the Wi-Fi page above "Scan again".
-const MAX_NETWORKS: usize = 5;
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Network {
-    pub ssid: String,
-    /// The SSID's raw bytes, hex encoded: what the core wants when joining from a scan result.
-    pub hex: String,
-    pub secured: bool,
-    /// 1 to 4
-    pub bars: i32,
-    pub connected: bool,
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatusLine {
@@ -85,51 +73,8 @@ pub fn health(h: Health) -> (Vec<StatusLine>, String) {
     (rows, warning)
 }
 
-fn bars(dbm: i64) -> i32 {
-    match dbm {
-        d if d >= -55 => 4,
-        d if d >= -67 => 3,
-        d if d >= -78 => 2,
-        _ => 1,
-    }
-}
 
 
-/// The connected network's name (empty when disconnected) and what the last scan found.
-pub async fn wifi(core: &coreapi::Core) -> (String, Vec<Network>) {
-    // The simulator has no Wi-Fi; previews of it can name a network to show as joined.
-    #[cfg(feature = "preview")]
-    if let Ok(ssid) = std::env::var("UC_PREVIEW_WIFI") {
-        return (ssid.clone(), demo_networks(&ssid));
-    }
-    let (status, scan) = tokio::join!(core.fetch("get_wifi_status"), core.fetch("get_wifi_scan_status"));
-    let field = |v: &Value, key: &str| v.get(key).and_then(Value::as_str).unwrap_or_default().to_string();
-    let connected = status.as_ref().filter(|s| field(s, "wpa_state") == "COMPLETED");
-    let ssid = connected.map(|s| field(s, "ssid")).unwrap_or_default();
-
-    let mut best: HashMap<String, (i64, Network)> = HashMap::new();
-    let mut consider = |ap: &Value| {
-        let name = field(ap, "ssid");
-        let level = ap.get("signal_level").or_else(|| ap.get("rssi")).and_then(Value::as_i64).unwrap_or(-90);
-        if name.is_empty() || best.get(&name).is_some_and(|(seen, _)| *seen >= level) {
-            return;
-        }
-        let secured = ap.get("security").and_then(Value::as_str).is_none_or(|s| s != "OPEN");
-        let net = Network { connected: name == ssid, hex: field(ap, "ssid_hex"), secured, bars: bars(level), ssid: name.clone() };
-        best.insert(name, (level, net));
-    };
-    for ap in scan.as_ref().and_then(|s| s.get("scan")).and_then(Value::as_array).into_iter().flatten() {
-        consider(ap);
-    }
-    // A scan can miss the network we are on; the status report still describes it.
-    if let Some(s) = connected {
-        consider(s);
-    }
-
-    let mut found: Vec<(i64, Network)> = best.into_values().collect();
-    found.sort_by(|a, b| b.1.connected.cmp(&a.1.connected).then(b.0.cmp(&a.0)));
-    (ssid, found.into_iter().take(MAX_NETWORKS).map(|(_, n)| n).collect())
-}
 
 /// integration id → whether the core is connected to the thing behind it.
 pub async fn integrations(core: &coreapi::Core) -> HashMap<String, bool> {
@@ -145,12 +90,6 @@ pub async fn integrations(core: &coreapi::Core) -> HashMap<String, bool> {
         .collect()
 }
 
-pub fn demo_networks(connected: &str) -> Vec<Network> {
-    [("HomeNetwork", 3), ("Guest", 4), ("SmartHome", 2)]
-        .into_iter()
-        .map(|(ssid, bars)| Network { ssid: ssid.into(), hex: String::new(), secured: true, bars, connected: ssid == connected })
-        .collect()
-}
 
 #[cfg(test)]
 mod tests {
@@ -183,11 +122,3 @@ mod tests {
     }
 }
 
-/// The preferred Wi-Fi band ("a" or "b"), or empty when the core does not say.
-pub(crate) async fn wifi_band(core: &coreapi::Core) -> String {
-    core.request("get_network_cfg", json!({}))
-        .await
-        .ok()
-        .and_then(|r| r.data.pointer("/wifi/band").and_then(Value::as_str).map(String::from))
-        .unwrap_or_default()
-}

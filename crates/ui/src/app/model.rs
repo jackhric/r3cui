@@ -2,7 +2,7 @@
 
 use crate::app::settings;
 use crate::hardware::backlight;
-use crate::integrations::net;
+use crate::integrations::{wifi, health};
 
 
 /// Everything the screen shows, independent of where it came from (core or demo).
@@ -31,11 +31,11 @@ pub(crate) struct Model {
     pub awake: bool,
     pub receiver_on: bool,
     pub wifi_ssid: String,
-    pub wifi: Vec<net::Network>,
+    pub wifi: Vec<wifi::Network>,
     /// The preferred Wi-Fi band as the core names it: "a" 5 GHz, "b" 2.4 GHz; empty when unknown.
     pub wifi_band: String,
     pub scanning: bool,
-    pub status: Vec<net::StatusLine>,
+    pub status: Vec<health::StatusLine>,
     pub warning: String,
     pub keys: backlight::Ha,
     /// Demo only: pretend Home Assistant cannot be reached.
@@ -64,7 +64,7 @@ impl Model {
             awake: true,
             receiver_on: true,
             wifi_ssid: "HomeNetwork".into(),
-            wifi: net::demo_networks("HomeNetwork"),
+            wifi: wifi::demo_networks("HomeNetwork"),
             wifi_band: "b".into(),
             ..Default::default()
         }
@@ -92,7 +92,7 @@ impl Model {
     pub fn with_demo_health(mut self) -> Self {
         use coreapi::MediaState;
         let kodi = if self.title.is_empty() { MediaState::On } else if self.paused { MediaState::Paused } else { MediaState::Playing };
-        (self.status, self.warning) = net::health(net::Health {
+        (self.status, self.warning) = health::health(health::Health {
             wifi_ssid: &self.wifi_ssid,
             home_assistant: Some(!self.demo_ha_down),
             receiver: Some(if self.receiver_on { MediaState::On } else { MediaState::Off }),
