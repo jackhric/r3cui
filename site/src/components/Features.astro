@@ -28,7 +28,7 @@ const cinema = {
   tvStill: clips['../assets/cards/kodi-tv.webp'],
   remote: clips['../assets/cards/kodi-remote.mp4'],
   remoteStill: clips['../assets/cards/kodi-remote.webp'],
-  side: 'left' as 'left' | 'right',
+  side: 'right' as 'left' | 'right',
 };
 
 type Feature = { title: string; text: string; clip: ReturnType<typeof clip>; wide?: boolean; brand?: keyof typeof brands; cinema?: boolean };
@@ -92,13 +92,19 @@ const lights = [
     {import.meta.env.DEV && (
       <details class="kodi-tuner" id="kodi-tuner-panel"><summary>Kodi card</summary><form id="kodi-tuner" aria-label="Kodi card tuner (dev only)">
         <label>Words <select name="side"><option value="left">left</option><option value="right">right</option></select></label>
-        <label>Darkening <input type="range" name="scrim" min="0" max="1.4" step="0.05" value="1" /></label>
-        <label>Film size <input type="range" name="zoom" min="1" max="2.5" step="0.01" value="1" /></label>
-        <label>Film across <input type="range" name="anchor" min="0" max="1" step="0.01" value="0.62" /></label>
-        <label>Film up/down <input type="range" name="anchorY" min="0" max="1" step="0.01" value="0.5" /></label>
-        <label>Remote size <input type="range" name="width" min="150" max="320" step="2" value="220" /></label>
-        <label>Remote across <input type="range" name="x" min="-260" max="260" step="2" value="0" /></label>
-        <label>Remote down <input type="range" name="y" min="0" max="140" step="2" value="30" /></label>
+        <label>Darkening <input type="range" name="scrim" min="0" max="1.4" step="0.05" /></label>
+        <i>Library (first 6 s)</i>
+        <label>Size <input type="range" name="zoomA" min="1" max="2.5" step="0.01" /></label>
+        <label>Across <input type="range" name="axA" min="0" max="1" step="0.01" /></label>
+        <label>Up/down <input type="range" name="ayA" min="0" max="1" step="0.01" /></label>
+        <i>Film (from 6 s)</i>
+        <label>Size <input type="range" name="zoomB" min="1" max="2.5" step="0.01" /></label>
+        <label>Across <input type="range" name="axB" min="0" max="1" step="0.01" /></label>
+        <label>Up/down <input type="range" name="ayB" min="0" max="1" step="0.01" /></label>
+        <i>Remote</i>
+        <label>Size <input type="range" name="width" min="150" max="320" step="2" /></label>
+        <label>Across <input type="range" name="x" min="-260" max="260" step="2" /></label>
+        <label>Down <input type="range" name="y" min="0" max="140" step="2" /></label>
         <output name="values"></output>
       </form></details>
     )}
@@ -128,6 +134,7 @@ const lights = [
   // back together from its picture and its mask by a small shader, and on desktop the TV is drawn to fill the card.
   const VS = 'attribute vec2 p;varying vec2 uv;void main(){uv=vec2((p.x+1.)/2.,(1.-p.y)/2.);gl_Position=vec4(p,0.,1.);}';
   const FS = 'precision mediump float;varying vec2 uv;uniform sampler2D t;void main(){vec3 c=texture2D(t,vec2(uv.x*.5,uv.y)).rgb;float a=texture2D(t,vec2(.5+uv.x*.5,uv.y)).r;gl_FragColor=vec4(c,clamp((a-.02)/.96,0.,1.));}';
+  const FILM_AT = 5.9;
   type Layered = { tv: HTMLVideoElement; remote: HTMLVideoElement; out: HTMLCanvasElement; screen: HTMLCanvasElement | null; gl: WebGLRenderingContext; raf: number };
   const layered = new WeakMap<HTMLElement, Layered>();
   function setUp(card: HTMLElement): Layered | null {
@@ -159,15 +166,19 @@ const lights = [
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       out.classList.add('live');
     }
-    // The TV only shows on desktop. It covers the card, scaled up by --tv-zoom and panned by --tv-anchor (0 left to 1
-    // right) and --tv-anchor-y (0 top to 1 bottom): styles the tuner can change.
+    // The TV only shows on desktop. It covers the card, scaled up by a zoom and panned by an anchor (0 left or top, to 1
+    // right or bottom): style variables the tuner can change.
     if (screen && screen.offsetWidth && tv.readyState >= 2) {
       const dpr = Math.min(devicePixelRatio || 1, 2);
       const w = Math.round(screen.offsetWidth * dpr), h = Math.round(screen.offsetHeight * dpr);
       if (screen.width !== w || screen.height !== h) { screen.width = w; screen.height = h; }
       const ctx = screen.getContext('2d')!;
       const css = getComputedStyle(card), num = (n: string, d: number) => { const x = parseFloat(css.getPropertyValue(n)); return Number.isNaN(x) ? d : x; };
-      const ax = num('--tv-anchor', 0.5), ay = num('--tv-anchor-y', 0.5), zoom = Math.max(1, num('--tv-zoom', 1));
+      // Two framings: on the highlighted poster while Kodi shows its library, on the captions once the film plays,
+      // eased from one to the other as the film starts (FILM_AT, in the take).
+      const k0 = Math.min(1, Math.max(0, (tv.currentTime - FILM_AT) / 0.7)), e = k0 * k0 * (3 - 2 * k0);
+      const mix = (a: string, b: string) => num(a, 0.5) + (num(b, 0.5) - num(a, 0.5)) * e;
+      const ax = mix('--tv-x-a', '--tv-x-b'), ay = mix('--tv-y-a', '--tv-y-b'), zoom = Math.max(1, mix('--tv-zoom-a', '--tv-zoom-b'));
       const k = Math.max(w / tv.videoWidth, h / tv.videoHeight) * zoom, dw = tv.videoWidth * k, dh = tv.videoHeight * k;
       ctx.drawImage(tv, (w - dw) * ax, (h - dh) * ay, dw, dh);
       screen.classList.add('live');
@@ -345,18 +356,20 @@ const lights = [
     const card = document.querySelector<HTMLElement>('#features .card.cinema');
     if (form && card) {
       (form.elements.namedItem('side') as HTMLSelectElement).value = card.dataset.side ?? 'left';
+      // Each slider starts at the card's own value and writes it back as the style variable it names.
+      const vars: Record<string, [string, string]> = {
+        scrim: ['--scrim', ''], zoomA: ['--tv-zoom-a', ''], axA: ['--tv-x-a', ''], ayA: ['--tv-y-a', ''],
+        zoomB: ['--tv-zoom-b', ''], axB: ['--tv-x-b', ''], ayB: ['--tv-y-b', ''],
+        width: ['--remote-w', 'px'], x: ['--remote-x', 'px'], y: ['--remote-top', 'px'],
+      };
+      const css = getComputedStyle(card);
+      for (const [n, [v]] of Object.entries(vars)) (form.elements.namedItem(n) as HTMLInputElement).value = String(parseFloat(css.getPropertyValue(v)));
       const apply = () => {
         const v = (n: string) => (form.elements.namedItem(n) as HTMLInputElement).value;
         card.dataset.side = v('side');
-        card.style.setProperty('--scrim', v('scrim'));
-        card.style.setProperty('--tv-anchor', v('anchor'));
-        card.style.setProperty('--tv-anchor-y', v('anchorY'));
-        card.style.setProperty('--tv-zoom', v('zoom'));
-        card.style.setProperty('--remote-w', v('width') + 'px');
-        card.style.setProperty('--remote-x', v('x') + 'px');
-        card.style.setProperty('--remote-top', v('y') + 'px');
-        (form.elements.namedItem('values') as HTMLOutputElement).value =
-          `side ${v('side')} · darkening ${v('scrim')} · film ${v('zoom')}× at ${v('anchor')}, ${v('anchorY')} · remote ${v('width')}px, ${v('x')}px across, ${v('y')}px down`;
+        for (const [n, [name, unit]] of Object.entries(vars)) card.style.setProperty(name, v(n) + unit);
+        (form.elements.namedItem('values') as HTMLOutputElement).value = `side: ${v('side')}; ` +
+          Object.entries(vars).map(([n, [name, unit]]) => `${name}: ${v(n)}${unit}`).join('; ');
       };
       form.addEventListener('input', apply);
       apply();
@@ -443,13 +456,15 @@ const lights = [
      words sit left or right (data-side), the remote on the other side. */
   @media (min-width: 761px) {
     .cinema {
-      --scrim: 1; --tv-anchor: 0.62; --tv-anchor-y: 0.5; --tv-zoom: 1; --remote-w: 220px; --remote-x: 0px; --remote-top: 30px;
+      --scrim: 1; --remote-w: 220px; --remote-x: -44px;
+      --tv-zoom-a: 1.8; --tv-x-a: 0.96; --tv-y-a: 0.74;
+      --tv-zoom-b: 1.15; --tv-x-b: 0; --tv-y-b: 0.9; --remote-top: 30px;
       background: #000; border-color: transparent; color: #f4f4f4; container-type: inline-size;
     }
     .cinema .tv {
       display: block; position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0;
-      background-repeat: no-repeat; background-size: auto calc(var(--tv-zoom) * max(100%, 56.25cqw));
-      background-position: calc(var(--tv-anchor) * 100%) calc(var(--tv-anchor-y) * 100%);
+      background-repeat: no-repeat; background-size: auto calc(var(--tv-zoom-b) * max(100%, 56.25cqw));
+      background-position: calc(var(--tv-x-b) * 100%) calc(var(--tv-y-b) * 100%);
     }
     .cinema::before {
       content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
@@ -476,6 +491,7 @@ const lights = [
   .kodi-tuner summary { font-weight: 700; cursor: pointer; }
   .kodi-tuner form { display: grid; gap: 8px; margin-top: 10px; }
   .kodi-tuner label { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; }
+  .kodi-tuner i { font-style: normal; font-weight: 600; color: var(--muted-foreground); margin-top: 4px; }
   .kodi-tuner output { color: var(--muted-foreground); font-size: 0.72rem; line-height: 1.4; }
 
   /* The wide card: text beside a larger remote, the text setting the height (contain: size keeps the remote from
