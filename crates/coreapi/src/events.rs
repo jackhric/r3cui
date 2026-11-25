@@ -2,7 +2,7 @@
 //! spec doesn't list (a newer core) becomes `Unknown` rather than failing the event.
 
 use serde::Deserialize;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use crate::Event;
 
@@ -11,7 +11,6 @@ pub enum CoreEvent {
     PowerModeChange(PowerModeChange),
     BatteryStatus(BatteryStatus),
     WifiChange(WifiChange),
-    EntityChange(EntityChange),
     /// Any other event, or one whose payload didn't match.
     Other,
 }
@@ -93,40 +92,6 @@ pub struct WifiChange {
     pub id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum ChangeKind {
-    Change,
-    New,
-    Delete,
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct EntityChange {
-    pub event_type: ChangeKind,
-    #[serde(default)]
-    pub entity_id: Option<String>,
-    #[serde(default)]
-    pub new_state: Option<EntityUpdate>,
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct EntityUpdate {
-    /// Only the attributes that changed.
-    #[serde(default)]
-    pub attributes: Map<String, Value>,
-}
-
-impl EntityChange {
-    /// The changed attributes, empty when none came.
-    pub fn attributes(&self) -> &Map<String, Value> {
-        static EMPTY: std::sync::OnceLock<Map<String, Value>> = std::sync::OnceLock::new();
-        self.new_state.as_ref().map_or_else(|| EMPTY.get_or_init(Map::new), |s| &s.attributes)
-    }
-}
-
 impl Event {
     /// The event as the UI understands it.
     pub fn typed(&self) -> CoreEvent {
@@ -143,7 +108,6 @@ impl Event {
             "power_mode_change" => parse(&self.data, CoreEvent::PowerModeChange),
             "battery_status" => parse(&self.data, CoreEvent::BatteryStatus),
             "wifi_change" => parse(&self.data, CoreEvent::WifiChange),
-            "entity_change" => parse(&self.data, CoreEvent::EntityChange),
             _ => CoreEvent::Other,
         }
     }
@@ -174,20 +138,6 @@ mod tests {
         let e = event("wifi_change", json!({ "event": "NETWORK_NOT_FOUND", "id": 3 }));
         assert_eq!(e.typed(), CoreEvent::WifiChange(WifiChange { event: WifiEvent::NetworkNotFound, id: Some(3) }));
         assert_eq!(event("wifi_change", json!({ "event": "SCAN_COMPLETED" })).typed(), CoreEvent::WifiChange(WifiChange { event: WifiEvent::ScanCompleted, id: None }));
-    }
-
-    #[test]
-    fn entity_change_as_the_simulator_sends_it() {
-        // Captured from the core simulator with the Kodi integration.
-        let e = event("entity_change", json!({
-            "entity_id": "kodi_driver.main.media_player.hrichouse-theater.internal",
-            "entity_type": "media_player",
-            "event_type": "CHANGE",
-            "new_state": { "attributes": { "media_title": "2001: A Space Odyssey" } }
-        }));
-        let CoreEvent::EntityChange(c) = e.typed() else { panic!() };
-        assert_eq!(c.event_type, ChangeKind::Change);
-        assert_eq!(c.attributes().get("media_title").and_then(Value::as_str), Some("2001: A Space Odyssey"));
     }
 
     #[test]

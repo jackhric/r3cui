@@ -1,15 +1,9 @@
-//! Minimal client for the UCR3 `remote-core` WebSocket API.
-//!
-//! Scaffold for milestone 1: connect, authenticate with the token file, subscribe to events,
-//! issue requests and receive events. Message schemas are intentionally loose (`serde_json::Value`)
-//! until we type them against `core-api`'s AsyncAPI spec. See `docs/core-ws-protocol.md`.
+//! Client for the UCR3 `remote-core` WebSocket API, for the remote's own state: connect, authenticate with the
+//! token file, receive its events (typed in `events`) and make requests. Other programs are r3cui's drivers, not the
+//! core's integrations, so entities and their commands aren't here. See `docs/core-ws-protocol.md`.
 
-mod commands;
-mod entities;
 mod events;
 
-pub use commands::*;
-pub use entities::*;
 pub use events::*;
 
 use anyhow::{anyhow, Context, Result};
@@ -111,34 +105,6 @@ impl Core {
         let (reply, rx) = oneshot::channel();
         self.tx.send(Out { msg: msg.to_string(), data, reply }).await.map_err(|_| anyhow!("core task gone"))?;
         Ok(rx)
-    }
-
-    /// All configured entities, following the server's pagination to the end.
-    pub async fn get_entities(&self) -> Result<Vec<Entity>> {
-        const LIMIT: usize = 100;
-        let mut all = Vec::new();
-        for page in 1.. {
-            let resp = self
-                .request("get_entities", json!({ "paging": { "page": page, "limit": LIMIT } }))
-                .await?
-                .ok()?;
-            let items = match resp.data.get("entities") {
-                Some(Value::Array(a)) => a.clone(),
-                _ => return Err(anyhow!("get_entities: no `entities` array in {}", resp.msg)),
-            };
-            let total = resp.data.pointer("/paging/count").and_then(Value::as_u64).unwrap_or(0);
-            let got = items.len();
-            all.extend(items);
-            if got < LIMIT || all.len() as u64 >= total {
-                break;
-            }
-        }
-        Ok(entities::parse_all(all))
-    }
-
-    /// Queue a command for an entity without waiting for its answer (see `submit`).
-    pub async fn submit_command(&self, entity_id: &str, cmd: &MediaPlayerCmd) -> Result<oneshot::Receiver<Response>> {
-        self.submit("execute_entity_command", cmd.request(entity_id)).await
     }
 }
 

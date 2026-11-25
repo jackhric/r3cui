@@ -346,7 +346,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                             refresh_wifi(Duration::ZERO);
                         }
                     }
-                    CoreEvent::EntityChange(_) | CoreEvent::Other => {}
+                    CoreEvent::Other => {}
                 }
             }
             Some(action) = actions.recv() => {
