@@ -81,7 +81,7 @@ pub struct Pacer {
     level: Option<i32>,
     pending: Option<i32>,
     /// Moves folded into the next send, for the log.
-    pub merged: u32,
+    merged: u32,
     /// When the timer already asked for will fire. An extra timer is harmless; one firing too
     /// late is not, so a sooner moment always asks again.
     scheduled: Option<Instant>,
@@ -108,6 +108,11 @@ impl Pacer {
     }
 
     /// The receiver reported this level.
+    /// How many changes were merged into the send just made, for the log; counting starts again.
+    pub fn take_merged(&mut self) -> u32 {
+        std::mem::take(&mut self.merged)
+    }
+
     pub fn reported(&mut self, value: i32, now: Instant) -> Send {
         self.level = Some(value);
         if self.sent.is_some_and(|(v, _)| v == value) {

@@ -381,9 +381,9 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
     let commands = Commands::new(core.clone());
     let mut volume_gate = slider::Pacer::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(250)), Duration::from_millis(600));
     // Spawns the timer a `Send::Later` asks for, or sends at once.
-    let pace = |send: slider::Send, session: &Session, moves: u32| match send {
+    let pace = |gate: &mut slider::Pacer, send: slider::Send, session: &Session| match send {
         slider::Send::Now(v) => {
-            tracing::info!("slider volume {v} (from {moves} moves)");
+            tracing::info!("slider volume {v} (from {} moves)", gate.take_merged());
             if let Some(entity) = session.target(Target::Volume) {
                 commands.send(entity, "volume".into(), json!({ "volume": v }));
             }
@@ -453,8 +453,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     Later::Switched => {}
                     Later::SendVolume => {
                         let send = volume_gate.due(Instant::now());
-                        let moves = if matches!(send, slider::Send::Now(_)) { std::mem::take(&mut volume_gate.merged) } else { 0 };
-                        pace(send, &session, moves);
+                        pace(&mut volume_gate, send, &session);
                     }
                     Later::JoinDone(ok) => {
                         if session.joining.take().is_some() {
@@ -517,8 +516,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 if ev.msg == "entity_change" && session.volume.as_deref() == ev.data.get("entity_id").and_then(Value::as_str) {
                     if let Some(v) = ev.data.pointer("/new_state/attributes/volume").and_then(Value::as_f64) {
                         let send = volume_gate.reported(v.round() as i32, Instant::now());
-                        let moves = if matches!(send, slider::Send::Now(_)) { std::mem::take(&mut volume_gate.merged) } else { 0 };
-                        pace(send, &session, moves);
+                        pace(&mut volume_gate, send, &session);
                     }
                 }
                 if ev.msg == "entity_change" && session.apply_change(&ev.data) {
@@ -610,8 +608,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         flash_volume(weak, &overlay);
                         render(weak, &session.model());
                         let send = volume_gate.offer(v, Instant::now());
-                        let moves = if matches!(send, slider::Send::Now(_)) { std::mem::take(&mut volume_gate.merged) } else { 0 };
-                        pace(send, &session, moves);
+                        pace(&mut volume_gate, send, &session);
                         continue;
                     }
                     UiAction::Slider(slider::Gesture::DoubleTap) => {
