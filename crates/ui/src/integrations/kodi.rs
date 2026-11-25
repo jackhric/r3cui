@@ -25,12 +25,18 @@ pub fn base(image_url: &str) -> Option<String> {
 }
 
 fn image(base: &str, art: &str) -> String {
-    let mut out = format!("{base}/image/");
-    for b in art.bytes() {
+    format!("{base}/image/{}", encode(art))
+}
+
+/// Percent-encodes everything but unreserved characters, in lowercase hex as Kodi writes its own `image://` URLs
+/// (they are its artwork cache keys, so the spelling matters there).
+fn encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() * 3);
+    for b in s.bytes() {
         if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
             out.push(b as char);
         } else {
-            out.push_str(&format!("%{b:02X}"));
+            out.push_str(&format!("%{b:02x}"));
         }
     }
     out
@@ -197,7 +203,9 @@ mod tests {
         let url = "http://:@kodi.lan:8080/image/image%3A%2F%2Fx%2F";
         assert_eq!(base(url).as_deref(), Some("http://kodi.lan:8080"));
         assert_eq!(base("http://kodi.lan:8080/x").as_deref(), Some("http://kodi.lan:8080"));
-        assert_eq!(image("http://k", "image://a b/"), "http://k/image/image%3A%2F%2Fa%20b%2F");
+        assert_eq!(image("http://k", "image://a b/"), "http://k/image/image%3a%2f%2fa%20b%2f");
+        assert_eq!(decode("a%2Fb%2fc%"), "a/b/c%");
+        assert_eq!(decode("%é"), "%é");
     }
 
     #[test]
@@ -292,26 +300,18 @@ pub fn smaller(art: &str, w: u32, h: u32) -> String {
         return art.to_string();
     }
     let url = url.replace("Format=original", &format!("fillWidth={w}&fillHeight={h}&quality=85"));
-    let mut out = String::from("image://");
-    for b in url.bytes() {
-        if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
-            out.push(b as char);
-        } else {
-            out.push_str(&format!("%{b:02x}"));
-        }
-    }
-    out.push('/');
-    out
+    format!("image://{}/", encode(&url))
 }
 
 fn decode(s: &str) -> String {
+    let hex = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
-        if b[i] == b'%' && i + 2 < b.len() {
-            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
-                out.push(v);
+        if let (b'%', Some(&h), Some(&l)) = (b[i], b.get(i + 1), b.get(i + 2)) {
+            if let (Some(h), Some(l)) = (hex(h), hex(l)) {
+                out.push(h * 16 + l);
                 i += 3;
                 continue;
             }

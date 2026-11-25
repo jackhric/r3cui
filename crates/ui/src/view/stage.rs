@@ -10,12 +10,16 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 /// The stage as it looks right now, alone and unreceded.
-pub(crate) fn snapshot_stage(app: &AppWindow) -> Option<image::RgbaImage> {
-    app.set_capturing(1);
+/// The window as it would look with `capturing` set (1: the stage alone, 2: stage and world, see app.slint).
+fn snapshot(app: &AppWindow, capturing: i32) -> Option<image::RgbaImage> {
+    app.set_capturing(capturing);
     let shot = app.window().take_snapshot();
     app.set_capturing(0);
-    let shot = shot.map_err(|e| tracing::warn!("stage snapshot: {e}")).ok()?;
+    let shot = shot.map_err(|e| tracing::warn!("snapshot: {e}")).ok()?;
     image::RgbaImage::from_raw(shot.width(), shot.height(), shot.as_bytes().to_vec())
+}
+pub(crate) fn snapshot_stage(app: &AppWindow) -> Option<image::RgbaImage> {
+    snapshot(app, 1)
 }
 pub(crate) fn soften(img: &image::RgbaImage, sigma: f32) -> slint::Image {
     let small = image::imageops::resize(img, 60, 100, image::imageops::FilterType::Triangle);
@@ -96,20 +100,8 @@ pub(crate) fn swap_stage(app: &AppWindow, key: StageKey, change: impl FnOnce()) 
 /// A soft, blurred picture of the screen for a layer that is about to recede: 0 the stage alone,
 /// 1 everything under the overlays.
 pub(crate) fn capture(app: &AppWindow, which: i32) {
-    app.set_capturing(which + 1);
-    let shot = app.window().take_snapshot();
-    app.set_capturing(0);
-    let shot = match shot {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::warn!("snapshot for blur: {e}");
-            return;
-        }
-    };
-    let Some(full) = image::RgbaImage::from_raw(shot.width(), shot.height(), shot.as_bytes().to_vec()) else { return };
-    let small = image::imageops::resize(&full, 60, 100, image::imageops::FilterType::Triangle);
-    let soft = image::imageops::blur(&small, 1.6);
-    let img = slint::Image::from_rgba8(pixels(soft));
+    let Some(full) = snapshot(app, which + 1) else { return };
+    let img = soften(&full, 1.6);
     if which == 0 {
         app.set_stage_blur(img);
     } else {
