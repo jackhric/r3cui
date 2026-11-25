@@ -78,8 +78,10 @@ enum Later {
     JoinDone(bool),
     /// Kodi's subtitle streams, as (stream index or None for off, label), and which is on.
     Subtitles(Vec<(Option<i64>, String)>, usize),
-    /// Kodi's own title for the media playing, asked while the driver shows only a flash.
+    /// Kodi's own title for the media playing, asked whenever the driver's changes.
     Title(String, String),
+    /// Kodi's exact position, and when it was read.
+    Position(f64, Instant),
     /// Demo only: the receiver has caught up with an input change.
     Switched,
     /// The slider's throttled volume command is due.
@@ -807,6 +809,27 @@ fn ask_title(session: &mut Session, tx: &mpsc::UnboundedSender<Later>) {
     });
 }
 
+/// The driver reports the position in whole seconds, sent now and then; whenever it reports one, or a pause
+/// or resume, Kodi's own position, to the millisecond, replaces it.
+fn ask_position(session: &mut Session, tx: &mpsc::UnboundedSender<Later>) {
+    if !std::mem::take(&mut session.timing) {
+        return;
+    }
+    let Some(base) = library::kodi_base() else { return };
+    let tx = tx.clone();
+    tokio::task::spawn_blocking(move || {
+        let asked = Instant::now();
+        match kodi::position(&base) {
+            Ok(at) => {
+                // Read about halfway through the round trip.
+                let when = asked + asked.elapsed() / 2;
+                let _ = tx.send(Later::Position(at, when));
+            }
+            Err(e) => tracing::debug!("kodi position: {e:#}"),
+        }
+    });
+}
+
 /// Whether `title` is the driver's flash of the audio track's name: the name capitalised word by word, perhaps
 /// with the subtitle's after it. The track list carries the same name behind its language.
 fn names_stream(title: &str, streams: &[String]) -> bool {
@@ -833,6 +856,8 @@ struct Session {
     scanning: bool,
     integrations: HashMap<String, bool>,
     title: StableTitle,
+    /// The screen's position or play state has changed since Kodi was last asked for its exact position.
+    timing: bool,
     /// The network id of a join in progress, and when it started.
     joining: Option<(Option<i64>, Instant)>,
     /// What each row of the subtitle picker selects.
@@ -862,7 +887,8 @@ impl Session {
         id.and_then(|id| self.entity(id))
     }
 
-    /// Merge an `entity_change` into the cached entity; returns whether it applied.
+    /// Merge an `entity_change` into the cached entity; returns whether it applied. A change to the screen's
+    /// position or play state sets `timing`, for Kodi's exact position to be asked.
     fn apply_change(&mut self, data: &Value) -> bool {
         let Some(id) = data.get("entity_id").and_then(Value::as_str) else { return false };
         let Some(attrs) = data.pointer("/new_state/attributes").and_then(Value::as_object) else { return false };
@@ -874,6 +900,7 @@ impl Session {
             cached[k.as_str()] = v.clone();
         }
         if self.screen.as_deref() == Some(id) {
+            self.timing |= attrs.contains_key("state") || attrs.contains_key("media_position");
             // The position runs on from the last report only while playing; a pause or a resume without a fresh
             // position restarts the count from where it stood, so a pause is not counted as time played.
             if let Some(state) = attrs.get("state").and_then(Value::as_str) {
@@ -1105,6 +1132,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
         pending_power: None,
         pending_mute: None,
         title: StableTitle::default(),
+        timing: false,
         awake: is_awake(power.get("mode").and_then(Value::as_str)),
         screen,
         entities,
@@ -1204,6 +1232,10 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         let labels: Vec<String> = rows.into_iter().map(|r| r.1).collect();
                         show_tracks(weak, labels.iter().map(|l| (l.clone(), String::new())).collect(), current);
                     }
+                    Later::Position(at, when) => {
+                        (session.position, session.position_at) = (at, when);
+                        render(weak, &session.model());
+                    }
                     Later::Title(media, title) => {
                         session.title.answer(&media, title);
                         render(weak, &session.model());
@@ -1282,6 +1314,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                 if ev.msg == "entity_change" && session.apply_change(&ev.data) {
                     session.settle_title();
                     ask_title(&mut session, &later_tx);
+                    ask_position(&mut session, &later_tx);
                     session.sync_poster(weak);
                     render(weak, &session.model());
                 }
@@ -1670,7 +1703,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
             }
             Some(later) = later_rx.recv() => match later {
                 Later::Wifi(_, networks) => (m.wifi, m.scanning) = (networks, false),
-                Later::Integrations(_) | Later::Entities(_) | Later::Subtitles(..) | Later::Title(..) => {}
+                Later::Integrations(_) | Later::Entities(_) | Later::Subtitles(..) | Later::Title(..) | Later::Position(..) => {}
                 Later::Switched => m.switching = false,
                 Later::SendVolume => {}
                 Later::JoinDone(ok) => {

@@ -57,19 +57,25 @@ fn player(base: &str) -> anyhow::Result<i64> {
     pick.and_then(|p| p.get("playerid")).and_then(Value::as_i64).context("nothing playing")
 }
 
-/// Pause, and seek to where playback stands: the seek refills Kodi's read-ahead, which carries no subtitle
-/// pictures for a track that was off when it was read, so subtitles just turned on show at once.
-pub fn pause_and_reload(base: &str) -> anyhow::Result<()> {
+/// Seek `back` seconds behind where playback stands. This refills Kodi's read-ahead, which carries no subtitle
+/// pictures for a track that was off when it was read; going back far enough to take in the start of the line
+/// on show brings that line too.
+pub fn reload(base: &str, back: f64) -> anyhow::Result<()> {
     let id = player(base)?;
-    call(base, "Player.PlayPause", json!({ "playerid": id, "play": false }))?;
-    let at = call(base, "Player.GetProperties", json!({ "playerid": id, "properties": ["time"] }))?;
-    let time = at.get("time").cloned().context("no time")?;
+    let now = position(base)?;
+    let to = (now - back).max(0.0);
+    let ms = (to * 1000.0).round() as i64;
+    let time = json!({ "hours": ms / 3_600_000, "minutes": ms / 60_000 % 60, "seconds": ms / 1000 % 60, "milliseconds": ms % 1000 });
     call(base, "Player.Seek", json!({ "playerid": id, "value": { "time": time } })).map(|_| ())
 }
 
-pub fn resume(base: &str) -> anyhow::Result<()> {
+/// How far into what is playing Kodi is, in seconds, to the millisecond.
+pub fn position(base: &str) -> anyhow::Result<f64> {
     let id = player(base)?;
-    call(base, "Player.PlayPause", json!({ "playerid": id, "play": true })).map(|_| ())
+    let at = call(base, "Player.GetProperties", json!({ "playerid": id, "properties": ["time"] }))?;
+    let t = at.get("time").context("no time")?;
+    let part = |k: &str| t.get(k).and_then(Value::as_f64).unwrap_or(0.0);
+    Ok(part("hours") * 3600.0 + part("minutes") * 60.0 + part("seconds") + part("milliseconds") / 1000.0)
 }
 
 /// The title of what is playing, as Kodi itself names it.
