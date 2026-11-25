@@ -204,6 +204,7 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     app.set_volume(volume_percent(m.volume, m.volume_max));
     app.set_volume_db(volume_db(m.volume).into());
     app.set_muted(m.muted);
+    app.set_has_volume(m.has_volume);
 
     let name = m.sources.iter().find(|s| s.id == m.source).map_or(m.source.as_str(), |s| s.name.as_str());
     app.set_source(name.into());

@@ -7,6 +7,8 @@ use crate::remote::{health, wifi};
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Model {
     pub volume: i32,
+    /// Something is set up as global volume.
+    pub has_volume: bool,
     pub muted: bool,
     /// The input on now, by id.
     pub source: String,
@@ -53,6 +55,7 @@ impl Model {
     pub fn demo() -> Self {
         Self {
             volume: 62,
+            has_volume: true,
             muted: false,
             source: "PLAYSTATION 5".into(),
             sources: ["ANDROID TV", "KODI", "PLAYSTATION 5", "XBOX 360"].into_iter().map(|s| Source { id: s.into(), name: s.into() }).collect(),

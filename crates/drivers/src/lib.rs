@@ -5,6 +5,8 @@
 
 pub mod api;
 pub mod config;
+#[cfg(any(test, feature = "demo"))]
+pub mod demo;
 pub mod homeassistant;
 pub mod host;
 pub mod inputs;

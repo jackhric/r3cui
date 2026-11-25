@@ -36,7 +36,7 @@ Today's drivers:
 |---|---|---|---|
 | Home Assistant (`crates/homeassistant`, r3cui's own client) | yes | later | — |
 | Kodi (`crates/kodi`) | — | yes | yes (Now Playing, library wall) |
-| Demo | yes | yes | yes |
+| Demo (desktop builds, `demo` feature) | yes | yes | yes |
 
 The core's own integrations are not a path any more: the receiver, the key-backlight helpers and
 the volume-limit sensor all come through r3cui's Home Assistant client. The core still owns the
@@ -53,7 +53,7 @@ crates/drivers         The contract and the drivers. No Slint.
   api/                   ports, views, intents, the setup schema (Field), Status
   homeassistant/         the HA driver (global control, key backlight)
   kodi/                  the Kodi driver (remote + UI slots, library wall)
-  demo/                  canned data for previews, recordings and the desktop
+  demo.rs                made-up receiver, film and shelf, to try the frontend with nothing to connect to
   registry.rs            every driver type, by id
   config.rs              modules.json: instances, global bindings, inputs
   inputs.rs              the input list: the source's list with the user's order, names, hiding

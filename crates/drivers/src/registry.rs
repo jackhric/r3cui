@@ -17,9 +17,12 @@ impl Registry {
     }
 
     pub fn builtin() -> Self {
-        Self::new()
+        let registry = Self::new()
             .with(&crate::homeassistant::SPEC, Box::new(|e| Arc::new(crate::homeassistant::HomeAssistant::start(e))))
-            .with(&crate::kodi::SPEC, Box::new(|e| Arc::new(crate::kodi::Kodi::start(e))))
+            .with(&crate::kodi::SPEC, Box::new(|e| Arc::new(crate::kodi::Kodi::start(e))));
+        #[cfg(feature = "demo")]
+        let registry = registry.with(&crate::demo::SPEC, Box::new(|e| Arc::new(crate::demo::Demo::start(e))));
+        registry
     }
 
     pub fn with(mut self, spec: &'static Spec, start: Start) -> Self {

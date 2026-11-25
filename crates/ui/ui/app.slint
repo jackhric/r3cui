@@ -297,6 +297,8 @@ export component AppWindow inherits Window {
 
     // 0-100 of the receiver's volume limit.
     in property <int> volume;
+    // Something is set up as global volume.
+    in property <bool> has-volume: true;
     in property <string> volume-db;
     in property <bool> muted;
     in property <bool> volume-overlay;
@@ -920,7 +922,7 @@ export component AppWindow inherits Window {
                                 color: Theme.t3;
                                 vertical-alignment: center;
                             }
-                            VolumeChip {
+                            if root.has-volume: VolumeChip {
                                 volume: root.volume;
                                 muted: root.muted;
                                 size: 22px;
@@ -1010,7 +1012,7 @@ export component AppWindow inherits Window {
                             message: root.home-warning;
                             tapped => { root.go(7, 0); }
                         }
-                        VolumeChip {
+                        if root.has-volume: VolumeChip {
                             y: 700px;
                             height: 40px;
                             size: 32px;

@@ -167,6 +167,7 @@ impl Session<'_> {
             warning,
             demo_ha_down: false,
             volume: g.volume,
+            has_volume: host.has_volume(),
             volume_max: g.volume_max,
             muted: g.muted,
             sources: host.inputs().into_iter().filter(|i| !i.hidden).map(|i| Source { id: i.id, name: i.name }).collect(),
