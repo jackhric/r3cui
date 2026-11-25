@@ -4,6 +4,7 @@
 pub(crate) mod demo;
 pub(crate) mod entity;
 pub(crate) mod model;
+pub(crate) mod optimistic;
 pub(crate) mod session;
 pub(crate) mod settings;
 pub(crate) mod title;

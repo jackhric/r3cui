@@ -2,6 +2,7 @@
 //! into commands and screen updates.
 
 use crate::AppWindow;
+use crate::app::optimistic::Optimistic;
 use crate::app::{Later, UiAction, settings};
 use crate::app::entity::{attr_f64, attr_str, entity_id, entity_name, has_feature, pick_entity};
 use crate::app::model::Model;
@@ -87,14 +88,14 @@ pub(crate) struct Session {
     subtitle_ids: Vec<Option<i64>>,
     /// The level the slider last asked for. The receiver takes a moment to report it back, and
     /// steps taken meanwhile must build on what was asked, not on the stale report.
-    slider_volume: Option<(i32, Instant)>,
+    slider_volume: Optimistic<i32>,
     charging: bool,
     /// An input picked here, shown straight away until the receiver reports it (or gives up).
-    pending_source: Option<(String, Instant)>,
+    pending_source: Optimistic<String>,
     /// The same for power: the receiver can take a minute to report that it has come on.
-    pending_power: Option<(bool, Instant)>,
+    pending_power: Optimistic<bool>,
     /// And for mute, so a second double tap undoes the first even before the receiver reports.
-    pending_mute: Option<(bool, Instant)>,
+    pending_mute: Optimistic<bool>,
 }
 impl Session {
     fn entity(&self, id: &str) -> Option<&Value> {
@@ -240,8 +241,8 @@ impl Session {
             self.integrations.get(id).copied()
         };
         let reported = attr_str(receiver, "source");
-        let pending = self.pending_source.as_ref().filter(|(name, at)| *name != reported && at.elapsed() < SWITCH_TIMEOUT);
-        let source = pending.map_or(reported, |(name, _)| name.clone());
+        let switching = self.pending_source.pending(&reported);
+        let source = self.pending_source.resolve(reported);
         let receiver_state = receiver.map(|r| attr_str(Some(r), "state"));
         let (status, warning) = net::health(net::Health {
             wifi_ssid: &self.wifi_ssid,
@@ -261,19 +262,11 @@ impl Session {
             warning,
             demo_ha_down: false,
             volume: {
-                let reported = attr_f64(volume_from, "volume").round() as i32;
-                match self.slider_volume {
-                    // Until the receiver has caught up, its reports are old levels on the way.
-                    Some((v, at)) if at.elapsed() < SLIDER_HOLD || (v != reported && at.elapsed() < SLIDER_SETTLE) => v,
-                    _ => reported,
-                }
+                // Until the receiver has caught up, its reports are old levels on the way.
+                self.slider_volume.resolve(attr_f64(volume_from, "volume").round() as i32)
             },
             muted: {
-                let reported = volume_from.and_then(|e| e.pointer("/attributes/muted")).and_then(Value::as_bool).unwrap_or(false);
-                match self.pending_mute {
-                    Some((want, at)) if want != reported && at.elapsed() < SLIDER_SETTLE => want,
-                    _ => reported,
-                }
+                self.pending_mute.resolve(volume_from.and_then(|e| e.pointer("/attributes/muted")).and_then(Value::as_bool).unwrap_or(false))
             },
             source,
             sources: receiver
@@ -281,7 +274,7 @@ impl Session {
                 .and_then(Value::as_array)
                 .map(|a| a.iter().filter_map(Value::as_str).filter(|s| !settings::get().hides(s)).map(String::from).collect())
                 .unwrap_or_default(),
-            switching: pending.is_some(),
+            switching,
             // The Kodi driver keeps the last title, artwork and position after a stop, so only the
             // playback state says whether anything is on.
             title: if matches!(state.as_str(), "PLAYING" | "PAUSED" | "BUFFERING") { self.title.shown.clone() } else { String::new() },
@@ -305,10 +298,7 @@ impl Session {
                 let reported = receiver.is_none_or(|r| {
                     !matches!(attr_str(Some(r), "state").as_str(), "OFF" | "STANDBY" | "UNAVAILABLE" | "UNKNOWN" | "")
                 });
-                match self.pending_power {
-                    Some((want, at)) if want != reported && at.elapsed() < POWER_TIMEOUT => want,
-                    _ => reported,
-                }
+                self.pending_power.resolve(reported)
             },
             volume_max: self.volume_max(),
         }
@@ -346,11 +336,11 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
         integrations: HashMap::new(),
         joining: None,
         subtitle_ids: Vec::new(),
-        slider_volume: None,
+        slider_volume: Optimistic::new(SLIDER_HOLD, SLIDER_SETTLE),
         charging,
-        pending_source: None,
-        pending_power: None,
-        pending_mute: None,
+        pending_source: Optimistic::new(Duration::ZERO, SWITCH_TIMEOUT),
+        pending_power: Optimistic::new(Duration::ZERO, POWER_TIMEOUT),
+        pending_mute: Optimistic::new(Duration::ZERO, SLIDER_SETTLE),
         title: StableTitle::default(),
         timing: false,
         awake: is_awake(power.get("mode").and_then(Value::as_str)),
@@ -543,7 +533,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 let (target, cmd, params) = match action {
                     UiAction::Command(cmd) => (Target::Screen, cmd, Value::Null),
                     UiAction::SelectSource(name) => {
-                        session.pending_source = Some((name.clone(), Instant::now()));
+                        session.pending_source.ask(name.clone());
                         render(weak, &session.model());
                         (Target::Volume, "select_source".to_string(), json!({ "source": name }))
                     }
@@ -554,7 +544,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     }
                     UiAction::PowerHeld => {
                         let on = session.model().receiver_on;
-                        session.pending_power = Some((!on, Instant::now()));
+                        session.pending_power.ask(!on);
                         render(weak, &session.model());
                         (Target::Volume, if on { "off" } else { "on" }.to_string(), Value::Null)
                     }
@@ -616,7 +606,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     UiAction::Slider(slider::Gesture::Steps(n)) => {
                         let v = slide(session.volume_base(), n, session.volume_max());
                         feedback::play(if v == session.volume_base() { feedback::SLIDER_LIMIT } else { feedback::VOLUME });
-                        session.slider_volume = Some((v, Instant::now()));
+                        session.slider_volume.ask(v);
                         flash_volume(weak, &overlay);
                         render(weak, &session.model());
                         let send = volume_gate.offer(v, Instant::now());
@@ -694,7 +684,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 // The receiver reports late, so the toggle follows what this remote last asked for.
                 let cmd = if cmd == "mute_toggle" && target == Target::Volume {
                     let (muted, toggles) = (session.model().muted, has_feature(entity, "mute_toggle"));
-                    session.pending_mute = Some((!muted, Instant::now()));
+                    session.pending_mute.ask(!muted);
                     render(weak, &session.model());
                     if toggles { cmd } else { if muted { "unmute" } else { "mute" }.to_string() }
                 } else {
