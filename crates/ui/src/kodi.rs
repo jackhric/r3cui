@@ -220,7 +220,8 @@ pub fn list(base: &str, b: &Browsing) -> anyhow::Result<Vec<Value>> {
         "play count" => "playcount",
         "duration" | "runtime" => "runtime",
         "mpaa" => "mpaa",
-        _ => "title",
+        // Kodi's own Title sort goes by each item's sort title ("bronx tale" for "A Bronx Tale").
+        _ => "sorttitle",
     };
     let order = if b.order.eq_ignore_ascii_case("descending") { "descending" } else { "ascending" };
     let params = json!({
