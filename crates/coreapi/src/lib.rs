@@ -4,8 +4,10 @@
 //! issue requests and receive events. Message schemas are intentionally loose (`serde_json::Value`)
 //! until we type them against `core-api`'s AsyncAPI spec. See `docs/core-ws-protocol.md`.
 
+mod entities;
 mod events;
 
+pub use entities::*;
 pub use events::*;
 
 use anyhow::{anyhow, Context, Result};
@@ -110,7 +112,7 @@ impl Core {
     }
 
     /// All configured entities, following the server's pagination to the end.
-    pub async fn get_entities(&self) -> Result<Vec<Value>> {
+    pub async fn get_entities(&self) -> Result<Vec<Entity>> {
         const LIMIT: usize = 100;
         let mut all = Vec::new();
         for page in 1.. {
@@ -129,7 +131,7 @@ impl Core {
                 break;
             }
         }
-        Ok(all)
+        Ok(entities::parse_all(all))
     }
 
     pub async fn execute_entity_command(

@@ -3,9 +3,9 @@
 
 use crate::AppWindow;
 use crate::app::optimistic::Optimistic;
-use coreapi::{CoreEvent, EntityChange, PowerMode, WifiEvent};
+use coreapi::{Attr, CoreEvent, Entity, EntityChange, MediaState, PowerMode, WifiEvent};
 use crate::app::{Later, UiAction, settings};
-use crate::app::entity::{attr_f64, attr_str, entity_id, entity_name, has_feature, pick_entity};
+use crate::app::entity::{list, number, pick_entity, text};
 use crate::app::model::Model;
 use crate::app::title::StableTitle;
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
@@ -68,7 +68,8 @@ pub(crate) fn ask_position(session: &mut Session, tx: &mpsc::UnboundedSender<Lat
     });
 }
 pub(crate) struct Session {
-    entities: Vec<Value>,
+    /// In the order the core lists them, which picking the screen and receiver relies on.
+    entities: Vec<Entity>,
     screen: Option<String>,
     volume: Option<String>,
     position: f64,
@@ -100,11 +101,11 @@ pub(crate) struct Session {
     pending_mute: Optimistic<bool>,
 }
 impl Session {
-    fn entity(&self, id: &str) -> Option<&Value> {
-        self.entities.iter().find(|e| entity_id(e) == id)
+    fn entity(&self, id: &str) -> Option<&Entity> {
+        self.entities.iter().find(|e| e.entity_id == id)
     }
 
-    fn target(&self, t: Target) -> Option<&Value> {
+    fn target(&self, t: Target) -> Option<&Entity> {
         let id = match t {
             Target::Screen => self.screen.as_deref(),
             Target::Volume => self.volume.as_deref(),
@@ -120,19 +121,15 @@ impl Session {
         if attrs.is_empty() {
             return false;
         }
-        let Some(entity) = self.entities.iter_mut().find(|e| entity_id(e) == id) else { return false };
-        let Some(obj) = entity.as_object_mut() else { return false };
-        let cached = obj.entry("attributes").or_insert_with(|| Value::Object(Default::default()));
-        let was_playing = cached.get("state").and_then(Value::as_str) == Some("PLAYING");
-        for (k, v) in attrs {
-            cached[k.as_str()] = v.clone();
-        }
+        let Some(entity) = self.entities.iter_mut().find(|e| e.entity_id == id) else { return false };
+        let was_playing = entity.state() == MediaState::Playing;
+        entity.apply(attrs);
+        let playing = entity.state() == MediaState::Playing;
         if self.screen.as_deref() == Some(id) {
-            self.timing |= attrs.contains_key("state") || attrs.contains_key("media_position");
+            self.timing |= attrs.contains_key(Attr::State.name()) || attrs.contains_key(Attr::MediaPosition.name());
             // The position runs on from the last report only while playing; a pause or a resume without a fresh
             // position restarts the count from where it stood, so a pause is not counted as time played.
-            if let Some(state) = attrs.get("state").and_then(Value::as_str) {
-                let playing = state == "PLAYING";
+            if attrs.contains_key(Attr::State.name()) {
                 if playing != was_playing {
                     if was_playing {
                         self.position += self.position_at.elapsed().as_secs_f64();
@@ -140,7 +137,7 @@ impl Session {
                     self.position_at = Instant::now();
                 }
             }
-            if let Some(p) = attrs.get("media_position").and_then(Value::as_f64) {
+            if let Some(p) = attrs.get(Attr::MediaPosition.name()).and_then(Value::as_f64) {
                 self.position = p;
                 self.position_at = Instant::now();
             }
@@ -151,7 +148,7 @@ impl Session {
     /// Fetch the artwork whenever Kodi reports a different image URL: the poster, and behind it
     /// the item's backdrop (the poster again when it has none), blurred.
     fn sync_poster(&mut self, weak: &slint::Weak<AppWindow>) {
-        let url = attr_str(self.target(Target::Screen), "media_image_url");
+        let url = text(self.target(Target::Screen), Attr::MediaImageUrl).to_string();
         if url == self.poster_url {
             return;
         }
@@ -182,8 +179,8 @@ impl Session {
         let suffix = &settings::get().volume_limit_sensor;
         self.entities
             .iter()
-            .find(|e| !suffix.is_empty() && entity_id(e).ends_with(suffix.as_str()))
-            .and_then(|e| e.pointer("/attributes/value"))
+            .find(|e| !suffix.is_empty() && e.entity_id.ends_with(suffix.as_str()))
+            .and_then(|e| e.attributes.get(Attr::Value.name()))
             .and_then(|v| v.as_f64().or_else(|| v.as_str()?.trim().parse().ok()))
             .map(|v| (v.round() as i32).clamp(1, MAX_VOLUME))
             .unwrap_or(MAX_VOLUME)
@@ -199,13 +196,10 @@ impl Session {
     fn keys(&self) -> backlight::Ha {
         use backlight::{Ha, Mode, Rgb};
         let cfg = settings::get();
-        let ending = |suffix: &str| self.entities.iter().find(|e| !suffix.is_empty() && entity_id(e).ends_with(suffix));
-        let colour = ending(&cfg.keys_light).filter(|l| attr_str(Some(l), "state") == "ON").map(|light| {
-            let (h, s, v) = (
-                attr_f64(Some(light), "hue"),
-                attr_f64(Some(light), "saturation") / 255.0,
-                attr_f64(Some(light), "brightness") / 255.0,
-            );
+        let ending = |suffix: &str| self.entities.iter().find(|e| !suffix.is_empty() && e.entity_id.ends_with(suffix));
+        let colour = ending(&cfg.keys_light).filter(|l| l.state() == MediaState::On).map(|light| {
+            let at = |a| number(Some(light), a);
+            let (h, s, v) = (at(Attr::Hue), at(Attr::Saturation) / 255.0, at(Attr::Brightness) / 255.0);
             // HSV to RGB, with the light's brightness as the value.
             let f = |n: f64| {
                 let k = (n + h / 60.0) % 6.0;
@@ -213,7 +207,7 @@ impl Session {
             };
             Rgb(f(5.0), f(3.0), f(1.0))
         });
-        let mode = match attr_str(ending(&cfg.keys_mode), "current_option").to_lowercase().as_str() {
+        let mode = match text(ending(&cfg.keys_mode), Attr::CurrentOption).to_lowercase().as_str() {
             "off" => Mode::Off,
             "custom" => Mode::Custom,
             "" if colour.is_some() => Mode::Custom,
@@ -225,38 +219,31 @@ impl Session {
     /// Feed the title filter with what Kodi reports now. Call before `model`.
     fn settle_title(&mut self) {
         let screen = self.target(Target::Screen);
-        let media = format!("{}|{}", attr_f64(screen, "media_duration"), attr_str(screen, "media_image_url"));
-        let (title, tracks) = (attr_str(screen, "media_title"), attr_str(screen, "media_artist"));
-        let streams: Vec<String> = screen
-            .and_then(|e| e.pointer("/attributes/sound_mode_list"))
-            .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
-            .unwrap_or_default();
+        let media = format!("{}|{}", number(screen, Attr::MediaDuration), text(screen, Attr::MediaImageUrl));
+        let (title, tracks) = (text(screen, Attr::MediaTitle).to_string(), text(screen, Attr::MediaArtist).to_string());
+        let streams = list(screen, Attr::SoundModeList);
         // The driver reports the chapter playing as the media player's source.
-        self.title.feed(&media, &title, &tracks, &streams, &attr_str(screen, "source"), Instant::now());
+        let chapter = text(screen, Attr::Source).to_string();
+        self.title.feed(&media, &title, &tracks, &streams, &chapter, Instant::now());
     }
 
     fn model(&self) -> Model {
         let screen = self.target(Target::Screen);
         let receiver = self.target(Target::Volume).filter(|_| self.volume != self.screen);
         let volume_from = receiver.or(screen);
-        let state = attr_str(screen, "state");
-        let paused = state != "PLAYING";
+        let state = screen.map_or(MediaState::Unknown, Entity::state);
+        let paused = state != MediaState::Playing;
         let position = if paused { self.position } else { self.position + self.position_at.elapsed().as_secs_f64() };
-        let link = |e: Option<&Value>| {
-            let id = e?.get("integration_id")?.as_str()?;
-            self.integrations.get(id).copied()
-        };
-        let reported = attr_str(receiver, "source");
+        let link = |e: Option<&Entity>| self.integrations.get(e?.integration_id.as_deref()?).copied();
+        let reported = text(receiver, Attr::Source).to_string();
         let switching = self.pending_source.pending(&reported);
         let source = self.pending_source.resolve(reported);
-        let receiver_state = receiver.map(|r| attr_str(Some(r), "state"));
         let (status, warning) = net::health(net::Health {
             wifi_ssid: &self.wifi_ssid,
             home_assistant: link(receiver),
-            receiver: receiver_state.as_deref(),
+            receiver: receiver.map(Entity::state),
             kodi_link: link(screen),
-            kodi: screen.is_some().then_some(state.as_str()),
+            kodi: screen.is_some().then_some(state),
             on_kodi: source.is_empty() || source.eq_ignore_ascii_case("kodi"),
         });
         Model {
@@ -270,41 +257,31 @@ impl Session {
             demo_ha_down: false,
             volume: {
                 // Until the receiver has caught up, its reports are old levels on the way.
-                self.slider_volume.resolve(attr_f64(volume_from, "volume").round() as i32)
+                self.slider_volume.resolve(number(volume_from, Attr::Volume).round() as i32)
             },
             muted: {
-                self.pending_mute.resolve(volume_from.and_then(|e| e.pointer("/attributes/muted")).and_then(Value::as_bool).unwrap_or(false))
+                self.pending_mute.resolve(volume_from.and_then(|e| e.flag(Attr::Muted)).unwrap_or(false))
             },
             source,
-            sources: receiver
-                .and_then(|e| e.pointer("/attributes/source_list"))
-                .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(Value::as_str).filter(|s| !settings::get().hides(s)).map(String::from).collect())
-                .unwrap_or_default(),
+            sources: list(receiver, Attr::SourceList).into_iter().filter(|s| !settings::get().hides(s)).collect(),
             switching,
             // The Kodi driver keeps the last title, artwork and position after a stop, so only the
             // playback state says whether anything is on.
-            title: if matches!(state.as_str(), "PLAYING" | "PAUSED" | "BUFFERING") { self.title.shown.clone() } else { String::new() },
+            title: if state.is_active() { self.title.shown.clone() } else { String::new() },
             paused,
-            duration: attr_f64(screen, "media_duration"),
+            duration: number(screen, Attr::MediaDuration),
             position,
-            media_format: audio_format(&attr_str(screen, "sound_mode")),
-            media_sub: episode(&attr_str(screen, "media_type"), &attr_str(screen, "media_artist")),
-            audio_tracks: screen
-                .and_then(|e| e.pointer("/attributes/sound_mode_list"))
-                .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
-                .unwrap_or_default(),
-            audio_track: attr_str(screen, "sound_mode"),
+            media_format: audio_format(text(screen, Attr::SoundMode)),
+            media_sub: episode(text(screen, Attr::MediaType), text(screen, Attr::MediaArtist)),
+            audio_tracks: list(screen, Attr::SoundModeList),
+            audio_track: text(screen, Attr::SoundMode).to_string(),
             battery: self.battery,
             charging: self.charging,
             awake: self.awake,
             receiver_on: {
                 // The AVR is the source of truth: anything short of on (standby, unreachable, not yet
                 // known) is off.
-                let reported = receiver.is_none_or(|r| {
-                    !matches!(attr_str(Some(r), "state").as_str(), "OFF" | "STANDBY" | "UNAVAILABLE" | "UNKNOWN" | "")
-                });
+                let reported = receiver.is_none_or(|r| !matches!(r.state(), MediaState::Off | MediaState::Standby) && !r.state().is_gone());
                 self.pending_power.resolve(reported)
             },
             volume_max: self.volume_max(),
@@ -332,7 +309,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
     let is_awake = |mode: Option<PowerMode>| !follow_power || !matches!(mode, Some(PowerMode::LowPower | PowerMode::Suspend));
     let screen = pick_entity("UC_SCREEN_ENTITY", &entities, |_| true);
     let mut session = Session {
-        volume: pick_entity("UC_VOLUME_ENTITY", &entities, |e| has_feature(e, "volume_up_down")),
+        volume: pick_entity("UC_VOLUME_ENTITY", &entities, |e| e.has_feature("volume_up_down")),
         position: 0.0,
         position_at: Instant::now(),
         battery,
@@ -361,7 +338,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
     session.integrations = net::integrations(&core).await;
     session.settle_title();
     session.sync_poster(weak);
-    session.position = attr_f64(session.target(Target::Screen), "media_position");
+    session.position = number(session.target(Target::Screen), Attr::MediaPosition);
     tracing::info!(screen = ?session.screen, volume = ?session.volume, "targets");
     if let Some(screen) = &session.screen {
         kodi::learn_from_entity(screen);
@@ -439,8 +416,8 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     Later::Integrations(map) => session.integrations = map,
                     Later::Entities(entities) => {
                         for e in entities {
-                            if session.entity(entity_id(&e)).is_none() {
-                                tracing::info!("new entity {}", entity_id(&e));
+                            if session.entity(&e.entity_id).is_none() {
+                                tracing::info!("new entity {}", e.entity_id);
                                 session.entities.push(e);
                             }
                         }
@@ -699,7 +676,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 // Not every player has a toggle; the Denon via Home Assistant only has mute and unmute.
                 // The receiver reports late, so the toggle follows what this remote last asked for.
                 let cmd = if toggle_mute {
-                    let (muted, toggles) = (session.model().muted, has_feature(entity, "mute_toggle"));
+                    let (muted, toggles) = (session.model().muted, entity.has_feature("mute_toggle"));
                     session.pending_mute.ask(!muted);
                     render(weak, &session.model());
                     if toggles { cmd } else { if muted { "unmute" } else { "mute" }.to_string() }
@@ -759,12 +736,12 @@ impl Commands {
         Self { core, queues: RefCell::new(HashMap::new()) }
     }
 
-    fn send(&self, entity: &Value, cmd: String, params: Value) {
-        let id = entity_id(entity).to_string();
+    fn send(&self, entity: &Entity, cmd: String, params: Value) {
+        let id = entity.entity_id.clone();
         let mut queues = self.queues.borrow_mut();
         let tx = queues.entry(id.clone()).or_insert_with(|| {
             let (tx, mut rx) = mpsc::unbounded_channel::<Queued>();
-            let (core, name) = (self.core.clone(), entity_name(entity));
+            let (core, name) = (self.core.clone(), entity.name().to_string());
             tokio::spawn(async move {
                 while let Some((cmd, params, made)) = rx.recv().await {
                     let waited = made.elapsed();

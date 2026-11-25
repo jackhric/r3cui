@@ -1,5 +1,6 @@
 //! Wi-Fi networks and the health of each link the remote depends on.
 
+use coreapi::MediaState;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
@@ -29,9 +30,9 @@ pub struct StatusLine {
 pub struct Health<'a> {
     pub wifi_ssid: &'a str,
     pub home_assistant: Option<bool>,
-    pub receiver: Option<&'a str>,
+    pub receiver: Option<MediaState>,
     pub kodi_link: Option<bool>,
-    pub kodi: Option<&'a str>,
+    pub kodi: Option<MediaState>,
     pub on_kodi: bool,
 }
 
@@ -39,7 +40,6 @@ pub struct Health<'a> {
 pub fn health(h: Health) -> (Vec<StatusLine>, String) {
     let line = |label, value: &str, level| StatusLine { label, value: value.to_string(), level };
     let link = |label, up: bool| line(label, if up { "Connected" } else { "Unreachable" }, if up { 0 } else { 1 });
-    let gone = |state: &str| matches!(state, "" | "UNAVAILABLE" | "UNKNOWN");
 
     let mut rows = vec![if h.wifi_ssid.is_empty() { line("Wi-Fi", "Disconnected", 1) } else { line("Wi-Fi", h.wifi_ssid, 0) }];
     if let Some(up) = h.home_assistant {
@@ -48,10 +48,10 @@ pub fn health(h: Health) -> (Vec<StatusLine>, String) {
     if let Some(state) = h.receiver {
         rows.push(if h.home_assistant == Some(false) {
             line("Receiver", "Unknown", 2)
-        } else if gone(state) {
+        } else if state.is_gone() {
             line("Receiver", "Unreachable", 1)
         } else {
-            line("Receiver", if state == "OFF" { "Off" } else { "On" }, 0)
+            line("Receiver", if state == MediaState::Off { "Off" } else { "On" }, 0)
         });
     }
     if let Some(up) = h.kodi_link {
@@ -60,13 +60,13 @@ pub fn health(h: Health) -> (Vec<StatusLine>, String) {
     if let Some(state) = h.kodi {
         rows.push(if h.kodi_link == Some(false) {
             line("Kodi", "Unknown", 2)
-        } else if gone(state) {
+        } else if state.is_gone() {
             line("Kodi", "Unreachable", 1)
         } else {
             let word = match state {
-                "PLAYING" => "Playing",
-                "PAUSED" => "Paused",
-                "OFF" => "Off",
+                MediaState::Playing => "Playing",
+                MediaState::Paused => "Paused",
+                MediaState::Off => "Off",
                 _ => "Idle",
             };
             line("Kodi", word, 0)
@@ -157,7 +157,7 @@ mod tests {
     use super::*;
 
     fn all_up() -> Health<'static> {
-        Health { wifi_ssid: "home", home_assistant: Some(true), receiver: Some("ON"), kodi_link: Some(true), kodi: Some("PLAYING"), on_kodi: true }
+        Health { wifi_ssid: "home", home_assistant: Some(true), receiver: Some(MediaState::On), kodi_link: Some(true), kodi: Some(MediaState::Playing), on_kodi: true }
     }
 
     #[test]
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn kodi_trouble_only_matters_on_the_kodi_screen() {
-        let down = || Health { kodi: Some("UNAVAILABLE"), ..all_up() };
+        let down = || Health { kodi: Some(MediaState::Unavailable), ..all_up() };
         assert_eq!(health(down()).1, "Kodi unreachable");
         assert_eq!(health(Health { on_kodi: false, ..down() }).1, "");
     }

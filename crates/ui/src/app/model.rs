@@ -90,11 +90,12 @@ impl Model {
 
     /// Demo only: derive the status rows from the rest of the model.
     pub fn with_demo_health(mut self) -> Self {
-        let kodi = if self.title.is_empty() { "ON" } else if self.paused { "PAUSED" } else { "PLAYING" };
+        use coreapi::MediaState;
+        let kodi = if self.title.is_empty() { MediaState::On } else if self.paused { MediaState::Paused } else { MediaState::Playing };
         (self.status, self.warning) = net::health(net::Health {
             wifi_ssid: &self.wifi_ssid,
             home_assistant: Some(!self.demo_ha_down),
-            receiver: Some(if self.receiver_on { "ON" } else { "OFF" }),
+            receiver: Some(if self.receiver_on { MediaState::On } else { MediaState::Off }),
             kodi_link: Some(true),
             kodi: Some(kodi),
             on_kodi: self.on_kodi(),

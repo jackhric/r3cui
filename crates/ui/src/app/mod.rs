@@ -14,7 +14,6 @@ use crate::input::{slider, Button, KodiAction};
 use crate::view::screen::Picker;
 use crate::integrations::net;
 
-use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -44,7 +43,7 @@ pub(crate) enum Later {
     Wifi(String, Vec<net::Network>),
     Integrations(HashMap<String, bool>),
     /// The core's current list of configured entities.
-    Entities(Vec<Value>),
+    Entities(Vec<coreapi::Entity>),
     JoinDone(bool),
     /// Kodi's subtitle streams, as (stream index or None for off, label), and which is on.
     Subtitles(Vec<(Option<i64>, String)>, usize),
