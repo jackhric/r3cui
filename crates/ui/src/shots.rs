@@ -779,6 +779,26 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             v.push((3600, ui(|_| {})));
             v
         }
+        // The remote drives Kodi itself: four d-pad rights along the library to 2001, OK, OK again on Kodi's resume
+        // prompt, then the audio and subtitle pickers over the film.
+        "site-kodi-remote" => {
+            const RIGHT: &str = "\u{F703}";
+            vec![
+                (3500, key(RIGHT)),
+                (800, key(RIGHT)),
+                (800, key(RIGHT)),
+                (800, key(RIGHT)),
+                (1200, key("\n")),
+                (1800, key("\n")),
+                (3800, tap_at(348.0, 746.0)),
+                (1500, ui(|a| a.invoke_move(1))),
+                (900, press("\n")),
+                (1500, tap_at(132.0, 746.0)),
+                (1500, ui(|a| a.invoke_move(1))),
+                (1000, ui(|a| a.invoke_activate(a.get_focus_index()))),
+                (1800, ui(|_| {})),
+            ]
+        }
         // Kodi's library on the wall while a helper steps Kodi across to a film and plays it (about 11 s), then the
         // audio and subtitle pickers.
         "site-kodi" => vec![
@@ -991,6 +1011,8 @@ pub fn record(app: &AppWindow, tx: Tx, mut device: Device, out: PathBuf, which: 
         if pending.as_ref().is_some_and(|(wait, _)| since.elapsed() >= Duration::from_millis(*wait)) {
             if let Some((_, act)) = pending.take() {
                 act(&app, &tx);
+                let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+                println!("record step {:.3}", at.as_secs_f64());
             }
             since = Instant::now();
             pending = steps.next();
