@@ -20,9 +20,20 @@ const brands = {
   ha: { name: 'Home Assistant', colour: '#18BCF2', svg: brand(haSvg), href: 'https://www.home-assistant.io' },
 };
 
-type Feature = { title: string; text: string; clip: ReturnType<typeof clip>; wide?: boolean; brand?: keyof typeof brands };
+// The Kodi card is built from two takes recorded together, composited in the page: the TV behind, and the remote
+// (its picture on the left half of the video, its transparency on the right) in front. On phones only the remote
+// shows. `side` puts the words on the left or the right of the card, the remote on the other side.
+const cinema = {
+  tv: clips['../assets/cards/kodi-tv.mp4'],
+  tvStill: clips['../assets/cards/kodi-tv.webp'],
+  remote: clips['../assets/cards/kodi-remote.mp4'],
+  remoteStill: clips['../assets/cards/kodi-remote.webp'],
+  side: 'left' as 'left' | 'right',
+};
+
+type Feature = { title: string; text: string; clip: ReturnType<typeof clip>; wide?: boolean; brand?: keyof typeof brands; cinema?: boolean };
 const features: Feature[] = [
-  { brand: 'kodi', title: 'Deep Kodi integration', wide: true, clip: clip('kodi-deep'),
+  { brand: 'kodi', title: 'Deep Kodi integration', wide: true, cinema: true, clip: clip('kodi-deep'),
     text: "Browse your movies as a wall of posters that follows Kodi, start one, and it's front and center: the poster, the time left and the controls. Audio tracks and subtitles are a tap away, by their real names." },
   { brand: 'ha', title: 'Easy input switching', clip: clip('inputs-lava'),
     text: "Every input on your receiver, a tap away. r3cui controls your receiver's media player in Home Assistant." },
@@ -50,7 +61,8 @@ const lights = [
   </h2>
   <div class="bento">
     {features.map(f => (
-      <article class:list={['card', { wide: 'wide' in f && f.wide }]} tabindex="0">
+      <article class:list={['card', { wide: 'wide' in f && f.wide, cinema: f.cinema }]} tabindex="0" data-side={f.cinema ? cinema.side : undefined}>
+        {f.cinema && <canvas class="tv" aria-hidden="true" style={`background-image:url(${cinema.tvStill})`}></canvas>}
         <div class="copy">
           {f.brand && (
             <a class="brand" href={brands[f.brand].href} target="_blank" rel="noopener" style={`--brand:${brands[f.brand].colour}`}>
@@ -61,13 +73,33 @@ const lights = [
           <p>{f.text}</p>
         </div>
         <div class="crop" aria-hidden="true">
-          <div class="remote">
-            <img src={f.clip.poster} alt="" width="544" height="1084" loading="lazy" decoding="async" />
-            <video muted loop playsinline preload="none" width="544" height="1084" data-webm={f.clip.webm} data-mp4={f.clip.mp4}></video>
-          </div>
+          {f.cinema ? (
+            <div class="remote layered">
+              <img src={cinema.remoteStill} alt="" width="544" height="1300" loading="lazy" decoding="async" />
+              <canvas width="544" height="1300"></canvas>
+              <video class="src" muted loop playsinline preload="none" data-role="tv" data-mp4={cinema.tv}></video>
+              <video class="src" muted loop playsinline preload="none" data-role="remote" data-mp4={cinema.remote}></video>
+            </div>
+          ) : (
+            <div class="remote">
+              <img src={f.clip.poster} alt="" width="544" height="1084" loading="lazy" decoding="async" />
+              <video muted loop playsinline preload="none" width="544" height="1084" data-webm={f.clip.webm} data-mp4={f.clip.mp4}></video>
+            </div>
+          )}
         </div>
       </article>
     ))}
+    {import.meta.env.DEV && (
+      <details class="kodi-tuner" id="kodi-tuner-panel"><summary>Kodi card</summary><form id="kodi-tuner" aria-label="Kodi card tuner (dev only)">
+        <label>Words <select name="side"><option value="left">left</option><option value="right">right</option></select></label>
+        <label>Darkening <input type="range" name="scrim" min="0" max="1.4" step="0.05" value="1" /></label>
+        <label>Film framing <input type="range" name="anchor" min="0" max="1" step="0.01" value="0.62" /></label>
+        <label>Remote size <input type="range" name="width" min="150" max="320" step="2" value="220" /></label>
+        <label>Remote across <input type="range" name="x" min="-260" max="260" step="2" value="0" /></label>
+        <label>Remote down <input type="range" name="y" min="0" max="140" step="2" value="30" /></label>
+        <output name="values"></output>
+      </form></details>
+    )}
     <article class="card lights-card" tabindex="0">
       <div class="copy">
         <h3>Reactive backlighting</h3>
@@ -90,7 +122,72 @@ const lights = [
   // clip crossfades in and the remote rises. Scrolling another row into focus pauses it again.
   const still = matchMedia('(prefers-reduced-motion: reduce)');
 
+  // The Kodi card: the TV and the remote are two videos on one clock (the TV leads). Each frame the remote is put
+  // back together from its picture and its mask by a small shader, and on desktop the TV is drawn to fill the card.
+  const VS = 'attribute vec2 p;varying vec2 uv;void main(){uv=vec2((p.x+1.)/2.,(1.-p.y)/2.);gl_Position=vec4(p,0.,1.);}';
+  const FS = 'precision mediump float;varying vec2 uv;uniform sampler2D t;void main(){vec3 c=texture2D(t,vec2(uv.x*.5,uv.y)).rgb;float a=texture2D(t,vec2(.5+uv.x*.5,uv.y)).r;gl_FragColor=vec4(c,clamp((a-.02)/.96,0.,1.));}';
+  type Layered = { tv: HTMLVideoElement; remote: HTMLVideoElement; out: HTMLCanvasElement; screen: HTMLCanvasElement | null; gl: WebGLRenderingContext; raf: number };
+  const layered = new WeakMap<HTMLElement, Layered>();
+  function setUp(card: HTMLElement): Layered | null {
+    const out = card.querySelector<HTMLCanvasElement>('.remote.layered canvas')!;
+    const gl = out.getContext('webgl', { premultipliedAlpha: false, alpha: true });
+    if (!gl) return null;
+    const shader = (type: number, src: string) => { const sh = gl.createShader(type)!; gl.shaderSource(sh, src); gl.compileShader(sh); return sh; };
+    const prog = gl.createProgram()!;
+    gl.attachShader(prog, shader(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(prog); gl.useProgram(prog);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const at = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(at); gl.vertexAttribPointer(at, 2, gl.FLOAT, false, 0, 0);
+    gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+    for (const k of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    const tv = card.querySelector<HTMLVideoElement>('video[data-role="tv"]')!, remote = card.querySelector<HTMLVideoElement>('video[data-role="remote"]')!;
+    for (const v of [tv, remote]) { v.src = v.dataset.mp4!; v.load(); }
+    const l: Layered = { tv, remote, out, screen: card.querySelector<HTMLCanvasElement>('canvas.tv'), gl, raf: 0 };
+    layered.set(card, l);
+    return l;
+  }
+  function frame(card: HTMLElement, l: Layered) {
+    const { tv, remote, out, screen, gl } = l;
+    if (!tv.paused && Math.abs(remote.currentTime - tv.currentTime) > 0.08) remote.currentTime = tv.currentTime;
+    if (remote.readyState >= 2) {
+      gl.viewport(0, 0, out.width, out.height);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, remote);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      out.classList.add('live');
+    }
+    // The TV only shows on desktop; its framing (--tv-anchor, 0 left to 1 right) is a style the tuner can change.
+    if (screen && screen.offsetWidth && tv.readyState >= 2) {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      const w = Math.round(screen.offsetWidth * dpr), h = Math.round(screen.offsetHeight * dpr);
+      if (screen.width !== w || screen.height !== h) { screen.width = w; screen.height = h; }
+      const ctx = screen.getContext('2d')!;
+      const anchor = parseFloat(getComputedStyle(card).getPropertyValue('--tv-anchor')) || 0.5;
+      const k = Math.max(w / tv.videoWidth, h / tv.videoHeight), dw = tv.videoWidth * k, dh = tv.videoHeight * k;
+      ctx.drawImage(tv, (w - dw) * anchor, (h - dh) / 2, dw, dh);
+      screen.classList.add('live');
+    }
+    l.raf = requestAnimationFrame(() => frame(card, l));
+  }
+  function startLayered(card: HTMLElement) {
+    const l = layered.get(card) ?? setUp(card);
+    if (!l) return;
+    const play = () => Promise.all([l.tv.play(), l.remote.play()]);
+    play().catch(() => {
+      setTimeout(() => { if (card.classList.contains('in-focus')) play().catch(() => {}); }, 400);
+    });
+    cancelAnimationFrame(l.raf);
+    l.raf = requestAnimationFrame(() => frame(card, l));
+  }
+  function stopLayered(card: HTMLElement) {
+    const l = layered.get(card);
+    if (!l) return;
+    l.tv.pause(); l.remote.pause(); cancelAnimationFrame(l.raf);
+  }
+
   function start(card: HTMLElement) {
+    if (card.classList.contains('cinema')) { if (!still.matches) startLayered(card); return; }
     const video = card.querySelector('video');
     if (!video || still.matches) return;
     if (!video.dataset.loaded) {
@@ -110,7 +207,7 @@ const lights = [
       setTimeout(() => { if (card.classList.contains('in-focus') && video.paused) video.play().catch(() => {}); }, 400);
     });
   }
-  const stop = (card: HTMLElement) => card.querySelector('video')?.pause();
+  const stop = (card: HTMLElement) => card.classList.contains('cinema') ? stopLayered(card) : card.querySelector('video')?.pause();
 
   // Backlighting: each remote rises the nearer the pointer (or finger) is to it, so they lift and settle one by one.
   const lightsCard = document.querySelector<HTMLElement>('#features .lights-card');
@@ -237,6 +334,29 @@ const lights = [
   addEventListener('resize', queue);
   document.addEventListener('visibilitychange', () => { if (document.hidden) focusRow.forEach(stop); else { focusRow = []; pickRow(); } });
   pickRow();
+
+  // Dev server only: live controls for the Kodi card, written to its data-side and style variables.
+  if (import.meta.env.DEV) {
+    const form = document.getElementById('kodi-tuner') as HTMLFormElement | null;
+    const card = document.querySelector<HTMLElement>('#features .card.cinema');
+    if (form && card) {
+      (form.elements.namedItem('side') as HTMLSelectElement).value = card.dataset.side ?? 'left';
+      const apply = () => {
+        const v = (n: string) => (form.elements.namedItem(n) as HTMLInputElement).value;
+        card.dataset.side = v('side');
+        card.style.setProperty('--scrim', v('scrim'));
+        card.style.setProperty('--tv-anchor', v('anchor'));
+        card.style.setProperty('--remote-w', v('width') + 'px');
+        card.style.setProperty('--remote-x', v('x') + 'px');
+        card.style.setProperty('--remote-top', v('y') + 'px');
+        (form.elements.namedItem('values') as HTMLOutputElement).value =
+          `side ${v('side')} · darkening ${v('scrim')} · framing ${v('anchor')} · remote ${v('width')}px, ${v('x')}px across, ${v('y')}px down`;
+      };
+      form.addEventListener('input', apply);
+      apply();
+      if (matchMedia('(min-width: 761px)').matches) (document.getElementById('kodi-tuner-panel') as HTMLDetailsElement).open = true;
+    }
+  }
 </script>
 
 <style>
@@ -302,6 +422,54 @@ const lights = [
   .card:not(.lights-card) .remote :is(img, video) { inset: 0 0 auto; height: auto; aspect-ratio: 544 / 1084; }
   .remote video { opacity: 0; transition: opacity 0.5s ease; }
   .remote video:global(.live) { opacity: 1; }
+
+  /* The Kodi card's remote is put together from two videos (see the script): its own transparent shape, so a drop
+     shadow follows it rather than a box. Its still shows until the first frame is drawn. */
+  .remote.layered { aspect-ratio: 544 / 1300; overflow: visible; border-radius: 0; box-shadow: none; filter: drop-shadow(0 14px 26px rgb(0 0 0 / 0.3)); }
+  .card.in-focus .remote.layered { box-shadow: none; }
+  .card:not(.lights-card) .remote.layered :is(img, canvas) { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; }
+  .remote.layered canvas { opacity: 0; transition: opacity 0.5s ease; }
+  .remote.layered canvas:global(.live) { opacity: 1; }
+  .remote.layered .src { display: none; }
+  .cinema .tv { display: none; }
+
+  /* Desktop: the whole card is the TV, darkened behind the words, the remote standing in front of the film. The
+     words sit left or right (data-side), the remote on the other side. */
+  @media (min-width: 761px) {
+    .cinema {
+      --scrim: 1; --tv-anchor: 0.62; --remote-w: 220px; --remote-x: 0px; --remote-top: 30px;
+      background: #000; border-color: transparent; color: #f4f4f4;
+    }
+    .cinema .tv {
+      display: block; position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0;
+      background: center / cover no-repeat; background-position: calc(var(--tv-anchor) * 100%) 50%;
+    }
+    .cinema::before {
+      content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background: linear-gradient(var(--scrim-dir, 90deg), rgb(0 0 0 / calc(0.86 * var(--scrim))) 0%,
+        rgb(0 0 0 / calc(0.66 * var(--scrim))) 38%, rgb(0 0 0 / calc(0.12 * var(--scrim))) 70%, rgb(0 0 0 / 0) 100%);
+    }
+    .cinema .copy, .cinema .crop { position: relative; z-index: 2; }
+    .cinema .brand { color: #ffffff; }
+    .cinema p { color: rgb(255 255 255 / 0.78); }
+    .card.wide.cinema .crop { padding-top: var(--remote-top); }
+    .card.wide.cinema .remote { width: var(--remote-w); translate: var(--remote-x) var(--rest, 0px); filter: drop-shadow(0 18px 30px rgb(0 0 0 / 0.5)); }
+    .card.wide.cinema.in-focus .remote { translate: var(--remote-x) 0; }
+    .cinema[data-side='right'] { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); --scrim-dir: 270deg; }
+    .cinema[data-side='right'] .copy { order: 2; text-align: right; }
+    .cinema[data-side='right'] .crop { order: 1; }
+  }
+
+  .kodi-tuner {
+    position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 50; width: 260px;
+    max-width: calc(100vw - 32px); padding: 12px 14px; border-radius: 14px; font-size: 0.8rem;
+    background: color-mix(in srgb, var(--card) 92%, transparent); border: 1px solid var(--border);
+    box-shadow: 0 12px 30px rgb(0 0 0 / 0.25); backdrop-filter: blur(12px);
+  }
+  .kodi-tuner summary { font-weight: 700; cursor: pointer; }
+  .kodi-tuner form { display: grid; gap: 8px; margin-top: 10px; }
+  .kodi-tuner label { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; }
+  .kodi-tuner output { color: var(--muted-foreground); font-size: 0.72rem; line-height: 1.4; }
 
   /* The wide card: text beside a larger remote, the text setting the height (contain: size keeps the remote from
      growing the card). */
