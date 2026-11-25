@@ -62,7 +62,6 @@ const lights = [
   <div class="bento">
     {features.map(f => (
       <article class:list={['card', { wide: 'wide' in f && f.wide, cinema: f.cinema }]} tabindex="0" data-side={f.cinema ? cinema.side : undefined}>
-        {f.cinema && <canvas class="tv" aria-hidden="true" style={`background-image:url(${cinema.tvStill})`}></canvas>}
         <div class="copy">
           {f.brand && (
             <a class="brand" href={brands[f.brand].href} target="_blank" rel="noopener" style={`--brand:${brands[f.brand].colour}`}>
@@ -73,6 +72,7 @@ const lights = [
           <p>{f.text}</p>
         </div>
         <div class="crop" aria-hidden="true">
+          {f.cinema && <canvas class="tv" style={`background-image:url(${cinema.tvStill})`}></canvas>}
           {f.cinema ? (
             <div class="remote layered">
               <img src={cinema.remoteStill} alt="" width="544" height="1300" loading="lazy" decoding="async" />
@@ -92,18 +92,21 @@ const lights = [
     {import.meta.env.DEV && (
       <details class="kodi-tuner" id="kodi-tuner-panel"><summary>Kodi card</summary><form id="kodi-tuner" aria-label="Kodi card tuner (dev only)">
         <label>Words <select name="side"><option value="left">left</option><option value="right">right</option></select></label>
-        <label>Darkening <input type="range" name="scrim" min="0" max="1.4" step="0.05" /></label>
-        <i>Library (first 6 s)</i>
+        <i>Picture, library (first 6 s)</i>
         <label>Size <input type="range" name="zoomA" min="1" max="2.5" step="0.01" /></label>
         <label>Across <input type="range" name="axA" min="0" max="1" step="0.01" /></label>
         <label>Up/down <input type="range" name="ayA" min="0" max="1" step="0.01" /></label>
-        <i>Film (from 6 s)</i>
+        <i>Picture, film (from 6 s)</i>
         <label>Size <input type="range" name="zoomB" min="1" max="2.5" step="0.01" /></label>
         <label>Across <input type="range" name="axB" min="0" max="1" step="0.01" /></label>
         <label>Up/down <input type="range" name="ayB" min="0" max="1" step="0.01" /></label>
+        <i>Screen</i>
+        <label>Size <input type="range" name="sw" min="360" max="760" step="4" /></label>
+        <label>Across <input type="range" name="sx" min="0" max="300" step="2" /></label>
+        <label>Down <input type="range" name="sy" min="0" max="200" step="2" /></label>
         <i>Remote</i>
         <label>Size <input type="range" name="width" min="150" max="320" step="2" /></label>
-        <label>Across <input type="range" name="x" min="-260" max="260" step="2" /></label>
+        <label>Across <input type="range" name="x" min="-40" max="400" step="2" /></label>
         <label>Down <input type="range" name="y" min="0" max="140" step="2" /></label>
         <output name="values"></output>
       </form></details>
@@ -358,7 +361,7 @@ const lights = [
       (form.elements.namedItem('side') as HTMLSelectElement).value = card.dataset.side ?? 'left';
       // Each slider starts at the card's own value and writes it back as the style variable it names.
       const vars: Record<string, [string, string]> = {
-        scrim: ['--scrim', ''], zoomA: ['--tv-zoom-a', ''], axA: ['--tv-x-a', ''], ayA: ['--tv-y-a', ''],
+        sw: ['--screen-w', 'px'], sx: ['--screen-x', 'px'], sy: ['--screen-y', 'px'], zoomA: ['--tv-zoom-a', ''], axA: ['--tv-x-a', ''], ayA: ['--tv-y-a', ''],
         zoomB: ['--tv-zoom-b', ''], axB: ['--tv-x-b', ''], ayB: ['--tv-y-b', ''],
         width: ['--remote-w', 'px'], x: ['--remote-x', 'px'], y: ['--remote-top', 'px'],
       };
@@ -452,32 +455,28 @@ const lights = [
   .remote.layered .src { display: none; }
   .cinema .tv { display: none; }
 
-  /* Desktop: the whole card is the TV, darkened behind the words, the remote standing in front of the film. The
-     words sit left or right (data-side), the remote on the other side. */
+  /* Desktop: the TV floats in the media side (two thirds of the card) as a screen with a soft shadow, the remote
+     standing in front of its edge. The words take the other third, on the side data-side names. */
   @media (min-width: 761px) {
     .cinema {
-      --scrim: 1; --remote-w: 220px; --remote-x: -44px;
-      --tv-zoom-a: 1.8; --tv-x-a: 0.96; --tv-y-a: 0.74;
-      --tv-zoom-b: 1.15; --tv-x-b: 0; --tv-y-b: 0.9; --remote-top: 30px;
-      background: #000; border-color: transparent; color: #f4f4f4; container-type: inline-size;
+      --remote-w: 210px; --remote-x: 28px; --remote-top: 26px;
+      --screen-w: 600px; --screen-x: 96px; --screen-y: 64px;
+      --tv-zoom-a: 1; --tv-x-a: 0.5; --tv-y-a: 0.5;
+      --tv-zoom-b: 1; --tv-x-b: 0.5; --tv-y-b: 0.5;
     }
+    .card.wide.cinema { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+    .card.wide.cinema .crop { display: block; position: relative; padding-top: 0; }
     .cinema .tv {
-      display: block; position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0;
-      background-repeat: no-repeat; background-size: auto calc(var(--tv-zoom-b) * max(100%, 56.25cqw));
-      background-position: calc(var(--tv-x-b) * 100%) calc(var(--tv-y-b) * 100%);
+      display: block; position: absolute; left: var(--screen-x); top: var(--screen-y); width: var(--screen-w);
+      aspect-ratio: 16 / 9; border-radius: 12px; background: #000 center / cover no-repeat;
+      box-shadow: 0 18px 40px -14px rgb(0 0 0 / 0.42), 0 4px 12px rgb(0 0 0 / 0.16);
     }
-    .cinema::before {
-      content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
-      background: linear-gradient(var(--scrim-dir, 90deg), rgb(0 0 0 / calc(0.86 * var(--scrim))) 0%,
-        rgb(0 0 0 / calc(0.66 * var(--scrim))) 38%, rgb(0 0 0 / calc(0.12 * var(--scrim))) 70%, rgb(0 0 0 / 0) 100%);
+    .card.wide.cinema .remote {
+      position: absolute; left: var(--remote-x); top: var(--remote-top); width: var(--remote-w); z-index: 1;
+      translate: 0 var(--rest, 0px); filter: drop-shadow(0 16px 26px rgb(0 0 0 / 0.35));
     }
-    .cinema .copy, .cinema .crop { position: relative; z-index: 2; }
-    .cinema .brand { color: #ffffff; }
-    .cinema p { color: rgb(255 255 255 / 0.78); }
-    .card.wide.cinema .crop { padding-top: var(--remote-top); }
-    .card.wide.cinema .remote { width: var(--remote-w); translate: var(--remote-x) var(--rest, 0px); filter: drop-shadow(0 18px 30px rgb(0 0 0 / 0.5)); }
-    .card.wide.cinema.in-focus .remote { translate: var(--remote-x) 0; }
-    .cinema[data-side='right'] { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); --scrim-dir: 270deg; }
+    .card.wide.cinema.in-focus .remote { translate: 0 0; }
+    .card.wide.cinema[data-side='right'] { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
     .cinema[data-side='right'] .copy { order: 2; text-align: right; }
     .cinema[data-side='right'] .crop { order: 1; }
   }
