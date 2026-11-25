@@ -1647,14 +1647,15 @@ export component AppWindow inherits Window {
             show-menu: root.page <= 1;
             menu => { root.go(2, 0); }
         }
-        // While something plays the input's mark sits in the middle; tapping it opens the list.
+        // The input's mark sits in the middle everywhere but the input's own screen (or the receiver's off one), so
+        // away from it you can always tell where you are; tapping it opens the list.
         TouchArea {
-            property <bool> shown: root.page == 0 && root.home-view == 1 && root.sources.length > 0;
+            property <bool> shown: root.sources.length > 0 && !(root.page == 0 && (root.home-view == 2 || root.home-view == 3));
             mouse-cursor: Theme.cursor;
             x: 190px;
             width: 100px;
             height: 64px;
-            enabled: self.shown;
+            enabled: self.shown && root.page != 1;
             clicked => { root.go(1, root.source-index); }
             Logo {
                 size: 32px;
