@@ -380,7 +380,7 @@ export component AppWindow inherits Window {
     in-out property <int> focus-index: 0;
 
     // A command id for the Kodi entity.
-    callback command(string);
+    callback play-pause();
     // Raw key text; mapped to a hard button in Rust (desktop stand-in for evdev).
     callback key(string);
     callback select-source(string);
@@ -863,7 +863,7 @@ export component AppWindow inherits Window {
                             }
                             play-touch := TouchArea {
                                 mouse-cursor: Theme.cursor;
-                                clicked => { root.command("play_pause"); }
+                                clicked => { root.play-pause(); }
                             }
                         }
                         SkipButton {

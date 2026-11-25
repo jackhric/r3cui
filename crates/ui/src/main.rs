@@ -17,9 +17,10 @@ use crate::app::demo::{apply_demo_settings, run_demo};
 use crate::app::session::{RECONNECT_DELAY, run};
 use crate::art::grain;
 use crate::hardware::{backlight, feedback};
-use crate::input::wire_keyboard;
+use crate::input::{key_action, wire_keyboard, KodiAction};
 use crate::integrations::library;
 use crate::view::{parse_color, set_accent, set_status};
+use crate::view::screen::{Capture, Page, Picker, Screen};
 use crate::view::idle::{animate_lava, poke, rest_on_charger};
 use crate::view::stage::capture;
 #[cfg(feature = "device")]
@@ -73,7 +74,7 @@ fn main() -> anyhow::Result<()> {
         let weak = app.as_weak();
         move |which| {
             if let Some(app) = weak.upgrade() {
-                capture(&app, which);
+                capture(&app, Capture::from_slint(which));
             }
         }
     });
@@ -96,8 +97,20 @@ fn main() -> anyhow::Result<()> {
             let _ = tx.send(f(s.into()));
         }
     };
-    app.on_command(send(UiAction::Command));
-    app.on_key(send(UiAction::Key));
+    app.on_play_pause({
+        let tx = act_tx.clone();
+        move || {
+            let _ = tx.send(UiAction::Kodi(KodiAction::PlayPause));
+        }
+    });
+    app.on_key({
+        let tx = act_tx.clone();
+        move |text| {
+            if let Some(action) = key_action(&text) {
+                let _ = tx.send(action);
+            }
+        }
+    });
     app.on_select_source(send(UiAction::SelectSource));
     app.on_power_action(send(UiAction::Power));
     app.on_haptic(|name| feedback::ui_event(&name));
@@ -158,13 +171,13 @@ fn main() -> anyhow::Result<()> {
     app.on_open_picker({
         let tx = act_tx.clone();
         move |kind| {
-            let _ = tx.send(UiAction::OpenPicker(kind));
+            let _ = tx.send(UiAction::OpenPicker(Picker::from_slint(kind)));
         }
     });
     app.on_pick_track({
         let tx = act_tx.clone();
         move |kind, i| {
-            let _ = tx.send(UiAction::PickTrack(kind, i));
+            let _ = tx.send(UiAction::PickTrack(Picker::from_slint(kind), i.max(0) as usize));
         }
     });
     app.on_activity(poke);
@@ -204,12 +217,12 @@ fn main() -> anyhow::Result<()> {
         });
     });
 
-    if let Some(page) = arg("--page").and_then(|p| p.parse().ok()) {
+    if let Some(page) = arg("--page").and_then(|p| p.parse().ok()).and_then(Page::from_number) {
         // Pages blur the screen behind them, which needs the window to be showing.
         let weak = app.as_weak();
         slint::Timer::single_shot(Duration::from_millis(1500), move || {
             if let Some(app) = weak.upgrade() {
-                app.invoke_go(page, 0);
+                app.go_to(page, 0);
             }
         });
     }
@@ -218,7 +231,9 @@ fn main() -> anyhow::Result<()> {
     if let Some(key) = arg("--press").cloned() {
         let tx = act_tx.clone();
         slint::Timer::single_shot(Duration::from_millis(4000), move || {
-            let _ = tx.send(UiAction::Key(key));
+            if let Some(action) = key_action(&key) {
+                let _ = tx.send(action);
+            }
         });
     }
     #[cfg(feature = "preview")]

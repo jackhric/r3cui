@@ -10,7 +10,8 @@ pub(crate) mod settings;
 pub(crate) mod title;
 
 use crate::hardware::backlight;
-use crate::input::slider;
+use crate::input::{slider, Button, KodiAction};
+use crate::view::screen::Picker;
 use crate::integrations::net;
 
 use serde_json::Value;
@@ -18,8 +19,12 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 pub(crate) enum UiAction {
-    Command(String),
-    Key(String),
+    /// A remote button (on the desktop, a key standing in for one).
+    Button(Button),
+    /// A Kodi action from the screen itself, such as the play button on Now Playing.
+    Kodi(KodiAction),
+    /// Desktop only: a key that toggles part of the demo (c charging, x Home Assistant down, z awake).
+    DemoKey(char),
     SelectSource(String),
     Power(String),
     PowerHeld,
@@ -28,9 +33,9 @@ pub(crate) enum UiAction {
     WifiJoin { ssid: String, hex: String, password: String },
     Backlight(backlight::Keys),
     Seek(i32),
-    /// 0 audio, 1 subtitles
-    OpenPicker(i32),
-    PickTrack(i32, i32),
+    OpenPicker(Picker),
+    /// A row of the picker, by position.
+    PickTrack(Picker, usize),
     Slider(slider::Gesture),
     Display { brightness: i32, auto: bool },
 }

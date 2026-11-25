@@ -4,7 +4,10 @@ pub(crate) mod format;
 pub(crate) mod idle;
 pub(crate) mod keyboard;
 pub(crate) mod lava;
+pub(crate) mod screen;
 pub(crate) mod stage;
+
+use crate::view::screen::{Capture, JoinState, Page, Screen};
 use crate::{AppWindow, Choice, Logos, SourceRow, StatusRow, Theme, WifiRow};
 
 use crate::app::settings;
@@ -63,7 +66,7 @@ pub(crate) fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, Stri
             .collect();
         let focus = rows.iter().position(|r| r.checked).unwrap_or(0) as i32;
         app.set_tracks(ModelRc::new(VecModel::from(rows)));
-        if app.get_page() == 9 {
+        if app.on_page(Page::Tracks) {
             app.set_focus_index(focus);
         }
     });
@@ -71,11 +74,11 @@ pub(crate) fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, Stri
 /// Leave the keyboard for the network list, or for the failure page.
 pub(crate) fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
     ui(weak, move |app| {
-        if app.get_page() != 6 {
+        if !app.on_page(Page::Password) {
             return;
         }
-        app.set_join_state(if ok { 0 } else { 2 });
-        app.invoke_go(if ok { 5 } else { 8 }, 0);
+        app.show_join(if ok { JoinState::Idle } else { JoinState::Failed });
+        app.go_to(if ok { Page::Wifi } else { Page::JoinFailed }, 0);
     });
 }
 /// Show the volume overlay and hide it again once the keys have been quiet for a moment.
@@ -83,7 +86,7 @@ pub(crate) fn flash_volume(weak: &slint::Weak<AppWindow>, generation: &Arc<Atomi
     let mine = generation.fetch_add(1, Ordering::SeqCst) + 1;
     ui(weak, |app| {
         if !app.get_volume_overlay() {
-            capture(&app, 1);
+            capture(&app, Capture::World);
         }
         app.set_volume_overlay(true);
     });
@@ -156,7 +159,7 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     if m.charging != app.get_charging() {
         // Put on the charger: show the battery, and start counting down to dark from now.
         if m.charging {
-            capture(app, 1);
+            capture(app, Capture::World);
         }
         app.set_charge_card(m.charging);
         if m.charging {

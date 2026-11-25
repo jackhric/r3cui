@@ -2,6 +2,8 @@
 //! that list with the highlighted title lifted out. Kodi sends no event when the highlight
 //! moves, so it is asked after every key press, and once a second besides.
 
+use crate::input::KodiAction;
+use crate::view::screen::{LibMode, Screen};
 use crate::{integrations::kodi, AppWindow, LibItem};
 use serde_json::Value;
 use slint::Model as _;
@@ -50,18 +52,18 @@ fn demo_hidden(it: &Value) -> bool {
 
 /// A d-pad key went to Kodi: move the wall's highlight where Kodi's will go. Kodi's panel stops at the end
 /// of a row and moves a whole row of its own up or down.
-pub fn predict(weak: &slint::Weak<AppWindow>, cmd: &str) {
+pub fn predict(weak: &slint::Weak<AppWindow>, action: KodiAction) {
     let mut c = CURSOR.lock().unwrap_or_else(|e| e.into_inner());
     let (at, len, col, cols) = (c.at as i64, c.len as i64, c.column, c.columns);
     if len == 0 || col < 0 {
         return;
     }
-    let (at, column) = match cmd {
-        "cursor_right" if at + 1 < len && (cols == 0 || col + 1 < cols) => (at + 1, col + 1),
-        "cursor_left" if at > 0 && col > 0 => (at - 1, col - 1),
-        "cursor_down" if cols > 0 && at + cols < len => (at + cols, col),
-        "cursor_up" if cols > 0 && at - cols >= 0 => (at - cols, col),
-        "cursor_up" | "cursor_down" if cols == 0 => {
+    let (at, column) = match action {
+        KodiAction::Right if at + 1 < len && (cols == 0 || col + 1 < cols) => (at + 1, col + 1),
+        KodiAction::Left if at > 0 && col > 0 => (at - 1, col - 1),
+        KodiAction::Down if cols > 0 && at + cols < len => (at + cols, col),
+        KodiAction::Up if cols > 0 && at - cols >= 0 => (at - cols, col),
+        KodiAction::Up | KodiAction::Down if cols == 0 => {
             c.vertical = Some(c.at);
             return;
         }
@@ -71,7 +73,7 @@ pub fn predict(weak: &slint::Weak<AppWindow>, cmd: &str) {
     c.column = column;
     c.held = Some(Instant::now() + HOLD);
     crate::view::ui_call(weak, move |app| {
-        if app.get_lib_mode() == 4 {
+        if app.lib_mode() == LibMode::Wall {
             app.set_lib_focus(at as i32);
         }
     });
@@ -215,7 +217,7 @@ pub fn start(weak: slint::Weak<AppWindow>) {
                             app.set_lib_count(count.into());
                             URLS.with(|u| *u.borrow_mut() = (generation, urls));
                             // A different list while the wall is up comes in the same way.
-                            if app.get_lib_mode() == 4 {
+                            if app.lib_mode() == LibMode::Wall {
                                 crate::view::stage::reveal_library(&app, std::time::Duration::ZERO);
                             }
                         });
@@ -249,14 +251,14 @@ pub fn start(weak: slint::Weak<AppWindow>) {
                     }
                     crate::view::ui_call(&weak, move |app| {
                         app.set_lib_focus(at as i32);
-                        crate::view::stage::library_stage(&app, 4);
+                        crate::view::stage::library_stage(&app, LibMode::Wall);
                     });
                     fetch_posters(&weak, ids, at, &loading);
                 }
                 _ => {
                     CURSOR.lock().unwrap_or_else(|e| e.into_inner()).len = 0;
                     if shown.take().is_some() {
-                        crate::view::ui_call(&weak, |app| crate::view::stage::library_stage(&app, 0));
+                        crate::view::ui_call(&weak, |app| crate::view::stage::library_stage(&app, LibMode::Off));
                     }
                 }
             }

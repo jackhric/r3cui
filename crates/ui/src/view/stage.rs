@@ -4,22 +4,23 @@
 use crate::AppWindow;
 use crate::app::model::Model;
 use crate::art::pixels;
+use crate::view::screen::{Capture, LibMode, Page, Screen};
 
 use slint::ComponentHandle;
 use std::cell::RefCell;
 use std::time::Duration;
 
 /// The stage as it looks right now, alone and unreceded.
-/// The window as it would look with `capturing` set (1: the stage alone, 2: stage and world, see app.slint).
-fn snapshot(app: &AppWindow, capturing: i32) -> Option<image::RgbaImage> {
-    app.set_capturing(capturing);
+/// The window as one blur's picture: the stage alone, or the stage with the world over it.
+fn snapshot(app: &AppWindow, what: Capture) -> Option<image::RgbaImage> {
+    app.set_capturing(what as i32);
     let shot = app.window().take_snapshot();
     app.set_capturing(0);
     let shot = shot.map_err(|e| tracing::warn!("snapshot: {e}")).ok()?;
     image::RgbaImage::from_raw(shot.width(), shot.height(), shot.as_bytes().to_vec())
 }
 pub(crate) fn snapshot_stage(app: &AppWindow) -> Option<image::RgbaImage> {
-    snapshot(app, 1)
+    snapshot(app, Capture::Stage)
 }
 pub(crate) fn soften(img: &image::RgbaImage, sigma: f32) -> slint::Image {
     let small = image::imageops::resize(img, 60, 100, image::imageops::FilterType::Triangle);
@@ -39,26 +40,26 @@ thread_local!(static STAGE: RefCell<Option<StageKey>> = const { RefCell::new(Non
 /// view, blur through from the old one to the new.
 pub(crate) fn stage_change(app: &AppWindow, m: &Model, change: impl FnOnce()) {
     let playing = m.on_kodi() && !m.title.is_empty();
-    let key = StageKey { receiver_on: m.receiver_on, playing, source: m.source.clone(), library: app.get_lib_mode() > 0 && !playing };
+    let key = StageKey { receiver_on: m.receiver_on, playing, source: m.source.clone(), library: app.lib_mode() != LibMode::Off && !playing };
     swap_stage(app, key, change);
 }
 /// Show or hide the poster wall, blurring across like any other change of stage.
-pub(crate) fn library_stage(app: &AppWindow, mode: i32) {
-    if app.get_lib_mode() == mode {
+pub(crate) fn library_stage(app: &AppWindow, mode: LibMode) {
+    if app.lib_mode() == mode {
         return;
     }
     let Some(mut key) = STAGE.with(|s| s.borrow().clone()) else {
-        app.set_lib_mode(mode);
+        app.show_lib_mode(mode);
         return;
     };
-    key.library = mode > 0 && !key.playing;
+    key.library = mode != LibMode::Off && !key.playing;
     swap_stage(app, key, || {
-        app.set_lib_mode(mode);
-        if mode > 0 {
+        app.show_lib_mode(mode);
+        if mode != LibMode::Off {
             app.invoke_hold_library();
         }
     });
-    if mode > 0 {
+    if mode != LibMode::Off {
         // Under way as the old stage's blur clears, rather than hidden beneath it.
         reveal_library(app, Duration::from_millis(250));
     }
@@ -75,7 +76,7 @@ pub(crate) fn reveal_library(app: &AppWindow, delay: Duration) {
 }
 pub(crate) fn swap_stage(app: &AppWindow, key: StageKey, change: impl FnOnce()) {
     let before = STAGE.with(|s| s.replace(Some(key.clone())));
-    let visible = app.get_page() == 0 && app.get_lit() && app.get_capturing() == 0;
+    let visible = app.on_page(Page::Home) && app.get_lit() && app.get_capturing() == 0;
     if before.is_none() || before.as_ref() == Some(&key) || !visible {
         change();
         return;
@@ -99,12 +100,11 @@ pub(crate) fn swap_stage(app: &AppWindow, key: StageKey, change: impl FnOnce()) 
 }
 /// A soft, blurred picture of the screen for a layer that is about to recede: 0 the stage alone,
 /// 1 everything under the overlays.
-pub(crate) fn capture(app: &AppWindow, which: i32) {
-    let Some(full) = snapshot(app, which + 1) else { return };
+pub(crate) fn capture(app: &AppWindow, what: Capture) {
+    let Some(full) = snapshot(app, what) else { return };
     let img = soften(&full, 1.6);
-    if which == 0 {
-        app.set_stage_blur(img);
-    } else {
-        app.set_world_blur(img);
+    match what {
+        Capture::Stage => app.set_stage_blur(img),
+        Capture::World => app.set_world_blur(img),
     }
 }

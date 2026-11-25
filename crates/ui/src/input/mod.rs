@@ -6,6 +6,7 @@ pub(crate) mod slider;
 use crate::{AppWindow, Icons, KeyCell};
 use crate::app::UiAction;
 use crate::view::keyboard;
+use crate::view::screen::{JoinState, Screen};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -35,6 +36,75 @@ pub enum Button {
     Record,
 }
 
+/// What a button asks for. Kodi's actions go to whatever drives Kodi (today the core's Kodi entity), the receiver's
+/// to its media player in Home Assistant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action {
+    Kodi(KodiAction),
+    Receiver(ReceiverCmd),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KodiAction {
+    Up,
+    Down,
+    Left,
+    Right,
+    Select,
+    Back,
+    Home,
+    Menu,
+    ChannelUp,
+    ChannelDown,
+    Previous,
+    PlayPause,
+    Next,
+    Stop,
+    Record,
+}
+
+impl KodiAction {
+    /// The core's `media_player` command for it.
+    pub fn command(self) -> &'static str {
+        match self {
+            Self::Up => "cursor_up",
+            Self::Down => "cursor_down",
+            Self::Left => "cursor_left",
+            Self::Right => "cursor_right",
+            Self::Select => "cursor_enter",
+            Self::Back => "back",
+            Self::Home => "home",
+            Self::Menu => "menu",
+            Self::ChannelUp => "channel_up",
+            Self::ChannelDown => "channel_down",
+            Self::Previous => "previous",
+            Self::PlayPause => "play_pause",
+            Self::Next => "next",
+            Self::Stop => "stop",
+            Self::Record => "record",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReceiverCmd {
+    VolumeUp,
+    VolumeDown,
+    MuteToggle,
+}
+
+impl ReceiverCmd {
+    /// The core's `media_player` command for it.
+    pub fn command(self) -> &'static str {
+        match self {
+            Self::VolumeUp => "volume_up",
+            Self::VolumeDown => "volume_down",
+            Self::MuteToggle => "mute_toggle",
+        }
+    }
+}
+
+/// Which configured entity a command goes to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
     /// The entity the screen is showing (Kodi).
@@ -96,27 +166,36 @@ impl Button {
         }
     }
 
-    pub fn route(self) -> (Target, &'static str) {
+    pub fn action(self) -> Action {
+        use {Action::*, KodiAction as K, ReceiverCmd as R};
         match self {
-            Self::VolumeUp => (Target::Volume, "volume_up"),
-            Self::VolumeDown => (Target::Volume, "volume_down"),
-            Self::Mute => (Target::Volume, "mute_toggle"),
-            Self::Back => (Target::Screen, "back"),
-            Self::Home => (Target::Screen, "home"),
-            Self::Menu => (Target::Screen, "menu"),
-            Self::DpadUp => (Target::Screen, "cursor_up"),
-            Self::DpadDown => (Target::Screen, "cursor_down"),
-            Self::DpadLeft => (Target::Screen, "cursor_left"),
-            Self::DpadRight => (Target::Screen, "cursor_right"),
-            Self::DpadMiddle => (Target::Screen, "cursor_enter"),
-            Self::ChannelUp => (Target::Screen, "channel_up"),
-            Self::ChannelDown => (Target::Screen, "channel_down"),
-            Self::Prev => (Target::Screen, "previous"),
-            Self::Play => (Target::Screen, "play_pause"),
-            Self::Next => (Target::Screen, "next"),
-            Self::Stop => (Target::Screen, "stop"),
-            Self::Record => (Target::Screen, "record"),
+            Self::VolumeUp => Receiver(R::VolumeUp),
+            Self::VolumeDown => Receiver(R::VolumeDown),
+            Self::Mute => Receiver(R::MuteToggle),
+            Self::Back => Kodi(K::Back),
+            Self::Home => Kodi(K::Home),
+            Self::Menu => Kodi(K::Menu),
+            Self::DpadUp => Kodi(K::Up),
+            Self::DpadDown => Kodi(K::Down),
+            Self::DpadLeft => Kodi(K::Left),
+            Self::DpadRight => Kodi(K::Right),
+            Self::DpadMiddle => Kodi(K::Select),
+            Self::ChannelUp => Kodi(K::ChannelUp),
+            Self::ChannelDown => Kodi(K::ChannelDown),
+            Self::Prev => Kodi(K::Previous),
+            Self::Play => Kodi(K::PlayPause),
+            Self::Next => Kodi(K::Next),
+            Self::Stop => Kodi(K::Stop),
+            Self::Record => Kodi(K::Record),
         }
+    }
+}
+
+/// A key from the desktop keyboard (or a script): a remote button when it stands for one, otherwise a demo toggle.
+pub(crate) fn key_action(text: &str) -> Option<UiAction> {
+    match Button::from_key(text) {
+        Some(b) => Some(UiAction::Button(b)),
+        None => text.chars().next().map(UiAction::DemoKey),
     }
 }
 
@@ -161,7 +240,7 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
                 keyboard::Outcome::Leave => app.invoke_back(),
                 keyboard::Outcome::Join(password) => {
                     let target = app.get_wifi_target();
-                    app.set_join_state(1);
+                    app.show_join(JoinState::Joining);
                     let _ = tx.send(UiAction::WifiJoin { ssid: target.ssid.into(), hex: target.ssid_hex.into(), password });
                 }
             }

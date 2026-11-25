@@ -15,7 +15,8 @@ use crate::integrations::net::wifi_band;
 use crate::integrations::receiver::{MAX_VOLUME, on_power, slide};
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_tracks, ui};
 use crate::view::format::{audio_format, duration_label, episode, split_track};
-use crate::input::{Button, Target};
+use crate::input::{Action, KodiAction, ReceiverCmd, Target};
+use crate::view::screen::Picker;
 
 use serde_json::{json, Value};
 use std::cell::RefCell;
@@ -530,8 +531,15 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 }
             }
             Some(action) = actions.recv() => {
+                // A Kodi action, kept for the poster wall's prediction; and whether this is a mute toggle, which
+                // the receiver may not support as such.
+                let mut pressed: Option<KodiAction> = None;
+                let mut toggle_mute = false;
                 let (target, cmd, params) = match action {
-                    UiAction::Command(cmd) => (Target::Screen, cmd, Value::Null),
+                    UiAction::Kodi(a) => {
+                        pressed = Some(a);
+                        (Target::Screen, a.command().to_string(), Value::Null)
+                    }
                     UiAction::SelectSource(name) => {
                         session.pending_source.ask(name.clone());
                         render(weak, &session.model());
@@ -570,13 +578,13 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         render(weak, &session.model());
                         (Target::Screen, "seek".to_string(), json!({ "media_position": to.round() as i64 }))
                     }
-                    UiAction::OpenPicker(0) => {
+                    UiAction::OpenPicker(Picker::Audio) => {
                         let m = session.model();
                         let current = m.audio_tracks.iter().position(|t| *t == m.audio_track).unwrap_or(usize::MAX);
                         show_tracks(weak, m.audio_tracks.iter().map(|t| split_track(t)).collect(), current);
                         continue;
                     }
-                    UiAction::OpenPicker(_) => {
+                    UiAction::OpenPicker(Picker::Subtitles) => {
                         show_tracks(weak, Vec::new(), usize::MAX);
                         let Some(base) = kodi::endpoint() else { continue };
                         let tx = later_tx.clone();
@@ -590,12 +598,12 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         });
                         continue;
                     }
-                    UiAction::PickTrack(0, i) => {
-                        let Some(mode) = session.model().audio_tracks.get(i as usize).cloned() else { continue };
+                    UiAction::PickTrack(Picker::Audio, i) => {
+                        let Some(mode) = session.model().audio_tracks.get(i).cloned() else { continue };
                         (Target::Screen, "select_sound_mode".to_string(), json!({ "mode": mode }))
                     }
-                    UiAction::PickTrack(_, i) => {
-                        let (Some(base), Some(id)) = (kodi::endpoint(), session.subtitle_ids.get(i as usize).copied()) else { continue };
+                    UiAction::PickTrack(Picker::Subtitles, i) => {
+                        let (Some(base), Some(id)) = (kodi::endpoint(), session.subtitle_ids.get(i).copied()) else { continue };
                         tokio::task::spawn_blocking(move || {
                             if let Err(e) = kodi::set_subtitle(&base, id) {
                                 tracing::warn!("set subtitle: {e:#}");
@@ -616,7 +624,8 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     UiAction::Slider(slider::Gesture::DoubleTap) => {
                         feedback::play(feedback::SLIDER_MUTE);
                         flash_volume(weak, &overlay);
-                        (Target::Volume, "mute_toggle".to_string(), Value::Null)
+                        toggle_mute = true;
+                        (Target::Volume, ReceiverCmd::MuteToggle.command().to_string(), Value::Null)
                     }
                     UiAction::WifiBand => {
                         let Some(next) = (match session.wifi_band.as_str() { "a" => Some("b"), "b" => Some("a"), _ => None }) else { continue };
@@ -661,19 +670,21 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         }
                         continue;
                     }
-                    UiAction::Key(text) => match Button::from_key(&text) {
-                        Some(b) => {
-                            let (target, cmd) = b.route();
-                            if target == Target::Volume {
-                                flash_volume(weak, &overlay);
-                                if matches!(b, Button::VolumeUp | Button::VolumeDown) {
-                                    feedback::play(feedback::VOLUME);
-                                }
-                            }
-                            (target, cmd.to_string(), Value::Null)
+                    UiAction::Button(b) => match b.action() {
+                        Action::Kodi(a) => {
+                            pressed = Some(a);
+                            (Target::Screen, a.command().to_string(), Value::Null)
                         }
-                        None => continue,
+                        Action::Receiver(r) => {
+                            flash_volume(weak, &overlay);
+                            match r {
+                                ReceiverCmd::VolumeUp | ReceiverCmd::VolumeDown => feedback::play(feedback::VOLUME),
+                                ReceiverCmd::MuteToggle => toggle_mute = true,
+                            }
+                            (Target::Volume, r.command().to_string(), Value::Null)
+                        }
                     },
+                    UiAction::DemoKey(_) => continue,
                 };
                 let Some(entity) = session.target(target) else {
                     tracing::warn!("{cmd}: no {target:?} entity");
@@ -681,7 +692,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 };
                 // Not every player has a toggle; the Denon via Home Assistant only has mute and unmute.
                 // The receiver reports late, so the toggle follows what this remote last asked for.
-                let cmd = if cmd == "mute_toggle" && target == Target::Volume {
+                let cmd = if toggle_mute {
                     let (muted, toggles) = (session.model().muted, has_feature(entity, "mute_toggle"));
                     session.pending_mute.ask(!muted);
                     render(weak, &session.model());
@@ -690,8 +701,8 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     cmd
                 };
                 let Some(entity) = session.target(target) else { continue };
-                if target == Target::Screen {
-                    library::predict(weak, &cmd);
+                if let Some(a) = pressed {
+                    library::predict(weak, a);
                 }
                 commands.send(entity, cmd, params);
                 if target == Target::Screen {

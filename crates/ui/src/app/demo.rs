@@ -6,6 +6,7 @@ use crate::app::model::Model;
 use crate::art::{backdrop_pixels, poster_pixels, vibrant};
 use crate::hardware::feedback;
 use crate::input::{Button, slider};
+use crate::view::screen::Picker;
 use crate::integrations::net;
 use crate::integrations::receiver::slide;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_tracks};
@@ -31,8 +32,8 @@ pub(crate) fn apply_demo_settings(app: &AppWindow) {
     app.set_screen_off_after("60 s".into());
     app.set_sleep_after("3 min".into());
 }
-pub(crate) fn demo_tracks(m: &Model, kind: i32, subtitle: usize) -> (Vec<(String, String)>, usize) {
-    if kind == 0 {
+pub(crate) fn demo_tracks(m: &Model, kind: Picker, subtitle: usize) -> (Vec<(String, String)>, usize) {
+    if kind == Picker::Audio {
         let current = m.audio_tracks.iter().position(|t| *t == m.audio_track).unwrap_or(usize::MAX);
         (m.audio_tracks.iter().map(|t| split_track(t)).collect(), current)
     } else {
@@ -106,13 +107,13 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
                     let (rows, current) = demo_tracks(&m, kind, demo_subtitle);
                     show_tracks(weak, rows, current);
                 }
-                UiAction::PickTrack(0, i) => {
-                    if let Some(t) = m.audio_tracks.get(i as usize) {
+                UiAction::PickTrack(Picker::Audio, i) => {
+                    if let Some(t) = m.audio_tracks.get(i) {
                         m.audio_track = t.clone();
                         m.media_format = audio_format(t);
                     }
                 }
-                UiAction::PickTrack(_, i) => demo_subtitle = i as usize,
+                UiAction::PickTrack(Picker::Subtitles, i) => demo_subtitle = i,
                 UiAction::Slider(slider::Gesture::Steps(n)) => {
                     let before = m.volume;
                     m.volume = slide(m.volume, n, m.volume_max);
@@ -125,27 +126,27 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
                     m.muted = !m.muted;
                     flash_volume(weak, &overlay);
                 }
-                UiAction::Key(text) if text == "c" => m.charging = !m.charging,
-                UiAction::Key(text) if text == "x" => m.demo_ha_down = !m.demo_ha_down,
+                UiAction::DemoKey('c') => m.charging = !m.charging,
+                UiAction::DemoKey('x') => m.demo_ha_down = !m.demo_ha_down,
                 UiAction::SelectSource(name) => {
                     m.source = name;
                     m.switching = true;
                     after(1800, Later::Switched);
                 }
-                UiAction::Command(cmd) => tracing::info!("kodi command {cmd}"),
+                UiAction::Kodi(a) => tracing::info!("kodi {a:?}"),
                 UiAction::Power(what) => tracing::info!("power action {what}"),
                 UiAction::PowerHeld => m.receiver_on = !m.receiver_on,
                 // Stand-in for the core's power-mode event.
-                UiAction::Key(text) if text == "z" => m.awake = !m.awake,
-                UiAction::Key(text) => match Button::from_key(&text) {
-                    Some(Button::VolumeUp) => { m.volume = (m.volume + 1).min(m.volume_max); m.muted = false; flash_volume(weak, &overlay); feedback::play(feedback::VOLUME); }
-                    Some(Button::VolumeDown) => { m.volume = (m.volume - 1).max(0); m.muted = false; flash_volume(weak, &overlay); feedback::play(feedback::VOLUME); }
-                    Some(Button::Mute) => { m.muted = !m.muted; flash_volume(weak, &overlay); }
-                    Some(Button::Play) if m.title.is_empty() => m.title = title.clone(),
-                    Some(Button::Play) => m.paused = !m.paused,
-                    Some(Button::Stop) => m.title.clear(),
-                    Some(b) => tracing::info!("key {}", b.name()),
-                    None => {}
+                UiAction::DemoKey('z') => m.awake = !m.awake,
+                UiAction::DemoKey(_) => {}
+                UiAction::Button(b) => match b {
+                    Button::VolumeUp => { m.volume = (m.volume + 1).min(m.volume_max); m.muted = false; flash_volume(weak, &overlay); feedback::play(feedback::VOLUME); }
+                    Button::VolumeDown => { m.volume = (m.volume - 1).max(0); m.muted = false; flash_volume(weak, &overlay); feedback::play(feedback::VOLUME); }
+                    Button::Mute => { m.muted = !m.muted; flash_volume(weak, &overlay); }
+                    Button::Play if m.title.is_empty() => m.title = title.clone(),
+                    Button::Play => m.paused = !m.paused,
+                    Button::Stop => m.title.clear(),
+                    other => tracing::info!("key {}", other.name()),
                 },
             },
         }
