@@ -31,13 +31,21 @@ const cinema = {
   side: 'right' as 'left' | 'right',
 };
 
-type Feature = { title: string; text: string; clip: ReturnType<typeof clip>; wide?: boolean; brand?: keyof typeof brands; cinema?: boolean };
+// A card without a product of its own gets an icon in the brand mark's place, so its heading lines up with its
+// neighbour's. A speaker with its sound waves, drawn in the site's accent.
+const volumeIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4.7a.7.7 0 0 0-1.19-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/></svg>';
+
+// Each card opens its feature's page in the docs; the arrow in its corner is the link, stretched over the card.
+const doc = (slug: string) => `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}docs/features/${slug}/`;
+const arrow = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>';
+
+type Feature = { title: string; text: string; clip: ReturnType<typeof clip>; wide?: boolean; brand?: keyof typeof brands; cinema?: boolean; icon?: string; doc: string };
 const features: Feature[] = [
-  { brand: 'kodi', title: 'Kodi integration', wide: true, cinema: true, clip: clip('kodi-deep'),
+  { doc: 'kodi', brand: 'kodi', title: 'Kodi integration', wide: true, cinema: true, clip: clip('kodi-deep'),
     text: "r3cui ties deep into Kodi and uses rich metadata to give you a second screen that follows library navigation + media playback. It looks nice too!" },
-  { brand: 'ha', title: 'Easy input switching', clip: clip('inputs-lava'),
+  { doc: 'input-switching', brand: 'ha', title: 'Easy input switching', clip: clip('inputs-lava'),
     text: "Every input on your receiver, a tap away. r3cui controls your receiver's media player in Home Assistant." },
-  { title: 'Global volume', clip: clip('matrix-volume'),
+  { doc: 'volume', title: 'Global volume', icon: volumeIcon, clip: clip('matrix-volume'),
     text: 'The touch slider under the screen and the volume keys drive your receiver, wherever you are in the UI.' },
 ];
 
@@ -63,6 +71,8 @@ const lights = [
     {features.map(f => (
       <article class:list={['card', { wide: 'wide' in f && f.wide, cinema: f.cinema }]} tabindex="0" data-side={f.cinema ? cinema.side : undefined}>
         <div class="copy">
+          <a class="more" href={doc(f.doc)}><span class="sr-only">{f.title}: read more</span><span class="arrow"><Fragment set:html={arrow} /></span></a>
+          {f.icon && <span class="brand icon" aria-hidden="true"><Fragment set:html={f.icon} /></span>}
           {f.brand && (
             <a class="brand" href={brands[f.brand].href} target="_blank" rel="noopener" style={`--brand:${brands[f.brand].colour}`}>
               <Fragment set:html={brands[f.brand].svg} /><span class="sr-only">{brands[f.brand].name}</span>
@@ -103,7 +113,7 @@ const lights = [
         <i>Screen</i>
         <label>Size <input type="range" name="sw" min="360" max="760" step="4" /></label>
         <label>Across <input type="range" name="sx" min="0" max="300" step="2" /></label>
-        <label>Down <input type="range" name="sy" min="0" max="200" step="2" /></label>
+        <label>Up/down <input type="range" name="sy" min="-150" max="150" step="2" /></label>
         <i>Remote</i>
         <label>Size <input type="range" name="width" min="150" max="320" step="2" /></label>
         <label>Across <input type="range" name="x" min="-40" max="400" step="2" /></label>
@@ -113,6 +123,7 @@ const lights = [
     )}
     <article class="card lights-card" tabindex="0">
       <div class="copy">
+        <a class="more" href={doc('backlighting')}><span class="sr-only">Reactive backlighting: read more</span><span class="arrow"><Fragment set:html={arrow} /></span></a>
         <h3>Reactive backlighting</h3>
         <p>The buttons light up to match what's on screen: the colours of the poster for the film that's playing, or the
           colour of the input you've switched to.</p>
@@ -408,6 +419,22 @@ const lights = [
   /* The product a card builds on: its real logo in its own colour, with its name. */
   .brand { display: inline-flex; margin-bottom: 18px; color: var(--foreground); text-decoration: none; position: relative; z-index: 1; }
   .brand :global(svg) { display: block; height: 26px; width: auto; flex: none; }
+  .brand.icon { color: var(--primary); }
+  /* The whole card opens its docs page: the link's box covers the card, under the brand links. The arrow in the
+     corner says so, and turns to the accent and nudges out on hover. */
+  .more { position: static; }
+  .more::after { content: ''; position: absolute; inset: 0; z-index: 3; border-radius: inherit; }
+  .brand { z-index: 4; }
+  .more .arrow {
+    position: absolute; top: 16px; right: 16px; z-index: 4; display: grid; place-items: center; width: 34px; height: 34px;
+    border-radius: 999px; color: var(--muted-foreground); background: var(--card);
+    border: 1px solid var(--border); transition: color 0.2s ease, border-color 0.2s ease, translate 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .more .arrow :global(svg) { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .card:hover .more .arrow, .more:focus-visible .arrow { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); translate: 2px -2px; }
+  .more:focus-visible { outline: none; }
+  .card:has(.more:focus-visible) { box-shadow: 0 0 0 2px var(--primary); }
+  .brand.icon :global(svg) { width: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .brand:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 4px; }
   h3 { margin: 0 0 6px; font-size: 1.12rem; letter-spacing: -0.01em; }
   p { margin: 0; color: var(--muted-foreground); }
@@ -466,14 +493,14 @@ const lights = [
   @container bento (min-width: 1120px) {
     .cinema {
       --remote-w: 210px; --remote-x: 28px; --remote-top: 26px;
-      --screen-w: 600px; --screen-x: 96px; --screen-y: 64px;
+      --screen-w: 600px; --screen-x: 96px; --screen-y: 0px;
       --tv-zoom-a: 1; --tv-x-a: 0.5; --tv-y-a: 0.5;
       --tv-zoom-b: 1; --tv-x-b: 0.5; --tv-y-b: 0.5;
     }
     .card.wide.cinema { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
     .card.wide.cinema .crop { display: block; position: relative; padding-top: 0; }
     .cinema .tv {
-      display: block; position: absolute; left: var(--screen-x); top: var(--screen-y);
+      display: block; position: absolute; left: var(--screen-x); top: 50%; translate: 0 calc(-50% + var(--screen-y));
       width: min(var(--screen-w), 100% - var(--screen-x) - 24px);
       aspect-ratio: 16 / 9; border-radius: 12px; background: #000 center / cover no-repeat;
       box-shadow: 0 18px 40px -14px rgb(0 0 0 / 0.42), 0 4px 12px rgb(0 0 0 / 0.16);

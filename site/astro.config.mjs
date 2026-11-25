@@ -37,7 +37,10 @@ export default defineConfig({
         { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/r3cui/apple-touch-icon.png' } },
         { tag: 'link', attrs: { rel: 'alternate', type: 'text/plain', title: 'r3cui for AI assistants', href: '/r3cui/llms.txt' } },
       ],
-      sidebar: [{ label: 'Start here', items: ['docs', 'docs/getting-started', 'docs/faq'] }],
+      sidebar: [
+        { label: 'Start here', items: ['docs', 'docs/getting-started', 'docs/faq'] },
+        { label: 'Features', items: ['docs/features/kodi', 'docs/features/input-switching', 'docs/features/volume', 'docs/features/backlighting'] },
+      ],
     }),
   ],
   vite: {
