@@ -796,7 +796,8 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             ]
         }
         // The remote drives Kodi itself: two d-pad rights along one row of the library to 2001, OK, OK again on
-        // Kodi's resume prompt, then the audio and subtitle pickers over the film.
+        // Kodi's resume prompt, then the audio and subtitle pickers over the film, held on English subtitles long
+        // enough for HAL's lines to show.
         "site-kodi-remote" => {
             const RIGHT: &str = "\u{F703}";
             vec![
@@ -810,7 +811,7 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
                 (1500, tap_at(132.0, 746.0)),
                 (1500, ui(|a| a.invoke_move(1))),
                 (1000, ui(|a| a.invoke_activate(a.get_focus_index()))),
-                (1800, ui(|_| {})),
+                (25000, ui(|_| {})),
             ]
         }
         // Kodi's library on the wall while a helper steps Kodi across to a film and plays it (about 11 s), then the
