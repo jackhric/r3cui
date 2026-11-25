@@ -12,6 +12,7 @@ path = "src/main.rs"
 coreapi = { path = "../coreapi" }
 tokio.workspace = true
 kodi = { path = "../kodi" }
+drivers = { path = "../drivers" }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true

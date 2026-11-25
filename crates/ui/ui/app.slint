@@ -10,6 +10,8 @@ import { Library, LibItem } from "library.slint";
 export { Choice, Theme, Logos, Icons, Marks, Codecs }
 
 export struct SourceRow {
+    // What the source calls it; picking a row sends this.
+    id: string,
     name: string,
     icon: string,
 }
@@ -305,8 +307,8 @@ export component AppWindow inherits Window {
     in property <[SourceRow]> sources;
     in property <int> source-index;
 
-    // True while the receiver is on the Kodi input: the home page becomes the Kodi remote.
-    in property <bool> kodi;
+    // True while the input on now has something in its UI slot: the home page is its stage.
+    in property <bool> staged;
     in property <string> media-title;
     in property <image> poster;
     in-out property <color> poster-accent;
@@ -459,7 +461,7 @@ export component AppWindow inherits Window {
     property <bool> home-used;
     property <bool> home-rumbling;
     // 1 Kodi is playing, 2 the input's mark (every input, Kodi included, when idle), 3 receiver off
-    property <int> home-view: !root.receiver-on ? 3 : root.kodi && root.media-title != "" ? 1 : root.lib-mode > 0 ? 4 : 2;
+    property <int> home-view: !root.receiver-on ? 3 : root.staged && root.media-title != "" ? 1 : root.lib-mode > 0 ? 4 : 2;
 
     // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
     public function go(p: int, f: int) {
@@ -515,7 +517,7 @@ export component AppWindow inherits Window {
                 root.focus-index = 0;
             }
         } else if (root.page == 1) {
-            root.select-source(root.sources[i].name);
+            root.select-source(root.sources[i].id);
             root.go(0, 0);
         } else if (root.page == 2) {
             if (i == 0) {

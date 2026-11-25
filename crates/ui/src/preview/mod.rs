@@ -2,3 +2,4 @@
 
 pub(crate) mod device;
 pub(crate) mod shots;
+pub(crate) mod steps;

@@ -1,17 +1,19 @@
 //! Everything the screen shows, independent of where it came from (core or demo).
 
-use crate::app::settings;
 use crate::hardware::backlight;
-use crate::integrations::{wifi, health};
-
+use crate::remote::{health, wifi};
 
 /// Everything the screen shows, independent of where it came from (core or demo).
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Model {
     pub volume: i32,
     pub muted: bool,
+    /// The input on now, by id.
     pub source: String,
-    pub sources: Vec<String>,
+    /// The inputs to choose from, in order, hidden ones left out.
+    pub sources: Vec<Source>,
+    /// The input on now has something in its UI slot: the home page is its stage.
+    pub staged: bool,
     /// The input was just picked here and the receiver has not confirmed it yet.
     pub switching: bool,
     pub title: String,
@@ -20,13 +22,13 @@ pub(crate) struct Model {
     pub position: f64,
     pub media_format: String,
     pub media_sub: String,
-    /// Kodi's audio streams as it names them, and the one playing.
+    /// Demo only: the audio streams as named, and the one playing.
     pub audio_tracks: Vec<String>,
     pub audio_track: String,
     pub battery: i32,
     /// On the dock or a cable.
     pub charging: bool,
-    /// The highest volume the receiver allows (its own volume limit), on the same scale as `volume`.
+    /// The highest volume allowed (the receiver's own volume limit), on the same scale as `volume`.
     pub volume_max: i32,
     pub awake: bool,
     pub receiver_on: bool,
@@ -41,17 +43,19 @@ pub(crate) struct Model {
     /// Demo only: pretend Home Assistant cannot be reached.
     pub demo_ha_down: bool,
 }
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Source {
+    pub id: String,
+    pub name: String,
+}
 impl Model {
     pub fn demo() -> Self {
         Self {
             volume: 62,
             muted: false,
             source: "PLAYSTATION 5".into(),
-            sources: ["ANDROID TV", "Bluetooth", "HEOS Music", "KODI", "NET", "PLAYSTATION 5", "XBOX 360"]
-                .into_iter()
-                .filter(|s| !settings::get().hides(s))
-                .map(String::from)
-                .collect(),
+            sources: ["ANDROID TV", "KODI", "PLAYSTATION 5", "XBOX 360"].into_iter().map(|s| Source { id: s.into(), name: s.into() }).collect(),
             title: "Mad Max: Fury Road".into(),
             paused: false,
             duration: 7200.0,
@@ -90,26 +94,10 @@ impl Model {
 
     /// Demo only: derive the status rows from the rest of the model.
     pub fn with_demo_health(mut self) -> Self {
-        use coreapi::MediaState;
-        let kodi = if self.title.is_empty() { MediaState::On } else if self.paused { MediaState::Paused } else { MediaState::Playing };
-        (self.status, self.warning) = health::health(health::Health {
-            wifi_ssid: &self.wifi_ssid,
-            home_assistant: Some(!self.demo_ha_down),
-            receiver: Some(if self.receiver_on { MediaState::On } else { MediaState::Off }),
-            kodi_link: Some(true),
-            kodi: Some(kodi),
-            on_kodi: self.on_kodi(),
-        });
+        use drivers::api::{Health, Status};
+        let link = |name: &str, up: bool| health::Link { name: name.into(), status: Status::new(if up { Health::Up } else { Health::Down }), in_use: true };
+        self.staged = self.source.eq_ignore_ascii_case("kodi");
+        (self.status, self.warning) = health::health(&self.wifi_ssid, &[link("Home Assistant", !self.demo_ha_down), link("Kodi", true)]);
         self
-    }
-
-    /// With no receiver entity there is no input to follow, so the screen stays on Kodi.
-    /// Kodi's library may show on the stage: Kodi on screen, nothing playing, the remote awake.
-    pub(crate) fn wall_allowed(&self) -> bool {
-        self.receiver_on && self.on_kodi() && self.title.is_empty() && self.awake
-    }
-
-    pub(crate) fn on_kodi(&self) -> bool {
-        self.source.is_empty() || self.source.eq_ignore_ascii_case("kodi")
     }
 }

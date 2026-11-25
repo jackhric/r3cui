@@ -51,10 +51,26 @@ the keyboard stands in (`crates/ui/src/input/mod.rs`); the footer line shows wha
 | `H` `M` | HOME, MENU | `S` `R` | stop, record |
 | PgUp / PgDn | channel up / down | | |
 
-Volume keys go to the receiver, `UC_VOLUME_ENTITY` (an entity id; unset, the first media_player with
-`volume_up_down` that isn't Kodi). Everything else goes straight to Kodi through r3cui's own client
-(`crates/kodi`). Kodi's address is `kodi.host` in `config/settings.json`, or `UC_KODI_HOST`; failing both, it is
-taken from the core's Kodi entity name (`UC_SCREEN_ENTITY`, or the first Kodi `media_player`).
+Volume and mute go to global control; Home and the input key (`V`) are the remote's own; everything else goes to
+the current input's remote slot. What fills those is `config/modules.json` (see docs/drivers.md); on the first run
+it is filled from the old `kodi` and `hidden_sources` keys of `config/settings.json`, if any.
+
+## Stand-ins for Kodi and Home Assistant
+
+The drivers can run against in-process fakes, so the whole UI works with no Kodi or Home Assistant at hand:
+
+```sh
+cargo run -p kodi --features testing --example fake -- 127.0.0.1:9095            # six films, d-pad walks them
+cargo run -p homeassistant --features testing --example fake -- 127.0.0.1:8124 t # a receiver with inputs
+```
+
+The simulator's own demo Home Assistant (`127.0.0.1:8123`, token `HASS_TOKEN` in the simulator's `docker/.env`) has
+a `media_player.receiver` that works as global control too.
+
+## Driving the live app
+
+`--steps <file> --out <dir>` presses keys through the window and takes pictures along the way
+(`crates/ui/src/preview/steps.rs` lists the steps). `awake` puts away the charger card the simulator always shows.
 
 ## Hot reload
 

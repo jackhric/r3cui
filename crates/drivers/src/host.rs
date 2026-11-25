@@ -198,9 +198,16 @@ impl Host {
         self.shown = now;
     }
 
-    /// One row per driver set up: its name and how it is.
-    pub fn statuses(&self) -> Vec<(String, Status)> {
-        self.running.values().map(|r| (r.driver.spec().name.to_string(), r.driver.status().borrow().clone())).collect()
+    /// One row per driver set up: its instance id, its name and how it is.
+    pub fn statuses(&self) -> Vec<(String, String, Status)> {
+        self.running.iter().map(|(id, r)| (id.clone(), r.driver.spec().name.to_string(), r.driver.status().borrow().clone())).collect()
+    }
+
+    /// Whether global control or `input` relies on the driver `id`.
+    pub fn in_use(&self, id: &str, input: Option<&Input>) -> bool {
+        let g = &self.modules.global;
+        let bound = [&g.volume, &g.source].into_iter().flatten().any(|b| b.driver == id);
+        bound || input.is_some_and(|i| i.remote.as_deref() == Some(id) || i.ui.as_deref() == Some(id))
     }
 }
 
@@ -311,7 +318,10 @@ mod tests {
         changes.borrow_and_update();
         fakes.get("fake-player").set_status(Status::new(Health::Up));
         tokio::time::timeout(Duration::from_secs(1), changes.changed()).await.unwrap().unwrap();
-        assert_eq!(host.statuses().iter().map(|(n, s)| (n.as_str(), s.health)).collect::<Vec<_>>(), [("Fake", Health::Connecting), ("Fake", Health::Up)]);
+        assert_eq!(host.statuses().iter().map(|(id, _, s)| (id.as_str(), s.health)).collect::<Vec<_>>(), [("fake-global", Health::Connecting), ("fake-player", Health::Up)]);
+        assert!(host.in_use("fake-global", None));
+        report_sources(&fakes.get("fake-global"), "KODI");
+        assert!(host.in_use("fake-player", host.current("KODI").as_ref()) && !host.in_use("fake-player", None));
     }
 
     #[tokio::test]

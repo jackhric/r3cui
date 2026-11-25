@@ -4,6 +4,7 @@ pub(crate) mod format;
 pub(crate) mod idle;
 pub(crate) mod keyboard;
 pub(crate) mod lava;
+pub(crate) mod library;
 pub(crate) mod screen;
 pub(crate) mod stage;
 
@@ -13,7 +14,7 @@ use crate::{AppWindow, Choice, Logos, SourceRow, StatusRow, Theme, WifiRow};
 use crate::app::settings;
 use crate::app::model::Model;
 use crate::hardware::backlight;
-use crate::integrations::receiver::{volume_db, volume_percent};
+use crate::app::global::{volume_db, volume_percent};
 use crate::view::format::{band_label, clock, codec_badge, codec_logo, source_logo};
 use crate::view::idle::poke;
 use crate::view::stage::{capture, stage_change};
@@ -41,7 +42,7 @@ pub(crate) fn set_poster_accent(app: &AppWindow, tint: Option<(u8, u8, u8)>) {
         app.set_poster_accent(slint::Color::from_rgb_u8(r, g, b));
     }
     // The poster arrives after the film is already showing, so take the colour up at once.
-    let film_on_screen = app.get_receiver_on() && app.get_kodi() && !app.get_media_title().is_empty();
+    let film_on_screen = app.get_receiver_on() && app.get_staged() && !app.get_media_title().is_empty();
     if film_on_screen && tint.is_some() && std::env::var_os("UC_ACCENT").is_none() {
         set_accent(app, app.get_poster_accent());
     }
@@ -97,9 +98,6 @@ pub(crate) fn flash_volume(weak: &slint::Weak<AppWindow>, generation: &Arc<Atomi
         }
     });
 }
-pub(crate) fn ui_call(weak: &slint::Weak<AppWindow>, f: impl FnOnce(AppWindow) + Send + 'static) {
-    ui(weak, f)
-}
 pub(crate) fn ui(weak: &slint::Weak<AppWindow>, f: impl FnOnce(AppWindow) + Send + 'static) {
     let weak = weak.clone();
     let _ = slint::invoke_from_event_loop(move || {
@@ -144,7 +142,7 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
 
     app.set_clock(now.format("%H:%M").to_string().into());
     if std::env::var_os("UC_ACCENT").is_none() {
-        let film_on_screen = m.receiver_on && m.on_kodi() && !m.title.is_empty() && app.get_poster_tinted();
+        let film_on_screen = m.receiver_on && m.staged && !m.title.is_empty() && app.get_poster_tinted();
         let accent = if film_on_screen { Some(app.get_poster_accent()) } else { settings::get().accent_for(&m.source).and_then(parse_color) };
         if let Some(accent) = accent {
             set_accent(app, accent);
@@ -172,16 +170,14 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     app.set_volume_db(volume_db(m.volume).into());
     app.set_muted(m.muted);
 
-    app.set_source(m.source.as_str().into());
+    let name = m.sources.iter().find(|s| s.id == m.source).map_or(m.source.as_str(), |s| s.name.as_str());
+    app.set_source(name.into());
     app.set_switching(m.switching);
     app.set_source_icon(source_logo(&logos, &m.source));
-    let current = m.sources.iter().position(|s| *s == m.source).map_or(-1, |i| i as i32);
-    if app.get_sources().iter().map(|r| r.name).ne(m.sources.iter().map(SharedString::from)) {
-        let rows: Vec<SourceRow> = m
-            .sources
-            .iter()
-            .map(|s| SourceRow { name: s.into(), icon: source_logo(&logos, s) })
-            .collect();
+    let current = m.sources.iter().position(|s| s.id == m.source).map_or(-1, |i| i as i32);
+    let rows: Vec<SourceRow> =
+        m.sources.iter().map(|s| SourceRow { id: (&s.id).into(), name: (&s.name).into(), icon: source_logo(&logos, &s.id) }).collect();
+    if app.get_sources().iter().ne(rows.iter().cloned()) {
         app.set_sources(ModelRc::new(VecModel::from(rows)));
     }
     app.set_source_index(current);
@@ -189,7 +185,7 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
         .sources
         .iter()
         .enumerate()
-        .map(|(i, s)| Choice { label: s.into(), icon: source_logo(&logos, s), checked: i as i32 == current, ..Default::default() })
+        .map(|(i, s)| Choice { label: (&s.name).into(), icon: source_logo(&logos, &s.id), checked: i as i32 == current, ..Default::default() })
         .collect();
     if app.get_input_choices().iter().ne(inputs.iter().cloned()) {
         app.set_input_choices(ModelRc::new(VecModel::from(inputs)));
@@ -225,18 +221,18 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
         app.set_wifi_choices(ModelRc::new(VecModel::from(networks)));
     }
     let status: Vec<StatusRow> =
-        m.status.iter().map(|s| StatusRow { label: s.label.into(), value: (&s.value).into(), level: s.level }).collect();
+        m.status.iter().map(|s| StatusRow { label: (&s.label).into(), value: (&s.value).into(), level: s.level }).collect();
     if app.get_status_rows().iter().ne(status.iter().cloned()) {
         app.set_status_rows(ModelRc::new(VecModel::from(status)));
     }
     let status_rows: Vec<Choice> =
-        m.status.iter().map(|s| Choice { label: s.label.into(), value: (&s.value).into(), dot: s.level + 1, ..Default::default() }).collect();
+        m.status.iter().map(|s| Choice { label: (&s.label).into(), value: (&s.value).into(), dot: s.level + 1, ..Default::default() }).collect();
     if app.get_status_choices().iter().ne(status_rows.iter().cloned()) {
         app.set_status_choices(ModelRc::new(VecModel::from(status_rows)));
     }
     app.set_home_warning(m.warning.as_str().into());
 
-    app.set_kodi(m.on_kodi());
+    app.set_staged(m.staged);
     app.set_media_title(m.title.as_str().into());
     app.set_media_sub(m.media_sub.as_str().into());
     app.set_paused(m.paused);

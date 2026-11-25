@@ -5,6 +5,8 @@ mod cursor;
 mod entry;
 mod library;
 
+pub use entry::entry as library_item;
+
 use crate::api::*;
 use crate::config::DriverEntry;
 use crate::run::follow;

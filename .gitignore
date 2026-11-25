@@ -18,3 +18,6 @@ docs/design/device/
 
 # Generated previews (stills and recordings); they include the manufacturer photo.
 docs/design/poc-shots/
+
+# Local driver setup: it holds tokens.
+config/modules.json

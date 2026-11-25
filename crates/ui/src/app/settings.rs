@@ -18,17 +18,10 @@ pub struct Settings {
     /// Environment variables to set before the display starts, for diagnostics such as
     /// `SLINT_DEBUG_PERFORMANCE`.
     pub env: Vec<(String, String)>,
-    /// Entity-id endings of the Home Assistant helpers that steer the key backlight.
-    pub keys_light: String,
-    pub keys_mode: String,
-    /// Receiver inputs to leave out of the input list, compared without regard to case.
-    pub hidden_sources: Vec<String>,
     /// How strongly the menu's lava background shows, 0 (off) to 1.
     pub lava: Option<f32>,
     /// The least time between two volume commands from the slider, so the receiver keeps up.
     pub volume_interval_ms: Option<u64>,
-    /// Entity-id ending of the Home Assistant sensor holding the receiver's volume limit.
-    pub volume_limit_sensor: String,
     /// Haptic feedback on or off; the core's own setting must also allow it.
     pub haptics_enabled: Option<bool>,
     /// 0 (off) to 1 (full): lowers the strength of every pattern.
@@ -38,16 +31,21 @@ pub struct Settings {
     pub sound_volume: Option<f32>,
     /// How the poster wall shows the highlighted title: 1 sheet, 2 overlay (the default), 3 inline.
     pub wall_style: Option<i32>,
-    /// Where Kodi is, when not learnt from the core's Kodi entity.
-    pub kodi_host: Option<String>,
-    pub kodi_http_port: Option<u16>,
-    pub kodi_ws_port: Option<u16>,
+    /// Read only to fill a first `modules.json`; drivers are set up there now.
+    legacy: Legacy,
+}
+
+/// What `settings.json` used to say about Kodi and the inputs.
+#[derive(Debug, Default)]
+struct Legacy {
+    kodi: Option<KodiFile>,
+    hidden_sources: Vec<String>,
 }
 
 impl Settings {
-    /// The colour for an input. With no receiver there is no input, and the screen is Kodi's.
+    /// The colour for an input, by its id.
     pub fn accent_for(&self, source: &str) -> Option<&str> {
-        let name = if source.trim().is_empty() { "kodi".to_string() } else { source.to_lowercase() };
+        let name = source.to_lowercase();
         self.source_accents
             .iter()
             .find(|(fragment, _)| name.contains(fragment.as_str()))
@@ -55,8 +53,30 @@ impl Settings {
             .or(self.accent.as_deref())
     }
 
-    pub fn hides(&self, source: &str) -> bool {
-        self.hidden_sources.iter().any(|h| h.eq_ignore_ascii_case(source.trim()))
+    /// A first `modules.json` from what `settings.json` used to hold: Kodi in the remote and UI slots of the KODI
+    /// input (and of Default, for a setup with no source yet), and the hidden inputs. Home Assistant has to be set up
+    /// anew: the old settings never said where it was.
+    pub fn legacy_modules(&self) -> Option<drivers::Modules> {
+        let l = &self.legacy;
+        if l.kodi.is_none() && l.hidden_sources.is_empty() {
+            return None;
+        }
+        let mut m = drivers::Modules::default();
+        if let Some(k) = l.kodi.as_ref().filter(|k| k.host.is_some()) {
+            m.add_driver("kodi", Default::default());
+            let port = |p: Option<u16>| p.map(|p| p.to_string()).unwrap_or_default();
+            for (key, value) in [("host", k.host.clone().unwrap_or_default()), ("http_port", port(k.http_port)), ("ws_port", port(k.ws_port))] {
+                m.set_field("kodi", key, &value);
+            }
+            for input in ["KODI", drivers::DEFAULT_INPUT] {
+                m.set_slot(input, drivers::Slot::Remote, Some("kodi".into()));
+                m.set_slot(input, drivers::Slot::Ui, Some("kodi".into()));
+            }
+        }
+        for h in &l.hidden_sources {
+            m.set_hidden(h, true);
+        }
+        Some(m)
     }
 }
 
@@ -86,12 +106,9 @@ struct File {
     source_accents: BTreeMap<String, String>,
     renderer: Option<String>,
     env: BTreeMap<String, String>,
-    keys_light: Option<String>,
-    keys_mode: Option<String>,
     hidden_sources: Vec<String>,
     lava: Option<f32>,
     volume_interval_ms: Option<u64>,
-    volume_limit_sensor: Option<String>,
     haptics_enabled: Option<bool>,
     haptics_intensity: Option<f32>,
     sound_enabled: Option<bool>,
@@ -101,7 +118,7 @@ struct File {
 }
 
 /// `"kodi": { "host": "…", "http_port": 8080, "ws_port": 9090 }`
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Debug)]
 #[serde(default)]
 struct KodiFile {
     host: Option<String>,
@@ -117,10 +134,6 @@ fn parse(text: &str) -> Result<Settings, String> {
         source_accents: f.source_accents.into_iter().map(|(k, c)| (k.to_lowercase(), c)).collect(),
         renderer: f.renderer,
         env: f.env.into_iter().collect(),
-        keys_light: f.keys_light.unwrap_or_else(|| "light.theater_remote_keys".into()),
-        keys_mode: f.keys_mode.unwrap_or_else(|| "theater_remote_keys_mode".into()),
-        hidden_sources: f.hidden_sources,
-        volume_limit_sensor: f.volume_limit_sensor.unwrap_or_else(|| "sensor.theater_receiver_volume_limit".into()),
         volume_interval_ms: f.volume_interval_ms,
         lava: unit(f.lava),
         haptics_enabled: f.haptics_enabled,
@@ -128,9 +141,7 @@ fn parse(text: &str) -> Result<Settings, String> {
         sound_enabled: f.sound_enabled,
         sound_volume: unit(f.sound_volume),
         wall_style: f.wall_style.map(|x| x.clamp(1, 3)),
-        kodi_host: f.kodi.as_ref().and_then(|k| k.host.clone()),
-        kodi_http_port: f.kodi.as_ref().and_then(|k| k.http_port),
-        kodi_ws_port: f.kodi.as_ref().and_then(|k| k.ws_port),
+        legacy: Legacy { kodi: f.kodi, hidden_sources: f.hidden_sources },
     })
 }
 
@@ -139,11 +150,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hidden_sources_ignore_case() {
-        let s = parse(r#"{"hidden_sources": ["NET", "HEOS Music"]}"#).unwrap();
-        assert!(s.hides("heos music") && s.hides("Net"));
-        assert!(!s.hides("KODI"));
-        assert_eq!(s.accent, None);
+    fn old_settings_fill_a_first_modules_json() {
+        let s = parse(r#"{"hidden_sources": ["NET"], "kodi": {"host": "theater", "ws_port": 9091}}"#).unwrap();
+        let m = s.legacy_modules().unwrap();
+        assert_eq!(m.drivers["kodi"].text("host").as_deref(), Some("theater"));
+        assert_eq!(m.drivers["kodi"].text("ws_port").as_deref(), Some("9091"));
+        assert_eq!(m.input("KODI").unwrap().ui.as_deref(), Some("kodi"));
+        assert!(m.input("NET").unwrap().hidden);
+        assert_eq!(parse("{}").unwrap().legacy_modules(), None);
     }
 
     #[test]
@@ -155,9 +169,6 @@ mod tests {
 
     #[test]
     fn defaults_fill_what_is_missing() {
-        let s = parse("{}").unwrap();
-        assert_eq!(s.keys_light, "light.theater_remote_keys");
-        assert_eq!(s.volume_limit_sensor, "sensor.theater_receiver_volume_limit");
         assert_eq!(parse(r#"{"wall_style": 9}"#).unwrap().wall_style, Some(3));
         let e = parse(r#"{"lava": "high"}"#).unwrap_err();
         assert!(e.contains("line 1 column"), "{e}");
@@ -166,7 +177,7 @@ mod tests {
     #[test]
     fn the_shipped_file_parses() {
         let s = parse(include_str!("../../../../config/settings.json")).unwrap();
-        assert!(s.hides("NET") && s.accent_for("PlayStation 5").is_some());
+        assert!(s.accent_for("PlayStation 5").is_some());
     }
 
     #[test]
@@ -174,7 +185,6 @@ mod tests {
         let s = parse(r##"{"accent": "#FFFFFF", "source_accents": {"kodi": "#FF0000", "PlayStation": "#0000FF"}}"##).unwrap();
         assert_eq!(s.accent_for("PLAYSTATION 5"), Some("#0000FF"));
         assert_eq!(s.accent_for("KODI"), Some("#FF0000"));
-        assert_eq!(s.accent_for(""), Some("#FF0000"), "no receiver means the Kodi screen");
         assert_eq!(s.accent_for("TV Audio"), Some("#FFFFFF"));
     }
 }

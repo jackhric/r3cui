@@ -4,7 +4,7 @@ use crate::api::LibraryItem;
 use kodi::methods::library::FileItem;
 
 /// `poster` is the artwork's full URL.
-pub(crate) fn entry(it: &FileItem, shows: bool, poster: String) -> LibraryItem {
+pub fn entry(it: &FileItem, shows: bool, poster: String) -> LibraryItem {
     let year = it.year;
     let mpaa = certificate(&it.mpaa);
     let (meta, detail, progress) = if shows {

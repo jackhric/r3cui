@@ -7,8 +7,8 @@ use crate::art::{backdrop_pixels, poster_pixels, vibrant};
 use crate::hardware::feedback;
 use crate::input::{Button, slider};
 use crate::view::screen::Picker;
-use crate::integrations::wifi;
-use crate::integrations::receiver::slide;
+use crate::remote::wifi;
+use crate::app::global::slide;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_tracks};
 use crate::view::format::{audio_format, split_track};
 
@@ -75,7 +75,6 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
             }
             Some(later) = later_rx.recv() => match later {
                 Later::Wifi(_, networks) => (m.wifi, m.scanning) = (networks, false),
-                Later::Integrations(_) | Later::Entities(_) => {}
                 Later::Switched => m.switching = false,
                 Later::SendVolume => {}
                 Later::JoinDone(ok) => {
@@ -133,7 +132,7 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
                     m.switching = true;
                     after(1800, Later::Switched);
                 }
-                UiAction::Kodi(a) => tracing::info!("kodi {a:?}"),
+                UiAction::PlayPause => m.paused = !m.paused,
                 UiAction::Power(what) => tracing::info!("power action {what}"),
                 UiAction::PowerHeld => m.receiver_on = !m.receiver_on,
                 // Stand-in for the core's power-mode event.

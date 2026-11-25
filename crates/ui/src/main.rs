@@ -1,5 +1,5 @@
-//! remote-ui: a single-purpose theater remote. The receiver's volume and input come from one
-//! entity, Kodi's playback from another; the screen shows whichever the receiver is switched to.
+//! remote-ui: a theater remote. Global control (volume, inputs) and each input's remote and UI slots are filled by
+//! drivers set up in `modules.json`; the remote's own state comes from the core.
 //! The tokio runtime runs on its own thread and pushes a `Model` into the Slint event loop via
 //! `invoke_from_event_loop`; UI callbacks flow back over a channel. See docs/plan.md.
 
@@ -7,18 +7,17 @@ mod app;
 mod art;
 mod hardware;
 mod input;
-mod integrations;
 #[cfg(feature = "preview")]
 mod preview;
+mod remote;
 mod view;
 
 use crate::app::{UiAction, settings};
 use crate::app::demo::{apply_demo_settings, run_demo};
-use crate::app::session::{RECONNECT_DELAY, run};
+use crate::app::session::{Frontend, RECONNECT_DELAY, run};
 use crate::art::grain;
 use crate::hardware::{backlight, feedback};
-use crate::input::{key_action, wire_keyboard, KodiAction};
-use crate::integrations::library::Library;
+use crate::input::{key_action, wire_keyboard};
 use crate::view::{parse_color, set_accent, set_status};
 use crate::view::screen::{Capture, Page, Picker, Screen};
 use crate::view::idle::{animate_lava, poke, rest_on_charger};
@@ -100,7 +99,7 @@ fn main() -> anyhow::Result<()> {
     app.on_play_pause({
         let tx = act_tx.clone();
         move || {
-            let _ = tx.send(UiAction::Kodi(KodiAction::PlayPause));
+            let _ = tx.send(UiAction::PlayPause);
         }
     });
     app.on_key({
@@ -203,10 +202,9 @@ fn main() -> anyhow::Result<()> {
                 run_demo(&weak, &mut act_rx).await;
                 return;
             }
-            let library = Library::start(weak.clone());
-            let kodi = tokio::sync::OnceCell::new();
+            let mut front = Frontend::start(weak.clone());
             loop {
-                match run(&weak, &mut act_rx, &library, &kodi).await {
+                match run(&weak, &mut act_rx, &mut front).await {
                     Ok(()) => set_status(&weak, false, "Disconnected, retrying…".to_string()),
                     Err(e) => {
                         tracing::error!("core session failed: {e:#}");
@@ -237,6 +235,11 @@ fn main() -> anyhow::Result<()> {
             }
         });
     }
+    #[cfg(feature = "preview")]
+    let _steps = match arg("--steps") {
+        Some(script) => Some(preview::steps::run(&app, std::path::Path::new(script), arg("--out").map_or_else(|| "steps".into(), Into::into))?),
+        None => None,
+    };
     #[cfg(feature = "preview")]
     let _snap = arg("--snap").map(|out| shots::snap(&app, out.into(), device::Device::load_opt(arg("--frame"))));
     // The window is the source of truth for what is on screen, so the key backlight follows it

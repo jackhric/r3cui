@@ -39,7 +39,7 @@ thread_local!(static STAGE: RefCell<Option<StageKey>> = const { RefCell::new(Non
 /// Apply `change`, and if it moved the window to a different main stage while the stage is in
 /// view, blur through from the old one to the new.
 pub(crate) fn stage_change(app: &AppWindow, m: &Model, change: impl FnOnce()) {
-    let playing = m.on_kodi() && !m.title.is_empty();
+    let playing = m.staged && !m.title.is_empty();
     let key = StageKey { receiver_on: m.receiver_on, playing, source: m.source.clone(), library: app.lib_mode() != LibMode::Off && !playing };
     swap_stage(app, key, change);
 }

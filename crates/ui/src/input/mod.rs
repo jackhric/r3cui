@@ -5,7 +5,7 @@ pub(crate) mod evdev;
 pub(crate) mod slider;
 use crate::{AppWindow, Icons, KeyCell};
 use crate::app::UiAction;
-use coreapi::MediaPlayerCmd;
+use drivers::api::RemoteKey;
 use crate::view::keyboard;
 use crate::view::screen::{JoinState, Screen};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
@@ -37,49 +37,19 @@ pub enum Button {
     Record,
 }
 
-/// What a button asks for: a Kodi action (for r3cui's own Kodi client), or a command for the receiver's media player
-/// in Home Assistant.
+/// Where a button goes: the global volume, or the current input's remote slot. Home, power and the input key are
+/// r3cui's own and handled in the window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Action {
-    Kodi(KodiAction),
-    Receiver(ReceiverCmd),
+pub enum Route {
+    Volume(VolumeKey),
+    Remote(RemoteKey),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KodiAction {
+pub enum VolumeKey {
     Up,
     Down,
-    Left,
-    Right,
-    Select,
-    Back,
-    Home,
-    Menu,
-    ChannelUp,
-    ChannelDown,
-    Previous,
-    PlayPause,
-    Next,
-    Stop,
-    Record,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReceiverCmd {
-    VolumeUp,
-    VolumeDown,
-    MuteToggle,
-}
-
-impl ReceiverCmd {
-    /// The core's media-player command for it.
-    pub fn command(self) -> MediaPlayerCmd {
-        match self {
-            Self::VolumeUp => MediaPlayerCmd::VolumeUp,
-            Self::VolumeDown => MediaPlayerCmd::VolumeDown,
-            Self::MuteToggle => MediaPlayerCmd::MuteToggle,
-        }
-    }
+    Mute,
 }
 
 impl Button {
@@ -135,28 +105,28 @@ impl Button {
         }
     }
 
-    pub fn action(self) -> Action {
-        use {Action::*, KodiAction as K, ReceiverCmd as R};
-        match self {
-            Self::VolumeUp => Receiver(R::VolumeUp),
-            Self::VolumeDown => Receiver(R::VolumeDown),
-            Self::Mute => Receiver(R::MuteToggle),
-            Self::Back => Kodi(K::Back),
-            Self::Home => Kodi(K::Home),
-            Self::Menu => Kodi(K::Menu),
-            Self::DpadUp => Kodi(K::Up),
-            Self::DpadDown => Kodi(K::Down),
-            Self::DpadLeft => Kodi(K::Left),
-            Self::DpadRight => Kodi(K::Right),
-            Self::DpadMiddle => Kodi(K::Select),
-            Self::ChannelUp => Kodi(K::ChannelUp),
-            Self::ChannelDown => Kodi(K::ChannelDown),
-            Self::Prev => Kodi(K::Previous),
-            Self::Play => Kodi(K::PlayPause),
-            Self::Next => Kodi(K::Next),
-            Self::Stop => Kodi(K::Stop),
-            Self::Record => Kodi(K::Record),
-        }
+    pub fn route(self) -> Option<Route> {
+        use {RemoteKey as K, Route::*};
+        Some(match self {
+            Self::VolumeUp => Volume(VolumeKey::Up),
+            Self::VolumeDown => Volume(VolumeKey::Down),
+            Self::Mute => Volume(VolumeKey::Mute),
+            Self::Home => return None,
+            Self::Back => Remote(K::Back),
+            Self::Menu => Remote(K::Menu),
+            Self::DpadUp => Remote(K::Up),
+            Self::DpadDown => Remote(K::Down),
+            Self::DpadLeft => Remote(K::Left),
+            Self::DpadRight => Remote(K::Right),
+            Self::DpadMiddle => Remote(K::Select),
+            Self::ChannelUp => Remote(K::ChannelUp),
+            Self::ChannelDown => Remote(K::ChannelDown),
+            Self::Prev => Remote(K::Previous),
+            Self::Play => Remote(K::PlayPause),
+            Self::Next => Remote(K::Next),
+            Self::Stop => Remote(K::Stop),
+            Self::Record => Remote(K::Record),
+        })
     }
 }
 
