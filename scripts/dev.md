@@ -42,7 +42,7 @@ every 2 s if the core goes away. (`UC_TOKEN=<raw token>` also works instead of `
 ## Simulating the hard keys
 
 Physical buttons never come over the WebSocket, so the simulator can't inject them. On the desktop
-the keyboard stands in (`crates/ui/src/input.rs`); the footer line shows what each press resolved to.
+the keyboard stands in (`crates/ui/src/input/mod.rs`); the footer line shows what each press resolved to.
 
 | Key | Button | Key | Button |
 |---|---|---|---|

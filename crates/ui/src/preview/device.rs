@@ -1,7 +1,7 @@
 //! Preview only: draws the UI into a photo of the Remote 3 and lights the keys by backlight zone,
 //! so stills and recordings show the whole device. Not part of the on-device build path.
 
-use crate::backlight::Keys;
+use crate::hardware::backlight::Keys;
 use anyhow::Context;
 use image::RgbaImage;
 use std::path::Path;
@@ -108,7 +108,7 @@ impl Device {
             self.to = keys;
             self.t = 0.0;
         }
-        self.t = (self.t + dt / crate::backlight::FADE.as_secs_f32()).min(1.0);
+        self.t = (self.t + dt / crate::hardware::backlight::FADE.as_secs_f32()).min(1.0);
         let now = self.from.mix(self.to, self.t);
         let level = [now.rest, now.power].map(|c| [c.0 as f32, c.1 as f32, c.2 as f32]);
 

@@ -13,9 +13,9 @@ impl Sound {
     #[cfg_attr(feature = "device", allow(dead_code))]
     fn wav(self) -> &'static [u8] {
         match self {
-            Self::Confirm => include_bytes!("../assets/sounds/confirm.wav"),
-            Self::Success => include_bytes!("../assets/sounds/success.wav"),
-            Self::Error => include_bytes!("../assets/sounds/error.wav"),
+            Self::Confirm => include_bytes!("../../assets/sounds/confirm.wav"),
+            Self::Success => include_bytes!("../../assets/sounds/success.wav"),
+            Self::Error => include_bytes!("../../assets/sounds/error.wav"),
         }
     }
 }

@@ -185,3 +185,12 @@ mod tests {
         assert_eq!(health(Health { on_kodi: false, ..down() }).1, "");
     }
 }
+
+/// The preferred Wi-Fi band ("a" or "b"), or empty when the core does not say.
+pub(crate) async fn wifi_band(core: &coreapi::Core) -> String {
+    core.request("get_network_cfg", json!({}))
+        .await
+        .ok()
+        .and_then(|r| r.data.pointer("/wifi/band").and_then(Value::as_str).map(String::from))
+        .unwrap_or_default()
+}

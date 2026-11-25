@@ -2,7 +2,7 @@
 //! evdev here and handed to the window as ordinary pointer and key events. Keys are translated to
 //! the same key text the desktop build uses, so everything downstream is shared.
 
-use crate::{AppWindow, UiAction};
+use crate::{AppWindow, app::UiAction};
 use tokio::sync::mpsc::UnboundedSender;
 use evdev::{Device, EventType};
 use slint::platform::{Key, PointerEventButton, WindowEvent};
@@ -79,7 +79,7 @@ pub fn start(app: &AppWindow, tx: UnboundedSender<UiAction>) {
 fn read_slider(mut device: Device, weak: slint::Weak<AppWindow>, tx: UnboundedSender<UiAction>) {
     let ranges = device.get_abs_state().ok();
     let max_of = |code: u16| ranges.as_ref().map(|r| r[code as usize].maximum).filter(|m| *m > 0);
-    let mut gestures = crate::slider::Slider::default();
+    let mut gestures = crate::input::slider::Slider::default();
     let mut values: std::collections::BTreeMap<u16, i32> = Default::default();
     let mut touching = false;
     loop {
@@ -121,11 +121,11 @@ fn read_slider(mut device: Device, weak: slint::Weak<AppWindow>, tx: UnboundedSe
 /// Input wakes a screen resting on the charger; the touch or key that does so is still delivered,
 /// and the window decides whether it only wakes.
 fn activity(weak: &slint::Weak<AppWindow>) {
-    crate::poke();
+    crate::view::idle::poke();
     let weak = weak.clone();
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(app) = weak.upgrade() {
-            crate::frames::kick();
+            crate::hardware::frames::kick();
             if app.get_resting() {
                 app.set_resting(false);
             }
@@ -134,11 +134,11 @@ fn activity(weak: &slint::Weak<AppWindow>) {
 }
 
 fn send(weak: &slint::Weak<AppWindow>, event: WindowEvent) {
-    crate::poke();
+    crate::view::idle::poke();
     let weak = weak.clone();
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(app) = weak.upgrade() {
-            crate::frames::kick();
+            crate::hardware::frames::kick();
             app.window().dispatch_event(event);
         }
     });

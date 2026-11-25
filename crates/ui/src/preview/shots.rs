@@ -2,9 +2,9 @@
 //! plays a scripted session and pipes frames to ffmpeg. With `--frame <photo>` both show the UI
 //! inside the remote with its keys lit.
 
-use crate::backlight;
-use crate::device::{self, Device};
-use crate::{apply, apply_demo_settings, AppWindow, Model, UiAction};
+use crate::hardware::backlight;
+use crate::preview::device::{self, Device};
+use crate::{view::apply, app::demo::apply_demo_settings, AppWindow, app::model::Model, app::UiAction};
 use anyhow::Context;
 use slint::{ComponentHandle, Model as _};
 use std::cell::RefCell;
@@ -36,14 +36,14 @@ const STEPS: &[Step] = &[
     ("03b-audio", |app, m| {
         app.set_picker(0);
         app.invoke_go(9, 0);
-        let (rows, current) = crate::demo_tracks(m, 0, 1);
-        crate::show_tracks(&app.as_weak(), rows, current);
+        let (rows, current) = crate::app::demo::demo_tracks(m, 0, 1);
+        crate::view::show_tracks(&app.as_weak(), rows, current);
     }),
     ("03c-subtitles", |app, m| {
         app.set_picker(1);
         app.invoke_go(9, 0);
-        let (rows, current) = crate::demo_tracks(m, 1, 1);
-        crate::show_tracks(&app.as_weak(), rows, current);
+        let (rows, current) = crate::app::demo::demo_tracks(m, 1, 1);
+        crate::view::show_tracks(&app.as_weak(), rows, current);
     }),
     ("03d-paused", |app, m| {
         app.invoke_go(0, 0);
@@ -58,7 +58,7 @@ const STEPS: &[Step] = &[
         m.volume = 64;
         // Blur Now playing, not the stage it replaces.
         after_swap(app, |app| {
-            crate::capture(app, 1);
+            crate::view::stage::capture(app, 1);
             app.set_volume_overlay(true);
         });
     }),
@@ -242,7 +242,7 @@ pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::R
     app.set_connected(true);
     let model = Rc::new(RefCell::new(Model::demo()));
     apply(&app, &model.borrow());
-    let _lava = crate::animate_lava(&app);
+    let _lava = crate::view::idle::animate_lava(&app);
 
     let timer = slint::Timer::default();
     let weak = app.as_weak();
@@ -328,10 +328,10 @@ fn kodi_hold(hold: bool) -> Act {
     Box::new(move |_, tx| {
         println!("record {} {:.3}", if hold { "hold" } else { "release" }, unix_now());
         let _ = tx.send(UiAction::Key(" ".into()));
-        if let (true, Some(base)) = (hold, crate::library::kodi_base()) {
+        if let (true, Some(base)) = (hold, crate::integrations::library::kodi_base()) {
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(600));
-                if let Err(e) = crate::kodi::reload(&base, 3.0) {
+                if let Err(e) = crate::integrations::kodi::reload(&base, 3.0) {
                     tracing::warn!("kodi reload: {e:#}");
                 }
             });
@@ -426,7 +426,7 @@ fn swipe(path: Vec<f32>) -> Act {
     Box::new(move |_, tx| {
         let (tx, path) = (tx.clone(), path.clone());
         std::thread::spawn(move || {
-            let mut strip = crate::slider::Slider::default();
+            let mut strip = crate::input::slider::Slider::default();
             let t0 = Instant::now();
             let mut send = |touch, pos, at: Instant| {
                 if let Some(g) = strip.feed(touch, pos, at) {
@@ -620,7 +620,7 @@ fn shelf(kind: &str) -> Shelf {
             }
             Err(_) => slint::Image::default(),
         };
-        items.push(crate::library::item(&crate::library::entry(it, shows), poster));
+        items.push(crate::integrations::library::item(&crate::integrations::library::entry(it, shows), poster));
     }
     let count = if shows { format!("{} shows", list.len()) } else { format!("{} films", list.len()) };
     Shelf { posters, items, count }
@@ -675,9 +675,9 @@ fn wall_script() -> Vec<(u64, Act)> {
             app.set_lib_focus(4);
         })
     };
-    let wall = |on: bool| -> Act { Box::new(move |app, _| crate::library_stage(app, if on { 4 } else { 0 })) };
+    let wall = |on: bool| -> Act { Box::new(move |app, _| crate::view::stage::library_stage(app, if on { 4 } else { 0 })) };
     let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
-    vec![(300, load), (600, key("s")), (1500, wall(true)), (2200, step(1)), (500, step(3)), (900, wall(false)), (1600, wall(true)), (2200, ui(|a| crate::reveal_library(a, Duration::ZERO))), (2200, ui(|_| {}))]
+    vec![(300, load), (600, key("s")), (1500, wall(true)), (2200, step(1)), (500, step(3)), (900, wall(false)), (1600, wall(true)), (2200, ui(|a| crate::view::stage::reveal_library(a, Duration::ZERO))), (2200, ui(|_| {}))]
 }
 
 /// The poster wall settled on one film: the first whose title contains `UC_DEMO_FOCUS`.
@@ -692,7 +692,7 @@ fn feature_script() -> Vec<(u64, Act)> {
         app.set_lib_items(Rc::new(slint::VecModel::from(movies.items.clone())).into());
         app.set_lib_focus(focus);
     });
-    vec![(300, load), (600, key("s")), (1500, ui(|a| crate::library_stage(a, 4))), (4000, ui(|_| {}))]
+    vec![(300, load), (600, key("s")), (1500, ui(|a| crate::view::stage::library_stage(a, 4))), (4000, ui(|_| {}))]
 }
 
 /// The wall's three ways of showing the highlighted title's details, one after another.
@@ -709,12 +709,12 @@ fn walls_script() -> Vec<(u64, Act)> {
     };
     let style = |n: i32| -> Act {
         Box::new(move |app, _| {
-            crate::library_stage(app, 0);
+            crate::view::stage::library_stage(app, 0);
             app.set_lib_wall_style(n);
             app.set_lib_focus(12);
         })
     };
-    let wall: fn() -> Act = || Box::new(|app, _| crate::library_stage(app, 4));
+    let wall: fn() -> Act = || Box::new(|app, _| crate::view::stage::library_stage(app, 4));
     let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
     let mut s: Vec<(u64, Act)> = vec![(300, load), (600, key("s"))];
     for n in 1..=3 {
@@ -734,8 +734,8 @@ fn picker_script() -> Vec<(u64, Act)> {
     let open: Act = Box::new(|app, _| {
         app.set_picker(1);
         app.invoke_go(9, 0);
-        let (rows, current) = crate::demo_tracks(&crate::Model::default(), 1, 1);
-        crate::show_tracks(&app.as_weak(), rows, current);
+        let (rows, current) = crate::app::demo::demo_tracks(&crate::app::model::Model::default(), 1, 1);
+        crate::view::show_tracks(&app.as_weak(), rows, current);
     });
     let mut s: Vec<(u64, Act)> = vec![(600, open)];
     for _ in 0..16 {
@@ -917,7 +917,7 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             vec![
                 (100, load),
                 (600, key("s")),
-                (1500, ui(|a| crate::library_stage(a, 4))),
+                (1500, ui(|a| crate::view::stage::library_stage(a, 4))),
                 (1600, step(1)),
                 (700, step(1)),
                 (700, step(1)),

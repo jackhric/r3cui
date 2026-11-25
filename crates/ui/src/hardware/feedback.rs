@@ -6,8 +6,8 @@
 //! effect number to it as decimal text plays that effect. The numbers are the DRV2605 ROM
 //! waveform ids (see docs/haptics.md), unverified except 1, 14 and 25.
 
-use crate::audio::{self, Sound};
-use crate::settings;
+use crate::hardware::audio::{self, Sound};
+use crate::app::settings;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::OnceLock;

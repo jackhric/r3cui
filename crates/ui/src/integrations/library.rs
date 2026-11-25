@@ -2,7 +2,7 @@
 //! that list with the highlighted title lifted out. Kodi sends no event when the highlight
 //! moves, so it is asked after every key press, and once a second besides.
 
-use crate::{kodi, AppWindow, LibItem};
+use crate::{integrations::kodi, AppWindow, LibItem};
 use serde_json::Value;
 use slint::Model as _;
 use std::collections::HashSet;
@@ -76,7 +76,7 @@ pub fn predict(weak: &slint::Weak<AppWindow>, cmd: &str) {
     c.at = at as usize;
     c.column = column;
     c.held = Some(Instant::now() + HOLD);
-    crate::ui_call(weak, move |app| {
+    crate::view::ui_call(weak, move |app| {
         if app.get_lib_mode() == 4 {
             app.set_lib_focus(at as i32);
         }
@@ -222,16 +222,16 @@ pub fn start(weak: slint::Weak<AppWindow>) {
                         let heading = if shows { "TV SHOWS" } else { "MOVIES" };
                         let count = format!("{} {}", entries.len(), if shows { "shows" } else { "films" });
                         let texts: Vec<_> = entries;
-                        crate::ui_call(&weak, move |app| {
+                        crate::view::ui_call(&weak, move |app| {
                             let rows: Vec<LibItem> = texts.iter().map(|e| item(e, slint::Image::default())).collect();
                             app.set_lib_items(std::rc::Rc::new(slint::VecModel::from(rows)).into());
-                            app.set_lib_wall_style(crate::settings::get().wall_style.unwrap_or(2));
+                            app.set_lib_wall_style(crate::app::settings::get().wall_style.unwrap_or(2));
                             app.set_lib_heading(heading.into());
                             app.set_lib_count(count.into());
                             URLS.with(|u| *u.borrow_mut() = (generation, urls));
                             // A different list while the wall is up comes in the same way.
                             if app.get_lib_mode() == 4 {
-                                crate::reveal_library(&app, std::time::Duration::ZERO);
+                                crate::view::stage::reveal_library(&app, std::time::Duration::ZERO);
                             }
                         });
                     }
@@ -262,16 +262,16 @@ pub fn start(weak: slint::Weak<AppWindow>) {
                             c.vertical = None;
                         }
                     }
-                    crate::ui_call(&weak, move |app| {
+                    crate::view::ui_call(&weak, move |app| {
                         app.set_lib_focus(at as i32);
-                        crate::library_stage(&app, 4);
+                        crate::view::stage::library_stage(&app, 4);
                     });
                     fetch_posters(&weak, ids, at, &loading);
                 }
                 _ => {
                     CURSOR.lock().unwrap_or_else(|e| e.into_inner()).len = 0;
                     if shown.take().is_some() {
-                        crate::ui_call(&weak, |app| crate::library_stage(&app, 0));
+                        crate::view::ui_call(&weak, |app| crate::view::stage::library_stage(&app, 0));
                     }
                 }
             }
@@ -306,7 +306,7 @@ fn fetch_posters(weak: &slint::Weak<AppWindow>, ids: &[i64], at: usize, loading:
     let generation = LIST.load(Ordering::SeqCst);
     let weak = weak.clone();
     // The UI thread holds the URLs; ask it for the ones wanted, then fetch off it.
-    crate::ui_call(&weak.clone(), move |_| {
+    crate::view::ui_call(&weak.clone(), move |_| {
         let urls: Vec<(usize, String)> = URLS.with(|u| {
             let u = u.borrow();
             if u.0 != generation {
@@ -319,14 +319,14 @@ fn fetch_posters(weak: &slint::Weak<AppWindow>, ids: &[i64], at: usize, loading:
                 if LIST.load(Ordering::SeqCst) != generation {
                     return;
                 }
-                let img = match crate::fetch_image(&url) {
+                let img = match crate::art::fetch_image(&url) {
                     Ok(img) => poster(&img),
                     Err(e) => {
                         tracing::debug!("library poster {url}: {e:#}");
                         continue;
                     }
                 };
-                crate::ui_call(&weak, move |app| {
+                crate::view::ui_call(&weak, move |app| {
                     if LIST.load(Ordering::SeqCst) != generation {
                         return;
                     }

@@ -60,6 +60,7 @@ fn player(base: &str) -> anyhow::Result<i64> {
 /// Seek `back` seconds behind where playback stands. This refills Kodi's read-ahead, which carries no subtitle
 /// pictures for a track that was off when it was read; going back far enough to take in the start of the line
 /// on show brings that line too.
+#[cfg(feature = "preview")]
 pub fn reload(base: &str, back: f64) -> anyhow::Result<()> {
     let id = player(base)?;
     let now = position(base)?;

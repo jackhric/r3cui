@@ -1,5 +1,15 @@
 //! Physical-button model. On the device these come from evdev; on the desktop the keyboard stands in
 //! for them. Both feed the same `Button` → command routing.
+#[cfg(feature = "device")]
+pub(crate) mod evdev;
+pub(crate) mod slider;
+use crate::{AppWindow, Icons, KeyCell};
+use crate::app::UiAction;
+use crate::view::keyboard;
+use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use std::cell::RefCell;
+use std::rc::Rc;
+use tokio::sync::mpsc;
 
 use slint::platform::Key;
 
@@ -108,4 +118,72 @@ impl Button {
             Self::Record => (Target::Screen, "record"),
         }
     }
+}
+
+/// The keyboard lives on the UI thread: every d-pad press must redraw at once, with no round trip.
+pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>) {
+    let kb = Rc::new(RefCell::new(keyboard::Keyboard::new()));
+    let weak = app.as_weak();
+    let after = Rc::new({
+        let kb = kb.clone();
+        move |outcome: keyboard::Outcome| {
+            let Some(app) = weak.upgrade() else { return };
+            let icons = app.global::<Icons>();
+            let cells: Vec<KeyCell> = kb
+                .borrow()
+                .cells()
+                .into_iter()
+                .map(|c| KeyCell {
+                    label: c.label.into(),
+                    icon: match c.kind {
+                        keyboard::Kind::Shift => icons.get_shift(),
+                        keyboard::Kind::Delete => icons.get_delete(),
+                        _ => SharedString::new(),
+                    },
+                    x: c.x,
+                    y: c.y,
+                    w: c.w,
+                    h: c.h,
+                    focused: c.focused,
+                    style: match c.style {
+                        keyboard::Style::Char => 0,
+                        keyboard::Style::Action => 1,
+                        keyboard::Style::ActionOn => 2,
+                        keyboard::Style::JoinDim => 3,
+                        keyboard::Style::JoinReady => 4,
+                    },
+                })
+                .collect();
+            app.set_kb_keys(ModelRc::new(VecModel::from(cells)));
+            app.set_kb_text(kb.borrow().text().into());
+            match outcome {
+                keyboard::Outcome::Stay => {}
+                keyboard::Outcome::Leave => app.invoke_back(),
+                keyboard::Outcome::Join(password) => {
+                    let target = app.get_wifi_target();
+                    app.set_join_state(1);
+                    let _ = tx.send(UiAction::WifiJoin { ssid: target.ssid.into(), hex: target.ssid_hex.into(), password });
+                }
+            }
+        }
+    });
+    after(keyboard::Outcome::Stay);
+    app.on_kb_reset({
+        let (kb, after) = (kb.clone(), after.clone());
+        move || {
+            kb.borrow_mut().reset();
+            after(keyboard::Outcome::Stay);
+        }
+    });
+    app.on_kb_nav({
+        let (kb, after) = (kb.clone(), after.clone());
+        move |name| {
+            let outcome = kb.borrow_mut().key(&name);
+            after(outcome);
+        }
+    });
+    app.on_kb_tap(move |index| {
+        let outcome = kb.borrow_mut().tap(index.max(0) as usize);
+        after(outcome);
+    });
 }
