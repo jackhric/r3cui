@@ -19,6 +19,8 @@ pub mod notification;
 pub mod rpc;
 mod service;
 pub mod state;
+#[cfg(feature = "testing")]
+pub mod testing;
 mod transport;
 pub mod wire;
 
