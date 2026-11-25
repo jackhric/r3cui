@@ -31,12 +31,13 @@ impl KodiService {
     pub fn start(cfg: KodiConfig) -> KodiHandle {
         let (state_tx, state_rx) = watch::channel(KodiState::default());
         let slot: Arc<Mutex<Option<Client>>> = Arc::default();
-        tokio::spawn(run(cfg.clone(), state_tx, slot.clone()));
-        KodiHandle::new(cfg, state_rx, slot)
+        let (refresh_tx, refresh) = mpsc::unbounded_channel();
+        tokio::spawn(run(cfg.clone(), state_tx, slot.clone(), refresh));
+        KodiHandle::new(cfg, state_rx, slot, refresh_tx)
     }
 }
 
-async fn run(cfg: KodiConfig, state: watch::Sender<KodiState>, slot: Arc<Mutex<Option<Client>>>) {
+async fn run(cfg: KodiConfig, state: watch::Sender<KodiState>, slot: Arc<Mutex<Option<Client>>>, mut refresh: mpsc::UnboundedReceiver<Query>) {
     let mut engine = Engine::default();
     let mut attempt = 0u32;
     loop {
@@ -46,7 +47,7 @@ async fn run(cfg: KodiConfig, state: watch::Sender<KodiState>, slot: Arc<Mutex<O
         let error = match transport::connect(&cfg.ws_url()).await {
             Ok(conn) => {
                 let up = Instant::now();
-                let error = connected(conn, &mut engine, &state, &slot).await;
+                let error = connected(conn, &mut engine, &state, &slot, &mut refresh).await;
                 *slot.lock().unwrap() = None;
                 // A connection that stayed up a while starts the backoff over.
                 if up.elapsed() > Duration::from_secs(30) {
@@ -70,7 +71,13 @@ fn backoff(attempt: u32) -> Duration {
 }
 
 /// One connection's life; returns why it ended.
-async fn connected(conn: transport::Connection, engine: &mut Engine, state: &watch::Sender<KodiState>, slot: &Arc<Mutex<Option<Client>>>) -> Error {
+async fn connected(
+    conn: transport::Connection,
+    engine: &mut Engine,
+    state: &watch::Sender<KodiState>,
+    slot: &Arc<Mutex<Option<Client>>>,
+    refresh: &mut mpsc::UnboundedReceiver<Query>,
+) -> Error {
     let transport::Connection { out, mut incoming } = conn;
     let client = Client::new(out);
     *slot.lock().unwrap() = Some(client.clone());
@@ -117,6 +124,7 @@ async fn connected(conn: transport::Connection, engine: &mut Engine, state: &wat
                 ask(engine.apply(Event::Connected { server }, Instant::now()));
                 state.send_replace(engine.state.clone());
             }
+            Some(q) = refresh.recv() => ask(vec![q]),
             Some(answer) = answers.recv() => {
                 ask(engine.apply(Event::Answer(answer), Instant::now()));
                 state.send_replace(engine.state.clone());

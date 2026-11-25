@@ -22,6 +22,6 @@ pub mod wire;
 
 pub use config::{Credentials, KodiConfig};
 pub use error::{Error, Result};
-pub use handle::KodiHandle;
+pub use handle::{KodiHandle, Media, Nav, StartAt, SubtitleChoice};
 pub use service::KodiService;
 pub use state::{KodiState, Link, NowPlaying, Playback, Timeline};

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
 /// One of Kodi's methods: its name in the schema, its parameters (the struct itself), and what it answers.
-pub trait Method: Serialize + Send + 'static {
+pub trait Method: Serialize + Send + Sync + 'static {
     const NAME: &'static str;
     type Output: DeserializeOwned + Send + 'static;
 }
