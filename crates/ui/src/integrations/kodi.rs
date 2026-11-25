@@ -315,7 +315,8 @@ pub fn list(base: &str, b: &Browsing) -> anyhow::Result<Vec<Value>> {
         "rating" | "user rating" => "rating",
         "last played" => "lastplayed",
         "play count" => "playcount",
-        "duration" | "runtime" => "runtime",
+        // Kodi's `List.Sort` calls the duration sort `time`.
+        "duration" | "runtime" => "time",
         "mpaa" => "mpaa",
         // Kodi's own Title sort goes by each item's sort title ("bronx tale" for "A Bronx Tale").
         _ => "sorttitle",
