@@ -363,9 +363,11 @@ export component Library inherits Rectangle {
     // the highlighted row.
     if root.mode == 4: Rectangle {
         clip: true;
-        property <float> scroll: floor(root.pos / 3);
-        animate scroll { duration: 320ms; easing: ease-out; }
         property <int> focus-row: floor(root.at / 3);
+        // Follows the row the highlight is going to, not its animated position, so the wall starts moving
+        // the moment the row changes and eases in and out in one stroke.
+        property <float> scroll: self.focus-row;
+        animate scroll { duration: 460ms; easing: cubic-bezier(0.65, 0, 0.35, 1); }
         // Where the highlighted row sits: high up, just a sliver of the row before showing.
         property <float> first: root.wall-style == 1 ? 140 : root.wall-style == 2 ? 110 : 120;
         for it[i] in root.items: cell := Rectangle {

@@ -188,18 +188,30 @@ pub struct Browsing {
     pub order: String,
     /// Library id of the highlighted item.
     pub focus: i64,
+    /// The highlight's column and row in Kodi's panel, and its place among the cells on show; -1 when Kodi
+    /// gives none.
+    pub column: i64,
+    pub row: i64,
+    pub position: i64,
 }
 
 pub fn browsing(base: &str) -> anyhow::Result<Browsing> {
-    let labels = ["Container.Content", "Container.FolderPath", "Container.SortMethod", "Container.SortOrder", "ListItem.DBID"];
+    let labels = [
+        "Container.Content", "Container.FolderPath", "Container.SortMethod", "Container.SortOrder", "ListItem.DBID",
+        "Container.Column", "Container.Row", "Container.Position",
+    ];
     let v = call(base, "XBMC.GetInfoLabels", json!({ "labels": labels }))?;
     let get = |k: &str| v.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+    let num = |k: &str| get(k).parse().unwrap_or(-1);
     Ok(Browsing {
         content: get("Container.Content"),
         path: get("Container.FolderPath"),
         sort: get("Container.SortMethod"),
         order: get("Container.SortOrder"),
-        focus: get("ListItem.DBID").parse().unwrap_or(-1),
+        focus: num("ListItem.DBID"),
+        column: num("Container.Column"),
+        row: num("Container.Row"),
+        position: num("Container.Position"),
     })
 }
 

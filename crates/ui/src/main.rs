@@ -1366,6 +1366,9 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     cmd
                 };
                 let Some(entity) = session.target(target) else { continue };
+                if target == Target::Screen {
+                    library::predict(weak, &cmd);
+                }
                 commands.send(entity, cmd, params);
                 if target == Target::Screen {
                     library::poke();

@@ -8,7 +8,7 @@ use slint::Model as _;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::{watch, Notify};
 
 const W: u32 = 136;
@@ -22,6 +22,51 @@ static POKE: OnceLock<Arc<Notify>> = OnceLock::new();
 static BASE: OnceLock<String> = OnceLock::new();
 /// Bumped for each new list, so posters for an old one are dropped.
 static LIST: AtomicU64 = AtomicU64::new(0);
+static CURSOR: Mutex<Cursor> = Mutex::new(Cursor { at: 0, len: 0, column: -1, columns: 0, held: None, vertical: None });
+/// How long a predicted move stands against Kodi's answers, which may predate the key press.
+const HOLD: Duration = Duration::from_millis(400);
+
+/// Kodi's highlight as last reported or predicted, so a d-pad press moves the wall before Kodi answers.
+struct Cursor {
+    at: usize,
+    /// Titles on the wall; 0 while it is not showing.
+    len: usize,
+    column: i64,
+    /// Kodi's posters per row, once a report has shown it.
+    columns: i64,
+    held: Option<Instant>,
+    /// Where an up or down press left from before the row width was known; the move it makes gives the width.
+    vertical: Option<usize>,
+}
+
+/// A d-pad key went to Kodi: move the wall's highlight where Kodi's will go. Kodi's panel stops at the end
+/// of a row and moves a whole row of its own up or down.
+pub fn predict(weak: &slint::Weak<AppWindow>, cmd: &str) {
+    let mut c = CURSOR.lock().unwrap_or_else(|e| e.into_inner());
+    let (at, len, col, cols) = (c.at as i64, c.len as i64, c.column, c.columns);
+    if len == 0 || col < 0 {
+        return;
+    }
+    let (at, column) = match cmd {
+        "cursor_right" if at + 1 < len && (cols == 0 || col + 1 < cols) => (at + 1, col + 1),
+        "cursor_left" if at > 0 && col > 0 => (at - 1, col - 1),
+        "cursor_down" if cols > 0 && at + cols < len => (at + cols, col),
+        "cursor_up" if cols > 0 && at - cols >= 0 => (at - cols, col),
+        "cursor_up" | "cursor_down" if cols == 0 => {
+            c.vertical = Some(c.at);
+            return;
+        }
+        _ => return,
+    };
+    c.at = at as usize;
+    c.column = column;
+    c.held = Some(Instant::now() + HOLD);
+    crate::ui_call(weak, move |app| {
+        if app.get_lib_mode() == 4 {
+            app.set_lib_focus(at as i32);
+        }
+    });
+}
 
 /// `kodi_driver.main.media_player.<host>` → `http://<host>:8080`: the Kodi driver names its
 /// entities after the host, and the remote already reaches Kodi's artwork there.
@@ -176,6 +221,31 @@ pub fn start(weak: slint::Weak<AppWindow>) {
                     }
                     let ids = &shown.as_ref().unwrap().1;
                     let at = ids.iter().position(|&id| id == view.focus).unwrap_or(0);
+                    let stale = {
+                        let mut c = CURSOR.lock().unwrap_or_else(|e| e.into_inner());
+                        c.len = ids.len();
+                        // Kodi's answer may be from before the last key press: while a prediction stands, one
+                        // that disagrees is asked again shortly rather than shown.
+                        c.held.is_some_and(|t| Instant::now() < t) && at != c.at
+                    };
+                    if stale {
+                        tokio::time::sleep(Duration::from_millis(120)).await;
+                        continue;
+                    }
+                    {
+                        let mut c = CURSOR.lock().unwrap_or_else(|e| e.into_inner());
+                        c.held = None;
+                        c.at = at;
+                        c.column = view.column;
+                        if view.row > 0 && view.column >= 0 && view.position >= view.column {
+                            c.columns = (view.position - view.column) / view.row;
+                        } else if let Some(from) = c.vertical.filter(|&f| f != at) {
+                            c.columns = from.abs_diff(at) as i64;
+                        }
+                        if c.columns > 0 {
+                            c.vertical = None;
+                        }
+                    }
                     crate::ui_call(&weak, move |app| {
                         app.set_lib_focus(at as i32);
                         crate::library_stage(&app, 4);
@@ -183,6 +253,7 @@ pub fn start(weak: slint::Weak<AppWindow>) {
                     fetch_posters(&weak, ids, at, &loading);
                 }
                 _ => {
+                    CURSOR.lock().unwrap_or_else(|e| e.into_inner()).len = 0;
                     if shown.take().is_some() {
                         crate::ui_call(&weak, |app| crate::library_stage(&app, 0));
                     }
