@@ -567,7 +567,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         tokio::spawn(async move {
                             let cfg = json!({ "brightness": brightness, "auto_brightness": auto });
                             match core.request("set_display_cfg", cfg).await {
-                                Ok(r) if (200..300).contains(&r.code) => {}
+                                Ok(r) if r.is_ok() => {}
                                 other => tracing::warn!("set_display_cfg: {other:?}"),
                             }
                         });
@@ -633,7 +633,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         let Some(next) = (match session.wifi_band.as_str() { "a" => Some("b"), "b" => Some("a"), _ => None }) else { continue };
                         let cfg = json!({ "wifi": { "band": next } });
                         match core.request("set_network_cfg", cfg).await {
-                            Ok(r) if (200..300).contains(&r.code) => {
+                            Ok(r) if r.is_ok() => {
                                 tracing::info!("wifi band now {next}");
                                 session.wifi_band = r.data.pointer("/wifi/band").and_then(Value::as_str).unwrap_or(next).to_string();
                             }
@@ -662,7 +662,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         }
                         session.joining = Some((None, Instant::now()));
                         match core.request("add_wifi_network", network).await {
-                            Ok(r) if (200..300).contains(&r.code) => {
+                            Ok(r) if r.is_ok() => {
                                 session.joining = Some((r.data.get("id").and_then(Value::as_i64), Instant::now()));
                             }
                             other => {
@@ -715,11 +715,8 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
 }
 /// The menu's current values. Each is optional: a core that lacks a message just leaves a blank.
 pub(crate) async fn load_settings(weak: &slint::Weak<AppWindow>, core: &coreapi::Core) {
-    let get = |msg: &'static str| async move {
-        core.request(msg, json!({})).await.ok().filter(|r| (200..300).contains(&r.code)).map(|r| r.data)
-    };
     let (display, haptic, power, sound) =
-        tokio::join!(get("get_display_cfg"), get("get_haptic_cfg"), get("get_power_saving_cfg"), get("get_sound_cfg"));
+        tokio::join!(core.fetch("get_display_cfg"), core.fetch("get_haptic_cfg"), core.fetch("get_power_saving_cfg"), core.fetch("get_sound_cfg"));
     feedback::set_core_config(
         haptic.as_ref().and_then(|v| v.get("enabled")).and_then(Value::as_bool),
         sound.as_ref().and_then(|v| v.get("enabled")).and_then(Value::as_bool),
@@ -783,7 +780,7 @@ impl Commands {
                             (None, Err(e)) => Err(format!("{e:#}")),
                         };
                         let outcome = match reply {
-                            Ok(r) if (200..300).contains(&r.code) => "ok".to_string(),
+                            Ok(r) if r.is_ok() => "ok".to_string(),
                             Ok(r) => r.data.get("message").and_then(Value::as_str).unwrap_or("failed").to_string(),
                             Err(e) => e,
                         };

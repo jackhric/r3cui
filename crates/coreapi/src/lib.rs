@@ -61,8 +61,12 @@ pub struct Response {
 }
 
 impl Response {
+    pub fn is_ok(&self) -> bool {
+        (200..300).contains(&self.code)
+    }
+
     pub fn ok(self) -> Result<Self> {
-        if (200..300).contains(&self.code) {
+        if self.is_ok() {
             Ok(self)
         } else {
             let detail = self.data.get("message").and_then(Value::as_str).unwrap_or_default();
@@ -86,6 +90,11 @@ pub struct Core {
 impl Core {
     pub async fn request(&self, msg: &str, data: Value) -> Result<Response> {
         self.submit(msg, data).await?.await.map_err(|_| anyhow!("no response to {msg}"))
+    }
+
+    /// A request with no parameters, answered with its data when it succeeds.
+    pub async fn fetch(&self, msg: &str) -> Option<Value> {
+        self.request(msg, Value::Object(Default::default())).await.ok().filter(Response::is_ok).map(|r| r.data)
     }
 
     /// Queue a request without waiting for its answer. Requests reach the core in the order they

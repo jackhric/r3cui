@@ -127,7 +127,7 @@ async fn paint_keys(core: &coreapi::Core, shown: Option<Keys>, keys: Keys) -> bo
     let paint = |colour: Rgb, zones: Vec<u8>| {
         let names: Vec<String> = zones.iter().map(|z| format!("ZONE_{z}")).collect();
         let cfg = json!({ "static_color": { "rgb": [colour.0, colour.1, colour.2], "zones": names } });
-        async move { matches!(core.request("set_button_cfg", cfg).await, Ok(r) if (200..300).contains(&r.code)) }
+        async move { matches!(core.request("set_button_cfg", cfg).await, Ok(r) if r.is_ok()) }
     };
     let mut ok = true;
     if shown.map(|s| s.rest) != Some(keys.rest) {

@@ -94,9 +94,6 @@ fn bars(dbm: i64) -> i32 {
     }
 }
 
-async fn get(core: &coreapi::Core, msg: &str) -> Option<Value> {
-    core.request(msg, json!({})).await.ok().filter(|r| (200..300).contains(&r.code)).map(|r| r.data)
-}
 
 /// The connected network's name (empty when disconnected) and what the last scan found.
 pub async fn wifi(core: &coreapi::Core) -> (String, Vec<Network>) {
@@ -105,7 +102,7 @@ pub async fn wifi(core: &coreapi::Core) -> (String, Vec<Network>) {
     if let Ok(ssid) = std::env::var("UC_PREVIEW_WIFI") {
         return (ssid.clone(), demo_networks(&ssid));
     }
-    let (status, scan) = tokio::join!(get(core, "get_wifi_status"), get(core, "get_wifi_scan_status"));
+    let (status, scan) = tokio::join!(core.fetch("get_wifi_status"), core.fetch("get_wifi_scan_status"));
     let field = |v: &Value, key: &str| v.get(key).and_then(Value::as_str).unwrap_or_default().to_string();
     let connected = status.as_ref().filter(|s| field(s, "wpa_state") == "COMPLETED");
     let ssid = connected.map(|s| field(s, "ssid")).unwrap_or_default();
@@ -136,7 +133,7 @@ pub async fn wifi(core: &coreapi::Core) -> (String, Vec<Network>) {
 
 /// integration id → whether the core is connected to the thing behind it.
 pub async fn integrations(core: &coreapi::Core) -> HashMap<String, bool> {
-    get(core, "get_integration_status")
+    core.fetch("get_integration_status")
         .await
         .and_then(|d| d.get("status").and_then(Value::as_array).cloned())
         .unwrap_or_default()
