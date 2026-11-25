@@ -779,6 +779,22 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             v.push((3600, ui(|_| {})));
             v
         }
+        // The wall scrolling: down three rows, one across, and back up, each a d-pad press sent to Kodi.
+        "site-wall" => {
+            const UP: &str = "\u{F700}";
+            const DOWN: &str = "\u{F701}";
+            const RIGHT: &str = "\u{F703}";
+            vec![
+                (3000, key(DOWN)),
+                (1300, key(DOWN)),
+                (1300, key(DOWN)),
+                (1300, key(RIGHT)),
+                (1300, key(UP)),
+                (1300, key(UP)),
+                (1300, key(UP)),
+                (1600, ui(|_| {})),
+            ]
+        }
         // The remote drives Kodi itself: four d-pad rights along the library to 2001, OK, OK again on Kodi's resume
         // prompt, then the audio and subtitle pickers over the film.
         "site-kodi-remote" => {
@@ -985,61 +1001,93 @@ pub fn record(app: &AppWindow, tx: Tx, mut device: Device, out: PathBuf, which: 
     let mut ffmpeg = Command::new("ffmpeg")
         .args(["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba"])
         .args(["-s", &format!("{}x{}", device::WIDTH, device.height())])
-        .args(["-use_wallclock_as_timestamps", "1", "-i", "-"])
-        .args(["-vf", "fps=30"])
+        .args(["-framerate", &FPS.to_string(), "-i", "-"])
         // A `.png` pattern such as `frames/%04d.png` keeps every frame lossless, for stills.
         .args(match out.extension().and_then(|e| e.to_str()) {
             Some("png") => &[][..],
+            // Lossless with alpha, and quicker to write than PNGs.
+            Some("mkv") => &["-c:v", "ffv1", "-level", "3", "-threads", "4", "-slices", "16"][..],
             _ => &["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-movflags", "+faststart"][..],
         })
         .arg(&out)
         .stdin(Stdio::piped())
         .spawn()
         .context("starting ffmpeg")?;
-    let mut pipe = Some(ffmpeg.stdin.take().context("ffmpeg stdin")?);
+    let mut pipe = ffmpeg.stdin.take().context("ffmpeg stdin")?;
+
+    // The UI thread only grabs the screen, often; composing onto the remote and writing happen here. Each
+    // output frame shows the latest grab taken at or before its moment, so the video keeps real time evenly
+    // whatever a grab costs.
+    let (grabs, grabbed) = std::sync::mpsc::sync_channel::<(Instant, Vec<u8>, (u32, u32), backlight::Keys, f32)>(4);
+    let writer = std::thread::spawn(move || {
+        let mut start = None;
+        let mut written = 0u64;
+        let mut last: Option<image::RgbaImage> = None;
+        let mut write = |frame: &image::RgbaImage| {
+            let _ = pipe.write_all(frame.as_raw());
+        };
+        for (at, pixels, size, keys, dt) in grabbed {
+            let frame = device.compose(&pixels, size, keys, dt);
+            let start = *start.get_or_insert(at);
+            while start + Duration::from_secs_f64(written as f64 / FPS as f64) < at {
+                write(last.as_ref().unwrap_or(&frame));
+                written += 1;
+            }
+            last = Some(frame);
+        }
+        if let Some(frame) = &last {
+            write(frame);
+        }
+        // Closing the pipe is what tells ffmpeg the stream has ended.
+        drop(write);
+        drop(pipe);
+        ffmpeg.wait()
+    });
 
     let mut steps = script(which).into_iter();
     let mut pending = steps.next();
     let mut since = Instant::now();
     let mut last_frame = Instant::now();
     let mut first = true;
-    let mut ffmpeg = Some(ffmpeg);
+    let mut grabs = Some(grabs);
+    let mut writer = Some(writer);
     let weak = app.as_weak();
     let timer = slint::Timer::default();
-    timer.start(slint::TimerMode::Repeated, Duration::from_millis(33), move || {
+    timer.start(slint::TimerMode::Repeated, Duration::from_millis(15), move || {
         let Some(app) = weak.upgrade() else { return };
         if pending.as_ref().is_some_and(|(wait, _)| since.elapsed() >= Duration::from_millis(*wait)) {
             if let Some((_, act)) = pending.take() {
                 act(&app, &tx);
-                let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-                println!("record step {:.3}", at.as_secs_f64());
+                println!("record step {:.3}", unix_now());
             }
             since = Instant::now();
             pending = steps.next();
             if pending.is_none() {
-                // Closing the pipe is what tells ffmpeg the stream has ended.
-                drop(pipe.take());
-                if let Some(mut child) = ffmpeg.take() {
-                    println!("{} {:?}", out.display(), child.wait());
+                drop(grabs.take());
+                if let Some(writer) = writer.take() {
+                    println!("{} {:?}", out.display(), writer.join().map_err(|_| "writer panicked"));
                 }
                 let _ = slint::quit_event_loop();
                 return;
             }
         }
-        if let Ok(buf) = app.window().take_snapshot() {
-            let dt = last_frame.elapsed().as_secs_f32();
-            last_frame = Instant::now();
-            let frame = device.compose(buf.as_bytes(), (buf.width(), buf.height()), keys(&app), dt);
-            if let Some(pipe) = &mut pipe {
-                // Printed once, so a screen recorded elsewhere at the same time can be lined up with this one.
-                if first {
-                    first = false;
-                    let t0 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-                    println!("record t0 {:.3}", t0.as_secs_f64());
-                }
-                let _ = pipe.write_all(frame.as_raw());
+        if let (Some(grabs), Ok(buf)) = (&grabs, app.window().take_snapshot()) {
+            let at = Instant::now();
+            // Printed once, so a screen recorded elsewhere at the same time can be lined up with this one.
+            if first {
+                first = false;
+                println!("record t0 {:.3}", unix_now());
             }
+            let dt = last_frame.elapsed().as_secs_f32();
+            last_frame = at;
+            let _ = grabs.send((at, buf.as_bytes().to_vec(), (buf.width(), buf.height()), keys(&app), dt));
         }
     });
     Ok(timer)
+}
+
+const FPS: u32 = 30;
+
+fn unix_now() -> f64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs_f64()
 }
