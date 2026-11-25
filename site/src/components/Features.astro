@@ -99,28 +99,6 @@ const lights = [
         </div>
       </article>
     ))}
-    {import.meta.env.DEV && (
-      <details class="kodi-tuner" id="kodi-tuner-panel"><summary>Kodi card</summary><form id="kodi-tuner" aria-label="Kodi card tuner (dev only)">
-        <label>Words <select name="side"><option value="left">left</option><option value="right">right</option></select></label>
-        <i>Picture, library (first 6 s)</i>
-        <label>Size <input type="range" name="zoomA" min="1" max="2.5" step="0.01" /></label>
-        <label>Across <input type="range" name="axA" min="0" max="1" step="0.01" /></label>
-        <label>Up/down <input type="range" name="ayA" min="0" max="1" step="0.01" /></label>
-        <i>Picture, film (from 6 s)</i>
-        <label>Size <input type="range" name="zoomB" min="1" max="2.5" step="0.01" /></label>
-        <label>Across <input type="range" name="axB" min="0" max="1" step="0.01" /></label>
-        <label>Up/down <input type="range" name="ayB" min="0" max="1" step="0.01" /></label>
-        <i>Screen</i>
-        <label>Size <input type="range" name="sw" min="360" max="760" step="4" /></label>
-        <label>Across <input type="range" name="sx" min="0" max="300" step="2" /></label>
-        <label>Up/down <input type="range" name="sy" min="-150" max="150" step="2" /></label>
-        <i>Remote</i>
-        <label>Size <input type="range" name="width" min="150" max="320" step="2" /></label>
-        <label>Across <input type="range" name="x" min="-40" max="400" step="2" /></label>
-        <label>Down <input type="range" name="y" min="0" max="140" step="2" /></label>
-        <output name="values"></output>
-      </form></details>
-    )}
     <article class="card lights-card" tabindex="0">
       <div class="copy">
         <a class="more" href={doc('backlighting')}><span class="sr-only">Reactive backlighting: read more</span><span class="arrow"><Fragment set:html={arrow} /></span></a>
@@ -181,7 +159,7 @@ const lights = [
       out.classList.add('live');
     }
     // The TV only shows on desktop. It covers the card, scaled up by a zoom and panned by an anchor (0 left or top, to 1
-    // right or bottom): style variables the tuner can change.
+    // right or bottom): set by style variables on the card.
     if (screen && screen.offsetWidth && tv.readyState >= 2) {
       const dpr = Math.min(devicePixelRatio || 1, 2);
       const w = Math.round(screen.offsetWidth * dpr), h = Math.round(screen.offsetHeight * dpr);
@@ -364,32 +342,7 @@ const lights = [
   document.addEventListener('visibilitychange', () => { if (document.hidden) focusRow.forEach(stop); else { focusRow = []; pickRow(); } });
   pickRow();
 
-  // Dev server only: live controls for the Kodi card, written to its data-side and style variables.
-  if (import.meta.env.DEV) {
-    const form = document.getElementById('kodi-tuner') as HTMLFormElement | null;
-    const card = document.querySelector<HTMLElement>('#features .card.cinema');
-    if (form && card) {
-      (form.elements.namedItem('side') as HTMLSelectElement).value = card.dataset.side ?? 'left';
-      // Each slider starts at the card's own value and writes it back as the style variable it names.
-      const vars: Record<string, [string, string]> = {
-        sw: ['--screen-w', 'px'], sx: ['--screen-x', 'px'], sy: ['--screen-y', 'px'], zoomA: ['--tv-zoom-a', ''], axA: ['--tv-x-a', ''], ayA: ['--tv-y-a', ''],
-        zoomB: ['--tv-zoom-b', ''], axB: ['--tv-x-b', ''], ayB: ['--tv-y-b', ''],
-        width: ['--remote-w', 'px'], x: ['--remote-x', 'px'], y: ['--remote-top', 'px'],
-      };
-      const css = getComputedStyle(card);
-      for (const [n, [v]] of Object.entries(vars)) (form.elements.namedItem(n) as HTMLInputElement).value = String(parseFloat(css.getPropertyValue(v)));
-      const apply = () => {
-        const v = (n: string) => (form.elements.namedItem(n) as HTMLInputElement).value;
-        card.dataset.side = v('side');
-        for (const [n, [name, unit]] of Object.entries(vars)) card.style.setProperty(name, v(n) + unit);
-        (form.elements.namedItem('values') as HTMLOutputElement).value = `side: ${v('side')}; ` +
-          Object.entries(vars).map(([n, [name, unit]]) => `${name}: ${v(n)}${unit}`).join('; ');
-      };
-      form.addEventListener('input', apply);
-      apply();
-      if (matchMedia('(min-width: 761px)').matches) (document.getElementById('kodi-tuner-panel') as HTMLDetailsElement).open = true;
-    }
-  }
+
 </script>
 
 <style>
@@ -514,17 +467,6 @@ const lights = [
     .cinema[data-side='right'] .crop { order: 1; }
   }
 
-  .kodi-tuner {
-    position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 50; width: 260px;
-    max-width: calc(100vw - 32px); padding: 12px 14px; border-radius: 14px; font-size: 0.8rem;
-    background: color-mix(in srgb, var(--card) 92%, transparent); border: 1px solid var(--border);
-    box-shadow: 0 12px 30px rgb(0 0 0 / 0.25); backdrop-filter: blur(12px);
-  }
-  .kodi-tuner summary { font-weight: 700; cursor: pointer; }
-  .kodi-tuner form { display: grid; gap: 8px; margin-top: 10px; }
-  .kodi-tuner label { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; }
-  .kodi-tuner i { font-style: normal; font-weight: 600; color: var(--muted-foreground); margin-top: 4px; }
-  .kodi-tuner output { color: var(--muted-foreground); font-size: 0.72rem; line-height: 1.4; }
 
   /* The wide card: text beside a larger remote, the text setting the height (contain: size keeps the remote from
      growing the card). */
