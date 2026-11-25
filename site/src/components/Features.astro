@@ -430,11 +430,13 @@ const lights = [
     translate: 0 var(--rest, 0px);
     transition: translate 0.35s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.35s ease;
   }
-  /* The shadow deepens as the remote lifts. */
-  /* With a mouse, a clip card's remote rests lower and eases up, shadow deepening, while its row is in focus and
-     playing. On touch screens it always sits raised, whatever its state. */
-  @media (hover: hover) { .card:not(.lights-card) { --rest: 34px; } }
-  .card.in-focus .remote { translate: 0 0; box-shadow: 0 16px 36px rgb(0 0 0 / 0.28); transition-duration: 0.5s; }
+  /* With a mouse, a clip card's remote rests lower and eases up, its shadow deepening, while the pointer is over the
+     card; scrolling plays the clips but never moves them. On touch screens it always sits raised. */
+  @media (hover: hover) {
+    .card:not(.lights-card) { --rest: 34px; }
+    .card:not(.lights-card):hover .remote { translate: 0 0; box-shadow: 0 16px 36px rgb(0 0 0 / 0.28); transition-duration: 0.5s; }
+    .card.wide.cinema:hover .remote { translate: 0 0; }
+  }
   /* The backlighting row responds to the pointer itself (below); only it gets hover styles. */
   @media (hover: hover) {
     .lights-card { --rest: 34px; }
@@ -450,7 +452,7 @@ const lights = [
   /* The Kodi card's remote is put together from two videos (see the script): its own transparent shape, so a drop
      shadow follows it rather than a box. Its still shows until the first frame is drawn. */
   .remote.layered { aspect-ratio: 544 / 1300; overflow: visible; border-radius: 0; box-shadow: none; filter: drop-shadow(0 14px 26px rgb(0 0 0 / 0.3)); }
-  .card.in-focus .remote.layered { box-shadow: none; }
+  .card:hover .remote.layered { box-shadow: none; }
   .card:not(.lights-card) .remote.layered :is(img, canvas) { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; }
   .remote.layered canvas { opacity: 0; transition: opacity 0.5s ease; }
   .remote.layered canvas:global(.live) { opacity: 1; }
@@ -480,7 +482,6 @@ const lights = [
       position: absolute; left: var(--remote-x); top: var(--remote-top); width: var(--remote-w); z-index: 1;
       translate: 0 var(--rest, 0px); filter: drop-shadow(0 16px 26px rgb(0 0 0 / 0.35));
     }
-    .card.wide.cinema.in-focus .remote { translate: 0 0; }
     .card.wide.cinema[data-side='right'] { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
     .cinema[data-side='right'] .copy { order: 2; text-align: right; }
     .cinema[data-side='right'] .crop { order: 1; }
