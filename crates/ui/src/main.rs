@@ -204,8 +204,9 @@ fn main() -> anyhow::Result<()> {
                 return;
             }
             let library = Library::start(weak.clone());
+            let kodi = tokio::sync::OnceCell::new();
             loop {
-                match run(&weak, &mut act_rx, &library).await {
+                match run(&weak, &mut act_rx, &library, &kodi).await {
                     Ok(()) => set_status(&weak, false, "Disconnected, retrying…".to_string()),
                     Err(e) => {
                         tracing::error!("core session failed: {e:#}");

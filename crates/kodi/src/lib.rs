@@ -12,6 +12,7 @@ pub mod engine;
 pub mod error;
 mod handle;
 pub mod ids;
+pub mod labels;
 pub mod methods;
 pub mod notification;
 pub mod rpc;

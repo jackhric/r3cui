@@ -3578,6 +3578,7 @@ dependencies = [
  "coreapi",
  "evdev",
  "image",
+ "kodi",
  "serde",
  "serde_json",
  "slint",

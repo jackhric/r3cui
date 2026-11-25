@@ -4,6 +4,7 @@
 pub(crate) mod ha_keys;
 pub(crate) mod health;
 pub(crate) mod kodi;
+pub(crate) mod kodi_direct;
 pub(crate) mod library;
 pub(crate) mod receiver;
 pub(crate) mod system;

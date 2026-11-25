@@ -10,7 +10,7 @@ use crate::app::title::StableTitle;
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
 use crate::hardware::{backlight, feedback};
 use crate::input::slider;
-use crate::integrations::{ha_keys, health, kodi, system, wifi};
+use crate::integrations::{ha_keys, health, kodi, kodi_direct, system, wifi};
 use crate::integrations::library::Library;
 use crate::integrations::receiver::{slide, Receiver};
 use crate::integrations::system::{load_settings, System};
@@ -26,7 +26,8 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc;
+use ::kodi::{KodiHandle, KodiService};
+use tokio::sync::{mpsc, OnceCell};
 
 pub(crate) const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 /// Whenever the driver's title changes, ask Kodi what is playing.
@@ -79,6 +80,8 @@ pub(crate) struct Session {
     /// What each row of the subtitle picker selects.
     subtitle_ids: Vec<Option<i64>>,
     library: Library,
+    /// r3cui's own Kodi client, in direct mode; `None` when Kodi comes through the core.
+    kodi: Option<KodiHandle>,
 }
 impl Session {
     /// Put the model on screen, and let the poster wall show when it may.
@@ -135,21 +138,31 @@ impl Session {
     /// Fetch the artwork whenever Kodi reports a different image URL: the poster, and behind it
     /// the item's backdrop (the poster again when it has none), blurred.
     fn sync_poster(&mut self, weak: &slint::Weak<AppWindow>) {
-        let url = text(self.target(Target::Screen), Attr::MediaImageUrl).to_string();
+        // In direct mode Kodi's own client names both pictures; otherwise the core's entity names the poster and
+        // Kodi is asked for the backdrop.
+        let direct = self.kodi.as_ref().map(|k| kodi_direct::art(k, &k.state().borrow()));
+        let url = match &direct {
+            Some((poster, _)) => poster.clone(),
+            None => text(self.target(Target::Screen), Attr::MediaImageUrl).to_string(),
+        };
         if url == self.poster_url {
             return;
         }
         self.poster_url = url.clone();
-        kodi::learn_from_image(&url);
+        if direct.is_none() {
+            kodi::learn_from_image(&url);
+        }
         let weak = weak.clone();
         tokio::task::spawn_blocking(move || {
             let poster = (!url.is_empty()).then(|| fetch_image(&url).map_err(|e| tracing::warn!("poster {url}: {e:#}")).ok()).flatten();
-            let fanart = kodi::endpoint()
-                .filter(|_| !url.is_empty())
-                .and_then(|base| kodi::playing(&base).map_err(|e| tracing::info!("kodi json-rpc: {e:#}")).ok())
-                .map(|p| p.fanart)
-                .filter(|f| !f.is_empty())
-                .and_then(|f| fetch_image(&f).map_err(|e| tracing::warn!("fanart {f}: {e:#}")).ok());
+            let fanart_url = match direct {
+                Some((_, fanart)) => Some(fanart),
+                None => kodi::endpoint()
+                    .filter(|_| !url.is_empty())
+                    .and_then(|base| kodi::playing(&base).map_err(|e| tracing::info!("kodi json-rpc: {e:#}")).ok())
+                    .map(|p| p.fanart),
+            };
+            let fanart = fanart_url.filter(|f| !f.is_empty()).and_then(|f| fetch_image(&f).map_err(|e| tracing::warn!("fanart {f}: {e:#}")).ok());
             let backdrop = fanart.as_ref().or(poster.as_ref()).map(backdrop_pixels);
             let tint = poster.as_ref().and_then(vibrant::accent);
             let poster = poster.as_ref().map(poster_pixels);
@@ -186,15 +199,20 @@ impl Session {
         let position = if paused { self.position } else { self.position + self.position_at.elapsed().as_secs_f64() };
         let link = |e: Option<&Entity>| self.integrations.get(e?.integration_id.as_deref()?).copied();
         let r = self.receiver.view(receiver, volume_from, &self.entities);
+        let direct = self.kodi.as_ref().map(|k| k.state().borrow().clone());
+        let (kodi_link, kodi) = match &direct {
+            Some(st) => kodi_direct::health(st),
+            None => (link(screen), screen.is_some().then_some(state)),
+        };
         let (status, warning) = health::health(health::Health {
             wifi_ssid: &self.wifi.ssid,
             home_assistant: link(receiver),
             receiver: receiver.map(Entity::state),
-            kodi_link: link(screen),
-            kodi: screen.is_some().then_some(state),
+            kodi_link,
+            kodi,
             on_kodi: r.source.is_empty() || r.source.eq_ignore_ascii_case("kodi"),
         });
-        Model {
+        let m = Model {
             keys: ha_keys::keys(&self.entities),
             wifi_ssid: self.wifi.ssid.clone(),
             wifi: self.wifi.networks.clone(),
@@ -223,10 +241,22 @@ impl Session {
             awake: self.system.awake,
             receiver_on: r.on,
             volume_max: r.volume_max,
+        };
+        match direct {
+            Some(st) => {
+                let np = kodi_direct::now_playing(&st);
+                Model { title: np.title, paused: np.paused, duration: np.duration, position: np.position, media_format: np.media_format, media_sub: np.media_sub, ..m }
+            }
+            None => m,
         }
     }
 }
-pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceiver<UiAction>, library: &Library) -> anyhow::Result<()> {
+pub(crate) async fn run(
+    weak: &slint::Weak<AppWindow>,
+    actions: &mut mpsc::UnboundedReceiver<UiAction>,
+    library: &Library,
+    kodi_client: &OnceCell<KodiHandle>,
+) -> anyhow::Result<()> {
     let cfg = coreapi::Config::from_env()?;
     set_status(weak, false, format!("Connecting to {}…", cfg.url));
 
@@ -235,6 +265,16 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
     tracing::info!(entities = entities.len(), "get_entities");
 
     let screen = pick_entity("UC_SCREEN_ENTITY", &entities, |_| true);
+    // r3cui's own Kodi client, started once and kept across core reconnects.
+    let kodi = match kodi_direct::enabled().then(|| kodi_direct::config(screen.as_deref())) {
+        Some(Some(cfg)) => Some(kodi_client.get_or_init(|| async move { KodiService::start(cfg) }).await.clone()),
+        Some(None) => {
+            tracing::warn!("kodi direct mode, but no Kodi host: set kodi.host in settings.json");
+            None
+        }
+        None => None,
+    };
+    let mut kodi_state = kodi.as_ref().map(KodiHandle::state);
     let (system, wifi, integrations) = tokio::join!(System::load(&core), Wifi::load(&core), health::integrations(&core));
     let mut session = Session {
         receiver: Receiver::new(pick_entity("UC_VOLUME_ENTITY", &entities, |e| e.has_feature("volume_up_down"))),
@@ -248,6 +288,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
         title: StableTitle::default(),
         timing: false,
         library: library.clone(),
+        kodi,
         screen,
         entities,
     };
@@ -320,8 +361,19 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 if session.wifi.join_timed_out() {
                     let _ = later_tx.send(Later::JoinDone(false));
                 }
-                session.settle_title();
-                ask_title(&mut session, &later_tx);
+                if session.kodi.is_none() {
+                    session.settle_title();
+                    ask_title(&mut session, &later_tx);
+                }
+                session.show(weak);
+            }
+            Some(()) = async {
+                match kodi_state.as_mut() {
+                    Some(rx) => rx.changed().await.ok(),
+                    None => std::future::pending().await,
+                }
+            } => {
+                session.sync_poster(weak);
                 session.show(weak);
             }
             Some(later) = later_rx.recv() => {
@@ -414,6 +466,42 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
             Some(action) = actions.recv() => {
                 // A Kodi action, kept for the poster wall's prediction.
                 let mut pressed: Option<KodiAction> = None;
+                // Direct mode: Kodi's keys, seeking and the pickers go to r3cui's own client.
+                if let Some(k) = session.kodi.clone() {
+                    let key = match &action {
+                        UiAction::Kodi(a) => Some(*a),
+                        UiAction::Button(b) => match b.action() {
+                            Action::Kodi(a) => Some(a),
+                            Action::Receiver(_) => None,
+                        },
+                        _ => None,
+                    };
+                    let handled = match &action {
+                        _ if key.is_some() => {
+                            let a = key.unwrap();
+                            session.library.pressed(Some(a));
+                            kodi_direct::press(&k, a);
+                            true
+                        }
+                        UiAction::Seek(by) => {
+                            kodi_direct::seek_by(&k, *by);
+                            true
+                        }
+                        UiAction::OpenPicker(p) => {
+                            let (rows, current) = kodi_direct::tracks(&k.state().borrow(), *p);
+                            show_tracks(weak, rows, current);
+                            true
+                        }
+                        UiAction::PickTrack(p, i) => {
+                            kodi_direct::pick(&k, *p, *i);
+                            true
+                        }
+                        _ => false,
+                    };
+                    if handled {
+                        continue;
+                    }
+                }
                 let (target, cmd) = match action {
                     UiAction::Kodi(a) => {
                         pressed = Some(a);
