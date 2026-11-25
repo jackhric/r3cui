@@ -7,7 +7,6 @@ pub(crate) mod model;
 pub(crate) mod optimistic;
 pub(crate) mod session;
 pub(crate) mod settings;
-pub(crate) mod title;
 
 use crate::hardware::backlight;
 use crate::input::{slider, Button, KodiAction};
@@ -15,7 +14,6 @@ use crate::view::screen::Picker;
 use crate::integrations::wifi;
 
 use std::collections::HashMap;
-use std::time::Instant;
 
 pub(crate) enum UiAction {
     /// A remote button (on the desktop, a key standing in for one).
@@ -45,12 +43,6 @@ pub(crate) enum Later {
     /// The core's current list of configured entities.
     Entities(Vec<coreapi::Entity>),
     JoinDone(bool),
-    /// Kodi's subtitle streams, as (stream index or None for off, label), and which is on.
-    Subtitles(Vec<(Option<i64>, String)>, usize),
-    /// Kodi's own title for the media playing, asked whenever the driver's changes.
-    Title(String, String),
-    /// Kodi's exact position, and when it was read.
-    Position(f64, Instant),
     /// Demo only: the receiver has caught up with an input change.
     Switched,
     /// The slider's throttled volume command is due.

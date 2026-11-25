@@ -1,24 +1,22 @@
-//! The live session: the core connection, its entities, and the event loop that turns UI actions and core events
-//! into commands and screen updates.
+//! The live session: the core connection, its entities, and the event loop that turns UI actions, the core's events
+//! and Kodi's state into commands and screen updates. Kodi itself comes through r3cui's own client (`crates/kodi`);
+//! the core gives the receiver, the remote's own state and its Wi-Fi.
 
 use crate::AppWindow;
-use coreapi::{Attr, CoreEvent, Entity, EntityChange, MediaPlayerCmd, MediaState};
 use crate::app::{Later, UiAction, settings};
-use crate::app::entity::{list, number, pick_entity, text};
+use crate::app::entity::pick_entity;
 use crate::app::model::Model;
-use crate::app::title::StableTitle;
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
 use crate::hardware::{backlight, feedback};
-use crate::input::slider;
-use crate::integrations::{ha_keys, health, kodi, kodi_direct, system, wifi};
+use crate::input::{slider, Action, ReceiverCmd};
+use crate::integrations::{ha_keys, health, kodi_direct as kodi, system, wifi};
 use crate::integrations::library::Library;
 use crate::integrations::receiver::{slide, Receiver};
 use crate::integrations::system::{load_settings, System};
 use crate::integrations::wifi::Wifi;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_tracks, ui};
-use crate::view::format::{audio_format, episode, split_track};
-use crate::input::{Action, KodiAction, ReceiverCmd, Target};
-use crate::view::screen::Picker;
+use ::kodi::{KodiHandle, KodiService, KodiState};
+use coreapi::{CoreEvent, Entity, MediaPlayerCmd};
 
 use serde_json::Value;
 use std::cell::RefCell;
@@ -26,63 +24,25 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use ::kodi::{KodiHandle, KodiService};
 use tokio::sync::{mpsc, OnceCell};
 
 pub(crate) const RECONNECT_DELAY: Duration = Duration::from_secs(2);
-/// Whenever the driver's title changes, ask Kodi what is playing.
-pub(crate) fn ask_title(session: &mut Session, tx: &mpsc::UnboundedSender<Later>) {
-    let (Some(media), Some(base)) = (session.title.lookup(), kodi::endpoint()) else { return };
-    let tx = tx.clone();
-    tokio::task::spawn_blocking(move || match kodi::title(&base) {
-        Ok(title) => {
-            let _ = tx.send(Later::Title(media, title));
-        }
-        Err(e) => tracing::debug!("kodi title: {e:#}"),
-    });
-}
-/// The driver reports the position in whole seconds, sent now and then; whenever it reports one, or a pause
-/// or resume, Kodi's own position, to the millisecond, replaces it.
-pub(crate) fn ask_position(session: &mut Session, tx: &mpsc::UnboundedSender<Later>) {
-    if !std::mem::take(&mut session.timing) {
-        return;
-    }
-    let Some(base) = kodi::endpoint() else { return };
-    let tx = tx.clone();
-    tokio::task::spawn_blocking(move || {
-        let asked = Instant::now();
-        match kodi::position(&base) {
-            Ok(at) => {
-                // Read about halfway through the round trip.
-                let when = asked + asked.elapsed() / 2;
-                let _ = tx.send(Later::Position(at, when));
-            }
-            Err(e) => tracing::debug!("kodi position: {e:#}"),
-        }
-    });
-}
+
 pub(crate) struct Session {
-    /// In the order the core lists them, which picking the screen and receiver relies on.
+    /// In the order the core lists them, which picking the receiver relies on.
     entities: Vec<Entity>,
-    /// Kodi's media player.
-    screen: Option<String>,
     receiver: Receiver,
     system: System,
     wifi: Wifi,
     /// integration id → whether the core reaches the device behind it.
     integrations: HashMap<String, bool>,
-    position: f64,
-    position_at: Instant,
-    poster_url: String,
-    title: StableTitle,
-    /// The screen's position or play state has changed since Kodi was last asked for its exact position.
-    timing: bool,
-    /// What each row of the subtitle picker selects.
-    subtitle_ids: Vec<Option<i64>>,
     library: Library,
-    /// r3cui's own Kodi client, in direct mode; `None` when Kodi comes through the core.
+    /// r3cui's own Kodi client; `None` when no Kodi is set up.
     kodi: Option<KodiHandle>,
+    /// The artwork on show, so it is fetched once per item.
+    poster_url: String,
 }
+
 impl Session {
     /// Put the model on screen, and let the poster wall show when it may.
     fn show(&self, weak: &slint::Weak<AppWindow>) {
@@ -95,74 +55,35 @@ impl Session {
         self.entities.iter().find(|e| e.entity_id == id)
     }
 
-    fn target(&self, t: Target) -> Option<&Entity> {
-        let id = match t {
-            Target::Screen => self.screen.as_deref(),
-            Target::Volume => self.receiver.id.as_deref(),
-        };
-        id.and_then(|id| self.entity(id))
+    fn receiver_entity(&self) -> Option<&Entity> {
+        self.receiver.id.as_deref().and_then(|id| self.entity(id))
     }
 
-    /// Merge an `entity_change` into the cached entity; returns whether it applied. A change to the screen's
-    /// position or play state sets `timing`, for Kodi's exact position to be asked.
-    fn apply_change(&mut self, change: &EntityChange) -> bool {
+    fn kodi_state(&self) -> KodiState {
+        self.kodi.as_ref().map(|k| k.state().borrow().clone()).unwrap_or_default()
+    }
+
+    /// Merge an `entity_change` into the cached entity; returns whether it applied.
+    fn apply_change(&mut self, change: &coreapi::EntityChange) -> bool {
         let Some(id) = change.entity_id.as_deref() else { return false };
         let attrs = change.attributes();
-        if attrs.is_empty() {
-            return false;
-        }
         let Some(entity) = self.entities.iter_mut().find(|e| e.entity_id == id) else { return false };
-        let was_playing = entity.state() == MediaState::Playing;
         entity.apply(attrs);
-        let playing = entity.state() == MediaState::Playing;
-        if self.screen.as_deref() == Some(id) {
-            self.timing |= attrs.contains_key(Attr::State.name()) || attrs.contains_key(Attr::MediaPosition.name());
-            // The position runs on from the last report only while playing; a pause or a resume without a fresh
-            // position restarts the count from where it stood, so a pause is not counted as time played.
-            if attrs.contains_key(Attr::State.name()) {
-                if playing != was_playing {
-                    if was_playing {
-                        self.position += self.position_at.elapsed().as_secs_f64();
-                    }
-                    self.position_at = Instant::now();
-                }
-            }
-            if let Some(p) = attrs.get(Attr::MediaPosition.name()).and_then(Value::as_f64) {
-                self.position = p;
-                self.position_at = Instant::now();
-            }
-        }
-        true
+        !attrs.is_empty()
     }
 
-    /// Fetch the artwork whenever Kodi reports a different image URL: the poster, and behind it
-    /// the item's backdrop (the poster again when it has none), blurred.
+    /// Fetch the artwork whenever what's playing changes: the poster, and behind it the item's backdrop (the poster
+    /// again when it has none), blurred.
     fn sync_poster(&mut self, weak: &slint::Weak<AppWindow>) {
-        // In direct mode Kodi's own client names both pictures; otherwise the core's entity names the poster and
-        // Kodi is asked for the backdrop.
-        let direct = self.kodi.as_ref().map(|k| kodi_direct::art(k, &k.state().borrow()));
-        let url = match &direct {
-            Some((poster, _)) => poster.clone(),
-            None => text(self.target(Target::Screen), Attr::MediaImageUrl).to_string(),
-        };
+        let (url, fanart) = self.kodi.as_ref().map(|k| kodi::art(k, &k.state().borrow())).unwrap_or_default();
         if url == self.poster_url {
             return;
         }
         self.poster_url = url.clone();
-        if direct.is_none() {
-            kodi::learn_from_image(&url);
-        }
         let weak = weak.clone();
         tokio::task::spawn_blocking(move || {
-            let poster = (!url.is_empty()).then(|| fetch_image(&url).map_err(|e| tracing::warn!("poster {url}: {e:#}")).ok()).flatten();
-            let fanart_url = match direct {
-                Some((_, fanart)) => Some(fanart),
-                None => kodi::endpoint()
-                    .filter(|_| !url.is_empty())
-                    .and_then(|base| kodi::playing(&base).map_err(|e| tracing::info!("kodi json-rpc: {e:#}")).ok())
-                    .map(|p| p.fanart),
-            };
-            let fanart = fanart_url.filter(|f| !f.is_empty()).and_then(|f| fetch_image(&f).map_err(|e| tracing::warn!("fanart {f}: {e:#}")).ok());
+            let fetch = |u: &str| (!u.is_empty()).then(|| fetch_image(u).map_err(|e| tracing::warn!("artwork {u}: {e:#}")).ok()).flatten();
+            let (poster, fanart) = (fetch(&url), fetch(&fanart));
             let backdrop = fanart.as_ref().or(poster.as_ref()).map(backdrop_pixels);
             let tint = poster.as_ref().and_then(vibrant::accent);
             let poster = poster.as_ref().map(poster_pixels);
@@ -179,40 +100,22 @@ impl Session {
         self.model().volume
     }
 
-    /// Feed the title filter with what Kodi reports now. Call before `model`.
-    fn settle_title(&mut self) {
-        let screen = self.target(Target::Screen);
-        let media = format!("{}|{}", number(screen, Attr::MediaDuration), text(screen, Attr::MediaImageUrl));
-        let (title, tracks) = (text(screen, Attr::MediaTitle).to_string(), text(screen, Attr::MediaArtist).to_string());
-        let streams = list(screen, Attr::SoundModeList);
-        // The driver reports the chapter playing as the media player's source.
-        let chapter = text(screen, Attr::Source).to_string();
-        self.title.feed(&media, &title, &tracks, &streams, &chapter, Instant::now());
-    }
-
     fn model(&self) -> Model {
-        let screen = self.target(Target::Screen);
-        let receiver = self.target(Target::Volume).filter(|_| self.receiver.id != self.screen);
-        let volume_from = receiver.or(screen);
-        let state = screen.map_or(MediaState::Unknown, Entity::state);
-        let paused = state != MediaState::Playing;
-        let position = if paused { self.position } else { self.position + self.position_at.elapsed().as_secs_f64() };
+        let receiver = self.receiver_entity();
         let link = |e: Option<&Entity>| self.integrations.get(e?.integration_id.as_deref()?).copied();
-        let r = self.receiver.view(receiver, volume_from, &self.entities);
-        let direct = self.kodi.as_ref().map(|k| k.state().borrow().clone());
-        let (kodi_link, kodi) = match &direct {
-            Some(st) => kodi_direct::health(st),
-            None => (link(screen), screen.is_some().then_some(state)),
-        };
+        let r = self.receiver.view(receiver, receiver, &self.entities);
+        let kodi_state = self.kodi_state();
+        let (kodi_link, kodi_doing) = kodi::health(&kodi_state);
         let (status, warning) = health::health(health::Health {
             wifi_ssid: &self.wifi.ssid,
             home_assistant: link(receiver),
             receiver: receiver.map(Entity::state),
             kodi_link,
-            kodi,
+            kodi: kodi_doing,
             on_kodi: r.source.is_empty() || r.source.eq_ignore_ascii_case("kodi"),
         });
-        let m = Model {
+        let np = kodi::now_playing(&kodi_state);
+        Model {
             keys: ha_keys::keys(&self.entities),
             wifi_ssid: self.wifi.ssid.clone(),
             wifi: self.wifi.networks.clone(),
@@ -226,31 +129,23 @@ impl Session {
             source: r.source,
             sources: r.sources,
             switching: r.switching,
-            // The Kodi driver keeps the last title, artwork and position after a stop, so only the
-            // playback state says whether anything is on.
-            title: if state.is_active() { self.title.shown.clone() } else { String::new() },
-            paused,
-            duration: number(screen, Attr::MediaDuration),
-            position,
-            media_format: audio_format(text(screen, Attr::SoundMode)),
-            media_sub: episode(text(screen, Attr::MediaType), text(screen, Attr::MediaArtist)),
-            audio_tracks: list(screen, Attr::SoundModeList),
-            audio_track: text(screen, Attr::SoundMode).to_string(),
+            title: np.title,
+            paused: np.paused,
+            duration: np.duration,
+            position: np.position,
+            media_format: np.media_format,
+            media_sub: np.media_sub,
+            audio_tracks: Vec::new(),
+            audio_track: String::new(),
             battery: self.system.battery,
             charging: self.system.charging,
             awake: self.system.awake,
             receiver_on: r.on,
             volume_max: r.volume_max,
-        };
-        match direct {
-            Some(st) => {
-                let np = kodi_direct::now_playing(&st);
-                Model { title: np.title, paused: np.paused, duration: np.duration, position: np.position, media_format: np.media_format, media_sub: np.media_sub, ..m }
-            }
-            None => m,
         }
     }
 }
+
 pub(crate) async fn run(
     weak: &slint::Weak<AppWindow>,
     actions: &mut mpsc::UnboundedReceiver<UiAction>,
@@ -264,16 +159,21 @@ pub(crate) async fn run(
     let entities = core.get_entities().await?;
     tracing::info!(entities = entities.len(), "get_entities");
 
-    let screen = pick_entity("UC_SCREEN_ENTITY", &entities, |_| true);
-    // r3cui's own Kodi client, started once and kept across core reconnects.
-    let kodi = match kodi_direct::enabled().then(|| kodi_direct::config(screen.as_deref())) {
-        Some(Some(cfg)) => Some(kodi_client.get_or_init(|| async move { KodiService::start(cfg) }).await.clone()),
-        Some(None) => {
-            tracing::warn!("kodi direct mode, but no Kodi host: set kodi.host in settings.json");
-            None
-        }
-        None => None,
+    // r3cui's own Kodi client, started once and kept across core reconnects. Until Kodi's address is in settings,
+    // it comes from the core's Kodi entity, if there is one.
+    let kodi = match kodi_client.get() {
+        Some(k) => Some(k.clone()),
+        None => match kodi::config(pick_entity("UC_SCREEN_ENTITY", &entities, |_| true).as_deref()) {
+            Some(cfg) => Some(kodi_client.get_or_init(|| async move { KodiService::start(cfg) }).await.clone()),
+            None => {
+                tracing::warn!("no Kodi to follow: set kodi.host in settings.json");
+                None
+            }
+        },
     };
+    if let Some(k) = &kodi {
+        library.attach(k.clone());
+    }
     let mut kodi_state = kodi.as_ref().map(KodiHandle::state);
     let (system, wifi, integrations) = tokio::join!(System::load(&core), Wifi::load(&core), health::integrations(&core));
     let mut session = Session {
@@ -281,25 +181,14 @@ pub(crate) async fn run(
         system,
         wifi,
         integrations,
-        position: 0.0,
-        position_at: Instant::now(),
-        poster_url: String::new(),
-        subtitle_ids: Vec::new(),
-        title: StableTitle::default(),
-        timing: false,
         library: library.clone(),
         kodi,
-        screen,
+        poster_url: String::new(),
         entities,
     };
     load_settings(weak, &core).await;
-    session.settle_title();
     session.sync_poster(weak);
-    session.position = number(session.target(Target::Screen), Attr::MediaPosition);
-    tracing::info!(screen = ?session.screen, receiver = ?session.receiver.id, "targets");
-    if let Some(screen) = &session.screen {
-        kodi::learn_from_entity(screen);
-    }
+    tracing::info!(kodi = ?session.kodi.as_ref().map(|k| k.config().host.clone()), receiver = ?session.receiver.id, "targets");
 
     session.show(weak);
     set_status(weak, true, String::new());
@@ -326,7 +215,7 @@ pub(crate) async fn run(
     let pace = |gate: &mut slider::Pacer, send: slider::Send, session: &Session| match send {
         slider::Send::Now(v) => {
             tracing::info!("slider volume {v} (from {} moves)", gate.take_merged());
-            if let Some(entity) = session.target(Target::Volume) {
+            if let Some(entity) = session.receiver_entity() {
                 commands.send(entity, MediaPlayerCmd::Volume(v));
             }
         }
@@ -361,10 +250,6 @@ pub(crate) async fn run(
                 if session.wifi.join_timed_out() {
                     let _ = later_tx.send(Later::JoinDone(false));
                 }
-                if session.kodi.is_none() {
-                    session.settle_title();
-                    ask_title(&mut session, &later_tx);
-                }
                 session.show(weak);
             }
             Some(()) = async {
@@ -387,19 +272,6 @@ pub(crate) async fn run(
                                 session.entities.push(e);
                             }
                         }
-                    }
-                    Later::Subtitles(rows, current) => {
-                        session.subtitle_ids = rows.iter().map(|r| r.0).collect();
-                        let labels: Vec<String> = rows.into_iter().map(|r| r.1).collect();
-                        show_tracks(weak, labels.iter().map(|l| (l.clone(), String::new())).collect(), current);
-                    }
-                    Later::Position(at, when) => {
-                        (session.position, session.position_at) = (at, when);
-                        session.show(weak);
-                    }
-                    Later::Title(media, title) => {
-                        session.title.answer(&media, title);
-                        session.show(weak);
                     }
                     Later::Switched => {}
                     Later::SendVolume => {
@@ -453,10 +325,6 @@ pub(crate) async fn run(
                             }
                         }
                         if session.apply_change(&change) {
-                            session.settle_title();
-                            ask_title(&mut session, &later_tx);
-                            ask_position(&mut session, &later_tx);
-                            session.sync_poster(weak);
                             session.show(weak);
                         }
                     }
@@ -464,53 +332,49 @@ pub(crate) async fn run(
                 }
             }
             Some(action) = actions.recv() => {
-                // A Kodi action, kept for the poster wall's prediction.
-                let mut pressed: Option<KodiAction> = None;
-                // Direct mode: Kodi's keys, seeking and the pickers go to r3cui's own client.
-                if let Some(k) = session.kodi.clone() {
-                    let key = match &action {
-                        UiAction::Kodi(a) => Some(*a),
-                        UiAction::Button(b) => match b.action() {
-                            Action::Kodi(a) => Some(a),
-                            Action::Receiver(_) => None,
-                        },
-                        _ => None,
-                    };
-                    let handled = match &action {
-                        _ if key.is_some() => {
-                            let a = key.unwrap();
+                // Kodi's keys, seeking and the track pickers go to Kodi; the rest is the receiver's, the remote's or
+                // the Wi-Fi's.
+                let kodi_key = match &action {
+                    UiAction::Kodi(a) => Some(*a),
+                    UiAction::Button(b) => match b.action() {
+                        Action::Kodi(a) => Some(a),
+                        Action::Receiver(_) => None,
+                    },
+                    _ => None,
+                };
+                if let Some(a) = kodi_key {
+                    match &session.kodi {
+                        Some(k) => {
                             session.library.pressed(Some(a));
-                            kodi_direct::press(&k, a);
-                            true
+                            kodi::press(k, a);
                         }
-                        UiAction::Seek(by) => {
-                            kodi_direct::seek_by(&k, *by);
-                            true
+                        None => tracing::info!("{a:?}: no Kodi"),
+                    }
+                    continue;
+                }
+                let cmd = match action {
+                    UiAction::Kodi(_) | UiAction::DemoKey(_) => continue,
+                    UiAction::Seek(by) => {
+                        if let Some(k) = &session.kodi {
+                            kodi::seek_by(k, by);
                         }
-                        UiAction::OpenPicker(p) => {
-                            let (rows, current) = kodi_direct::tracks(&k.state().borrow(), *p);
-                            show_tracks(weak, rows, current);
-                            true
-                        }
-                        UiAction::PickTrack(p, i) => {
-                            kodi_direct::pick(&k, *p, *i);
-                            true
-                        }
-                        _ => false,
-                    };
-                    if handled {
                         continue;
                     }
-                }
-                let (target, cmd) = match action {
-                    UiAction::Kodi(a) => {
-                        pressed = Some(a);
-                        (Target::Screen, a.command())
+                    UiAction::OpenPicker(p) => {
+                        let (rows, current) = kodi::tracks(&session.kodi_state(), p);
+                        show_tracks(weak, rows, current);
+                        continue;
+                    }
+                    UiAction::PickTrack(p, i) => {
+                        if let Some(k) = &session.kodi {
+                            kodi::pick(k, p, i);
+                        }
+                        continue;
                     }
                     UiAction::SelectSource(name) => {
                         let cmd = session.receiver.select_source(name);
                         session.show(weak);
-                        (Target::Volume, cmd)
+                        cmd
                     }
                     UiAction::Power(what) => {
                         // Not wired yet: a stray tap in a prototype should not switch the remote off.
@@ -521,7 +385,7 @@ pub(crate) async fn run(
                         let on = session.model().receiver_on;
                         let cmd = session.receiver.toggle_power(on);
                         session.show(weak);
-                        (Target::Volume, cmd)
+                        cmd
                     }
                     UiAction::Backlight(wanted) => {
                         keys.show(wanted);
@@ -529,46 +393,6 @@ pub(crate) async fn run(
                     }
                     UiAction::Display { brightness, auto } => {
                         system::set_display(&core, brightness, auto);
-                        continue;
-                    }
-                    UiAction::Seek(by) => {
-                        let m = session.model();
-                        let to = (m.position + by as f64).clamp(0.0, m.duration.max(0.0));
-                        (session.position, session.position_at) = (to, Instant::now());
-                        session.show(weak);
-                        (Target::Screen, MediaPlayerCmd::Seek(to.round() as u32))
-                    }
-                    UiAction::OpenPicker(Picker::Audio) => {
-                        let m = session.model();
-                        let current = m.audio_tracks.iter().position(|t| *t == m.audio_track).unwrap_or(usize::MAX);
-                        show_tracks(weak, m.audio_tracks.iter().map(|t| split_track(t)).collect(), current);
-                        continue;
-                    }
-                    UiAction::OpenPicker(Picker::Subtitles) => {
-                        show_tracks(weak, Vec::new(), usize::MAX);
-                        let Some(base) = kodi::endpoint() else { continue };
-                        let tx = later_tx.clone();
-                        tokio::task::spawn_blocking(move || match kodi::playing(&base) {
-                            Ok(p) => {
-                                let mut rows = vec![(None, "Off".to_string())];
-                                rows.extend(p.subtitles.into_iter().map(|(i, l)| (Some(i), l)));
-                                let _ = tx.send(Later::Subtitles(rows, p.subtitle.map_or(0, |i| i + 1)));
-                            }
-                            Err(e) => tracing::warn!("subtitles: {e:#}"),
-                        });
-                        continue;
-                    }
-                    UiAction::PickTrack(Picker::Audio, i) => {
-                        let Some(mode) = session.model().audio_tracks.get(i).cloned() else { continue };
-                        (Target::Screen, MediaPlayerCmd::SelectSoundMode(mode))
-                    }
-                    UiAction::PickTrack(Picker::Subtitles, i) => {
-                        let (Some(base), Some(id)) = (kodi::endpoint(), session.subtitle_ids.get(i).copied()) else { continue };
-                        tokio::task::spawn_blocking(move || {
-                            if let Err(e) = kodi::set_subtitle(&base, id) {
-                                tracing::warn!("set subtitle: {e:#}");
-                            }
-                        });
                         continue;
                     }
                     UiAction::Slider(slider::Gesture::Steps(n)) => {
@@ -585,7 +409,7 @@ pub(crate) async fn run(
                     UiAction::Slider(slider::Gesture::DoubleTap) => {
                         feedback::play(feedback::SLIDER_MUTE);
                         flash_volume(weak, &overlay);
-                        (Target::Volume, MediaPlayerCmd::MuteToggle)
+                        MediaPlayerCmd::MuteToggle
                     }
                     UiAction::WifiBand => {
                         session.wifi.toggle_band(&core).await;
@@ -608,37 +432,29 @@ pub(crate) async fn run(
                         continue;
                     }
                     UiAction::Button(b) => match b.action() {
-                        Action::Kodi(a) => {
-                            pressed = Some(a);
-                            (Target::Screen, a.command())
-                        }
                         Action::Receiver(r) => {
                             flash_volume(weak, &overlay);
                             if matches!(r, ReceiverCmd::VolumeUp | ReceiverCmd::VolumeDown) {
                                 feedback::play(feedback::VOLUME);
                             }
-                            (Target::Volume, r.command())
+                            r.command()
                         }
+                        Action::Kodi(_) => continue,
                     },
-                    UiAction::DemoKey(_) => continue,
                 };
-                let Some(entity) = session.target(target) else {
-                    tracing::warn!("{}: no {target:?} entity", cmd.id());
+                // Everything left goes to the receiver.
+                let Some(entity) = session.receiver_entity().cloned() else {
+                    tracing::warn!("{}: no receiver", cmd.id());
                     continue;
                 };
                 let cmd = if cmd == MediaPlayerCmd::MuteToggle {
-                    let (muted, entity) = (session.model().muted, entity.clone());
-                    let cmd = session.receiver.toggle_mute(muted, &entity);
+                    let cmd = session.receiver.toggle_mute(session.model().muted, &entity);
                     session.show(weak);
                     cmd
                 } else {
                     cmd
                 };
-                if target == Target::Screen {
-                    session.library.pressed(pressed);
-                }
-                let Some(entity) = session.target(target) else { continue };
-                commands.send(entity, cmd);
+                commands.send(&entity, cmd);
             }
         }
     }
@@ -647,8 +463,8 @@ pub(crate) async fn run(
 pub(crate) type Queued = (MediaPlayerCmd, Instant);
 /// The longest a command waits for the previous one's answer before going out anyway.
 pub(crate) const PRESS_GAP: Duration = Duration::from_millis(40);
-/// One queue per entity, for one core session: commands for an entity go out in the order they
-/// were made, each after the previous one is answered or `PRESS_GAP` has passed.
+/// One queue per entity, for one core session: commands for an entity (the receiver) go out in the order they were
+/// made, each after the previous one is answered or `PRESS_GAP` has passed.
 pub(crate) struct Commands {
     core: coreapi::Core,
     queues: RefCell<HashMap<String, mpsc::UnboundedSender<Queued>>>,
@@ -669,9 +485,9 @@ impl Commands {
                     let waited = made.elapsed();
                     let sent = Instant::now();
                     let mut answer = core.submit_command(&id, &cmd).await;
-                    // The next command waits for this one's answer, but not for long. The
-                    // integration reorders commands that arrive together; a short gap keeps the
-                    // order, and a Wi-Fi stall on the answer no longer holds up the next press.
+                    // The next command waits for this one's answer, but not for long: integrations can reorder
+                    // commands that arrive together (the core's Kodi integration did), a short gap keeps the order,
+                    // and a Wi-Fi stall on the answer doesn't hold up the next press.
                     let quick = match &mut answer {
                         Ok(rx) => tokio::time::timeout(PRESS_GAP, rx).await.ok(),
                         Err(_) => None,

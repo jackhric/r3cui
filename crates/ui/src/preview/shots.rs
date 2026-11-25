@@ -325,18 +325,17 @@ fn key(k: &'static str) -> Act {
     })
 }
 
-/// Pause (and reload Kodi's subtitles, from a little way back) or play on, with the remote's own play/pause key so it follows along,
-/// printing when, for the edit.
+/// Pause or play on, with the remote's own play/pause key, printing when, for the edit. Pausing also seeks back 3 s,
+/// which has Kodi read the subtitles again from the start of the line on show.
 fn kodi_hold(hold: bool) -> Act {
     Box::new(move |_, tx| {
         println!("record {} {:.3}", if hold { "hold" } else { "release" }, unix_now());
         let _ = tx.send(UiAction::Button(crate::input::Button::Play));
-        if let (true, Some(base)) = (hold, crate::integrations::kodi::endpoint()) {
+        if hold {
+            let tx = tx.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(600));
-                if let Err(e) = crate::integrations::kodi::reload(&base, 3.0) {
-                    tracing::warn!("kodi reload: {e:#}");
-                }
+                let _ = tx.send(UiAction::Seek(-3));
             });
         }
     })
@@ -625,7 +624,8 @@ fn shelf(kind: &str) -> Shelf {
             }
             Err(_) => slint::Image::default(),
         };
-        items.push(crate::integrations::library::entry::item(&crate::integrations::library::entry::entry(it, shows), poster));
+        let item: ::kodi::methods::library::FileItem = serde_json::from_value(it.clone()).unwrap_or_default();
+        items.push(crate::integrations::library::entry::item(&crate::integrations::library::entry::entry(&item, shows), poster));
     }
     let count = if shows { format!("{} shows", list.len()) } else { format!("{} films", list.len()) };
     Shelf { posters, items, count }

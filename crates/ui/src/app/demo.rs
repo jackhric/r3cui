@@ -75,7 +75,7 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
             }
             Some(later) = later_rx.recv() => match later {
                 Later::Wifi(_, networks) => (m.wifi, m.scanning) = (networks, false),
-                Later::Integrations(_) | Later::Entities(_) | Later::Subtitles(..) | Later::Title(..) | Later::Position(..) => {}
+                Later::Integrations(_) | Later::Entities(_) => {}
                 Later::Switched => m.switching = false,
                 Later::SendVolume => {}
                 Later::JoinDone(ok) => {

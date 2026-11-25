@@ -8,12 +8,12 @@ mod cursor;
 pub(crate) mod entry;
 
 use crate::input::KodiAction;
-use crate::integrations::kodi;
 use crate::view::screen::{LibMode, Screen};
+use ::kodi::methods::library::FileItem;
+use ::kodi::KodiHandle;
 use crate::{AppWindow, LibItem};
 use cursor::{Cursor, Report};
 use entry::{entry, item, poster, Entry};
-use serde_json::Value;
 use slint::Model as _;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -31,8 +31,10 @@ pub(crate) struct Library {
 }
 
 struct Shared {
-    /// Kodi's web address while the wall may show; `None` otherwise.
-    gate: watch::Sender<Option<String>>,
+    /// Whether the wall may show.
+    gate: watch::Sender<bool>,
+    /// Kodi, once the session has one.
+    kodi: Mutex<Option<KodiHandle>>,
     /// A key went to Kodi: look again shortly.
     poke: Notify,
     cursor: Mutex<Cursor>,
@@ -45,24 +47,25 @@ struct Shared {
 impl Library {
     /// Start following Kodi; the wall shows only once `allow` says it may.
     pub(crate) fn start(weak: slint::Weak<AppWindow>) -> Self {
-        let (gate, rx) = watch::channel(None);
+        let (gate, rx) = watch::channel(false);
         // Titles named in `UC_DEMO_HIDE` (separated by `|`) are left off the wall, to put a film in the column a take
         // needs. Kodi's own list is untouched.
         let hidden = std::env::var("UC_DEMO_HIDE").unwrap_or_default().split('|').map(str::trim).filter(|t| !t.is_empty()).map(String::from).collect();
-        let shared = Arc::new(Shared { gate, poke: Notify::new(), cursor: Mutex::default(), list: AtomicU64::new(0), hidden });
+        let shared = Arc::new(Shared { gate, kodi: Mutex::new(None), poke: Notify::new(), cursor: Mutex::default(), list: AtomicU64::new(0), hidden });
         let library = Self { shared, weak };
         tokio::spawn(library.clone().follow(rx));
         library
     }
 
+    /// The Kodi to follow.
+    pub(crate) fn attach(&self, kodi: KodiHandle) {
+        *self.shared.kodi.lock().unwrap() = Some(kodi);
+        self.shared.gate.send_modify(|_| {});
+    }
+
     /// Whether the wall may show at all: Kodi on screen, nothing playing, the remote awake.
     pub(crate) fn allow(&self, yes: bool) {
-        let want = if yes { kodi::endpoint() } else { None };
-        self.shared.gate.send_if_modified(|v| {
-            let changed = *v != want;
-            *v = want;
-            changed
-        });
+        self.shared.gate.send_if_modified(|v| std::mem::replace(v, yes) != yes);
     }
 
     /// A key went to Kodi: move the wall's highlight where Kodi's will go, and look again shortly.
@@ -81,39 +84,45 @@ impl Library {
         self.shared.cursor.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    async fn follow(self, mut gate: watch::Receiver<Option<String>>) {
+    async fn follow(self, mut gate: watch::Receiver<bool>) {
         // (folder, sort, order) of the list on show, with its ids and poster URLs in order.
         let mut shown: Option<(String, Vec<i64>, Vec<String>)> = None;
         let loading: Arc<Mutex<HashSet<i64>>> = Arc::default();
         loop {
-            let base = gate.borrow_and_update().clone();
-            let view = match base.clone() {
-                Some(b) => tokio::task::spawn_blocking(move || kodi::browsing(&b)).await.ok().and_then(|r| r.map_err(|e| tracing::debug!("kodi browsing: {e:#}")).ok()),
+            let allowed = *gate.borrow_and_update();
+            let kodi = self.shared.kodi.lock().unwrap().clone().filter(|_| allowed);
+            let view = match &kodi {
+                Some(k) => k.browsing().await.map_err(|e| tracing::debug!("kodi browsing: {e}")).ok(),
                 None => None,
             };
-            match (base, view) {
-                (Some(base), Some(view)) if matches!(view.content.as_str(), "movies" | "tvshows") => {
-                    let key = format!("{}|{}|{}", view.path, view.sort, view.order);
+            match (kodi, view) {
+                (Some(kodi), Some(view)) if view.is_library() => {
+                    let key = view.list_key();
                     if shown.as_ref().is_none_or(|(k, ..)| *k != key) {
-                        let (b, v) = (base.clone(), view.clone());
-                        let Ok(Ok(list)) = tokio::task::spawn_blocking(move || kodi::list(&b, &v)).await else {
-                            tracing::warn!("kodi list {} failed", view.path);
-                            self.wait(&mut gate).await;
-                            continue;
+                        let list = match kodi.listing(&view).await {
+                            Ok(list) => list,
+                            Err(e) => {
+                                tracing::warn!("kodi list {}: {e}", view.path);
+                                self.wait(&mut gate).await;
+                                continue;
+                            }
                         };
-                        let list: Vec<Value> = list.into_iter().filter(|it| !self.hidden(it)).collect();
-                        let shows = view.content == "tvshows";
+                        let list: Vec<FileItem> = list.into_iter().filter(|it| !self.hidden(it)).collect();
+                        let shows = view.content == ::kodi::browse::Content::TvShows;
                         let entries: Vec<Entry> = list.iter().map(|it| entry(it, shows)).collect();
-                        let urls = list.iter().map(|it| it["poster"].as_str().unwrap_or("").to_string()).collect();
-                        tracing::info!("library wall: {} {} by {} {}", entries.len(), view.content, view.sort, view.order);
+                        let urls = list
+                            .iter()
+                            .map(|it| it.art.poster.as_ref().or(it.art.thumb.as_ref()).map(|a| kodi.image_url(a, Some((136, 204)))).unwrap_or_default())
+                            .collect();
+                        tracing::info!("library wall: {} {:?} by {} {}", entries.len(), view.content, view.sort_label, if view.ascending { "ascending" } else { "descending" });
                         self.shared.list.fetch_add(1, Ordering::SeqCst);
                         loading.lock().unwrap().clear();
                         shown = Some((key, entries.iter().map(|e| e.id).collect(), urls));
                         self.show_list(entries, shows);
                     }
                     let (_, ids, urls) = shown.as_ref().unwrap();
-                    let at = ids.iter().position(|&id| id == view.focus).unwrap_or(0);
-                    let report = Report { at, len: ids.len(), column: view.column, row: view.row, position: view.position };
+                    let at = ids.iter().position(|&id| Some(id) == view.focus.map(i64::from)).unwrap_or(0);
+                    let report = Report { at, len: ids.len(), column: view.column.unwrap_or(-1), row: view.row.unwrap_or(-1), position: view.position.unwrap_or(-1) };
                     if !self.cursor().report(report, Instant::now()) {
                         tokio::time::sleep(Duration::from_millis(120)).await;
                         continue;
@@ -135,8 +144,8 @@ impl Library {
         }
     }
 
-    fn hidden(&self, it: &Value) -> bool {
-        it["label"].as_str().is_some_and(|l| self.shared.hidden.iter().any(|h| h == l))
+    fn hidden(&self, it: &FileItem) -> bool {
+        self.shared.hidden.iter().any(|h| *h == it.label)
     }
 
     /// A new list: its titles at once, the posters as they arrive.
@@ -156,7 +165,7 @@ impl Library {
         });
     }
 
-    async fn wait(&self, gate: &mut watch::Receiver<Option<String>>) {
+    async fn wait(&self, gate: &mut watch::Receiver<bool>) {
         tokio::select! {
             _ = self.shared.poke.notified() => tokio::time::sleep(Duration::from_millis(90)).await,
             _ = tokio::time::sleep(Duration::from_secs(1)) => {}

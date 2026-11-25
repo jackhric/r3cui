@@ -1,6 +1,5 @@
-//! The remote's side of r3cui's own Kodi client (`crates/kodi`), used when `kodi.mode` is "direct": where Kodi is,
-//! what the screen shows of `KodiState`, and the remote's keys and pickers as Kodi commands. In "core" mode (the
-//! default for now) none of this runs and Kodi comes through the core's Kodi integration.
+//! The remote's side of r3cui's own Kodi client (`crates/kodi`): where Kodi is, what the screen shows of
+//! `KodiState`, and the remote's keys and pickers as Kodi commands.
 
 use crate::app::settings;
 use crate::input::KodiAction;
@@ -11,10 +10,6 @@ use kodi::labels::{audio_format, audio_label, subtitle_label};
 use kodi::methods::input::InputAction;
 use kodi::{KodiConfig, KodiHandle, KodiState, Link, Nav, Playback, SubtitleChoice};
 use std::time::Instant;
-
-pub(crate) fn enabled() -> bool {
-    std::env::var("UC_KODI_MODE").map_or_else(|_| settings::get().kodi_direct, |m| m == "direct")
-}
 
 /// Kodi's host from settings, or else from the core's Kodi entity (`kodi_driver.main.media_player.<host>`), so an
 /// install that already has the core's Kodi integration needs no setup.

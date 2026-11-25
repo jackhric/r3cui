@@ -38,8 +38,6 @@ pub struct Settings {
     pub sound_volume: Option<f32>,
     /// How the poster wall shows the highlighted title: 1 sheet, 2 overlay (the default), 3 inline.
     pub wall_style: Option<i32>,
-    /// Talk to Kodi directly (r3cui's own client) rather than through the core's Kodi integration.
-    pub kodi_direct: bool,
     /// Where Kodi is, when not learnt from the core's Kodi entity.
     pub kodi_host: Option<String>,
     pub kodi_http_port: Option<u16>,
@@ -102,11 +100,10 @@ struct File {
     kodi: Option<KodiFile>,
 }
 
-/// `"kodi": { "mode": "direct" | "core", "host": "…", "http_port": 8080, "ws_port": 9090 }`
+/// `"kodi": { "host": "…", "http_port": 8080, "ws_port": 9090 }`
 #[derive(Deserialize, Default)]
 #[serde(default)]
 struct KodiFile {
-    mode: Option<String>,
     host: Option<String>,
     http_port: Option<u16>,
     ws_port: Option<u16>,
@@ -131,7 +128,6 @@ fn parse(text: &str) -> Result<Settings, String> {
         sound_enabled: f.sound_enabled,
         sound_volume: unit(f.sound_volume),
         wall_style: f.wall_style.map(|x| x.clamp(1, 3)),
-        kodi_direct: f.kodi.as_ref().and_then(|k| k.mode.as_deref()) == Some("direct"),
         kodi_host: f.kodi.as_ref().and_then(|k| k.host.clone()),
         kodi_http_port: f.kodi.as_ref().and_then(|k| k.http_port),
         kodi_ws_port: f.kodi.as_ref().and_then(|k| k.ws_port),

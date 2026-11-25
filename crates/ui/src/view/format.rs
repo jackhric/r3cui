@@ -17,18 +17,6 @@ pub(crate) fn split_track(t: &str) -> (String, String) {
         None => (t.to_string(), String::new()),
     }
 }
-/// "S1E4" for an episode → "Season 1 · Episode 4"
-pub(crate) fn episode(media_type: &str, artist: &str) -> String {
-    if !media_type.eq_ignore_ascii_case("episode") {
-        return String::new();
-    }
-    let up = artist.to_uppercase();
-    let Some((s, e)) = up.strip_prefix('S').and_then(|r| r.split_once('E')) else { return String::new() };
-    match (s.parse::<u32>(), e.parse::<u32>()) {
-        (Ok(s), Ok(e)) => format!("Season {s} · Episode {e}"),
-        _ => String::new(),
-    }
-}
 pub(crate) fn duration_label(secs: i64) -> String {
     if secs >= 60 && secs % 60 == 0 {
         format!("{} min", secs / 60)
@@ -182,8 +170,6 @@ mod tests {
         assert_eq!(clock(4328.0), "1:12:08");
         assert_eq!(clock(548.0), "9:08");
         assert_eq!(clock(548.9), "9:08");
-        assert_eq!(episode("episode", "S1E4"), "Season 1 · Episode 4");
-        assert_eq!(episode("movie", "English - English"), "");
         assert_eq!(split_track("French VF - AAC-LC stereo"), ("French VF".into(), "AAC-LC stereo".into()));
         let badge = |s: &str| { let (l, t) = codec_badge(s); (l, t) };
         assert_eq!(badge("DTS-HD MA 7.1"), ("dts", "HD MA 7.1".to_string()));

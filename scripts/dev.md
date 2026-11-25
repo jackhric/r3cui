@@ -51,8 +51,10 @@ the keyboard stands in (`crates/ui/src/input/mod.rs`); the footer line shows wha
 | `H` `M` | HOME, MENU | `S` `R` | stop, record |
 | PgUp / PgDn | channel up / down | | |
 
-Volume keys go to `UC_VOLUME_ENTITY`, everything else to `UC_SCREEN_ENTITY` (entity ids). Unset, the
-screen picks a Kodi `media_player` if one exists, else the first `media_player`.
+Volume keys go to the receiver, `UC_VOLUME_ENTITY` (an entity id; unset, the first media_player with
+`volume_up_down` that isn't Kodi). Everything else goes straight to Kodi through r3cui's own client
+(`crates/kodi`). Kodi's address is `kodi.host` in `config/settings.json`, or `UC_KODI_HOST`; failing both, it is
+taken from the core's Kodi entity name (`UC_SCREEN_ENTITY`, or the first Kodi `media_player`).
 
 ## Hot reload
 

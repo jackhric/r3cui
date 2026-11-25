@@ -37,8 +37,8 @@ pub enum Button {
     Record,
 }
 
-/// What a button asks for. Kodi's actions go to whatever drives Kodi (today the core's Kodi entity), the receiver's
-/// to its media player in Home Assistant.
+/// What a button asks for: a Kodi action (for r3cui's own Kodi client), or a command for the receiver's media player
+/// in Home Assistant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     Kodi(KodiAction),
@@ -64,30 +64,6 @@ pub enum KodiAction {
     Record,
 }
 
-impl KodiAction {
-    /// The core's media-player command for it.
-    pub fn command(self) -> MediaPlayerCmd {
-        use MediaPlayerCmd as C;
-        match self {
-            Self::Up => C::CursorUp,
-            Self::Down => C::CursorDown,
-            Self::Left => C::CursorLeft,
-            Self::Right => C::CursorRight,
-            Self::Select => C::CursorEnter,
-            Self::Back => C::Back,
-            Self::Home => C::Home,
-            Self::Menu => C::Menu,
-            Self::ChannelUp => C::ChannelUp,
-            Self::ChannelDown => C::ChannelDown,
-            Self::Previous => C::Previous,
-            Self::PlayPause => C::PlayPause,
-            Self::Next => C::Next,
-            Self::Stop => C::Stop,
-            Self::Record => C::Record,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReceiverCmd {
     VolumeUp,
@@ -104,15 +80,6 @@ impl ReceiverCmd {
             Self::MuteToggle => MediaPlayerCmd::MuteToggle,
         }
     }
-}
-
-/// Which configured entity a command goes to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Target {
-    /// The entity the screen is showing (Kodi).
-    Screen,
-    /// The entity the hard volume keys drive (a Home Assistant media_player).
-    Volume,
 }
 
 impl Button {

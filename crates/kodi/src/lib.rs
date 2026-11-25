@@ -6,6 +6,7 @@
 //! to replies), `engine` (all the logic, no IO), `state` (what the UI reads) and `service`/`handle` (running it).
 
 pub mod art;
+pub mod browse;
 mod client;
 pub mod config;
 pub mod engine;

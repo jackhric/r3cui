@@ -1,7 +1,11 @@
 //! `KodiHandle`: what the UI holds. It watches `KodiState`, and sends Kodi typed commands. Keys are fire-and-forget
 //! (a failure lands in the log, never blocks); the rest can be awaited.
 
+use crate::browse::{self, Browsing, Content};
 use crate::client::Client;
+use crate::methods::gui::GetInfoLabels;
+use crate::methods::library::{FileItem, GetDirectory, MOVIE_FIELDS, SHOW_FIELDS};
+use crate::wire::ArtRef;
 use crate::config::KodiConfig;
 use crate::engine::Query;
 use crate::error::{Error, Result};
@@ -76,8 +80,30 @@ impl KodiHandle {
 
     /// Any method, typed; fails at once while Kodi isn't connected.
     pub async fn call<M: Method>(&self, method: M) -> Result<M::Output> {
+        self.call_within(method, COMMAND).await
+    }
+
+    async fn call_within<M: Method>(&self, method: M, timeout: Duration) -> Result<M::Output> {
         let client = self.client.lock().unwrap().clone().ok_or(Error::Closed)?;
-        client.call(&method, COMMAND).await
+        client.call(&method, timeout).await
+    }
+
+    /// What Kodi's GUI is browsing now.
+    pub async fn browsing(&self) -> Result<Browsing> {
+        Ok(Browsing::from_labels(&self.call(GetInfoLabels::of(browse::LABELS)).await?))
+    }
+
+    /// The list `b` shows, in the GUI's order, with the fields the wall reads. A big library takes a while.
+    pub async fn listing(&self, b: &Browsing) -> Result<Vec<FileItem>> {
+        let properties = if b.content == Content::TvShows { SHOW_FIELDS } else { MOVIE_FIELDS };
+        let list = GetDirectory { directory: b.path.clone(), media: "video", properties, sort: b.sort() };
+        Ok(self.call_within(list, Duration::from_secs(15)).await?.files)
+    }
+
+    /// Where Kodi serves an artwork, asking the source for a `w` by `h` copy where it can make one.
+    pub fn image_url(&self, art: &ArtRef, size: Option<(u32, u32)>) -> String {
+        let art = size.map_or_else(|| art.clone(), |(w, h)| crate::art::sized(art, w, h));
+        self.cfg.image_url(&art)
     }
 
     /// Send without waiting; a failure is logged.
