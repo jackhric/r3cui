@@ -3,7 +3,7 @@
 
 use crate::AppWindow;
 use crate::app::optimistic::Optimistic;
-use coreapi::{Attr, CoreEvent, Entity, EntityChange, MediaState, PowerMode, WifiEvent};
+use coreapi::{Attr, CoreEvent, Entity, EntityChange, MediaPlayerCmd, MediaState, PowerMode, WifiEvent};
 use crate::app::{Later, UiAction, settings};
 use crate::app::entity::{list, number, pick_entity, text};
 use crate::app::model::Model;
@@ -370,7 +370,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
         slider::Send::Now(v) => {
             tracing::info!("slider volume {v} (from {} moves)", gate.take_merged());
             if let Some(entity) = session.target(Target::Volume) {
-                commands.send(entity, "volume".into(), json!({ "volume": v }));
+                commands.send(entity, MediaPlayerCmd::Volume(v));
             }
         }
         slider::Send::Later(wait) => {
@@ -514,19 +514,17 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 }
             }
             Some(action) = actions.recv() => {
-                // A Kodi action, kept for the poster wall's prediction; and whether this is a mute toggle, which
-                // the receiver may not support as such.
+                // A Kodi action, kept for the poster wall's prediction.
                 let mut pressed: Option<KodiAction> = None;
-                let mut toggle_mute = false;
-                let (target, cmd, params) = match action {
+                let (target, cmd) = match action {
                     UiAction::Kodi(a) => {
                         pressed = Some(a);
-                        (Target::Screen, a.command().to_string(), Value::Null)
+                        (Target::Screen, a.command())
                     }
                     UiAction::SelectSource(name) => {
                         session.pending_source.ask(name.clone());
                         render(weak, &session.model());
-                        (Target::Volume, "select_source".to_string(), json!({ "source": name }))
+                        (Target::Volume, MediaPlayerCmd::SelectSource(name))
                     }
                     UiAction::Power(what) => {
                         // Not wired yet: a stray tap in a prototype should not switch the remote off.
@@ -537,7 +535,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         let on = session.model().receiver_on;
                         session.pending_power.ask(!on);
                         render(weak, &session.model());
-                        (Target::Volume, if on { "off" } else { "on" }.to_string(), Value::Null)
+                        (Target::Volume, if on { MediaPlayerCmd::Off } else { MediaPlayerCmd::On })
                     }
                     UiAction::Backlight(wanted) => {
                         keys.show(wanted);
@@ -559,7 +557,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         let to = (m.position + by as f64).clamp(0.0, m.duration.max(0.0));
                         (session.position, session.position_at) = (to, Instant::now());
                         render(weak, &session.model());
-                        (Target::Screen, "seek".to_string(), json!({ "media_position": to.round() as i64 }))
+                        (Target::Screen, MediaPlayerCmd::Seek(to.round() as u32))
                     }
                     UiAction::OpenPicker(Picker::Audio) => {
                         let m = session.model();
@@ -583,7 +581,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     }
                     UiAction::PickTrack(Picker::Audio, i) => {
                         let Some(mode) = session.model().audio_tracks.get(i).cloned() else { continue };
-                        (Target::Screen, "select_sound_mode".to_string(), json!({ "mode": mode }))
+                        (Target::Screen, MediaPlayerCmd::SelectSoundMode(mode))
                     }
                     UiAction::PickTrack(Picker::Subtitles, i) => {
                         let (Some(base), Some(id)) = (kodi::endpoint(), session.subtitle_ids.get(i).copied()) else { continue };
@@ -607,8 +605,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     UiAction::Slider(slider::Gesture::DoubleTap) => {
                         feedback::play(feedback::SLIDER_MUTE);
                         flash_volume(weak, &overlay);
-                        toggle_mute = true;
-                        (Target::Volume, ReceiverCmd::MuteToggle.command().to_string(), Value::Null)
+                        (Target::Volume, MediaPlayerCmd::MuteToggle)
                     }
                     UiAction::WifiBand => {
                         let Some(next) = (match session.wifi_band.as_str() { "a" => Some("b"), "b" => Some("a"), _ => None }) else { continue };
@@ -656,30 +653,29 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     UiAction::Button(b) => match b.action() {
                         Action::Kodi(a) => {
                             pressed = Some(a);
-                            (Target::Screen, a.command().to_string(), Value::Null)
+                            (Target::Screen, a.command())
                         }
                         Action::Receiver(r) => {
                             flash_volume(weak, &overlay);
-                            match r {
-                                ReceiverCmd::VolumeUp | ReceiverCmd::VolumeDown => feedback::play(feedback::VOLUME),
-                                ReceiverCmd::MuteToggle => toggle_mute = true,
+                            if matches!(r, ReceiverCmd::VolumeUp | ReceiverCmd::VolumeDown) {
+                                feedback::play(feedback::VOLUME);
                             }
-                            (Target::Volume, r.command().to_string(), Value::Null)
+                            (Target::Volume, r.command())
                         }
                     },
                     UiAction::DemoKey(_) => continue,
                 };
                 let Some(entity) = session.target(target) else {
-                    tracing::warn!("{cmd}: no {target:?} entity");
+                    tracing::warn!("{}: no {target:?} entity", cmd.id());
                     continue;
                 };
                 // Not every player has a toggle; the Denon via Home Assistant only has mute and unmute.
                 // The receiver reports late, so the toggle follows what this remote last asked for.
-                let cmd = if toggle_mute {
+                let cmd = if cmd == MediaPlayerCmd::MuteToggle {
                     let (muted, toggles) = (session.model().muted, entity.has_feature("mute_toggle"));
                     session.pending_mute.ask(!muted);
                     render(weak, &session.model());
-                    if toggles { cmd } else { if muted { "unmute" } else { "mute" }.to_string() }
+                    if toggles { cmd } else if muted { MediaPlayerCmd::Unmute } else { MediaPlayerCmd::Mute }
                 } else {
                     cmd
                 };
@@ -687,7 +683,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 if let Some(a) = pressed {
                     library::predict(weak, a);
                 }
-                commands.send(entity, cmd, params);
+                commands.send(entity, cmd);
                 if target == Target::Screen {
                     library::poke();
                 }
@@ -722,7 +718,7 @@ pub(crate) async fn load_settings(weak: &slint::Weak<AppWindow>, core: &coreapi:
         app.set_sleep_after(sleep.unwrap_or_default().into());
     });
 }
-pub(crate) type Queued = (String, Value, Instant);
+pub(crate) type Queued = (MediaPlayerCmd, Instant);
 /// The longest a command waits for the previous one's answer before going out anyway.
 pub(crate) const PRESS_GAP: Duration = Duration::from_millis(40);
 /// One queue per entity, for one core session: commands for an entity go out in the order they
@@ -736,18 +732,17 @@ impl Commands {
         Self { core, queues: RefCell::new(HashMap::new()) }
     }
 
-    fn send(&self, entity: &Entity, cmd: String, params: Value) {
+    fn send(&self, entity: &Entity, cmd: MediaPlayerCmd) {
         let id = entity.entity_id.clone();
         let mut queues = self.queues.borrow_mut();
         let tx = queues.entry(id.clone()).or_insert_with(|| {
             let (tx, mut rx) = mpsc::unbounded_channel::<Queued>();
             let (core, name) = (self.core.clone(), entity.name().to_string());
             tokio::spawn(async move {
-                while let Some((cmd, params, made)) = rx.recv().await {
+                while let Some((cmd, made)) = rx.recv().await {
                     let waited = made.elapsed();
                     let sent = Instant::now();
-                    let data = json!({ "entity_id": id, "cmd_id": cmd, "params": params });
-                    let mut answer = core.submit("execute_entity_command", data).await;
+                    let mut answer = core.submit_command(&id, &cmd).await;
                     // The next command waits for this one's answer, but not for long. The
                     // integration reorders commands that arrive together; a short gap keeps the
                     // order, and a Wi-Fi stall on the answer no longer holds up the next press.
@@ -767,13 +762,13 @@ impl Commands {
                             Ok(r) => r.data.get("message").and_then(Value::as_str).unwrap_or("failed").to_string(),
                             Err(e) => e,
                         };
-                        tracing::info!("{name} · {cmd} — {outcome} in {} ms (queued {} ms)", sent.elapsed().as_millis(), waited.as_millis());
+                        tracing::info!("{name} · {} — {outcome} in {} ms (queued {} ms)", cmd.id(), sent.elapsed().as_millis(), waited.as_millis());
                     });
                 }
             });
             tx
         });
-        let _ = tx.send((cmd, params, Instant::now()));
+        let _ = tx.send((cmd, Instant::now()));
     }
 }
 

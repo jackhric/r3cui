@@ -5,6 +5,7 @@ pub(crate) mod evdev;
 pub(crate) mod slider;
 use crate::{AppWindow, Icons, KeyCell};
 use crate::app::UiAction;
+use coreapi::MediaPlayerCmd;
 use crate::view::keyboard;
 use crate::view::screen::{JoinState, Screen};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
@@ -64,24 +65,25 @@ pub enum KodiAction {
 }
 
 impl KodiAction {
-    /// The core's `media_player` command for it.
-    pub fn command(self) -> &'static str {
+    /// The core's media-player command for it.
+    pub fn command(self) -> MediaPlayerCmd {
+        use MediaPlayerCmd as C;
         match self {
-            Self::Up => "cursor_up",
-            Self::Down => "cursor_down",
-            Self::Left => "cursor_left",
-            Self::Right => "cursor_right",
-            Self::Select => "cursor_enter",
-            Self::Back => "back",
-            Self::Home => "home",
-            Self::Menu => "menu",
-            Self::ChannelUp => "channel_up",
-            Self::ChannelDown => "channel_down",
-            Self::Previous => "previous",
-            Self::PlayPause => "play_pause",
-            Self::Next => "next",
-            Self::Stop => "stop",
-            Self::Record => "record",
+            Self::Up => C::CursorUp,
+            Self::Down => C::CursorDown,
+            Self::Left => C::CursorLeft,
+            Self::Right => C::CursorRight,
+            Self::Select => C::CursorEnter,
+            Self::Back => C::Back,
+            Self::Home => C::Home,
+            Self::Menu => C::Menu,
+            Self::ChannelUp => C::ChannelUp,
+            Self::ChannelDown => C::ChannelDown,
+            Self::Previous => C::Previous,
+            Self::PlayPause => C::PlayPause,
+            Self::Next => C::Next,
+            Self::Stop => C::Stop,
+            Self::Record => C::Record,
         }
     }
 }
@@ -94,12 +96,12 @@ pub enum ReceiverCmd {
 }
 
 impl ReceiverCmd {
-    /// The core's `media_player` command for it.
-    pub fn command(self) -> &'static str {
+    /// The core's media-player command for it.
+    pub fn command(self) -> MediaPlayerCmd {
         match self {
-            Self::VolumeUp => "volume_up",
-            Self::VolumeDown => "volume_down",
-            Self::MuteToggle => "mute_toggle",
+            Self::VolumeUp => MediaPlayerCmd::VolumeUp,
+            Self::VolumeDown => MediaPlayerCmd::VolumeDown,
+            Self::MuteToggle => MediaPlayerCmd::MuteToggle,
         }
     }
 }

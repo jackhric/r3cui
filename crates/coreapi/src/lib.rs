@@ -4,9 +4,11 @@
 //! issue requests and receive events. Message schemas are intentionally loose (`serde_json::Value`)
 //! until we type them against `core-api`'s AsyncAPI spec. See `docs/core-ws-protocol.md`.
 
+mod commands;
 mod entities;
 mod events;
 
+pub use commands::*;
 pub use entities::*;
 pub use events::*;
 
@@ -134,17 +136,9 @@ impl Core {
         Ok(entities::parse_all(all))
     }
 
-    pub async fn execute_entity_command(
-        &self,
-        entity_id: &str,
-        cmd_id: &str,
-        params: Value,
-    ) -> Result<Response> {
-        self.request(
-            "execute_entity_command",
-            json!({ "entity_id": entity_id, "cmd_id": cmd_id, "params": params }),
-        )
-        .await
+    /// Queue a command for an entity without waiting for its answer (see `submit`).
+    pub async fn submit_command(&self, entity_id: &str, cmd: &MediaPlayerCmd) -> Result<oneshot::Receiver<Response>> {
+        self.submit("execute_entity_command", cmd.request(entity_id)).await
     }
 }
 
