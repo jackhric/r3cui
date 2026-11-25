@@ -78,6 +78,8 @@ enum Later {
     JoinDone(bool),
     /// Kodi's subtitle streams, as (stream index or None for off, label), and which is on.
     Subtitles(Vec<(Option<i64>, String)>, usize),
+    /// Kodi's own title for the media playing, asked while the driver shows only a flash.
+    Title(String, String),
     /// Demo only: the receiver has caught up with an input change.
     Switched,
     /// The slider's throttled volume command is due.
@@ -731,14 +733,36 @@ struct StableTitle {
     media: String,
     shown: String,
     pending: Option<(String, Instant)>,
+    /// The media Kodi has been asked about: a film can start on a flash and the driver's real title may not
+    /// follow for seconds, so its title is asked of Kodi itself.
+    asked: String,
+    flashing: bool,
 }
 
 impl StableTitle {
     const SETTLE: Duration = Duration::from_secs(7);
 
-    fn feed(&mut self, media: &str, title: &str, tracks: &str, now: Instant) {
-        // The track-name flash is the same text the driver reports as the artist.
-        let is_tracks = !tracks.is_empty() && title == tracks;
+    /// The media to ask Kodi the title of: one showing only a flash so far, not yet asked about.
+    fn lookup(&mut self) -> Option<String> {
+        if !self.shown.is_empty() || !self.flashing || self.media == self.asked {
+            return None;
+        }
+        self.asked = self.media.clone();
+        Some(self.media.clone())
+    }
+
+    /// Kodi's own title for `media`, unless the driver's has arrived first.
+    fn answer(&mut self, media: &str, title: String) {
+        if media == self.media && self.shown.is_empty() {
+            self.shown = title;
+        }
+    }
+
+    /// `tracks` is what the driver reports as the artist, `streams` the audio tracks' names and `chapter` the
+    /// chapter playing: the texts it flashes in place of the title.
+    fn feed(&mut self, media: &str, title: &str, tracks: &str, streams: &[String], chapter: &str, now: Instant) {
+        let is_tracks = (!tracks.is_empty() && title == tracks) || (!chapter.is_empty() && title == chapter) || names_stream(title, streams);
+        self.flashing = is_tracks;
         if media != self.media {
             self.media = media.to_string();
             self.shown = if is_tracks { String::new() } else { title.to_string() };
@@ -758,6 +782,29 @@ impl StableTitle {
             }
         }
     }
+}
+
+/// While the driver shows only a flash for what just started, ask Kodi what it is.
+fn ask_title(session: &mut Session, tx: &mpsc::UnboundedSender<Later>) {
+    let (Some(media), Some(base)) = (session.title.lookup(), library::kodi_base()) else { return };
+    let tx = tx.clone();
+    tokio::task::spawn_blocking(move || match kodi::title(&base) {
+        Ok(title) => {
+            let _ = tx.send(Later::Title(media, title));
+        }
+        Err(e) => tracing::debug!("kodi title: {e:#}"),
+    });
+}
+
+/// Whether `title` is the driver's flash of the audio track's name: the name capitalised word by word, perhaps
+/// with the subtitle's after it. The track list carries the same name behind its language.
+fn names_stream(title: &str, streams: &[String]) -> bool {
+    let title = title.to_lowercase();
+    streams.iter().any(|s| {
+        let s = s.to_lowercase();
+        let name = s.split_once(' ').map_or("", |(_, name)| name);
+        (!name.is_empty() && title.starts_with(name)) || title.starts_with(&s)
+    })
 }
 
 struct Session {
@@ -900,7 +947,13 @@ impl Session {
         let screen = self.target(Target::Screen);
         let media = format!("{}|{}", attr_f64(screen, "media_duration"), attr_str(screen, "media_image_url"));
         let (title, tracks) = (attr_str(screen, "media_title"), attr_str(screen, "media_artist"));
-        self.title.feed(&media, &title, &tracks, Instant::now());
+        let streams: Vec<String> = screen
+            .and_then(|e| e.pointer("/attributes/sound_mode_list"))
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
+            .unwrap_or_default();
+        // The driver reports the chapter playing as the media player's source.
+        self.title.feed(&media, &title, &tracks, &streams, &attr_str(screen, "source"), Instant::now());
     }
 
     fn model(&self) -> Model {
@@ -1106,6 +1159,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                     let _ = later_tx.send(Later::JoinDone(false));
                 }
                 session.settle_title();
+                ask_title(&mut session, &later_tx);
                 render(weak, &session.model());
             }
             Some(later) = later_rx.recv() => {
@@ -1126,6 +1180,10 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                         session.subtitle_ids = rows.iter().map(|r| r.0).collect();
                         let labels: Vec<String> = rows.into_iter().map(|r| r.1).collect();
                         show_tracks(weak, labels.iter().map(|l| (l.clone(), String::new())).collect(), current);
+                    }
+                    Later::Title(media, title) => {
+                        session.title.answer(&media, title);
+                        render(weak, &session.model());
                     }
                     Later::Switched => {}
                     Later::SendVolume => {
@@ -1200,6 +1258,7 @@ async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceive
                 }
                 if ev.msg == "entity_change" && session.apply_change(&ev.data) {
                     session.settle_title();
+                    ask_title(&mut session, &later_tx);
                     session.sync_poster(weak);
                     render(weak, &session.model());
                 }
@@ -1588,7 +1647,7 @@ async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedRe
             }
             Some(later) = later_rx.recv() => match later {
                 Later::Wifi(_, networks) => (m.wifi, m.scanning) = (networks, false),
-                Later::Integrations(_) | Later::Entities(_) | Later::Subtitles(..) => {}
+                Later::Integrations(_) | Later::Entities(_) | Later::Subtitles(..) | Later::Title(..) => {}
                 Later::Switched => m.switching = false,
                 Later::SendVolume => {}
                 Later::JoinDone(ok) => {
@@ -2171,21 +2230,61 @@ mod tests {
         let t0 = Instant::now();
         let mut t = StableTitle::default();
         // Playback starts: the driver flashes the track names first.
-        t.feed("m1", "English - English", "English - English", t0);
+        t.feed("m1", "English - English", "English - English", &[], "", t0);
         assert_eq!(t.shown, "");
-        t.feed("m1", "Patton", "English - English", t0);
+        t.feed("m1", "Patton", "English - English", &[], "", t0);
         assert_eq!(t.shown, "Patton");
         // A chapter name appears for a few seconds, then the title returns.
-        t.feed("m1", "Chapter 4", "English - English", t0);
-        t.feed("m1", "Chapter 4", "English - English", t0 + Duration::from_secs(4));
+        t.feed("m1", "Chapter 4", "English - English", &[], "", t0);
+        t.feed("m1", "Chapter 4", "English - English", &[], "", t0 + Duration::from_secs(4));
         assert_eq!(t.shown, "Patton");
-        t.feed("m1", "Patton", "English - English", t0 + Duration::from_secs(5));
+        t.feed("m1", "Patton", "English - English", &[], "", t0 + Duration::from_secs(5));
         // A change that lasts is real.
-        t.feed("m1", "Patton (Extended)", "", t0 + Duration::from_secs(10));
-        t.feed("m1", "Patton (Extended)", "", t0 + Duration::from_secs(18));
+        t.feed("m1", "Patton (Extended)", "", &[], "", t0 + Duration::from_secs(10));
+        t.feed("m1", "Patton (Extended)", "", &[], "", t0 + Duration::from_secs(18));
         assert_eq!(t.shown, "Patton (Extended)");
         // Another film takes over at once.
-        t.feed("m2", "Alien", "", t0 + Duration::from_secs(20));
+        t.feed("m2", "Alien", "", &[], "", t0 + Duration::from_secs(20));
         assert_eq!(t.shown, "Alien");
+    }
+
+    #[test]
+    fn a_film_starting_on_a_flash_takes_kodis_title() {
+        let t0 = Instant::now();
+        let streams = ["English Restored and Re-mixed / DTS-HD Master Audio - DTS-HD MA 5.1(side)".to_string()];
+        let mut t = StableTitle::default();
+        t.feed("m1", "Restored And Re-Mixed / Dts-Hd Master Audio - Dts-Hd Ma 5.1(Side)", "English", &streams, "", t0);
+        assert_eq!(t.shown, "");
+        assert_eq!(t.lookup().as_deref(), Some("m1"));
+        assert_eq!(t.lookup(), None);
+        t.answer("m1", "2001: A Space Odyssey".into());
+        assert_eq!(t.shown, "2001: A Space Odyssey");
+        // An answer for a film that has since given way is dropped.
+        t.feed("m2", "Alien", "", &[], "", t0);
+        t.answer("m1", "2001: A Space Odyssey".into());
+        assert_eq!(t.shown, "Alien");
+    }
+
+    #[test]
+    fn stream_and_chapter_flashes_never_become_the_title() {
+        let t0 = Instant::now();
+        let streams = ["English Restored and Re-mixed / DTS-HD Master Audio / 5.1 - DTS-HD MA 5.1(side)".to_string()];
+        let mut t = StableTitle::default();
+        t.feed("m1", "2001: A Space Odyssey", "English - English", &streams, "", t0);
+        // The driver keeps the flash up as long as updates come, longer than the settling time.
+        let flash = "Restored And Re-Mixed / Dts-Hd Master Audio / 5.1 - Dts-Hd Ma 5.1(Side) - Sdh";
+        for s in [1, 5, 9, 14] {
+            t.feed("m1", flash, "English - English", &streams, "", t0 + Duration::from_secs(s));
+        }
+        assert_eq!(t.shown, "2001: A Space Odyssey");
+        // A new film starting on a flash waits for its real title.
+        t.feed("m2", flash, "English - English", &streams, "", t0 + Duration::from_secs(20));
+        assert_eq!(t.shown, "");
+        t.feed("m2", "Moon", "English - English", &streams, "", t0 + Duration::from_secs(21));
+        assert_eq!(t.shown, "Moon");
+        for s in [22, 30] {
+            t.feed("m2", "The Base", "English - English", &streams, "The Base", t0 + Duration::from_secs(s));
+        }
+        assert_eq!(t.shown, "Moon");
     }
 }

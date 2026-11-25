@@ -57,6 +57,17 @@ fn player(base: &str) -> anyhow::Result<i64> {
     pick.and_then(|p| p.get("playerid")).and_then(Value::as_i64).context("nothing playing")
 }
 
+/// The title of what is playing, as Kodi itself names it.
+pub fn title(base: &str) -> anyhow::Result<String> {
+    let id = player(base)?;
+    let item = call(base, "Player.GetItem", json!({ "playerid": id, "properties": ["title"] }))?;
+    let item = item.get("item").context("no item")?;
+    let title = item.get("title").and_then(Value::as_str).filter(|t| !t.is_empty());
+    let title = title.or_else(|| item.get("label").and_then(Value::as_str)).unwrap_or("");
+    anyhow::ensure!(!title.is_empty(), "untitled");
+    Ok(title.to_string())
+}
+
 pub fn playing(base: &str) -> anyhow::Result<Playing> {
     let id = player(base)?;
     let item = call(base, "Player.GetItem", json!({ "playerid": id, "properties": ["art", "fanart"] }))?;

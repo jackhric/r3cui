@@ -49,6 +49,11 @@ fn demo_hidden(it: &Value) -> bool {
     !hide.is_empty() && it["label"].as_str().is_some_and(|l| hide.iter().any(|h| h == l))
 }
 
+/// Kodi's web address, once the screen entity has named it.
+pub fn kodi_base() -> Option<String> {
+    BASE.get().cloned()
+}
+
 /// A d-pad key went to Kodi: move the wall's highlight where Kodi's will go. Kodi's panel stops at the end
 /// of a row and moves a whole row of its own up or down.
 pub fn predict(weak: &slint::Weak<AppWindow>, cmd: &str) {
