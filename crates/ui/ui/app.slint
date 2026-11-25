@@ -370,8 +370,8 @@ export component AppWindow inherits Window {
     in property <[KeyCell]> kb-keys;
     in property <string> kb-text;
 
-    // 0 home, 1 inputs, 2 menu, 3 display, 4 power, 5 wi-fi, 6 password, 7 status, 8 join failed,
-    // 9 audio or subtitle picker, 10 feedback lab
+    // 0 home, 1 inputs, 2 menu, 3 display, 4 power, 5 wi-fi, 6 keyboard, 7 status, 8 join failed,
+    // 9 audio or subtitle picker, 10 feedback lab, 11 integrations
     in-out property <int> page: 0;
     in property <[Choice]> lab-rows;
     in property <string> lab-title: "Feedback lab";
@@ -380,6 +380,18 @@ export component AppWindow inherits Window {
     // The row to focus after going back within the lab, or -1 to leave the lab.
     callback lab-back() -> int;
     in-out property <int> focus-index: 0;
+    // Integrations: Rust draws each of its screens into one list, and decides where a pick or back leads.
+    in property <string> cfg-title: "Integrations";
+    in property <[Choice]> cfg-rows;
+    // The row to come back to from the keyboard.
+    in property <int> cfg-focus;
+    callback cfg-open();
+    callback cfg-pick(int);
+    callback cfg-back();
+    // The keyboard: 0 a Wi-Fi password, 1 other text (an integration's setting, an input's name).
+    in-out property <int> kb-purpose;
+    in property <string> kb-title;
+    in property <string> kb-caption;
 
     // A command id for the Kodi entity.
     callback play-pause();
@@ -394,6 +406,8 @@ export component AppWindow inherits Window {
     // ssid, ssid-hex, password ("" for an open network)
     callback wifi-join(string, string, string);
     callback kb-reset();
+    // Ready the keyboard for other text, starting from this.
+    callback kb-start(string);
     // "up", "down", "left", "right", "ok" or "back"
     callback kb-nav(string);
     callback kb-tap(int);
@@ -482,14 +496,18 @@ export component AppWindow inherits Window {
             } else {
                 root.focus-index = focus;
             }
+        } else if (root.page == 11) {
+            root.cfg-back();
+        } else if (root.page == 6 && root.kb-purpose == 1) {
+            root.go(11, root.cfg-focus);
         } else if (root.page == 3) {
-            root.go(2, 1);
+            root.go(2, 2);
         } else if (root.page == 4) {
-            root.go(2, 3);
+            root.go(2, 4);
         } else if (root.page == 5) {
             root.go(2, 0);
         } else if (root.page == 7) {
-            root.go(2, 4);
+            root.go(2, 5);
         } else if (root.page == 9) {
             root.go(0, 0);
         } else if (root.page == 6 || root.page == 8) {
@@ -500,7 +518,7 @@ export component AppWindow inherits Window {
         }
     }
     function row-count() -> int {
-        root.page == 1 ? root.sources.length : root.page == 2 ? 6 : root.page == 3 ? 3 : root.page == 4 ? 4 : root.page == 5 ? root.wifi-rows.length + (root.wifi-band-known ? 2 : 1) : root.page == 8 ? 2 : root.page == 9 ? root.tracks.length : root.page == 10 ? root.lab-rows.length : 1
+        root.page == 1 ? root.sources.length : root.page == 11 ? root.cfg-rows.length : root.page == 2 ? 7 : root.page == 3 ? 3 : root.page == 4 ? 4 : root.page == 5 ? root.wifi-rows.length + (root.wifi-band-known ? 2 : 1) : root.page == 8 ? 2 : root.page == 9 ? root.tracks.length : root.page == 10 ? root.lab-rows.length : 1
     }
     public function move(d: int) {
         root.focus-index = max(0, min(root.row-count() - 1, root.focus-index + d));
@@ -508,10 +526,13 @@ export component AppWindow inherits Window {
     public function activate(i: int) {
         root.focus-index = i;
         // A pick that opens another page already gets the page's haptic.
-        if (root.page != 10 && root.page != 1 && root.page != 2 && root.page != 9) {
+        if (root.page != 10 && root.page != 1 && root.page != 2 && root.page != 9 && root.page != 11) {
             root.haptic("select");
         }
-        if (root.page == 10) {
+        if (root.page == 11) {
+            root.haptic("select");
+            root.cfg-pick(i);
+        } else if (root.page == 10) {
             if (root.lab-pick(i)) {
                 root.haptic("select");
                 root.focus-index = 0;
@@ -524,12 +545,15 @@ export component AppWindow inherits Window {
                 root.wifi-scan();
                 root.go(5, 0);
             } else if (i == 1) {
+                root.cfg-open();
+                root.go(11, 0);
+            } else if (i == 2) {
                 root.go(3, 0);
-            } else if (i == 3) {
-                root.go(4, 0);
             } else if (i == 4) {
-                root.go(7, 0);
+                root.go(4, 0);
             } else if (i == 5) {
+                root.go(7, 0);
+            } else if (i == 6) {
                 root.go(10, 0);
             }
         } else if (root.page == 3) {
@@ -545,6 +569,7 @@ export component AppWindow inherits Window {
             } else if (!root.wifi-rows[i].connected) {
                 root.wifi-target = root.wifi-rows[i];
                 if (root.wifi-rows[i].secured) {
+                    root.kb-purpose = 0;
                     root.kb-reset();
                     root.go(6, 0);
                 } else {
@@ -1113,6 +1138,7 @@ export component AppWindow inherits Window {
                     title: "Menu";
                     rows: [
                         { label: "Wi-Fi", value: root.wifi-name, chevron: true },
+                        { label: "Integrations", chevron: true },
                         { label: "Display", value: root.auto-brightness ? "Auto" : root.brightness + "%", chevron: true },
                         { label: "Sound & haptics", value: root.haptics, chevron: true },
                         { label: "Power", chevron: true },
@@ -1271,13 +1297,13 @@ export component AppWindow inherits Window {
 
                 PageHeader {
                     y: 0;
-                    title: root.wifi-target.ssid;
+                    title: root.kb-purpose == 1 ? root.kb-title : root.wifi-target.ssid;
                     back => { root.back(); }
                 }
                 Text {
                     x: 40px;
                     y: 128px;
-                    text: "PASSWORD";
+                    text: root.kb-purpose == 1 ? root.kb-caption : "PASSWORD";
                     font-size: 13px;
                     font-weight: 500;
                     letter-spacing: 1.8px;
@@ -1383,6 +1409,20 @@ export component AppWindow inherits Window {
                 ChoiceList {
                     title: "Status";
                     rows: root.status-choices;
+                    back => { root.back(); }
+                }
+            }
+
+            // Menu / Integrations, every screen of it
+            Page {
+                depth: 2;
+                current-depth: root.depth;
+                active: root.page == 11;
+                ChoiceList {
+                    title: root.cfg-title;
+                    rows: root.cfg-rows;
+                    focused-row: root.focus-index;
+                    pick(i) => { root.activate(i); }
                     back => { root.back(); }
                 }
             }

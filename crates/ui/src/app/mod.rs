@@ -3,6 +3,7 @@
 
 pub(crate) mod demo;
 pub(crate) mod global;
+pub(crate) mod integrations;
 pub(crate) mod model;
 pub(crate) mod optimistic;
 pub(crate) mod session;
@@ -32,8 +33,19 @@ pub(crate) enum UiAction {
     /// A row of the picker, by position.
     PickTrack(Picker, usize),
     Slider(slider::Gesture),
+    /// Settings → Integrations.
+    Integrations(Settings),
     Display { brightness: i32, auto: bool },
 }
+#[derive(Debug)]
+pub(crate) enum Settings {
+    Open,
+    Pick(usize),
+    Back,
+    /// The keyboard's Done.
+    Text(String),
+}
+
 /// Results of work that finishes later than the request that started it.
 pub(crate) enum Later {
     Wifi(String, Vec<wifi::Network>),
@@ -42,4 +54,6 @@ pub(crate) enum Later {
     Switched,
     /// The slider's throttled volume command is due.
     SendVolume,
+    /// What an Integrations picker offers, as its driver answered.
+    Targets(Vec<drivers::api::Target>),
 }

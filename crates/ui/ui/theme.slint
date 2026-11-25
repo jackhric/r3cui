@@ -297,7 +297,7 @@ export struct Choice {
     checked: bool,
     // Leads somewhere else: a chevron.
     chevron: bool,
-    // A status dot before the label: 1 working, 2 broken, 3 unknown; 0 for none.
+    // A status dot before the label: 1 working, 2 broken, 3 unknown, 4 changed by the user; 0 for none.
     dot: int,
     // Wi-Fi strength, 1 to 4; 0 for none.
     bars: int,
@@ -393,7 +393,7 @@ export component ChoiceList inherits Rectangle {
                 width: 14px;
                 height: 14px;
                 border-radius: 7px;
-                background: row.dot == 1 ? Theme.good : row.dot == 2 ? Theme.off : Theme.t3;
+                background: row.dot == 1 ? Theme.good : row.dot == 2 ? Theme.off : row.dot == 4 ? Theme.accent : Theme.t3;
             }
             Text {
                 x: parent.lead;

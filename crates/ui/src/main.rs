@@ -111,6 +111,15 @@ fn main() -> anyhow::Result<()> {
         }
     });
     app.on_select_source(send(UiAction::SelectSource));
+    {
+        use crate::app::Settings;
+        let tx = act_tx.clone();
+        app.on_cfg_open(move || drop(tx.send(UiAction::Integrations(Settings::Open))));
+        let tx = act_tx.clone();
+        app.on_cfg_pick(move |i| drop(tx.send(UiAction::Integrations(Settings::Pick(i.max(0) as usize)))));
+        let tx = act_tx.clone();
+        app.on_cfg_back(move || drop(tx.send(UiAction::Integrations(Settings::Back))));
+    }
     app.on_power_action(send(UiAction::Power));
     app.on_haptic(|name| feedback::ui_event(&name));
     let lab = Rc::new(RefCell::new(feedback::Lab::default()));

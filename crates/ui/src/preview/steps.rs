@@ -6,6 +6,7 @@
 //! key down          # up down left right ok back home menu input, or a desktop key's character
 //! hold home 900     # held for that long (home and power act on a hold)
 //! snap inputs       # <out>/inputs.png
+//! page 2            # open a page by number, as a tap on its button would (2 is the menu)
 //! awake             # put away the charger card the simulator always shows
 //! quit
 //! ```
@@ -16,11 +17,13 @@ use slint::{ComponentHandle, SharedString};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+#[derive(Debug)]
 enum Step {
     Wait(Duration),
     Key(SharedString),
     Hold(SharedString, Duration),
     Snap(String),
+    Page(i32),
     Awake,
     Quit,
 }
@@ -55,6 +58,7 @@ fn parse(text: &str) -> Result<Vec<Step>, String> {
             "key" => Step::Key(key_text(arg.ok_or(format!("line {}: which key", n + 1))?)),
             "hold" => Step::Hold(key_text(arg.ok_or(format!("line {}: which key", n + 1))?), ms(words.next())?),
             "snap" => Step::Snap(arg.ok_or(format!("line {}: snap needs a name", n + 1))?.to_string()),
+            "page" => Step::Page(arg.and_then(|a| a.parse().ok()).ok_or(format!("line {}: page needs a number", n + 1))?),
             "awake" => Step::Awake,
             "quit" => Step::Quit,
             other => return Err(format!("line {}: no step {other:?}", n + 1)),
@@ -108,6 +112,7 @@ pub fn run(app: &AppWindow, script: &Path, out: PathBuf) -> anyhow::Result<slint
                     return;
                 }
                 Step::Snap(name) => snap(&app, &out.join(format!("{name}.png"))),
+                Step::Page(n) => app.invoke_go(*n, 0),
                 Step::Awake => {
                     app.set_charge_card(false);
                     app.set_resting(false);

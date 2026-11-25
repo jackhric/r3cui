@@ -71,6 +71,41 @@ pub(crate) fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, Stri
         }
     });
 }
+/// Draw the Integrations screen on show, keeping the focus where the logic says.
+pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::integrations::Page) {
+    use crate::app::integrations::Dot;
+    ui(weak, move |app| {
+        let rows: Vec<Choice> = page
+            .rows
+            .iter()
+            .map(|r| Choice {
+                label: (&r.label).into(),
+                detail: (&r.detail).into(),
+                value: (&r.value).into(),
+                chevron: r.chevron,
+                checked: r.checked,
+                dot: match r.dot {
+                    Dot::None => 0,
+                    Dot::Up => 1,
+                    Dot::Down => 2,
+                    Dot::Unknown => 3,
+                    Dot::Changed => 4,
+                },
+                ..Default::default()
+            })
+            .collect();
+        let changed = app.get_cfg_title() != page.title.as_str() || app.get_cfg_rows().iter().ne(rows.iter().cloned());
+        if !changed {
+            return;
+        }
+        let new_screen = app.get_cfg_title() != page.title.as_str();
+        app.set_cfg_title(page.title.as_str().into());
+        app.set_cfg_rows(ModelRc::new(VecModel::from(rows)));
+        if new_screen && app.on_page(Page::Integrations) {
+            app.set_focus_index(page.focus as i32);
+        }
+    });
+}
 /// Leave the keyboard for the network list, or for the failure page.
 pub(crate) fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
     ui(weak, move |app| {

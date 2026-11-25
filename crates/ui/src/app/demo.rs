@@ -76,7 +76,7 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
             Some(later) = later_rx.recv() => match later {
                 Later::Wifi(_, networks) => (m.wifi, m.scanning) = (networks, false),
                 Later::Switched => m.switching = false,
-                Later::SendVolume => {}
+                Later::SendVolume | Later::Targets(_) => {}
                 Later::JoinDone(ok) => {
                     if ok {
                         m.wifi_ssid = std::mem::take(&mut joining);
@@ -137,7 +137,7 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
                 UiAction::PowerHeld => m.receiver_on = !m.receiver_on,
                 // Stand-in for the core's power-mode event.
                 UiAction::DemoKey('z') => m.awake = !m.awake,
-                UiAction::DemoKey(_) => {}
+                UiAction::DemoKey(_) | UiAction::Integrations(_) => {}
                 UiAction::Button(b) => match b {
                     Button::VolumeUp => { m.volume = (m.volume + 1).min(m.volume_max); m.muted = false; flash_volume(weak, &overlay); feedback::play(feedback::VOLUME); }
                     Button::VolumeDown => { m.volume = (m.volume - 1).max(0); m.muted = false; flash_volume(weak, &overlay); feedback::play(feedback::VOLUME); }

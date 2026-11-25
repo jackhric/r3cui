@@ -16,13 +16,14 @@ pub(crate) enum Page {
     JoinFailed = 8,
     Tracks = 9,
     FeedbackLab = 10,
+    Integrations = 11,
 }
 
 impl Page {
     /// From the number app.slint uses, as given to `--page`.
     pub(crate) fn from_number(n: i32) -> Option<Self> {
         use Page::*;
-        [Home, Inputs, Menu, Display, Power, Wifi, Password, Status, JoinFailed, Tracks, FeedbackLab].into_iter().find(|p| *p as i32 == n)
+        [Home, Inputs, Menu, Display, Power, Wifi, Password, Status, JoinFailed, Tracks, FeedbackLab, Integrations].into_iter().find(|p| *p as i32 == n)
     }
 }
 
@@ -119,6 +120,7 @@ mod tests {
     fn pages_by_number() {
         assert_eq!(Page::from_number(9), Some(Page::Tracks));
         assert_eq!(Page::from_number(10), Some(Page::FeedbackLab));
-        assert_eq!(Page::from_number(11), None);
+        assert_eq!(Page::from_number(11), Some(Page::Integrations));
+        assert_eq!(Page::from_number(12), None);
     }
 }

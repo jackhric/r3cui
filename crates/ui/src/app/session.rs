@@ -4,8 +4,9 @@
 
 use crate::AppWindow;
 use crate::app::global::{slide, Global};
+use crate::app::integrations::{Effect, Integrations};
 use crate::app::model::{Model, Source};
-use crate::app::{Later, UiAction, settings};
+use crate::app::{Later, Settings, UiAction, settings};
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
 use crate::hardware::{backlight, feedback};
 use crate::input::{slider, Route, VolumeKey};
@@ -13,8 +14,8 @@ use crate::remote::health::{self, Link};
 use crate::remote::system::{self, load_settings, System};
 use crate::remote::wifi::{self, Wifi};
 use crate::view::library::Wall;
-use crate::view::screen::Picker;
-use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_tracks, ui};
+use crate::view::screen::{Page, Picker, Screen};
+use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
 use drivers::api::{KeyLight, KeyMode, Media, Stage, UiIntent, VolumeIntent};
 use drivers::{Host, Input, Modules, Registry, Store};
@@ -32,6 +33,7 @@ pub(crate) struct Frontend {
     pub(crate) store: Store,
     global: Global,
     wall: Wall,
+    settings: Integrations,
     /// The artwork on show, so it is fetched once per item.
     poster_url: String,
 }
@@ -55,7 +57,7 @@ impl Frontend {
             }
         };
         tracing::info!(drivers = ?modules.drivers.keys().collect::<Vec<_>>(), "modules from {}", store.path.display());
-        Self { host: Host::new(Registry::builtin(), modules), store, global: Global::default(), wall: Wall::new(weak), poster_url: String::new() }
+        Self { host: Host::new(Registry::builtin(), modules), store, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), poster_url: String::new() }
     }
 
     /// Changes from the Integrations pages: saved, then applied.
@@ -100,7 +102,50 @@ impl Session<'_> {
         self.front.host.show(current.as_ref(), m.awake && m.receiver_on);
         self.front.wall.show(stage.library.as_ref());
         self.sync_poster(weak, stage.media.as_ref());
+        show_settings(weak, self.front.settings.page(&self.front.host));
         render(weak, &m);
+    }
+
+    /// Settings → Integrations: what a pick or back leads to.
+    fn settings(&mut self, weak: &slint::Weak<AppWindow>, action: Settings, later: &mpsc::UnboundedSender<Later>) {
+        let front = &mut *self.front;
+        let effect = match action {
+            Settings::Open => {
+                front.settings.open();
+                Effect::Stay
+            }
+            Settings::Pick(i) => front.settings.pick(i, &front.host),
+            Settings::Back => front.settings.back(),
+            Settings::Text(text) => {
+                let focus = front.settings.page(&front.host).focus as i32;
+                ui(weak, move |app| app.go_to(Page::Integrations, focus));
+                front.settings.text_entered(&text, &front.host).map_or(Effect::Stay, Effect::Apply)
+            }
+        };
+        match effect {
+            Effect::Stay => {}
+            Effect::Apply(modules) => front.apply(modules),
+            Effect::Load { driver, kind } => {
+                if let Some(d) = front.host.driver(&driver) {
+                    let later = later.clone();
+                    tokio::spawn(async move {
+                        let _ = later.send(Later::Targets(d.targets(kind).await));
+                    });
+                }
+            }
+            Effect::Text { title, caption, text } => {
+                let focus = front.settings.page(&front.host).focus as i32;
+                ui(weak, move |app| {
+                    app.set_kb_purpose(1);
+                    app.set_kb_title(title.into());
+                    app.set_kb_caption(caption.into());
+                    app.set_cfg_focus(focus);
+                    app.invoke_kb_start(text.into());
+                    app.go_to(Page::Password, 0);
+                });
+            }
+            Effect::Leave => ui(weak, |app| app.go_to(Page::Menu, 1)),
+        }
     }
 
     fn model(&self, current: Option<&Input>, stage: &Stage) -> Model {
@@ -257,6 +302,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 match later {
                     Later::Wifi(ssid, networks) => session.wifi.found(ssid, networks),
                     Later::Switched => {}
+                    Later::Targets(targets) => session.front.settings.targets_loaded(targets),
                     Later::SendVolume => {
                         let send = volume_gate.due(Instant::now());
                         pace(&mut volume_gate, send, &session.front.host);
@@ -381,6 +427,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                             let _ = later_tx.send(Later::JoinDone(false));
                         }
                     }
+                    UiAction::Integrations(action) => session.settings(weak, action, &later_tx),
                     UiAction::DemoKey(_) => {}
                 }
                 session.show(weak);

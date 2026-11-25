@@ -1,6 +1,6 @@
 # Drivers: how r3cui connects to other software
 
-Status: agreed design (2026-11-25). Being implemented.
+Status: implemented (2026-11-25). Settings → Integrations edits everything below except tokens, which are pasted into `modules.json` for now.
 
 r3cui talks to other software through **drivers**. A driver is one connection to one program
 (Home Assistant, Kodi, ...). The frontend never names a program: it talks to the *ports* a driver

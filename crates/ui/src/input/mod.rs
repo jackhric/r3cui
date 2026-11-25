@@ -177,7 +177,10 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
             match outcome {
                 keyboard::Outcome::Stay => {}
                 keyboard::Outcome::Leave => app.invoke_back(),
-                keyboard::Outcome::Join(password) => {
+                keyboard::Outcome::Done(text) if app.get_kb_purpose() == 1 => {
+                    let _ = tx.send(UiAction::Integrations(crate::app::Settings::Text(text)));
+                }
+                keyboard::Outcome::Done(password) => {
                     let target = app.get_wifi_target();
                     app.show_join(JoinState::Joining);
                     let _ = tx.send(UiAction::WifiJoin { ssid: target.ssid.into(), hex: target.ssid_hex.into(), password });
@@ -190,6 +193,13 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
         let (kb, after) = (kb.clone(), after.clone());
         move || {
             kb.borrow_mut().reset();
+            after(keyboard::Outcome::Stay);
+        }
+    });
+    app.on_kb_start({
+        let (kb, after) = (kb.clone(), after.clone());
+        move |text| {
+            kb.borrow_mut().start(0, "Done", &text);
             after(keyboard::Outcome::Stay);
         }
     });

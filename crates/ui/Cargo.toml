@@ -41,5 +41,9 @@ device = ["slint/backend-linuxkms", "slint/renderer-femtovg", "slint/renderer-so
 # Screenshot, recording and remote-photo framing tools (--shots, --snap, --record, --frame).
 preview = []
 
+[dev-dependencies]
+drivers = { path = "../drivers", features = ["testing"] }
+tokio = { workspace = true, features = ["test-util"] }
+
 [build-dependencies]
 slint-build = "1.19"

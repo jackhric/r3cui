@@ -2,7 +2,7 @@
 //! window only draws the cells this produces.
 
 const LETTERS: [&str; 3] = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
-const SYMBOLS: [&str; 3] = ["1234567890", "@#$%&*-_/", "!?.,'+="];
+const SYMBOLS: [&str; 3] = ["1234567890", "@#$%&*-_/", "!?.,:'+="];
 const KEY_W: f32 = 44.0;
 const KEY_GAP: f32 = 3.0;
 const KEY_H: f32 = 56.0;
@@ -52,7 +52,8 @@ pub enum Outcome {
     Stay,
     /// BACK on an empty field.
     Leave,
-    Join(String),
+    /// The action key: Join for a password, Done for other text.
+    Done(String),
 }
 
 struct Key {
@@ -69,6 +70,11 @@ pub struct Keyboard {
     shift: bool,
     symbols: bool,
     focus: (usize, usize),
+    /// The least text the action key accepts, and its label.
+    min_len: usize,
+    action: &'static str,
+    /// A password is typed from nothing, so BACK rubs out; other text starts filled in, so BACK cancels.
+    password: bool,
 }
 
 impl Default for Keyboard {
@@ -101,14 +107,24 @@ impl Keyboard {
                 })
                 .collect(),
         );
-        Self { rows, text: String::new(), shift: false, symbols: false, focus: (1, 4) }
+        Self { rows, text: String::new(), shift: false, symbols: false, focus: (1, 4), min_len: MIN_LEN, action: "Join", password: true }
     }
 
+    /// Ready for a Wi-Fi password.
     pub fn reset(&mut self) {
-        self.text.clear();
+        self.start(MIN_LEN, "Join", "");
+        self.password = true;
+    }
+
+    /// Ready for other text, starting from `text`; any length is accepted, empty included.
+    pub fn start(&mut self, min_len: usize, action: &'static str, text: &str) {
+        self.text = text.chars().take(MAX_LEN).collect();
         self.shift = false;
         self.symbols = false;
         self.focus = (1, 4);
+        self.min_len = min_len;
+        self.action = action;
+        self.password = false;
     }
 
     pub fn text(&self) -> &str {
@@ -116,7 +132,7 @@ impl Keyboard {
     }
 
     pub fn ready(&self) -> bool {
-        self.text.chars().count() >= MIN_LEN
+        self.text.chars().count() >= self.min_len
     }
 
     fn char_at(&self, row: usize, col: usize) -> char {
@@ -139,7 +155,7 @@ impl Keyboard {
                     Kind::Mode => (if self.symbols { "abc" } else { "123" }.to_string(), Style::Action),
                     Kind::Space => ("space".to_string(), Style::Action),
                     Kind::Delete => (String::new(), Style::Action),
-                    Kind::Join => ("Join".to_string(), if self.ready() { Style::JoinReady } else { Style::JoinDim }),
+                    Kind::Join => (self.action.to_string(), if self.ready() { Style::JoinReady } else { Style::JoinDim }),
                 };
                 out.push(Cell { label, kind: key.kind, style, focused: self.focus == (r, c), x: key.x, y: key.y, w: key.w, h: key.h });
             }
@@ -156,6 +172,7 @@ impl Keyboard {
             "up" => self.move_row((r + self.rows.len() - 1) % self.rows.len()),
             "down" => self.move_row((r + 1) % self.rows.len()),
             "ok" => return self.press(r, c),
+            "back" if !self.password => return Outcome::Leave,
             "back" => {
                 if self.text.pop().is_none() {
                     return Outcome::Leave;
@@ -210,7 +227,7 @@ impl Keyboard {
             Kind::Delete => {
                 self.text.pop();
             }
-            Kind::Join if self.ready() => return Outcome::Join(self.text.clone()),
+            Kind::Join if self.ready() => return Outcome::Done(self.text.clone()),
             Kind::Join => {}
         }
         Outcome::Stay
@@ -272,7 +289,7 @@ mod tests {
         }
         assert_eq!(kb.tap(30), Outcome::Stay);
         kb.tap(14);
-        assert_eq!(kb.tap(30), Outcome::Join("gggggggg".to_string()));
+        assert_eq!(kb.tap(30), Outcome::Done("gggggggg".to_string()));
     }
 
     #[test]
@@ -289,5 +306,18 @@ mod tests {
         kb.tap(27);
         kb.tap(0);
         assert_eq!(kb.text(), "1");
+    }
+
+    #[test]
+    fn other_text_starts_from_what_is_there_and_may_be_empty() {
+        let mut kb = Keyboard::new();
+        kb.start(0, "Done", "kodi");
+        assert_eq!(kb.text(), "kodi");
+        assert!(kb.ready());
+        let done = kb.cells().iter().position(|c| c.kind == Kind::Join).unwrap();
+        assert_eq!(kb.cells()[done].label, "Done");
+        assert_eq!(kb.key("back"), Outcome::Leave, "cancels rather than rubbing out");
+        kb.start(0, "Done", "");
+        assert_eq!(kb.tap(done), Outcome::Done(String::new()));
     }
 }
