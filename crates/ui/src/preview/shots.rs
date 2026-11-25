@@ -429,10 +429,12 @@ fn swipe(path: Vec<f32>) -> Act {
     Box::new(move |_, tx| {
         let (tx, path) = (tx.clone(), path.clone());
         std::thread::spawn(move || {
-            let mut strip = crate::input::slider::Slider::default();
+            // One strip for every swipe and tap, as on the remote, so two taps in a row make a double tap.
+            static STRIP: std::sync::Mutex<Option<crate::input::slider::Slider>> = std::sync::Mutex::new(None);
             let t0 = Instant::now();
-            let mut send = |touch, pos, at: Instant| {
-                if let Some(g) = strip.feed(touch, pos, at) {
+            let send = |touch, pos, at: Instant| {
+                let mut strip = STRIP.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some(g) = strip.get_or_insert_with(Default::default).feed(touch, pos, at) {
                     let _ = tx.send(UiAction::Slider(g));
                 }
             };
