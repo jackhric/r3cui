@@ -100,7 +100,7 @@ mod tests {
 
     #[tokio::test]
     async fn reconnects_after_the_server_drops_the_connection() {
-        let server = Arc::new(FakeServer::<()>::start("127.0.0.1:0", || Echo).await);
+        let server = Arc::new(FakeServer::<()>::start("127.0.0.1:0", |_| Echo).await);
         let kicker = {
             let server = server.clone();
             tokio::spawn(async move {

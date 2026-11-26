@@ -61,6 +61,21 @@ pub trait Peer<M>: Send + 'static {
     }
 }
 
+/// Sends to every open connection's peer; clone it into whatever needs to push.
+pub struct Broadcaster<M>(broadcast::Sender<M>);
+
+impl<M> Clone for Broadcaster<M> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<M> Broadcaster<M> {
+    pub fn send(&self, message: M) {
+        let _ = self.0.send(message);
+    }
+}
+
 pub struct FakeServer<M> {
     addr: SocketAddr,
     accepted: Arc<AtomicUsize>,
@@ -80,7 +95,7 @@ impl Drop for Open {
 
 impl<M: Clone + Send + 'static> FakeServer<M> {
     /// Listens on `addr` (`"127.0.0.1:0"` for any free port); each connection gets a peer from `make_peer`.
-    pub async fn start<P: Peer<M>>(addr: &str, make_peer: impl Fn() -> P + Send + Sync + 'static) -> Self {
+    pub async fn start<P: Peer<M>>(addr: &str, make_peer: impl Fn(Broadcaster<M>) -> P + Send + Sync + 'static) -> Self {
         let listener = TcpListener::bind(addr).await.expect("bind");
         let addr = listener.local_addr().expect("bound");
         let accepted = Arc::new(AtomicUsize::new(0));
@@ -93,7 +108,7 @@ impl<M: Clone + Send + 'static> FakeServer<M> {
                 while let Ok((stream, _)) = listener.accept().await {
                     accepted.fetch_add(1, Ordering::SeqCst);
                     open.fetch_add(1, Ordering::SeqCst);
-                    tokio::spawn(serve(stream, make_peer(), Open(open.clone()), broadcasts.subscribe(), kicks.subscribe()));
+                    tokio::spawn(serve(stream, make_peer(Broadcaster(broadcasts.clone())), Open(open.clone()), broadcasts.subscribe(), kicks.subscribe()));
                 }
             }
         });
@@ -121,7 +136,7 @@ impl<M: Clone + Send + 'static> FakeServer<M> {
 
     /// Offers `message` to every open connection's peer.
     pub fn broadcast(&self, message: M) {
-        let _ = self.broadcasts.send(message);
+        Broadcaster(self.broadcasts.clone()).send(message);
     }
 }
 
