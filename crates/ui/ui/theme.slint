@@ -1,3 +1,5 @@
+import { Choice } from "types.slint";
+
 // `accent` is the one interface colour. It is in-out so Rust can change it at runtime:
 // `app.global::<Theme>().set_accent(color)`.
 export global Theme {
@@ -282,26 +284,6 @@ export component Layer inherits Rectangle {
     visible: self.opacity > 0;
     animate x { duration: Theme.page-time; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
     animate opacity { duration: Theme.page-time; easing: ease-out; }
-}
-
-// One row of a choice list. Every field but `label` is optional.
-export struct Choice {
-    label: string,
-    // A second, smaller line under the label.
-    detail: string,
-    // Right-aligned, before the trailing mark.
-    value: string,
-    // A brand mark before the label.
-    icon: string,
-    // The current choice: a tick.
-    checked: bool,
-    // Leads somewhere else: a chevron.
-    chevron: bool,
-    // A status dot before the label: 1 working, 2 broken, 3 unknown, 4 changed by the user; 0 for none.
-    dot: int,
-    // Wi-Fi strength, 1 to 4; 0 for none.
-    bars: int,
-    locked: bool,
 }
 
 // The one primitive for every option layer (inputs, menu, settings, tracks): a header with a

@@ -1,0 +1,67 @@
+export struct InputRow {
+    // What the source calls it; picking a row sends this.
+    id: string,
+    name: string,
+    icon: string,
+}
+
+export struct WifiRow {
+    ssid: string,
+    ssid-hex: string,
+    secured: bool,
+    // 1 to 4
+    bars: int,
+    connected: bool,
+}
+
+export struct StatusRow {
+    label: string,
+    value: string,
+    // 0 working, 1 broken, 2 unknown because something it depends on is broken
+    level: int,
+}
+
+export struct KeyCell {
+    label: string,
+    icon: string,
+    x: length,
+    y: length,
+    w: length,
+    h: length,
+    focused: bool,
+    // 0 character, 1 action, 2 action armed, 3 join (not ready), 4 join (ready)
+    style: int,
+}
+
+// One row of a choice list. Every field but `label` is optional.
+export struct Choice {
+    label: string,
+    // A second, smaller line under the label.
+    detail: string,
+    // Right-aligned, before the trailing mark.
+    value: string,
+    // A brand mark before the label.
+    icon: string,
+    // The current choice: a tick.
+    checked: bool,
+    // Leads somewhere else: a chevron.
+    chevron: bool,
+    // A status dot before the label: 1 working, 2 broken, 3 unknown, 4 changed by the user; 0 for none.
+    dot: int,
+    // Wi-Fi strength, 1 to 4; 0 for none.
+    bars: int,
+    locked: bool,
+}
+
+export struct LibItem {
+    poster: image,
+    title: string,
+    // Year, runtime and the like; then the rating, drawn after a star, then the certificate.
+    meta: string,
+    rating: string,
+    tail: string,
+    genre: string,
+    plot: string,
+    detail: string,
+    progress: float,
+}

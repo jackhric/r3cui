@@ -2,19 +2,7 @@
 // `mode` picks the variation (1 river, 2 river with the focused title, 3 carousel, 4 poster
 // wall, 5 shows).
 import { Theme } from "theme.slint";
-
-export struct LibItem {
-    poster: image,
-    title: string,
-    // Year, runtime and the like; then the rating, drawn after a star, then the certificate.
-    meta: string,
-    rating: string,
-    tail: string,
-    genre: string,
-    plot: string,
-    detail: string,
-    progress: float,
-}
+import { LibItem } from "types.slint";
 
 // A library poster; until it arrives, a frosted stand-in with the title and a spinner.
 component PosterTile inherits Rectangle {
