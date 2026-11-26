@@ -27,7 +27,7 @@ use crate::view::software::show as show_software;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
 use drivers::api::{Health, Media, PairError, Pairer, Stage, Status, UiIntent, VolumeIntent};
-use drivers::{Host, Input, Modules, Registry, Store, DEFAULT_INPUT};
+use drivers::{Host, Input, KnownTargets, Modules, Registry, Store, DEFAULT_INPUT};
 
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -78,7 +78,8 @@ impl Frontend {
             }
         };
         tracing::info!(drivers = ?modules.drivers.keys().collect::<Vec<_>>(), "modules from {}", store.path.display());
-        Self { host: Host::new(Registry::builtin(), modules), store: Some(store), global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new(), software: Software::new(crate::remote::selfupdate::current_version(), software::random_pin) }
+        let known = KnownTargets::load(&store.known_path());
+        Self { host: Host::new(Registry::builtin(), modules), store: Some(store), global: Global::default(), wall: Wall::new(weak), settings: Integrations::with_known(known), pairer: None, poster_url: String::new(), software: Software::new(crate::remote::selfupdate::current_version(), software::random_pin) }
     }
 
     /// The demo's drivers, set up in memory. Within a tokio runtime.
@@ -179,10 +180,13 @@ impl Session<'_> {
             Effect::Stay => {}
             Effect::Apply(modules) => front.apply(modules),
             Effect::Load { driver, kind } => {
+                front.settings.loading(&driver, kind);
+                show_settings(weak, front.settings.page(&front.host));
                 if let Some(d) = front.host.driver(&driver) {
                     let later = later.clone();
                     tokio::spawn(async move {
-                        let _ = later.send(Later::Targets(d.targets(kind).await));
+                        let targets = d.targets(kind).await;
+                        let _ = later.send(Later::Targets { driver, kind, targets });
                     });
                 }
             }
@@ -426,7 +430,17 @@ pub(crate) async fn serve(
             Some(later) = later_rx.recv() => {
                 match later {
                     Later::Wifi(ssid, networks) => session.wifi.found(ssid, networks),
-                    Later::Targets(targets) => session.front.settings.targets_loaded(targets),
+                    Later::Targets { driver, kind, targets } => {
+                        let front = &mut *session.front;
+                        if front.settings.targets_loaded(&driver, kind, targets) {
+                            if let Some(store) = &front.store {
+                                let path = store.known_path();
+                                if let Err(e) = front.settings.known().save(&path) {
+                                    tracing::warn!("{}: {e}", path.display());
+                                }
+                            }
+                        }
+                    }
                     Later::PairStarted(started) => {
                         let front = &mut *session.front;
                         let effect = match started {

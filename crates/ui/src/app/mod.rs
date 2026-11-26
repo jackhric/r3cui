@@ -59,7 +59,7 @@ pub(crate) enum Later {
     /// The slider's throttled volume command is due.
     SendVolume,
     /// What an Integrations picker offers, as its driver answered.
-    Targets(Vec<drivers::api::Target>),
+    Targets { driver: String, kind: drivers::api::TargetKind, targets: Vec<drivers::api::Target> },
     /// The device answered a pairing's start: it shows its code, or it did not.
     PairStarted(Result<Box<dyn drivers::api::Pairer>, drivers::api::PairError>),
     /// The pairing's verdict on a code, with the pairing handed back for another try.

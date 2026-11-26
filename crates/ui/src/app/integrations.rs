@@ -4,7 +4,7 @@
 
 use crate::Dot;
 use drivers::api::{Field, FieldKind, Health, PairError, Paired, Spec, Target, TargetKind};
-use drivers::{Binding, Host, Input, Modules, Role, Slot};
+use drivers::{Binding, Host, Input, KnownTargets, Modules, Role, Slot};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Screen {
@@ -85,6 +85,9 @@ pub(crate) struct Integrations {
     stack: Vec<(Screen, usize)>,
     /// What the open picker offers; `None` while loading.
     targets: Option<Vec<Target>>,
+    /// `targets` is the list this driver gave last time, not a fresh one.
+    saved: Option<String>,
+    known: KnownTargets,
     editing: Option<Editing>,
     phase: Phase,
 }
@@ -123,9 +126,14 @@ fn power_providers(host: &Host) -> Vec<String> {
     host.modules().drivers.keys().filter(|id| spec_of(host, id).is_some_and(|s| s.provides.power && !s.provides.global)).cloned().collect()
 }
 
-/// What a binding points at, as a person would say it: the target of global control, or the driver itself.
-fn bound_name(host: &Host, b: &Binding) -> String {
-    if spec_of(host, &b.driver).is_some_and(|s| s.provides.global) { short(&b.target) } else { name_of(host, &b.driver) }
+/// What a binding points at, as a person would say it: the target's name as its driver last gave it, or the driver
+/// itself.
+fn bound_name(host: &Host, known: &KnownTargets, b: &Binding) -> String {
+    if spec_of(host, &b.driver).is_some_and(|s| s.provides.global) { target_name(known, &b.driver, &b.target) } else { name_of(host, &b.driver) }
+}
+
+fn target_name(known: &KnownTargets, driver: &str, id: &str) -> String {
+    known.name(driver, id).map_or_else(|| short(id), str::to_string)
 }
 
 fn input_of(host: &Host, id: &str) -> Option<Input> {
@@ -135,7 +143,7 @@ fn input_of(host: &Host, id: &str) -> Option<Input> {
 impl Integrations {
     /// Opens on the first screen.
     pub(crate) fn open(&mut self) {
-        (self.stack, self.targets, self.editing, self.phase) = (vec![(Screen::Root, 0)], None, None, Phase::default());
+        (self.stack, self.targets, self.saved, self.editing, self.phase) = (vec![(Screen::Root, 0)], None, None, None, Phase::default());
     }
 
     /// Opens where an empty input list is fixed: global control's Inputs when nothing is set up as the source, the
@@ -158,12 +166,34 @@ impl Integrations {
     }
 
     fn push(&mut self, screen: Screen) {
-        self.targets = None;
+        (self.targets, self.saved) = (None, None);
         self.stack.push((screen, 0));
     }
 
-    pub(crate) fn targets_loaded(&mut self, targets: Vec<Target>) {
-        self.targets = Some(targets);
+    pub(crate) fn with_known(known: KnownTargets) -> Self {
+        Self { known, ..Self::default() }
+    }
+
+    pub(crate) fn known(&self) -> &KnownTargets {
+        &self.known
+    }
+
+    /// A picker is fetching `driver`'s targets: meanwhile it shows the list from last time.
+    pub(crate) fn loading(&mut self, driver: &str, kind: TargetKind) {
+        if let Some(saved) = self.known.get(driver, kind) {
+            (self.targets, self.saved) = (Some(saved.to_vec()), Some(driver.to_string()));
+        }
+    }
+
+    /// What the driver answered. An empty answer keeps the list from last time on screen; a list is kept for next
+    /// time. `true` when what is kept changed and should be saved.
+    pub(crate) fn targets_loaded(&mut self, driver: &str, kind: TargetKind, targets: Vec<Target>) -> bool {
+        if targets.is_empty() {
+            self.targets.get_or_insert_with(Vec::new);
+            return false;
+        }
+        (self.targets, self.saved) = (Some(targets.clone()), None);
+        self.known.put(driver, kind, targets)
     }
 
     pub(crate) fn page(&self, host: &Host) -> Page {
@@ -172,7 +202,7 @@ impl Integrations {
         let (title, rows) = match self.top() {
             Screen::Root => {
                 let mut rows = vec![
-                    Row { value: m.global.source.as_ref().or(m.global.volume.as_ref()).or(m.power_binding()).map_or("None".into(), |b| bound_name(host, b)), chevron: true, ..row("Global control") },
+                    Row { value: m.global.source.as_ref().or(m.global.volume.as_ref()).or(m.power_binding()).map_or("None".into(), |b| bound_name(host, &self.known, b)), chevron: true, ..row("Global control") },
                     Row { value: format!("{} shown", host.inputs().iter().filter(|i| !i.hidden).count()), chevron: true, ..row("Inputs") },
                 ];
                 let statuses = host.statuses();
@@ -192,7 +222,7 @@ impl Integrations {
                 ("Integrations".to_string(), rows)
             }
             Screen::Global => {
-                let target = |b: &Option<Binding>| b.as_ref().map_or("None".to_string(), |b| bound_name(host, b));
+                let target = |b: &Option<Binding>| b.as_ref().map_or("None".to_string(), |b| bound_name(host, &self.known, b));
                 let rows = vec![
                     Row { value: target(&m.global.volume), chevron: true, detail: "Volume and mute".into(), ..row("Volume") },
                     Row { value: target(&m.global.source), chevron: true, detail: "The input list".into(), ..row("Inputs") },
@@ -213,13 +243,14 @@ impl Integrations {
                 };
                 let providers = if *role == Role::Power { power_providers(host) } else { Vec::new() };
                 let on_provider = bound.as_ref().is_some_and(|b| providers.contains(&b.driver));
-                let mut rows = match global_driver(host) {
-                    Some(_) => self.target_rows(bound.as_ref().filter(|_| !on_provider).map(|b| b.target.as_str()), !on_provider && bound.is_none()),
+                let global = global_driver(host);
+                let mut rows = match &global {
+                    Some(d) => self.target_rows(d, bound.as_ref().filter(|_| !on_provider).map(|b| b.target.as_str()), !on_provider && bound.is_none()),
                     None if providers.is_empty() => vec![row("Add Home Assistant first")],
                     None => vec![Row { checked: bound.is_none(), ..row("None") }],
                 };
                 rows.extend(providers.iter().map(|id| Row { icon: icon_of(host, id), checked: bound.as_ref().is_some_and(|b| b.driver == *id), ..row(name_of(host, id)) }));
-                (title.to_string(), rows)
+                (self.offline_title(host, title, global.as_deref()), rows)
             }
             Screen::Driver(id) => {
                 let entry = &m.drivers[id];
@@ -257,7 +288,7 @@ impl Integrations {
             Screen::PickField { driver, key } => {
                 let label = spec_of(host, driver).and_then(|s| s.fields.iter().find(|f| f.key == *key)).map_or(*key, |f| f.label);
                 let current = m.drivers.get(driver).and_then(|d| d.text(key));
-                (label.to_string(), self.target_rows(current.as_deref(), current.is_none()))
+                (self.offline_title(host, label, Some(driver)), self.target_rows(driver, current.as_deref(), current.is_none()))
             }
             Screen::Remove(id) => (format!("Remove {}?", name_of(host, id)), vec![row(format!("Remove {}", name_of(host, id))), row("Cancel")]),
             Screen::Add => {
@@ -320,11 +351,22 @@ impl Integrations {
     }
 
     /// "None" (ticked when `none_checked`), then what the picker offers, the current one ticked.
-    fn target_rows(&self, current: Option<&str>, none_checked: bool) -> Vec<Row> {
+    /// A picker's title, marked when it shows the list from last time because its driver is not connected.
+    fn offline_title(&self, host: &Host, title: &str, driver: Option<&str>) -> String {
+        let up = |d: &str| host.statuses().iter().any(|(id, _, s)| id == d && s.health == Health::Up);
+        match driver {
+            Some(d) if self.saved.as_deref() == Some(d) && !up(d) => format!("{title} · offline"),
+            _ => title.to_string(),
+        }
+    }
+
+    /// With nothing to list, what is bound still shows, by the name its driver last gave it.
+    fn target_rows(&self, driver: &str, current: Option<&str>, none_checked: bool) -> Vec<Row> {
         let mut rows = vec![Row { checked: none_checked, ..row("None") }];
+        let bound = current.map(|id| Row { checked: true, detail: id.to_string(), ..row(target_name(&self.known, driver, id)) });
         match &self.targets {
-            None => rows.push(row("Loading…")),
-            Some(t) if t.is_empty() => rows.push(row("Nothing found")),
+            None => rows.push(bound.unwrap_or_else(|| row("Loading…"))),
+            Some(t) if t.is_empty() => rows.push(bound.unwrap_or_else(|| row("Nothing found"))),
             Some(t) => rows.extend(t.iter().map(|t| Row { detail: t.id.clone(), checked: current == Some(t.id.as_str()), ..row(t.name.clone()) })),
         }
         rows
@@ -564,7 +606,7 @@ impl Integrations {
     }
 
     fn pop(&mut self) {
-        self.targets = None;
+        (self.targets, self.saved) = (None, None);
         self.stack.pop();
     }
 
@@ -696,10 +738,32 @@ mod tests {
         assert_eq!(effect, Effect::Load { driver: "fake-global".into(), kind: TargetKind::MediaPlayer });
         assert_eq!(labels(&ui.page(&host)), ["None", "Loading…"]);
         assert_eq!(ui.pick(1, &host), Effect::Stay, "nothing to pick while loading");
-        ui.targets_loaded(vec![Target { id: "media_player.amp".into(), name: "Amp".into() }]);
+        ui.targets_loaded("fake-global", TargetKind::MediaPlayer, vec![Target { id: "media_player.amp".into(), name: "Amp".into() }]);
         tap(&mut ui, &mut host, "Amp");
         assert_eq!(host.modules().global.volume, Some(Binding { driver: "fake-global".into(), target: "media_player.amp".into() }));
-        assert_eq!(ui.page(&host).rows[0].value, "amp");
+        assert_eq!(ui.page(&host).rows[0].value, "Amp", "by the name its driver gave");
+    }
+
+    #[tokio::test]
+    async fn pickers_show_what_is_bound_and_the_list_from_last_time_while_offline() {
+        let (mut host, fakes, mut ui) = setup();
+        let receiver = Target { id: "receiver".into(), name: "Receiver".into() };
+        tap(&mut ui, &mut host, "Global control");
+        tap(&mut ui, &mut host, "Inputs");
+        let page = ui.page(&host);
+        assert_eq!((labels(&page), page.rows[1].checked), (vec!["None", "receiver"], true), "bound, shown while loading");
+        assert!(ui.targets_loaded("fake-global", TargetKind::MediaPlayer, vec![receiver.clone()]), "kept for next time");
+
+        let mut ui = Integrations::with_known(ui.known().clone());
+        ui.open();
+        tap(&mut ui, &mut host, "Global control");
+        assert_eq!(ui.page(&host).rows[1].value, "Receiver", "named as the driver last named it");
+        fakes.get("fake-global").set_status(drivers::api::Status::new(Health::Down));
+        tap(&mut ui, &mut host, "Inputs");
+        ui.loading("fake-global", TargetKind::MediaPlayer);
+        assert!(!ui.targets_loaded("fake-global", TargetKind::MediaPlayer, Vec::new()), "nothing new to keep");
+        let page = ui.page(&host);
+        assert_eq!((page.title.as_str(), labels(&page)), ("Inputs · offline", vec!["None", "Receiver"]));
     }
 
     #[tokio::test]
@@ -735,11 +799,11 @@ mod tests {
         assert_eq!(labels(&page), ["Volume", "Inputs", "Power"]);
         assert_eq!(page.rows[2].value, "receiver", "follows the inputs binding");
         tap(&mut ui, &mut host, "Power");
-        ui.targets_loaded(vec![Target { id: "media_player.tv".into(), name: "TV".into() }]);
+        ui.targets_loaded("fake-global", TargetKind::MediaPlayer, vec![Target { id: "media_player.tv".into(), name: "TV".into() }]);
         tap(&mut ui, &mut host, "TV");
         assert_eq!(host.modules().global.power, Some(Binding { driver: "fake-global".into(), target: "media_player.tv".into() }));
         assert_eq!(host.modules().global.source.as_ref().unwrap().target, "receiver", "inputs untouched");
-        assert_eq!(ui.page(&host).rows[2].value, "tv");
+        assert_eq!(ui.page(&host).rows[2].value, "TV", "by the name its driver gave");
     }
 
     #[tokio::test]
