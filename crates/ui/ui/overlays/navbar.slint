@@ -35,9 +35,9 @@ export component NavBar inherits Rectangle {
         height: Layout.navbar-h;
         enabled: self.shown && Nav.page != PageId.inputs && !Software.blocking;
         clicked => { Nav.go(PageId.inputs, Control.input-index); }
+        // The one item bigger than navbar-ink: the input's mark stands out.
         Logo {
-            y: Layout.navbar-pad;
-            size: Layout.navbar-item;
+            y: (Layout.navbar-h - self.height) / 2;
             commands: Control.input-icon;
             tint: Theme.t2;
             opacity: parent.shown ? 1 : 0;

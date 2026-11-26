@@ -32,8 +32,10 @@ export global Layout {
     out property <length> margin: 40px;
     out property <length> content-w: 400px;
     out property <length> navbar-h: 64px;
-    out property <length> navbar-item: 32px;
-    out property <length> navbar-pad: (self.navbar-h - self.navbar-item) / 2;
+    // What shows of every navbar item but the input's mark is this tall: the clock's digits, the battery, the glyphs.
+    out property <length> navbar-ink: 18px;
+    // The glyphs' 24-unit box, whose paths span 16 units of it: drawn at this size they show navbar-ink tall.
+    out property <length> navbar-glyph: 24px;
     out property <length> header-y: 64px;
     out property <length> header-h: 104px;
     out property <length> list-top: 168px;
@@ -70,6 +72,8 @@ export global Type {
     out property <length> value-compact: 20px;
     out property <length> caption: 14px;
     out property <int> display-weight: 200;
+    // How tall Inter's digits are, as a share of the font size: a text sized by what shows divides by this.
+    out property <float> digit-height: 0.747;
 }
 
 // Timings and scale for focus, lift and toggles.

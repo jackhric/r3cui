@@ -1,6 +1,5 @@
 import { Glyph, Icons, Marks } from "../marks/icons.slint";
-
-import { Theme, Layout } from "../theme.slint";
+import { Theme, Layout, Type } from "../theme.slint";
 
 export component StatusBar inherits Rectangle {
     in property <string> clock;
@@ -18,21 +17,19 @@ export component StatusBar inherits Rectangle {
 
     Text {
         x: Layout.margin;
-        y: Layout.navbar-pad;
-        height: Layout.navbar-item;
-        vertical-alignment: center;
+        y: (Layout.navbar-h - self.height) / 2;
         text: root.clock;
-        font-size: 26px;
+        font-size: Layout.navbar-ink / Type.digit-height;
         color: Theme.text;
     }
     cell := Rectangle {
         x: 350px;
-        y: Layout.navbar-pad;
+        y: (Layout.navbar-h - self.height) / 2;
         width: 34px;
-        height: Layout.navbar-item;
+        height: Layout.navbar-ink;
         Rectangle {
             width: 34px;
-            height: 18px;
+            height: Layout.navbar-ink;
             border-radius: 5px;
             border-width: 2px;
             border-color: Theme.t2;
@@ -80,15 +77,15 @@ export component StatusBar inherits Rectangle {
             }
         }
         Glyph {
-            y: Layout.navbar-pad;
-            size: Layout.navbar-item;
+            y: (Layout.navbar-h - self.height) / 2;
+            size: Layout.navbar-glyph;
             commands: Icons.menu;
             opacity: root.in-menu ? 0 : 1;
             animate opacity { duration: Theme.page-time; easing: Theme.page-easing; }
         }
         Glyph {
-            y: Layout.navbar-pad;
-            size: Layout.navbar-item;
+            y: (Layout.navbar-h - self.height) / 2;
+            size: Layout.navbar-glyph;
             commands: Icons.close;
             opacity: root.in-menu ? 1 : 0;
             animate opacity { duration: Theme.page-time; easing: Theme.page-easing; }
