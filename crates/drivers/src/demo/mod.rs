@@ -16,7 +16,8 @@ pub static SPEC: Spec = Spec {
     // A play mark in a rounded square.
     icon: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm5 5v8l6-4z",
     fields: &[],
-    provides: Provides { global: true, remote: true, ui: true },
+    provides: Provides { global: true, remote: true, ui: true, power: false },
+    pairing: None,
 };
 
 struct State {
@@ -77,7 +78,7 @@ impl Demo {
                 source_tx.send_replace(Some(s.sources.clone()));
                 power_tx.send_replace(Some(s.power));
                 let library = (s.shown && s.media.is_none()).then(|| Library { list: shelf.clone(), focus: s.focus });
-                stage_tx.send_replace(Stage { media: s.media.clone(), library });
+                stage_tx.send_replace(Stage { media: s.media.clone(), library, app: None });
             }
         };
         publish();

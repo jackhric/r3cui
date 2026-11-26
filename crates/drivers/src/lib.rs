@@ -3,6 +3,7 @@
 //!
 //! A driver module uses only `api` and its own client crate; only `registry` names driver types.
 
+pub mod androidtv;
 pub mod api;
 pub mod config;
 #[cfg(any(test, feature = "demo"))]

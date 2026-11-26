@@ -34,7 +34,8 @@ pub static SPEC: Spec = Spec {
         Field { key: field::WS_PORT, label: "WebSocket port", kind: FieldKind::Port, required: false, default: Some("9090") },
         Field { key: field::HTTP_PORT, label: "Web server port", kind: FieldKind::Port, required: false, default: Some("8080") },
     ],
-    provides: Provides { global: false, remote: true, ui: true },
+    provides: Provides { global: false, remote: true, ui: true, power: false },
+    pairing: None,
 };
 
 pub struct Kodi {
@@ -70,7 +71,7 @@ impl Kodi {
                 loop {
                     let media = media_of(&kodi, &state.borrow_and_update());
                     let shelf = if media.is_none() { library.borrow_and_update().clone() } else { None };
-                    stage.send_replace(Stage { media, library: shelf });
+                    stage.send_replace(Stage { media, library: shelf, app: None });
                     tokio::select! {
                         r = state.changed() => if r.is_err() { break },
                         r = library.changed() => if r.is_err() { break },

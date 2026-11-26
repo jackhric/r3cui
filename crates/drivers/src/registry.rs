@@ -63,6 +63,7 @@ type StartFn = fn(&DriverEntry) -> Arc<dyn Driver>;
 const BUILTIN: &[(&Spec, StartFn)] = &[
     (&crate::homeassistant::SPEC, |e| Arc::new(crate::homeassistant::HomeAssistant::start(e))),
     (&crate::kodi::SPEC, |e| Arc::new(crate::kodi::Kodi::start(e))),
+    (&crate::androidtv::SPEC, |e| Arc::new(crate::androidtv::AndroidTv::start(e))),
     #[cfg(feature = "demo")]
     (&crate::demo::SPEC, |e| Arc::new(crate::demo::Demo::start(e))),
 ];

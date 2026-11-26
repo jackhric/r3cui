@@ -102,6 +102,13 @@ pub enum RemoteKey {
 pub struct Stage {
     pub media: Option<Media>,
     pub library: Option<Library>,
+    pub app: Option<App>,
+}
+
+/// The program in front on a box that runs apps.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct App {
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -204,6 +211,8 @@ pub enum Health {
     Up,
     Down,
     NotSetUp,
+    /// Reachable, but the device has to be paired with first.
+    NotPaired,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -231,6 +240,7 @@ impl Status {
             Health::Up => "Connected",
             Health::Down => "Unreachable",
             Health::NotSetUp => "Not set up",
+            Health::NotPaired => "Needs pairing",
         }
     }
 }
@@ -257,6 +267,8 @@ pub enum FieldKind {
     Port,
     /// Never shown back once set.
     Secret,
+    /// Written by pairing and by nothing else: not listed, never typed.
+    Credential,
     Target(TargetKind),
 }
 
@@ -274,6 +286,14 @@ pub struct Provides {
     pub global: bool,
     pub remote: bool,
     pub ui: bool,
+    /// Can stand as global power without being global control.
+    pub power: bool,
+}
+
+/// A driver that has to be paired with its device: the device shows a code, the user types it in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CodePairing {
+    pub code_len: usize,
 }
 
 /// A driver type: what it is called, what setting it up asks for, and which jobs it can do.
@@ -285,13 +305,37 @@ pub struct Spec {
     pub icon: &'static str,
     pub fields: &'static [Field],
     pub provides: Provides,
+    pub pairing: Option<CodePairing>,
 }
 
 impl Spec {
     pub fn field(&self, key: &str) -> Option<&Field> {
         self.fields.iter().find(|f| f.key == key)
     }
+
+    /// The fields the user can see and change: all but the credentials.
+    pub fn visible_fields(&self) -> impl Iterator<Item = &Field> {
+        self.fields.iter().filter(|f| f.kind != FieldKind::Credential)
+    }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PairError {
+    /// Type it again.
+    WrongCode,
+    /// Start over.
+    Failed(String),
+}
+
+/// What a finished pairing leaves in the driver's setup, by field key.
+pub type Paired = Vec<(&'static str, String)>;
+
+/// A pairing under way: the device is showing its code.
+pub trait Pairer: Send {
+    fn finish<'a>(&'a mut self, code: &'a str) -> Pin<Box<dyn Future<Output = Result<Paired, PairError>> + Send + 'a>>;
+}
+
+pub type PairStart = Pin<Box<dyn Future<Output = Result<Box<dyn Pairer>, PairError>> + Send>>;
 
 pub type Targets<'a> = Pin<Box<dyn Future<Output = Vec<Target>> + Send + 'a>>;
 
@@ -312,6 +356,10 @@ pub trait Driver: Send + Sync {
         None
     }
     fn ui(&self) -> Option<UiPort> {
+        None
+    }
+    /// Starts pairing, for a driver whose spec has `pairing`.
+    fn pair(&self) -> Option<PairStart> {
         None
     }
     fn key_light(&self) -> Option<watch::Receiver<Option<KeyLight>>> {

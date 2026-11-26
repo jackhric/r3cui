@@ -32,7 +32,7 @@ pub fn health(wifi_ssid: &str, links: &[Link]) -> (Vec<StatusLine>, String) {
         } else {
             let dot = match l.status.health {
                 Health::Up => Dot::Up,
-                Health::Down => Dot::Down,
+                Health::Down | Health::NotPaired => Dot::Down,
                 Health::Connecting | Health::NotSetUp => Dot::Unknown,
             };
             StatusLine { label: l.name.clone(), value: l.status.word().into(), dot }

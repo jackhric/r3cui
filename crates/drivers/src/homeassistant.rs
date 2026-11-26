@@ -29,7 +29,8 @@ pub static SPEC: Spec = Spec {
         Field { key: field::KEYS_LIGHT, label: "Key light", kind: FieldKind::Target(TargetKind::Light), required: false, default: None },
         Field { key: field::KEYS_MODE, label: "Key light mode", kind: FieldKind::Target(TargetKind::Select), required: false, default: None },
     ],
-    provides: Provides { global: true, remote: false, ui: false },
+    provides: Provides { global: true, remote: false, ui: false, power: false },
+    pairing: None,
 };
 
 /// Full scale when there is no volume-limit sensor.

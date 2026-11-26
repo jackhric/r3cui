@@ -348,7 +348,7 @@ mod tests {
             subtitles: vec![],
             subtitle_current: None,
         };
-        player.set_stage(Stage { media: Some(media), library: None });
+        player.set_stage(Stage { media: Some(media), ..Stage::default() });
         let kodi = host.current("KODI");
         assert_eq!(host.stage(kodi.as_ref()).media.unwrap().title, "2001");
         assert_eq!(host.stage(host.current("TV").as_ref()), Stage::default(), "an empty slot is a blank stage");

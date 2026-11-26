@@ -11,13 +11,27 @@ use tokio::sync::{mpsc, watch};
 
 pub const FAKE_HOST: &str = "host";
 
-pub static FAKE_GLOBAL: Spec = Spec { id: "fake-global", name: "Fake", icon: "", fields: &[], provides: Provides { global: true, remote: false, ui: false } };
+pub static FAKE_GLOBAL: Spec = Spec { id: "fake-global", name: "Fake", icon: "", fields: &[], provides: Provides { global: true, remote: false, ui: false, power: false }, pairing: None };
 pub static FAKE_PLAYER: Spec = Spec {
     id: "fake-player",
     name: "Fake",
     icon: "",
     fields: &[Field { key: FAKE_HOST, label: "Host", kind: FieldKind::Text, required: true, default: None }],
-    provides: Provides { global: false, remote: true, ui: true },
+    provides: Provides { global: false, remote: true, ui: true, power: false },
+    pairing: None,
+};
+
+pub const FAKE_PAIRABLE_CREDENTIAL: &str = "credential";
+pub static FAKE_PAIRABLE: Spec = Spec {
+    id: "fake-pairable",
+    name: "Pairable",
+    icon: "",
+    fields: &[
+        Field { key: FAKE_HOST, label: "Host", kind: FieldKind::Text, required: true, default: None },
+        Field { key: FAKE_PAIRABLE_CREDENTIAL, label: "Credential", kind: FieldKind::Credential, required: false, default: None },
+    ],
+    provides: Provides { global: false, remote: true, ui: true, power: true },
+    pairing: Some(CodePairing { code_len: 6 }),
 };
 
 /// Waits up to five seconds for a watched value to satisfy `ok`, and returns it.
@@ -160,7 +174,11 @@ impl Fakes {
     pub fn registry(&self) -> Registry {
         let start = |fakes: Fakes| -> crate::registry::Start {
             Box::new(move |e: &DriverEntry| {
-                let spec = if e.kind == FAKE_GLOBAL.id { &FAKE_GLOBAL } else { &FAKE_PLAYER };
+                let spec = match e.kind.as_str() {
+                    k if k == FAKE_GLOBAL.id => &FAKE_GLOBAL,
+                    k if k == FAKE_PAIRABLE.id => &FAKE_PAIRABLE,
+                    _ => &FAKE_PLAYER,
+                };
                 let fake = FakeDriver::new(spec);
                 let mut all = fakes.0.lock().unwrap();
                 let starts = all.get(&e.kind).map_or(0, |(_, n)| *n);
@@ -168,7 +186,7 @@ impl Fakes {
                 Arc::new(fake)
             })
         };
-        Registry::new().with(&FAKE_GLOBAL, start(self.clone())).with(&FAKE_PLAYER, start(self.clone()))
+        Registry::new().with(&FAKE_GLOBAL, start(self.clone())).with(&FAKE_PLAYER, start(self.clone())).with(&FAKE_PAIRABLE, start(self.clone()))
     }
 
     pub fn get(&self, kind: &str) -> FakeDriver {

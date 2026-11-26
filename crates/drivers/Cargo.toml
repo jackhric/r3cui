@@ -12,6 +12,7 @@ serde_json.workspace = true
 tracing.workspace = true
 homeassistant = { path = "../homeassistant" }
 kodi = { path = "../kodi" }
+androidtv = { path = "../androidtv" }
 
 [features]
 testing = []
@@ -22,3 +23,4 @@ demo = []
 tokio = { workspace = true, features = ["test-util"] }
 homeassistant = { path = "../homeassistant", features = ["testing"] }
 kodi = { path = "../kodi", features = ["testing"] }
+androidtv = { path = "../androidtv", features = ["testing"] }
