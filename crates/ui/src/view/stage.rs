@@ -1,6 +1,7 @@
 //! The stage behind the controls (now playing, inputs, the poster wall, off) and the blurred crossfade from one
 //! to the next.
 
+use crate::Sys;
 use crate::Fx;
 use crate::Lib;
 use crate::{AppWindow, Capture, LibMode};
@@ -82,7 +83,7 @@ pub(crate) fn reveal_library(app: &AppWindow, delay: Duration) {
 }
 pub(crate) fn swap_stage(app: &AppWindow, key: StageKey, change: impl FnOnce()) {
     let before = STAGE.with(|s| s.replace(Some(key.clone())));
-    let visible = app.on_page(PageId::Home) && app.get_lit() && app.global::<Fx>().get_capturing() == Capture::None;
+    let visible = app.on_page(PageId::Home) && app.global::<Sys>().get_lit() && app.global::<Fx>().get_capturing() == Capture::None;
     if before.is_none() || before.as_ref() == Some(&key) || !visible {
         change();
         return;

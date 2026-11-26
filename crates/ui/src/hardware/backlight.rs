@@ -21,6 +21,8 @@
 //! every change of power mode calls for a full repaint ([`Backlight::repaint`]). It has no fade of
 //! its own, so colour changes are crossfaded here by sending the colours in between ([`FADE`]).
 
+use crate::Control;
+use crate::Sys;
 use crate::{AppWindow, Theme};
 use drivers::api::{KeyLight, KeyMode};
 use serde_json::json;
@@ -161,8 +163,8 @@ pub struct UiState {
 pub fn observe(app: &AppWindow) -> (UiState, Rgb) {
     let accent = app.global::<Theme>().get_accent();
     let state = UiState {
-        awake: app.get_lit(),
-        power_on: app.get_power_on(),
+        awake: app.global::<Sys>().get_lit(),
+        power_on: app.global::<Control>().get_power_on(),
         power_hold: app.get_power_overlay().then(|| app.get_power_turning_off()),
         requested: REQUESTED.lock().unwrap_or_else(|e| e.into_inner()).unwrap_or_default(),
     };

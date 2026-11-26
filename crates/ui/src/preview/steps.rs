@@ -14,6 +14,7 @@
 //! quit
 //! ```
 
+use crate::Sys;
 use crate::Kb;
 use crate::view::screen::{Screen, page_by_name};
 use crate::{AppWindow, PageId};
@@ -138,8 +139,8 @@ pub(crate) fn perform(app: &AppWindow, action: &Do, out: Option<&Path>) -> bool 
             }
         }
         Do::Awake => {
-            app.set_charge_card(false);
-            app.set_resting(false);
+            app.global::<Sys>().set_charge_card(false);
+            app.global::<Sys>().set_resting(false);
         }
         Do::Quit => return false,
     }

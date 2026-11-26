@@ -2,6 +2,7 @@
 //! evdev here and handed to the window as ordinary pointer and key events. Keys are translated to
 //! the same key text the desktop build uses, so everything downstream is shared.
 
+use crate::Sys;
 use crate::input::{keys, Button};
 use crate::{AppWindow, app::UiAction};
 use tokio::sync::mpsc::UnboundedSender;
@@ -127,8 +128,8 @@ fn activity(weak: &slint::Weak<AppWindow>) {
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(app) = weak.upgrade() {
             crate::hardware::frames::kick();
-            if app.get_resting() {
-                app.set_resting(false);
+            if app.global::<Sys>().get_resting() {
+                app.global::<Sys>().set_resting(false);
             }
         }
     });

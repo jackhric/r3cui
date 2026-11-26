@@ -1,0 +1,15 @@
+export global Sys {
+    // False while the remote is idle or asleep: the screen closes down to the bar and goes dark.
+    in property <bool> awake: true;
+    in property <bool> connected: false;
+    in property <string> status: "Connecting…";
+    in property <string> clock;
+    in property <int> battery: 100;
+    in property <bool> charging;
+    // On the charger the screen and keys go dark after a short while; any input brings them back.
+    in-out property <bool> resting;
+    in-out property <bool> charge-card;
+    out property <bool> lit: Sys.awake && !Sys.resting;
+    // Any key or touch: restarts the charger's countdown to dark.
+    callback activity();
+}

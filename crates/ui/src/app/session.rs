@@ -2,6 +2,7 @@
 //! backlight), the drivers for everything else, and the event loop that joins them to the screen. The frontend
 //! talks to the host's ports and inputs; it never names a driver.
 
+use crate::Playback;
 use crate::Cfg;
 use slint::ComponentHandle;
 use crate::Kb;
@@ -218,8 +219,8 @@ impl Session<'_> {
             let poster = poster.as_ref().map(poster_pixels);
             ui(&weak, move |app| {
                 set_poster_accent(&app, tint);
-                app.set_poster(poster.map(slint::Image::from_rgba8).unwrap_or_default());
-                app.set_backdrop(backdrop.map(slint::Image::from_rgba8).unwrap_or_default());
+                app.global::<Playback>().set_poster(poster.map(slint::Image::from_rgba8).unwrap_or_default());
+                app.global::<Playback>().set_backdrop(backdrop.map(slint::Image::from_rgba8).unwrap_or_default());
             });
         });
     }

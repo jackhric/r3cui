@@ -1,5 +1,6 @@
 //! The demo: a simulated session for the desktop and the website, with no core behind it.
 
+use crate::Playback;
 use slint::ComponentHandle;
 use crate::Prefs;
 use crate::AppWindow;
@@ -24,11 +25,11 @@ pub(crate) fn apply_demo_settings(app: &AppWindow) {
     let art = |var: &str| image::open(std::env::var_os(var)?).map_err(|e| tracing::warn!("{var}: {e}")).ok();
     let poster = art("UC_DEMO_POSTER");
     if let Some(p) = &poster {
-        app.set_poster(slint::Image::from_rgba8(poster_pixels(p)));
+        app.global::<Playback>().set_poster(slint::Image::from_rgba8(poster_pixels(p)));
         set_poster_accent(app, vibrant::accent(p));
     }
     if let Some(b) = art("UC_DEMO_FANART").or(poster) {
-        app.set_backdrop(slint::Image::from_rgba8(backdrop_pixels(&b)));
+        app.global::<Playback>().set_backdrop(slint::Image::from_rgba8(backdrop_pixels(&b)));
     }
     app.global::<Prefs>().set_haptics("On".into());
     app.global::<Prefs>().set_screen_off_after("60 s".into());

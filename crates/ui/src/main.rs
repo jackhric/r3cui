@@ -107,13 +107,13 @@ fn main() -> anyhow::Result<()> {
             let _ = tx.send(f(s.into()));
         }
     };
-    app.on_play_pause({
+    app.global::<Control>().on_play_pause({
         let tx = act_tx.clone();
         move || {
             let _ = tx.send(UiAction::PlayPause);
         }
     });
-    app.on_key({
+    app.global::<Control>().on_key({
         let tx = act_tx.clone();
         move |text| {
             if let Some(action) = key_action(&text) {
@@ -121,7 +121,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
     });
-    app.on_select_input(send(UiAction::SelectInput));
+    app.global::<Control>().on_select_input(send(UiAction::SelectInput));
     {
         use crate::app::Settings;
         let tx = act_tx.clone();
@@ -131,7 +131,7 @@ fn main() -> anyhow::Result<()> {
         let tx = act_tx.clone();
         app.global::<Cfg>().on_back(move || drop(tx.send(UiAction::Integrations(Settings::Back))));
     }
-    app.on_power_action({
+    app.global::<Control>().on_power_action({
         let tx = act_tx.clone();
         move |action| drop(tx.send(UiAction::Power(action)))
     });
@@ -184,7 +184,7 @@ fn main() -> anyhow::Result<()> {
             let _ = tx.send(UiAction::WifiJoin { ssid: ssid.into(), hex: hex.into(), password: password.into() });
         }
     });
-    app.on_seek({
+    app.global::<Control>().on_seek({
         let tx = act_tx.clone();
         move |by| {
             let _ = tx.send(UiAction::Seek(by));
@@ -202,7 +202,7 @@ fn main() -> anyhow::Result<()> {
             let _ = tx.send(UiAction::PickTrack(kind, i.max(0) as usize));
         }
     });
-    app.on_activity(poke);
+    app.global::<Sys>().on_activity(poke);
     app.global::<Prefs>().on_changed({
         let (tx, weak) = (act_tx.clone(), app.as_weak());
         move || {
@@ -211,7 +211,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
     });
-    app.on_power_held({
+    app.global::<Control>().on_power_held({
         let tx = act_tx.clone();
         move || {
             let _ = tx.send(UiAction::PowerHeld);

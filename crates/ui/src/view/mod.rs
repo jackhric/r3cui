@@ -8,6 +8,10 @@ pub(crate) mod library;
 pub(crate) mod screen;
 pub(crate) mod stage;
 
+use crate::Health;
+use crate::Playback;
+use crate::Control;
+use crate::Sys;
 use crate::Tracks;
 use crate::Cfg;
 use crate::Wifi;
@@ -41,14 +45,14 @@ pub(crate) fn set_poster_accent(app: &AppWindow, tint: Option<(u8, u8, u8)>) {
     if let Some((r, g, b)) = tint {
         tracing::info!("poster accent #{r:02X}{g:02X}{b:02X}");
     }
-    app.set_poster_tinted(tint.is_some());
+    app.global::<Playback>().set_poster_tinted(tint.is_some());
     if let Some((r, g, b)) = tint {
-        app.set_poster_accent(slint::Color::from_rgb_u8(r, g, b));
+        app.global::<Playback>().set_poster_accent(slint::Color::from_rgb_u8(r, g, b));
     }
     // The poster arrives after the film is already showing, so take the colour up at once.
-    let film_on_screen = app.get_power_on() && app.get_staged() && !app.get_media_title().is_empty();
+    let film_on_screen = app.global::<Control>().get_power_on() && app.global::<Playback>().get_staged() && !app.global::<Playback>().get_title().is_empty();
     if film_on_screen && tint.is_some() && std::env::var_os("UC_ACCENT").is_none() {
-        set_accent(app, app.get_poster_accent());
+        set_accent(app, app.global::<Playback>().get_poster_accent());
     }
 }
 /// `#RRGGBB` or `RRGGBB`.
@@ -118,16 +122,16 @@ pub(crate) fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
 pub(crate) fn flash_volume(weak: &slint::Weak<AppWindow>, generation: &Arc<AtomicU64>) {
     let mine = generation.fetch_add(1, Ordering::SeqCst) + 1;
     ui(weak, |app| {
-        if !app.get_volume_overlay() {
+        if !app.global::<Control>().get_volume_overlay() {
             capture(&app, Capture::World);
         }
-        app.set_volume_overlay(true);
+        app.global::<Control>().set_volume_overlay(true);
     });
     let (weak, generation) = (weak.clone(), generation.clone());
     tokio::spawn(async move {
         tokio::time::sleep(VOLUME_OVERLAY).await;
         if generation.load(Ordering::SeqCst) == mine {
-            ui(&weak, |app| app.set_volume_overlay(false));
+            ui(&weak, |app| app.global::<Control>().set_volume_overlay(false));
         }
     });
 }
@@ -141,8 +145,8 @@ pub(crate) fn ui(weak: &slint::Weak<AppWindow>, f: impl FnOnce(AppWindow) + Send
 }
 pub(crate) fn set_status(weak: &slint::Weak<AppWindow>, connected: bool, s: String) {
     ui(weak, move |app| {
-        app.set_connected(connected);
-        app.set_status(s.into());
+        app.global::<Sys>().set_connected(connected);
+        app.global::<Sys>().set_status(s.into());
     });
 }
 pub(crate) fn render(weak: &slint::Weak<AppWindow>, m: &Model) {
@@ -173,59 +177,59 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     let now = chrono::Local::now();
     let logos = app.global::<Logos>();
 
-    app.set_clock(now.format("%H:%M").to_string().into());
+    app.global::<Sys>().set_clock(now.format("%H:%M").to_string().into());
     if std::env::var_os("UC_ACCENT").is_none() {
-        let film_on_screen = m.power_on && m.staged && !m.title.is_empty() && app.get_poster_tinted();
-        let accent = if film_on_screen { Some(app.get_poster_accent()) } else { settings::get().accent_for(&m.input).and_then(parse_color) };
+        let film_on_screen = m.power_on && m.staged && !m.title.is_empty() && app.global::<Playback>().get_poster_tinted();
+        let accent = if film_on_screen { Some(app.global::<Playback>().get_poster_accent()) } else { settings::get().accent_for(&m.input).and_then(parse_color) };
         if let Some(accent) = accent {
             set_accent(app, accent);
         }
     }
-    app.set_awake(m.awake);
-    app.set_power_on(m.power_on);
+    app.global::<Sys>().set_awake(m.awake);
+    app.global::<Control>().set_power_on(m.power_on);
     backlight::set_requested(m.key_light);
-    app.set_battery(m.battery);
-    if m.charging != app.get_charging() {
+    app.global::<Sys>().set_battery(m.battery);
+    if m.charging != app.global::<Sys>().get_charging() {
         // Put on the charger: show the battery, and start counting down to dark from now.
         if m.charging {
             capture(app, Capture::World);
         }
-        app.set_charge_card(m.charging);
+        app.global::<Sys>().set_charge_card(m.charging);
         if m.charging {
             poke();
         } else {
-            app.set_resting(false);
+            app.global::<Sys>().set_resting(false);
         }
     }
-    app.set_charging(m.charging);
+    app.global::<Sys>().set_charging(m.charging);
     // Shown as 0-100 of the volume limit; the dB figure stays the device's own.
-    app.set_volume(volume_percent(m.volume, m.volume_max));
-    app.set_volume_db(volume_db(m.volume).into());
-    app.set_muted(m.muted);
-    app.set_has_volume(m.has_volume);
+    app.global::<Control>().set_volume(volume_percent(m.volume, m.volume_max));
+    app.global::<Control>().set_volume_db(volume_db(m.volume).into());
+    app.global::<Control>().set_muted(m.muted);
+    app.global::<Control>().set_has_volume(m.has_volume);
 
     let name = m.inputs.iter().find(|s| s.id == m.input).map_or(m.input.as_str(), |s| s.name.as_str());
-    app.set_input(name.into());
-    app.set_switching(m.switching);
+    app.global::<Control>().set_input(name.into());
+    app.global::<Control>().set_switching(m.switching);
     let mark = |s: &crate::app::model::InputEntry| s.icon.map_or_else(|| input_logo(&logos, &s.id), SharedString::from);
     let icon = m.inputs.iter().find(|s| s.id == m.input).map_or_else(|| input_logo(&logos, &m.input), mark);
-    app.set_input_generic(icon == logos.get_generic());
-    app.set_input_icon(icon);
+    app.global::<Control>().set_input_generic(icon == logos.get_generic());
+    app.global::<Control>().set_input_icon(icon);
     let current = m.inputs.iter().position(|s| s.id == m.input).map_or(-1, |i| i as i32);
     let rows: Vec<InputRow> =
         m.inputs.iter().map(|s| InputRow { id: (&s.id).into(), name: (&s.name).into(), icon: mark(s) }).collect();
-    if app.get_inputs().iter().ne(rows.iter().cloned()) {
-        app.set_inputs(ModelRc::new(VecModel::from(rows)));
+    if app.global::<Control>().get_inputs().iter().ne(rows.iter().cloned()) {
+        app.global::<Control>().set_inputs(ModelRc::new(VecModel::from(rows)));
     }
-    app.set_input_index(current);
+    app.global::<Control>().set_input_index(current);
     let inputs: Vec<Choice> = m
         .inputs
         .iter()
         .enumerate()
         .map(|(i, s)| Choice { label: (&s.name).into(), icon: mark(s), checked: i as i32 == current, ..Default::default() })
         .collect();
-    if app.get_input_choices().iter().ne(inputs.iter().cloned()) {
-        app.set_input_choices(ModelRc::new(VecModel::from(inputs)));
+    if app.global::<Control>().get_input_choices().iter().ne(inputs.iter().cloned()) {
+        app.global::<Control>().set_input_choices(ModelRc::new(VecModel::from(inputs)));
     }
 
     app.global::<Wifi>().set_name(m.wifi_ssid.as_str().into());
@@ -258,23 +262,23 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     }
     let status_rows: Vec<Choice> =
         m.status.iter().map(|s| Choice { label: (&s.label).into(), value: (&s.value).into(), dot: s.dot, ..Default::default() }).collect();
-    if app.get_status_choices().iter().ne(status_rows.iter().cloned()) {
-        app.set_status_choices(ModelRc::new(VecModel::from(status_rows)));
+    if app.global::<Health>().get_choices().iter().ne(status_rows.iter().cloned()) {
+        app.global::<Health>().set_choices(ModelRc::new(VecModel::from(status_rows)));
     }
-    app.set_home_warning(m.warning.as_str().into());
+    app.global::<Health>().set_warning(m.warning.as_str().into());
 
-    app.set_staged(m.staged);
-    app.set_media_title(m.title.as_str().into());
-    app.set_media_sub(m.media_sub.as_str().into());
-    app.set_paused(m.paused);
+    app.global::<Playback>().set_staged(m.staged);
+    app.global::<Playback>().set_title(m.title.as_str().into());
+    app.global::<Playback>().set_sub(m.media_sub.as_str().into());
+    app.global::<Playback>().set_paused(m.paused);
     let left = (m.duration - m.position).max(0.0);
     let known = m.duration > 0.0;
-    app.set_progress(if known { (m.position / m.duration) as f32 } else { 0.0 });
-    app.set_elapsed(if known { clock(m.position).into() } else { SharedString::new() });
-    app.set_time_left(if known { format!("−{}", clock(left.ceil())).into() } else { SharedString::new() });
-    app.set_ends_at(if known { (now + chrono::Duration::seconds(left as i64)).format("ends %H:%M").to_string().into() } else { SharedString::new() });
+    app.global::<Playback>().set_progress(if known { (m.position / m.duration) as f32 } else { 0.0 });
+    app.global::<Playback>().set_elapsed(if known { clock(m.position).into() } else { SharedString::new() });
+    app.global::<Playback>().set_time_left(if known { format!("−{}", clock(left.ceil())).into() } else { SharedString::new() });
+    app.global::<Playback>().set_ends_at(if known { (now + chrono::Duration::seconds(left as i64)).format("ends %H:%M").to_string().into() } else { SharedString::new() });
     let (logo, label) = codec_badge(&m.media_format);
     let mark = codec_logo(app, logo);
-    app.set_media_format_mark(mark);
-    app.set_media_format_label(label.into());
+    app.global::<Playback>().set_format(mark);
+    app.global::<Playback>().set_format_label(label.into());
 }

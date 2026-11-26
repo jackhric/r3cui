@@ -2,6 +2,8 @@
 //! plays a scripted session and pipes frames to ffmpeg. With `--frame <photo>` both show the UI
 //! inside the remote with its keys lit.
 
+use crate::Control;
+use crate::Sys;
 use crate::Fx;
 use crate::Lib;
 use crate::Tracks;
@@ -39,7 +41,7 @@ const TYPING: &[N] = &[N::Ok, N::Right, N::Ok, N::Up, N::Ok, N::Left, N::Left, N
 
 const STEPS: &[Step] = &[
     ("01-receiver", |_, _| {}),
-    ("02-inputs", |app, _| app.go_to(PageId::Inputs, app.get_input_index())),
+    ("02-inputs", |app, _| app.go_to(PageId::Inputs, app.global::<Control>().get_input_index())),
     ("03-kodi-playing", |app, m| {
         app.go_to(PageId::Home, 0);
         m.input = "KODI".into();
@@ -70,12 +72,12 @@ const STEPS: &[Step] = &[
         // Blur Now playing, not the stage it replaces.
         after_swap(app, |app| {
             crate::view::stage::capture(app, Capture::World);
-            app.set_volume_overlay(true);
+            app.global::<Control>().set_volume_overlay(true);
         });
     }),
     ("06-muted", |_, m| m.muted = true),
     ("07-menu", |app, m| {
-        app.set_volume_overlay(false);
+        app.global::<Control>().set_volume_overlay(false);
         m.muted = false;
         m.volume = 62;
         app.go_to(PageId::Menu, 1);
@@ -122,7 +124,7 @@ const STEPS: &[Step] = &[
         m.demo_ha_down = false;
         m.charging = true;
     }),
-    ("22-charging-home", |app, _| app.set_charge_card(false)),
+    ("22-charging-home", |app, _| app.global::<Sys>().set_charge_card(false)),
     ("23-charging-kodi", |_, m| {
         m.input = "KODI".into();
         m.title = Model::demo().title;
@@ -250,7 +252,7 @@ fn after_swap(app: &AppWindow, f: impl FnOnce(&AppWindow) + 'static) {
 pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::Result<()> {
     std::fs::create_dir_all(&dir)?;
     apply_demo_settings(&app);
-    app.set_connected(true);
+    app.global::<Sys>().set_connected(true);
     let model = Rc::new(RefCell::new(Model::demo()));
     apply(&app, &model.borrow());
     let _lava = crate::view::idle::animate_lava(&app);
@@ -584,14 +586,14 @@ fn stages_script() -> Vec<(u64, Act)> {
 /// with a sheen until the receiver confirms.
 fn switch_script() -> Vec<(u64, Act)> {
     vec![
-        (900, ui(|a| a.go_to(PageId::Inputs, a.get_input_index()))),
+        (900, ui(|a| a.go_to(PageId::Inputs, a.global::<Control>().get_input_index()))),
         (700, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(1))),
         (600, ui(|a| a.invoke_move(1))),
         (600, ui(|a| a.invoke_move(1))),
         (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
-        (3000, ui(|a| a.go_to(PageId::Inputs, a.get_input_index()))),
+        (3000, ui(|a| a.go_to(PageId::Inputs, a.global::<Control>().get_input_index()))),
         (700, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(-1))),
@@ -800,17 +802,17 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
     let mut s: Vec<(u64, Act)> = vec![(300, first), (SITE_LEAD - 300, ui(|_| {}))];
     s.extend(match name {
         "site-inputs" => vec![
-            (900, ui(|a| a.go_to(PageId::Inputs, a.get_input_index()))),
+            (900, ui(|a| a.go_to(PageId::Inputs, a.global::<Control>().get_input_index()))),
             (700, ui(|a| a.invoke_move(1))),
             (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
-            (2300, ui(|a| a.go_to(PageId::Inputs, a.get_input_index()))),
+            (2300, ui(|a| a.go_to(PageId::Inputs, a.global::<Control>().get_input_index()))),
             (700, ui(|a| a.invoke_move(1))),
             (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
             (2400, ui(|_| {})),
         ],
         "site-switch" => {
             let steps: i32 = std::env::var("UC_SITE_STEPS").ok().and_then(|n| n.parse().ok()).unwrap_or(1);
-            let mut v: Vec<(u64, Act)> = vec![(1400, ui(|a| a.go_to(PageId::Inputs, a.get_input_index())))];
+            let mut v: Vec<(u64, Act)> = vec![(1400, ui(|a| a.go_to(PageId::Inputs, a.global::<Control>().get_input_index())))];
             for _ in 0..steps.abs() {
                 v.push((550, Box::new(move |a: &AppWindow, _: &Tx| a.invoke_move(steps.signum()))));
             }
@@ -1019,7 +1021,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         (320, button(Button::VolumeUp)),
         (320, button(Button::VolumeUp)),
         // Open the input list, walk up to KODI, select it.
-        (1300, ui(|a| a.go_to(PageId::Inputs, a.get_input_index()))),
+        (1300, ui(|a| a.go_to(PageId::Inputs, a.global::<Control>().get_input_index()))),
         (800, ui(|a| a.invoke_move(-1))),
         (380, ui(|a| a.invoke_move(-1))),
         (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
@@ -1045,10 +1047,10 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         (1200, ui(|a| a.invoke_back())),
         (700, ui(|a| a.invoke_back())),
         // Switching input changes the interface colour, and the keys follow.
-        (1400, ui(|a| a.invoke_select_input("PLAYSTATION 5".into()))),
-        (1700, ui(|a| a.invoke_select_input("XBOX 360".into()))),
-        (1700, ui(|a| a.invoke_select_input("ANDROID TV".into()))),
-        (1700, ui(|a| a.invoke_select_input("KODI".into()))),
+        (1400, ui(|a| a.global::<Control>().invoke_select_input("PLAYSTATION 5".into()))),
+        (1700, ui(|a| a.global::<Control>().invoke_select_input("XBOX 360".into()))),
+        (1700, ui(|a| a.global::<Control>().invoke_select_input("ANDROID TV".into()))),
+        (1700, ui(|a| a.global::<Control>().invoke_select_input("KODI".into()))),
         (1600, ui(|_| {})),
     ]
 }

@@ -1,0 +1,31 @@
+import { Choice, InputRow, PowerAction } from "../types.slint";
+
+export global Control {
+    in property <bool> power-on: true;
+    // 0-100 of the volume limit.
+    in property <int> volume;
+    // Something is set up as global volume.
+    in property <bool> has-volume: true;
+    in property <string> volume-db;
+    in property <bool> muted;
+    in property <bool> volume-overlay;
+    in property <string> input;
+    in property <string> input-icon;
+    // The input has no mark of its own, so its name stands in for it.
+    in property <bool> input-generic;
+    // An input picked here that the source has not confirmed yet.
+    in property <bool> switching;
+    in property <[InputRow]> inputs;
+    in property <int> input-index;
+    in property <[Choice]> input-choices;
+    // The play/pause control on the stage.
+    callback play-pause();
+    // Raw key text; mapped to a hard button in Rust (desktop stand-in for evdev).
+    callback key(string);
+    callback select-input(string);
+    callback power-action(PowerAction);
+    // The physical power key, held: switch what global control drives on or off. A short press does nothing.
+    callback power-held();
+    // Seconds to jump, back (negative) or forward.
+    callback seek(int);
+}

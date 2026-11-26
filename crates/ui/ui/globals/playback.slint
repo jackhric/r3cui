@@ -1,0 +1,19 @@
+import { FormatMark } from "../types.slint";
+
+export global Playback {
+    // True while the input on now has something in its UI slot: the home page is its stage.
+    in property <bool> staged;
+    in property <string> title;
+    in property <string> sub;
+    in property <image> poster;
+    in-out property <color> poster-accent;
+    in-out property <bool> poster-tinted;
+    in property <float> progress;
+    in property <string> time-left;
+    in property <string> ends-at;
+    in property <image> backdrop;
+    in property <bool> paused;
+    in property <string> elapsed;
+    in property <FormatMark> format;
+    in property <string> format-label;
+}

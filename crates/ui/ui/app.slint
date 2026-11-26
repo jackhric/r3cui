@@ -8,6 +8,10 @@ import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
 import { Capture, PageId, FormatMark, PowerAction, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
+import { Health } from "globals/health.slint";
+import { Playback } from "globals/playback.slint";
+import { Control } from "globals/control.slint";
+import { Sys } from "globals/sys.slint";
 import { Fx } from "globals/fx.slint";
 import { Lib } from "globals/lib.slint";
 import { Tracks } from "globals/tracks.slint";
@@ -18,7 +22,7 @@ import { Kb } from "globals/kb.slint";
 import { Prefs } from "globals/prefs.slint";
 
 export * from "types.slint";
-export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs, Kb, Wifi, Cfg, Lab, Tracks, Lib, Fx }
+export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs, Kb, Wifi, Cfg, Lab, Tracks, Lib, Fx, Sys, Control, Playback, Health }
 
 enum HomeView {
     playing,
@@ -269,74 +273,12 @@ export component AppWindow inherits Window {
     default-font-family: "Hanken Grotesk";
     forward-focus: keys;
 
-    // False while the remote is idle or asleep: the screen closes down to the bar and goes dark.
-    in property <bool> awake: true;
-    in property <bool> power-on: true;
-    in property <bool> connected: false;
-    in property <string> status: "Connecting…";
-    in property <string> clock;
-    in property <int> battery: 100;
-
-    // 0-100 of the volume limit.
-    in property <int> volume;
-    // Something is set up as global volume.
-    in property <bool> has-volume: true;
-    in property <string> volume-db;
-    in property <bool> muted;
-    in property <bool> volume-overlay;
-    in property <string> input;
-    in property <string> input-icon;
-    // The input has no mark of its own, so its name stands in for it.
-    in property <bool> input-generic;
-    // An input picked here that the source has not confirmed yet.
-    in property <bool> switching;
-    in property <[InputRow]> inputs;
-    in property <int> input-index;
-
-    // True while the input on now has something in its UI slot: the home page is its stage.
-    in property <bool> staged;
-    in property <string> media-title;
-    in property <image> poster;
-    in-out property <color> poster-accent;
-    in-out property <bool> poster-tinted;
-    in property <float> progress;
-    in property <string> time-left;
-    in property <string> ends-at;
-    in property <image> backdrop;
-    in property <string> media-sub;
-    in property <bool> paused;
-    in property <string> elapsed;
-    in property <FormatMark> media-format-mark;
-    in property <string> media-format-label;
-    in property <[Choice]> input-choices;
-    in property <[Choice]> status-choices;
     public function hold-library() { lib.hold(); }
     public function run-library() { lib.run(); }
-    out property <bool> lava-on: root.page == PageId.home && root.home-view == HomeView.mark && root.lit;
-    in property <bool> charging;
-    // On the charger the screen and keys go dark after a short while; any input brings them back.
-    in-out property <bool> resting;
-    in-out property <bool> charge-card;
-    out property <bool> lit: root.awake && !root.resting;
-
-    // Non-empty when something the home screen depends on is unreachable.
-    in property <string> home-warning;
+    out property <bool> lava-on: root.page == PageId.home && root.home-view == HomeView.mark && Sys.lit;
 
     in-out property <PageId> page: PageId.home;
     in-out property <int> focus-index: 0;
-
-    // The play/pause control on the stage.
-    callback play-pause();
-    // Raw key text; mapped to a hard button in Rust (desktop stand-in for evdev).
-    callback key(string);
-    callback select-input(string);
-    callback power-action(PowerAction);
-    // The physical power key, held: switch what global control drives on or off. A short press does nothing.
-    callback power-held();
-    // Seconds to jump, back (negative) or forward.
-    callback seek(int);
-    // Any key or touch: restarts the charger's countdown to dark.
-    callback activity();
 
     out property <bool> power-overlay: root.power-holding || root.power-latched;
     out property <bool> power-turning-off: true;
@@ -351,7 +293,7 @@ export component AppWindow inherits Window {
     property <int> depth: root.page == PageId.home || root.page == PageId.inputs || root.page == PageId.menu || root.page == PageId.tracks ? 1 : root.page == PageId.keyboard ? 3 : root.page == PageId.join-failed ? 4 : 2;
     property <float> recede: root.page != PageId.home ? 1 : 0;
     animate recede { duration: 460ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
-    property <bool> overlay-open: (root.volume-overlay && root.power-on) || root.power-overlay || root.home-holding || (root.charge-card && root.lit);
+    property <bool> overlay-open: (Control.volume-overlay && Control.power-on) || root.power-overlay || root.home-holding || (Sys.charge-card && Sys.lit);
     property <float> under: root.overlay-open ? 1 : 0;
     animate under { duration: 380ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
     // Timed from the animation clock: a declared animation on a property nothing reads while
@@ -375,7 +317,7 @@ export component AppWindow inherits Window {
     property <bool> home-down;
     property <bool> home-used;
     property <bool> home-rumbling;
-    property <HomeView> home-view: !root.power-on ? HomeView.off : root.staged && root.media-title != "" ? HomeView.playing : Lib.mode != LibMode.off ? HomeView.wall : HomeView.mark;
+    property <HomeView> home-view: !Control.power-on ? HomeView.off : Playback.staged && Playback.title != "" ? HomeView.playing : Lib.mode != LibMode.off ? HomeView.wall : HomeView.mark;
 
     // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
     public function go(p: PageId, f: int) {
@@ -418,7 +360,7 @@ export component AppWindow inherits Window {
         }
     }
     function row-count() -> int {
-        root.page == PageId.inputs ? root.inputs.length : root.page == PageId.integrations ? Cfg.rows.length : root.page == PageId.menu ? 7 : root.page == PageId.display ? 3 : root.page == PageId.power ? 4 : root.page == PageId.wifi ? Wifi.rows.length + (Wifi.band-known ? 2 : 1) : root.page == PageId.join-failed ? 2 : root.page == PageId.tracks ? Tracks.rows.length : root.page == PageId.feedback-lab ? Lab.rows.length : 1
+        root.page == PageId.inputs ? Control.inputs.length : root.page == PageId.integrations ? Cfg.rows.length : root.page == PageId.menu ? 7 : root.page == PageId.display ? 3 : root.page == PageId.power ? 4 : root.page == PageId.wifi ? Wifi.rows.length + (Wifi.band-known ? 2 : 1) : root.page == PageId.join-failed ? 2 : root.page == PageId.tracks ? Tracks.rows.length : root.page == PageId.feedback-lab ? Lab.rows.length : 1
     }
     public function move(d: int) {
         root.focus-index = max(0, min(root.row-count() - 1, root.focus-index + d));
@@ -438,7 +380,7 @@ export component AppWindow inherits Window {
                 root.focus-index = 0;
             }
         } else if (root.page == PageId.inputs) {
-            root.select-input(root.inputs[i].id);
+            Control.select-input(Control.inputs[i].id);
             root.go(PageId.home, 0);
         } else if (root.page == PageId.menu) {
             if (i == 0) {
@@ -488,16 +430,16 @@ export component AppWindow inherits Window {
             root.go(i == 0 ? PageId.keyboard : PageId.wifi, 0);
         } else if (root.page == PageId.power) {
             if (i == 0) {
-                root.power-action(PowerAction.standby);
+                Control.power-action(PowerAction.standby);
             } else if (i == 1) {
-                root.power-action(PowerAction.restart);
+                Control.power-action(PowerAction.restart);
             } else if (i == 2) {
-                root.power-action(PowerAction.power-off);
+                Control.power-action(PowerAction.power-off);
             }
         }
     }
 
-    property <float> wake: root.lit ? 1 : 0;
+    property <float> wake: Sys.lit ? 1 : 0;
     animate wake { duration: 650ms; easing: ease-in-out; }
     // Smoothed again so the fade and zoom ease at both ends.
     property <float> reveal: root.wake * root.wake * (3 - 2 * root.wake);
@@ -507,15 +449,15 @@ export component AppWindow inherits Window {
         transform-origin: { x: self.width / 2, y: self.height / 2 };
         opacity: root.reveal;
         key-pressed(event) => {
-            root.activity();
-            if (root.resting || root.charge-card) {
-                root.resting = false;
-                root.charge-card = false;
+            Sys.activity();
+            if (Sys.resting || Sys.charge-card) {
+                Sys.resting = false;
+                Sys.charge-card = false;
                 return accept;
             }
             if (event.text.to-lowercase() == KeyChars.power) {
                 if (!event.repeat && !root.power-latched) {
-                    root.power-turning-off = root.power-on;
+                    root.power-turning-off = Control.power-on;
                     root.power-completed = false;
                     Fx.capture(Capture.world);
                     root.hold-look = HoldKind.power;
@@ -536,7 +478,7 @@ export component AppWindow inherits Window {
             // The voice key is the input switcher, from anywhere.
             if (event.text.to-lowercase() == KeyChars.input) {
                 if (!event.repeat && root.page != PageId.keyboard) {
-                    root.go(root.page == PageId.inputs ? PageId.home : PageId.inputs, root.input-index);
+                    root.go(root.page == PageId.inputs ? PageId.home : PageId.inputs, Control.input-index);
                 }
                 return accept;
             }
@@ -590,7 +532,7 @@ export component AppWindow inherits Window {
             if (!event.repeat && event.text == Key.Return) {
                 Fx.haptic(Haptic.select);
             }
-            root.key(event.text);
+            Control.key(event.text);
             return accept;
         }
 
@@ -605,7 +547,7 @@ export component AppWindow inherits Window {
                     if (root.page != PageId.home) {
                         root.go(PageId.home, 0);
                     } else {
-                        root.key(KeyChars.home);
+                        Control.key(KeyChars.home);
                     }
                 }
             }
@@ -622,7 +564,7 @@ export component AppWindow inherits Window {
                 root.power-holding = false;
                 root.power-latched = true;
                 root.power-completed = true;
-                root.power-held();
+                Control.power-held();
                 Fx.haptic(Haptic.power-complete);
             }
         }
@@ -644,7 +586,7 @@ export component AppWindow inherits Window {
             triggered => {
                 root.home-used = true;
                 Fx.haptic(Haptic.home-complete);
-                root.go(PageId.inputs, root.input-index);
+                root.go(PageId.inputs, Control.input-index);
             }
         }
         Timer {
@@ -692,7 +634,7 @@ export component AppWindow inherits Window {
                         Image {
                             width: 480px;
                             height: 800px;
-                            source: root.backdrop;
+                            source: Playback.backdrop;
                             image-fit: cover;
                             opacity: 0.55;
                         }
@@ -702,7 +644,7 @@ export component AppWindow inherits Window {
                             source: Fx.grain;
                             image-fit: fill;
                             image-rendering: pixelated;
-                            opacity: root.backdrop.width > 0 ? 1 : 0;
+                            opacity: Playback.backdrop.width > 0 ? 1 : 0;
                         }
                         Rectangle {
                             background: @linear-gradient(180deg, #00000066 0%, #00000022 26%, #000000B0 52%, #000000 74%);
@@ -721,11 +663,11 @@ export component AppWindow inherits Window {
                             Rectangle {
                                 border-radius: 0;
                                 clip: true;
-                                if root.poster.width == 0: PosterStandIn {
-                                    title: root.media-title;
+                                if Playback.poster.width == 0: PosterStandIn {
+                                    title: Playback.title;
                                 }
-                                if root.poster.width > 0: Image {
-                                    source: root.poster;
+                                if Playback.poster.width > 0: Image {
+                                    source: Playback.poster;
                                     width: 100%;
                                     height: 100%;
                                     image-fit: cover;
@@ -739,7 +681,7 @@ export component AppWindow inherits Window {
                             height: 36px;
                             horizontal-alignment: center;
                             overflow: elide;
-                            text: root.media-title;
+                            text: Playback.title;
                             font-size: 28px;
                             font-weight: 500;
                             color: Theme.text;
@@ -748,19 +690,19 @@ export component AppWindow inherits Window {
                             y: 430px;
                             width: 480px;
                             horizontal-alignment: center;
-                            text: root.media-sub;
+                            text: Playback.sub;
                             font-size: 18px;
                             color: Theme.t2;
                         }
                         Bar {
                             x: 40px;
                             y: 470px;
-                            value: root.progress;
+                            value: Playback.progress;
                         }
                         Text {
                             x: 40px;
                             y: 494px;
-                            text: root.elapsed;
+                            text: Playback.elapsed;
                             font-size: 18px;
                             font-weight: 400;
                             color: Theme.t2;
@@ -770,7 +712,7 @@ export component AppWindow inherits Window {
                             y: 494px;
                             width: 400px;
                             horizontal-alignment: right;
-                            text: root.paused ? root.time-left + "  ·  paused" : root.time-left + "  ·  " + root.ends-at;
+                            text: Playback.paused ? Playback.time-left + "  ·  paused" : Playback.time-left + "  ·  " + Playback.ends-at;
                             font-size: 18px;
                             color: Theme.t2;
                         }
@@ -779,7 +721,7 @@ export component AppWindow inherits Window {
                             x: 84px;
                             y: 548px;
                             back: true;
-                            tapped => { root.seek(-10); }
+                            tapped => { Control.seek(-10); }
                         }
                         Rectangle {
                             x: 198px;
@@ -796,45 +738,45 @@ export component AppWindow inherits Window {
                                 height: 42px;
                                 viewbox-width: 24;
                                 viewbox-height: 24;
-                                commands: root.paused ? Marks.play : Marks.pause;
+                                commands: Playback.paused ? Marks.play : Marks.pause;
                                 fill: #000000;
                             }
                             play-touch := TouchArea {
                                 mouse-cursor: Theme.cursor;
-                                clicked => { root.play-pause(); }
+                                clicked => { Control.play-pause(); }
                             }
                         }
                         SkipButton {
                             x: 332px;
                             y: 548px;
                             back: false;
-                            tapped => { root.seek(10); }
+                            tapped => { Control.seek(10); }
                         }
 
-                        if root.home-warning == "": HorizontalLayout {
+                        if Health.warning == "": HorizontalLayout {
                             y: 656px;
                             height: 40px;
                             alignment: center;
                             spacing: 18px;
                             FormatBadge {
-                                mark: root.media-format-mark;
-                                label: root.media-format-label;
+                                mark: Playback.format;
+                                label: Playback.format-label;
                             }
-                            if root.media-format-label != "" || root.media-format-mark.path != "": Text {
+                            if Playback.format-label != "" || Playback.format.path != "": Text {
                                 text: "·";
                                 font-size: 22px;
                                 color: Theme.t3;
                                 vertical-alignment: center;
                             }
-                            if root.has-volume: VolumeChip {
-                                volume: root.volume;
-                                muted: root.muted;
+                            if Control.has-volume: VolumeChip {
+                                volume: Control.volume;
+                                muted: Control.muted;
                                 size: 22px;
                             }
                         }
-                        if root.home-warning != "": WarningRow {
+                        if Health.warning != "": WarningRow {
                             y: 648px;
-                            message: root.home-warning;
+                            message: Health.warning;
                             tapped => { root.go(PageId.status, 0); }
                         }
                         TrackButton {
@@ -886,8 +828,8 @@ export component AppWindow inherits Window {
                             height: 140px;
                             viewbox-width: 24;
                             viewbox-height: 24;
-                            commands: root.input-icon;
-                            fill: !root.switching ? Theme.t2-muted : @linear-gradient(110deg,
+                            commands: Control.input-icon;
+                            fill: !Control.switching ? Theme.t2-muted : @linear-gradient(110deg,
                                 Theme.t2-muted 0%,
                                 Theme.t2-muted clamp(parent.sheen - 0.18, 0, 1) * 100%,
                                 #9DA3A6 clamp(parent.sheen, 0, 1) * 100%,
@@ -895,33 +837,33 @@ export component AppWindow inherits Window {
                                 Theme.t2-muted 100%);
                         }
                         // An input with no mark of its own needs its name to be told apart.
-                        if root.input != "" && root.input-generic: Text {
+                        if Control.input != "" && Control.input-generic: Text {
                             y: 490px;
                             width: 480px;
                             horizontal-alignment: center;
-                            text: root.input;
+                            text: Control.input;
                             font-size: 26px;
                             color: Theme.t2;
                         }
-                        if root.inputs.length > 0: TouchArea {
+                        if Control.inputs.length > 0: TouchArea {
                             mouse-cursor: Theme.cursor;
                             x: 140px;
                             y: 300px;
                             width: 200px;
                             height: 200px;
-                            clicked => { root.go(PageId.inputs, root.input-index); }
+                            clicked => { root.go(PageId.inputs, Control.input-index); }
                         }
-                        if root.home-warning != "": WarningRow {
+                        if Health.warning != "": WarningRow {
                             y: 540px;
-                            message: root.home-warning;
+                            message: Health.warning;
                             tapped => { root.go(PageId.status, 0); }
                         }
-                        if root.has-volume: VolumeChip {
+                        if Control.has-volume: VolumeChip {
                             y: 700px;
                             height: 40px;
                             size: 32px;
-                            volume: root.volume;
-                            muted: root.muted;
+                            volume: Control.volume;
+                            muted: Control.muted;
                         }
                     }
 
@@ -959,11 +901,11 @@ export component AppWindow inherits Window {
                         visible: self.opacity > 0 && Lib.mode != LibMode.off;
                     }
 
-                    if !root.connected: Text {
+                    if !Sys.connected: Text {
                         y: 772px;
                         width: 480px;
                         horizontal-alignment: center;
-                        text: root.status;
+                        text: Sys.status;
                         font-size: 14px;
                         color: Theme.t3;
                         overflow: elide;
@@ -1027,7 +969,7 @@ export component AppWindow inherits Window {
                 ChoiceList {
                     title: "Inputs";
                     show-title: false;
-                    rows: root.input-choices;
+                    rows: Control.input-choices;
                     focused-row: root.focus-index;
                     pick(i) => { root.activate(i); }
                     back => { root.back(); }
@@ -1314,7 +1256,7 @@ export component AppWindow inherits Window {
                 active: root.page == PageId.status;
                 ChoiceList {
                     title: "Status";
-                    rows: root.status-choices;
+                    rows: Health.choices;
                     back => { root.back(); }
                 }
             }
@@ -1417,7 +1359,7 @@ export component AppWindow inherits Window {
 
         // Volume overlay, over everything.
         Rectangle {
-            property <bool> shown: root.volume-overlay && root.power-on;
+            property <bool> shown: Control.volume-overlay && Control.power-on;
             background: #000000A6;
             opacity: self.shown ? 1 : 0;
             visible: self.opacity > 0 && Fx.capturing == Capture.none;
@@ -1427,16 +1369,16 @@ export component AppWindow inherits Window {
                 y: 198px;
                 size: 52px;
                 commands: Icons.muted;
-                opacity: root.muted ? 1 : 0;
+                opacity: Control.muted ? 1 : 0;
                 animate opacity { duration: 160ms; }
             }
             VolumeReadout {
                 y: 0;
                 height: 800px;
                 top: 270px;
-                volume: root.volume;
-                volume-db: root.volume-db;
-                muted: root.muted;
+                volume: Control.volume;
+                volume-db: Control.volume-db;
+                muted: Control.muted;
             }
         }
     }
@@ -1491,7 +1433,7 @@ export component AppWindow inherits Window {
         if root.hold-look == HoldKind.home: Logo {
             y: 330px;
             size: 140px;
-            commands: root.input-icon;
+            commands: Control.input-icon;
             tint: Theme.text;
         }
         if root.hold-look == HoldKind.power: Glyph {
@@ -1516,7 +1458,7 @@ export component AppWindow inherits Window {
     // Charging: the battery, full screen, until the first touch or key.
     Rectangle {
         background: #000000C0;
-        opacity: root.charge-card && root.lit ? 1 : 0;
+        opacity: Sys.charge-card && Sys.lit ? 1 : 0;
         visible: self.opacity > 0 && Fx.capturing == Capture.none;
         animate opacity { duration: 300ms; easing: ease-in-out; }
         Rectangle {
@@ -1530,7 +1472,7 @@ export component AppWindow inherits Window {
             Rectangle {
                 x: 11px;
                 y: 11px;
-                width: (parent.width - 22px) * clamp(root.battery, 4, 100) / 100;
+                width: (parent.width - 22px) * clamp(Sys.battery, 4, 100) / 100;
                 height: parent.height - 22px;
                 border-radius: 16px;
                 background: Theme.good;
@@ -1558,7 +1500,7 @@ export component AppWindow inherits Window {
             y: 436px;
             width: 480px;
             horizontal-alignment: center;
-            text: root.battery + "%";
+            text: Sys.battery + "%";
             font-size: 64px;
             font-weight: 200;
             color: Theme.text;
@@ -1567,15 +1509,15 @@ export component AppWindow inherits Window {
             y: 520px;
             width: 480px;
             horizontal-alignment: center;
-            text: root.battery >= 100 ? "Charged" : "Charging";
+            text: Sys.battery >= 100 ? "Charged" : "Charging";
             font-size: 22px;
             color: Theme.t2;
         }
         TouchArea {
             mouse-cursor: Theme.cursor;
             clicked => {
-                root.charge-card = false;
-                root.activity();
+                Sys.charge-card = false;
+                Sys.activity();
             }
         }
     }
@@ -1589,25 +1531,25 @@ export component AppWindow inherits Window {
         visible: self.opacity > 0 && Fx.capturing == Capture.none;
         animate opacity { duration: Theme.page-time; }
         StatusBar {
-            clock: root.clock;
-            battery: root.battery;
-            charging: root.charging;
+            clock: Sys.clock;
+            battery: Sys.battery;
+            charging: Sys.charging;
             show-menu: root.page == PageId.home || root.page == PageId.inputs;
             menu => { root.go(PageId.menu, 0); }
         }
         // The input's mark sits in the middle everywhere but the input's own screen (or the power-off one), so
         // away from it you can always tell where you are; tapping it opens the list.
         TouchArea {
-            property <bool> shown: root.inputs.length > 0 && !(root.page == PageId.home && (root.home-view == HomeView.mark || root.home-view == HomeView.off));
+            property <bool> shown: Control.inputs.length > 0 && !(root.page == PageId.home && (root.home-view == HomeView.mark || root.home-view == HomeView.off));
             mouse-cursor: Theme.cursor;
             x: 190px;
             width: 100px;
             height: 64px;
             enabled: self.shown && root.page != PageId.inputs;
-            clicked => { root.go(PageId.inputs, root.input-index); }
+            clicked => { root.go(PageId.inputs, Control.input-index); }
             Logo {
                 size: 32px;
-                commands: root.input-icon;
+                commands: Control.input-icon;
                 tint: Theme.t2;
                 opacity: parent.shown ? 1 : 0;
                 animate opacity { duration: 620ms; easing: ease-in-out; }
@@ -1615,14 +1557,14 @@ export component AppWindow inherits Window {
         }
     }
 
-    if !root.awake: TouchArea { mouse-cursor: Theme.cursor; }
+    if !Sys.awake: TouchArea { mouse-cursor: Theme.cursor; }
     // The first touch after resting only wakes the screen.
-    if root.awake && root.resting: TouchArea {
+    if Sys.awake && Sys.resting: TouchArea {
         mouse-cursor: Theme.cursor;
         pointer-event(e) => {
             if (e.kind == PointerEventKind.down) {
-                root.resting = false;
-                root.activity();
+                Sys.resting = false;
+                Sys.activity();
             }
         }
     }
