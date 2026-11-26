@@ -26,6 +26,12 @@ const SHELF: [(&str, &str); 6] = [
     ("Mad Max: Fury Road", "2015 · 2h 0m"),
     ("The Godfather", "1972 · 2h 55m"),
 ];
+const START_LEVEL: i32 = 62;
+const LEVEL_LIMIT: i32 = 72;
+/// Where in the film playback starts.
+const RESUME_AT: Duration = Duration::from_secs(2788);
+/// The shelf is laid out this many to a row.
+const COLUMNS: usize = 3;
 /// How long the receiver takes to switch input, so the screen's "switching" shows.
 const SWITCH: Duration = Duration::from_millis(1500);
 
@@ -51,7 +57,7 @@ fn film(now: Instant) -> Media {
         title: FILM.0.into(),
         subtitle: String::new(),
         paused: false,
-        position: Duration::from_secs(2788),
+        position: RESUME_AT,
         measured_at: now,
         total: Duration::from_secs(FILM.1),
         format: "DTS-HD MA 7.1".into(),
@@ -79,13 +85,13 @@ fn shelf() -> Arc<LibraryList> {
             poster: String::new(),
         })
         .collect();
-    Arc::new(LibraryList { id: u64::MAX, heading: "MOVIES".into(), count: format!("{} films", SHELF.len()), items })
+    Arc::new(LibraryList { id: u64::MAX, heading: MOVIES_HEADING.into(), count: format!("{} films", SHELF.len()), items })
 }
 
 impl Demo {
     pub fn start(_: &DriverEntry) -> Self {
         let state = Arc::new(Mutex::new(State {
-            volume: Volume { level: 62, max: 72, muted: false },
+            volume: Volume { level: START_LEVEL, max: LEVEL_LIMIT, muted: false },
             sources: Sources { on: true, current: "PLAYSTATION 5".into(), list: INPUTS.map(String::from).to_vec() },
             media: Some(film(Instant::now())),
             shown: false,
@@ -188,7 +194,6 @@ fn ui_intent(s: &mut State, i: UiIntent) {
     }
 }
 
-/// The shelf is three to a row.
 fn key(s: &mut State, k: RemoteKey) {
     let last = SHELF.len() - 1;
     match (k, s.media.is_some()) {
@@ -197,8 +202,8 @@ fn key(s: &mut State, k: RemoteKey) {
         (RemoteKey::Select | RemoteKey::PlayPause, false) => s.media = Some(film(Instant::now())),
         (RemoteKey::Right, false) => s.focus = (s.focus + 1).min(last),
         (RemoteKey::Left, false) => s.focus = s.focus.saturating_sub(1),
-        (RemoteKey::Down, false) => s.focus = (s.focus + 3).min(last),
-        (RemoteKey::Up, false) => s.focus = s.focus.saturating_sub(3),
+        (RemoteKey::Down, false) => s.focus = (s.focus + COLUMNS).min(last),
+        (RemoteKey::Up, false) => s.focus = s.focus.saturating_sub(COLUMNS),
         _ => {}
     }
 }
@@ -236,25 +241,19 @@ impl Driver for Demo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Modules;
-
-    async fn until<T: Clone>(rx: &mut watch::Receiver<T>, ok: impl Fn(&T) -> bool) -> T {
-        tokio::time::timeout(Duration::from_secs(5), rx.wait_for(|v| ok(v))).await.expect("in time").expect("open").clone()
-    }
+    use crate::testing::{entry, until};
 
     fn demo() -> Demo {
-        let mut m = Modules::default();
-        m.add_driver("demo", Default::default());
-        Demo::start(&m.drivers["demo"])
+        Demo::start(&entry(&SPEC, &[]))
     }
 
     #[tokio::test]
     async fn plays_switches_and_shows_its_shelf() {
         let d = demo();
         let (volume, source, ui) = (d.volume("x").unwrap(), d.source("x").unwrap(), d.ui().unwrap());
-        assert_eq!(volume.get().unwrap().level, 62);
+        assert_eq!(volume.get().unwrap().level, START_LEVEL);
         volume.send(VolumeIntent::Up);
-        until(&mut volume.view.clone(), |v| v.as_ref().is_some_and(|v| v.level == 63)).await;
+        until(&mut volume.view.clone(), |v| v.as_ref().is_some_and(|v| v.level == START_LEVEL + 1)).await;
         source.send(SourceIntent::Select("KODI".into()));
         until(&mut source.view.clone(), |s| s.as_ref().is_some_and(|s| s.current == "KODI")).await;
 
@@ -263,7 +262,7 @@ mod tests {
         let s = until(&mut ui.view.clone(), |s| s.library.is_some()).await;
         assert_eq!(s.library.unwrap().list.items.len(), SHELF.len());
         d.remote().unwrap().send(RemoteKey::Down).unwrap();
-        until(&mut ui.view.clone(), |s| s.library.as_ref().is_some_and(|l| l.focus == 3)).await;
+        until(&mut ui.view.clone(), |s| s.library.as_ref().is_some_and(|l| l.focus == COLUMNS)).await;
         d.remote().unwrap().send(RemoteKey::Select).unwrap();
         let s = until(&mut ui.view.clone(), |s| s.media.is_some()).await;
         assert_eq!(s.library, None);

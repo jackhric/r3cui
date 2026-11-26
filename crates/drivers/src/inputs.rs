@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn inputs_the_source_dropped_are_left_out_but_kept() {
         let mut m = Modules::default();
-        m.set_slot("XBOX 360", crate::config::Slot::Ui, Some("kodi".into()));
+        m.set_slot("XBOX 360", crate::config::Slot::Ui, Some(crate::kodi::SPEC.id.into()));
         m.move_input(&["XBOX 360".into(), "KODI".into()], "KODI", -1);
         let list = inputs(Some(&reported()), &m);
         assert_eq!(ids(&list), ["KODI", "ANDROID TV", "NET", "PLAYSTATION 5"]);
@@ -84,10 +84,10 @@ mod tests {
     #[test]
     fn no_source_means_one_default_input() {
         let mut m = Modules::default();
-        m.set_slot(DEFAULT_INPUT, crate::config::Slot::Ui, Some("kodi".into()));
+        m.set_slot(DEFAULT_INPUT, crate::config::Slot::Ui, Some(crate::kodi::SPEC.id.into()));
         let list = inputs(None, &m);
         assert_eq!(ids(&list), [DEFAULT_INPUT]);
-        assert_eq!(current(&list, None).unwrap().ui.as_deref(), Some("kodi"));
+        assert_eq!(current(&list, None).unwrap().ui.as_deref(), Some(crate::kodi::SPEC.id));
         assert_eq!(current(&inputs(Some(&reported()), &m), Some("KODI")).unwrap().ui, None);
     }
 }

@@ -9,17 +9,25 @@ use std::collections::BTreeSet;
 use std::sync::Mutex;
 use tokio::sync::watch;
 
+pub mod field {
+    pub const URL: &str = "url";
+    pub const TOKEN: &str = "token";
+    pub const VOLUME_LIMIT: &str = "volume_limit";
+    pub const KEYS_LIGHT: &str = "keys_light";
+    pub const KEYS_MODE: &str = "keys_mode";
+}
+
 pub static SPEC: Spec = Spec {
     id: "homeassistant",
     name: "Home Assistant",
     // Simple Icons (CC0); the mark is Home Assistant's.
     icon: "M22.939 10.627 13.061.749a1.505 1.505 0 0 0-2.121 0l-9.879 9.878C.478 11.21 0 12.363 0 13.187v9c0 .826.675 1.5 1.5 1.5h9.227l-4.063-4.062a2.034 2.034 0 0 1-.664.113c-1.13 0-2.05-.92-2.05-2.05s.92-2.05 2.05-2.05 2.05.92 2.05 2.05c0 .233-.041.456-.113.665l3.163 3.163V9.928a2.05 2.05 0 0 1-1.15-1.84c0-1.13.92-2.05 2.05-2.05s2.05.92 2.05 2.05a2.05 2.05 0 0 1-1.15 1.84v8.127l3.146-3.146A2.051 2.051 0 0 1 18 12.239c1.13 0 2.05.92 2.05 2.05s-.92 2.05-2.05 2.05c-.25 0-.488-.047-.709-.13L12.9 20.602v3.088h9.6c.825 0 1.5-.675 1.5-1.5v-9c0-.825-.477-1.977-1.061-2.561z",
     fields: &[
-        Field { key: "url", label: "Address", kind: FieldKind::Url, required: true, default: Some("http://homeassistant.local:8123") },
-        Field { key: "token", label: "Access token", kind: FieldKind::Secret, required: true, default: None },
-        Field { key: "volume_limit", label: "Volume limit", kind: FieldKind::Target(TargetKind::Sensor), required: false, default: None },
-        Field { key: "keys_light", label: "Key light", kind: FieldKind::Target(TargetKind::Light), required: false, default: None },
-        Field { key: "keys_mode", label: "Key light mode", kind: FieldKind::Target(TargetKind::Select), required: false, default: None },
+        Field { key: field::URL, label: "Address", kind: FieldKind::Url, required: true, default: Some("http://homeassistant.local:8123") },
+        Field { key: field::TOKEN, label: "Access token", kind: FieldKind::Secret, required: true, default: None },
+        Field { key: field::VOLUME_LIMIT, label: "Volume limit", kind: FieldKind::Target(TargetKind::Sensor), required: false, default: None },
+        Field { key: field::KEYS_LIGHT, label: "Key light", kind: FieldKind::Target(TargetKind::Light), required: false, default: None },
+        Field { key: field::KEYS_MODE, label: "Key light mode", kind: FieldKind::Target(TargetKind::Select), required: false, default: None },
     ],
     provides: Provides { global: true, remote: false, ui: false },
 };
@@ -39,9 +47,9 @@ pub struct HomeAssistant {
 impl HomeAssistant {
     pub fn start(entry: &DriverEntry) -> Self {
         let id = |key| entry.text(key).map(EntityId::new);
-        let (limit, light, mode) = (id("volume_limit"), id("keys_light"), id("keys_mode"));
+        let (limit, light, mode) = (id(field::VOLUME_LIMIT), id(field::KEYS_LIGHT), id(field::KEYS_MODE));
         let watched: BTreeSet<EntityId> = [&limit, &light, &mode].into_iter().flatten().cloned().collect();
-        let cfg = HaConfig::new(entry.text("url").unwrap_or_default(), entry.text("token").unwrap_or_default());
+        let cfg = HaConfig::new(entry.text(field::URL).unwrap_or_default(), entry.text(field::TOKEN).unwrap_or_default());
         let ha = HaService::start(cfg, watched.iter().cloned().collect());
 
         let (status_tx, status) = watch::channel(Status::new(Health::Connecting));
@@ -59,6 +67,16 @@ impl HomeAssistant {
         if watched.insert(id.clone()) {
             self.ha.watch(watched.iter().cloned().collect());
         }
+    }
+}
+
+/// The entity domains a target field of this kind lists.
+fn domains(kind: TargetKind) -> &'static [&'static str] {
+    match kind {
+        TargetKind::MediaPlayer => &["media_player"],
+        TargetKind::Light => &["light"],
+        TargetKind::Select => &["select", "input_select"],
+        TargetKind::Sensor => &["sensor", "input_number"],
     }
 }
 
@@ -176,12 +194,7 @@ impl Driver for HomeAssistant {
 
     fn targets(&self, kind: TargetKind) -> Targets<'_> {
         Box::pin(async move {
-            let domains: &[&str] = match kind {
-                TargetKind::MediaPlayer => &["media_player"],
-                TargetKind::Light => &["light"],
-                TargetKind::Select => &["select", "input_select"],
-                TargetKind::Sensor => &["sensor", "input_number"],
-            };
+            let domains = domains(kind);
             let states = self.ha.states().await.map_err(|e| tracing::warn!("home assistant entities: {e}")).unwrap_or_default();
             let mut found: Vec<Target> = states
                 .into_iter()
@@ -197,14 +210,9 @@ impl Driver for HomeAssistant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Modules;
+    use crate::testing::{entry, until};
     use homeassistant::testing::FakeHa;
     use serde_json::json;
-    use std::time::Duration;
-
-    async fn until<T: Clone>(rx: &mut watch::Receiver<T>, ok: impl Fn(&T) -> bool) -> T {
-        tokio::time::timeout(Duration::from_secs(5), rx.wait_for(|v| ok(v))).await.expect("in time").expect("open").clone()
-    }
 
     fn receiver() -> serde_json::Value {
         json!({ "source_list": ["KODI", "NET", "PLAYSTATION 5"], "volume_level": 0.56, "is_volume_muted": false, "source": "KODI", "supported_features": 69004 })
@@ -212,13 +220,8 @@ mod tests {
 
     async fn driver(fake: &FakeHa) -> HomeAssistant {
         let cfg = fake.config();
-        let mut m = Modules::default();
-        m.add_driver("homeassistant", Default::default());
-        m.set_field("homeassistant", "url", &cfg.url);
-        m.set_field("homeassistant", "token", &cfg.token);
-        m.set_field("homeassistant", "volume_limit", "sensor.limit");
-        m.set_field("homeassistant", "keys_light", "light.keys");
-        HomeAssistant::start(&m.drivers["homeassistant"])
+        let fields = [(field::URL, cfg.url.as_str()), (field::TOKEN, cfg.token.as_str()), (field::VOLUME_LIMIT, "sensor.limit"), (field::KEYS_LIGHT, "light.keys")];
+        HomeAssistant::start(&entry(&SPEC, &fields))
     }
 
     #[tokio::test]
@@ -252,11 +255,7 @@ mod tests {
     #[tokio::test]
     async fn a_bad_token_says_so() {
         let fake = FakeHa::start("right").await;
-        let mut m = Modules::default();
-        m.add_driver("homeassistant", Default::default());
-        m.set_field("homeassistant", "url", &fake.config().url);
-        m.set_field("homeassistant", "token", "wrong");
-        let ha = HomeAssistant::start(&m.drivers["homeassistant"]);
+        let ha = HomeAssistant::start(&entry(&SPEC, &[(field::URL, &fake.config().url), (field::TOKEN, "wrong")]));
         let s = until(&mut ha.status(), |s| s.health == Health::Down).await;
         assert_eq!(s.word(), "Token rejected");
     }

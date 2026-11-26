@@ -261,18 +261,18 @@ mod tests {
     use crate::api::{Health, Media};
     use crate::config::{Role, Slot};
     use crate::inputs::DEFAULT_INPUT;
-    use crate::testing::{FakeDriver, Fakes};
+    use crate::testing::{FakeDriver, Fakes, FAKE_GLOBAL, FAKE_HOST, FAKE_PLAYER};
     use std::time::{Duration, Instant};
 
     fn setup() -> (Host, Fakes) {
         let fakes = Fakes::default();
         let mut m = Modules::default();
-        m.add_driver("fake-global", Default::default());
-        m.add_driver("fake-player", Default::default());
-        m.bind(Role::Volume, Some(Binding { driver: "fake-global".into(), target: "receiver".into() }));
-        m.bind(Role::Source, Some(Binding { driver: "fake-global".into(), target: "receiver".into() }));
-        m.set_slot("KODI", Slot::Remote, Some("fake-player".into()));
-        m.set_slot("KODI", Slot::Ui, Some("fake-player".into()));
+        m.add_driver(FAKE_GLOBAL.id, Default::default());
+        m.add_driver(FAKE_PLAYER.id, Default::default());
+        m.bind(Role::Volume, Some(Binding { driver: FAKE_GLOBAL.id.into(), target: "receiver".into() }));
+        m.bind(Role::Source, Some(Binding { driver: FAKE_GLOBAL.id.into(), target: "receiver".into() }));
+        m.set_slot("KODI", Slot::Remote, Some(FAKE_PLAYER.id.into()));
+        m.set_slot("KODI", Slot::Ui, Some(FAKE_PLAYER.id.into()));
         (Host::new(fakes.registry(), m), fakes)
     }
 
@@ -283,7 +283,7 @@ mod tests {
     #[tokio::test]
     async fn keys_go_to_the_current_inputs_remote_slot() {
         let (host, fakes) = setup();
-        let (global, player) = (fakes.get("fake-global"), fakes.get("fake-player"));
+        let (global, player) = (fakes.get(FAKE_GLOBAL.id), fakes.get(FAKE_PLAYER.id));
         assert!(host.inputs().is_empty(), "the source hasn't reported yet");
         report_sources(&global, "KODI");
         let kodi = host.current("KODI");
@@ -297,7 +297,7 @@ mod tests {
     #[tokio::test]
     async fn volume_and_source_go_to_their_bindings() {
         let (host, fakes) = setup();
-        let global = fakes.get("fake-global");
+        let global = fakes.get(FAKE_GLOBAL.id);
         global.set_volume(Volume { level: 40, max: 72, muted: false });
         assert_eq!(host.volume().map(|v| v.level), Some(40));
         assert!(host.send_volume(VolumeIntent::Up));
@@ -311,7 +311,7 @@ mod tests {
     #[tokio::test]
     async fn the_stage_follows_the_input_and_ui_drivers_hear_when_shown() {
         let (mut host, fakes) = setup();
-        let (global, player) = (fakes.get("fake-global"), fakes.get("fake-player"));
+        let (global, player) = (fakes.get(FAKE_GLOBAL.id), fakes.get(FAKE_PLAYER.id));
         report_sources(&global, "KODI");
         let media = Media {
             title: "2001".into(),
@@ -344,20 +344,20 @@ mod tests {
         let (host, fakes) = setup();
         let mut changes = host.changes();
         changes.borrow_and_update();
-        fakes.get("fake-player").set_status(Status::new(Health::Up));
+        fakes.get(FAKE_PLAYER.id).set_status(Status::new(Health::Up));
         tokio::time::timeout(Duration::from_secs(1), changes.changed()).await.unwrap().unwrap();
-        assert_eq!(host.statuses().iter().map(|(id, _, s)| (id.as_str(), s.health)).collect::<Vec<_>>(), [("fake-global", Health::Connecting), ("fake-player", Health::Up)]);
-        assert!(host.in_use("fake-global", None));
-        report_sources(&fakes.get("fake-global"), "KODI");
-        assert!(host.in_use("fake-player", host.current("KODI").as_ref()) && !host.in_use("fake-player", None));
+        assert_eq!(host.statuses().iter().map(|(id, _, s)| (id.as_str(), s.health)).collect::<Vec<_>>(), [(FAKE_GLOBAL.id, Health::Connecting), (FAKE_PLAYER.id, Health::Up)]);
+        assert!(host.in_use(FAKE_GLOBAL.id, None));
+        report_sources(&fakes.get(FAKE_GLOBAL.id), "KODI");
+        assert!(host.in_use(FAKE_PLAYER.id, host.current("KODI").as_ref()) && !host.in_use(FAKE_PLAYER.id, None));
     }
 
     #[tokio::test]
     async fn without_a_source_the_default_input_has_the_slots() {
         let fakes = Fakes::default();
         let mut m = Modules::default();
-        m.add_driver("fake-player", Default::default());
-        m.set_slot(DEFAULT_INPUT, Slot::Remote, Some("fake-player".into()));
+        m.add_driver(FAKE_PLAYER.id, Default::default());
+        m.set_slot(DEFAULT_INPUT, Slot::Remote, Some(FAKE_PLAYER.id.into()));
         let host = Host::new(fakes.registry(), m);
         assert!(host.key(host.current("anything").as_ref(), RemoteKey::Select));
         assert_eq!(host.volume(), None);
@@ -367,11 +367,11 @@ mod tests {
     #[tokio::test]
     async fn other_changes_keep_global_control_bound() {
         let (mut host, fakes) = setup();
-        report_sources(&fakes.get("fake-global"), "KODI");
+        report_sources(&fakes.get(FAKE_GLOBAL.id), "KODI");
         let mut m = host.modules().clone();
         m.set_hidden("TV", true);
         host.apply(m);
-        assert_eq!(fakes.get("fake-global").targets_bound().len(), 2, "not asked for new ports");
+        assert_eq!(fakes.get(FAKE_GLOBAL.id).targets_bound().len(), 2, "not asked for new ports");
         assert_eq!(host.inputs().len(), 2, "the inputs never blink out");
     }
 
@@ -379,13 +379,13 @@ mod tests {
     async fn removing_a_driver_stops_it_and_unbinds() {
         let (mut host, fakes) = setup();
         let mut m = host.modules().clone();
-        m.remove_driver("fake-global");
+        m.remove_driver(FAKE_GLOBAL.id);
         host.apply(m);
         assert!(!host.send_volume(VolumeIntent::Up));
-        assert_eq!(fakes.started("fake-player"), 1, "an unchanged driver keeps running");
+        assert_eq!(fakes.started(FAKE_PLAYER.id), 1, "an unchanged driver keeps running");
         let mut m = host.modules().clone();
-        m.set_field("fake-player", "host", "elsewhere");
+        m.set_field(FAKE_PLAYER.id, FAKE_HOST, "elsewhere");
         host.apply(m);
-        assert_eq!(fakes.started("fake-player"), 2, "a changed one restarts");
+        assert_eq!(fakes.started(FAKE_PLAYER.id), 2, "a changed one restarts");
     }
 }

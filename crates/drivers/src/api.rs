@@ -137,6 +137,9 @@ pub struct Library {
     pub focus: usize,
 }
 
+pub const MOVIES_HEADING: &str = "MOVIES";
+pub const TV_SHOWS_HEADING: &str = "TV SHOWS";
+
 #[derive(Debug, PartialEq)]
 pub struct LibraryList {
     /// Changes whenever the list does, so the frontend reloads only then.
@@ -273,6 +276,12 @@ pub struct Spec {
     pub icon: &'static str,
     pub fields: &'static [Field],
     pub provides: Provides,
+}
+
+impl Spec {
+    pub fn field(&self, key: &str) -> Option<&Field> {
+        self.fields.iter().find(|f| f.key == key)
+    }
 }
 
 pub type Targets<'a> = Pin<Box<dyn Future<Output = Vec<Target>> + Send + 'a>>;

@@ -4,7 +4,7 @@
 
 use super::cursor::{Cursor, Report};
 use super::entry::entry;
-use crate::api::{Library, LibraryList, RemoteKey};
+use crate::api::{Library, LibraryList, RemoteKey, MOVIES_HEADING, TV_SHOWS_HEADING};
 use kodi::browse::Content;
 use kodi::methods::library::FileItem;
 use kodi::KodiHandle;
@@ -15,6 +15,13 @@ use tokio::sync::{watch, Notify};
 
 /// The size the wall shows posters at, asked of Kodi's artwork source so it sends no more than that.
 const POSTER: (u32, u32) = (136, 204);
+
+/// How long to wait before looking again when the cursor's position hasn't settled.
+const UNSETTLED_RECHECK: Duration = Duration::from_millis(120);
+/// How long after a key press Kodi gets to move its highlight before it is asked.
+const KEY_SETTLE: Duration = Duration::from_millis(90);
+/// How often Kodi is asked where its highlight is when nothing prompts it sooner.
+const POLL: Duration = Duration::from_secs(1);
 
 #[derive(Clone)]
 pub(crate) struct Wall {
@@ -99,7 +106,7 @@ impl Wall {
                         let at = ids.iter().position(|&id| Some(id) == view.focus.map(i64::from)).unwrap_or(0);
                         let report = Report { at, len: ids.len(), column: view.column.unwrap_or(-1), row: view.row.unwrap_or(-1), position: view.position.unwrap_or(-1) };
                         if !self.cursor().report(report, Instant::now()) {
-                            tokio::time::sleep(Duration::from_millis(120)).await;
+                            tokio::time::sleep(UNSETTLED_RECHECK).await;
                             continue;
                         }
                         let next = Library { list: items.clone(), focus: at };
@@ -116,8 +123,8 @@ impl Wall {
                 }
             }
             tokio::select! {
-                _ = self.shared.poke.notified() => tokio::time::sleep(Duration::from_millis(90)).await,
-                _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+                _ = self.shared.poke.notified() => tokio::time::sleep(KEY_SETTLE).await,
+                _ = tokio::time::sleep(POLL) => {}
                 r = shown.changed() => if r.is_err() { break },
                 r = playing.changed() => if r.is_err() { break },
             }
@@ -129,7 +136,7 @@ impl Wall {
         let poster = |it: &FileItem| it.art.poster.as_ref().or(it.art.thumb.as_ref()).map(|a| kodi.image_url(a, Some(POSTER))).unwrap_or_default();
         LibraryList {
             id: LISTS.fetch_add(1, Ordering::Relaxed),
-            heading: if shows { "TV SHOWS" } else { "MOVIES" }.into(),
+            heading: if shows { TV_SHOWS_HEADING } else { MOVIES_HEADING }.into(),
             count: format!("{} {}", items.len(), if shows { "shows" } else { "films" }),
             items: items.iter().map(|it| entry(it, shows, poster(it))).collect(),
         }
