@@ -112,6 +112,7 @@ key back
 wait 700
 snap 27-back-to-menu-status
 key down
+key down
 key ok
 wait 700
 key ok
@@ -122,6 +123,7 @@ wait 500
 key back
 wait 700
 snap 29-back-to-menu-lab
+key up
 key up
 key up
 key up
@@ -156,5 +158,28 @@ wait 500
 snap 35-power-hold-ring
 release power
 wait 600
+page menu
+wait 900
+key down
+key down
+key down
+key down
+key down
+key down
+key ok
+wait 1200
+snap 36-system
+key ok
+wait 900
+snap 37-r3-update
+page fw-update
+wait 900
+snap 38-fw-update
+page web-config
+wait 900
+snap 39-web-config
+page uninstall
+wait 900
+snap 40-uninstall
 wait 1500
 quit
