@@ -28,7 +28,7 @@ quickly.
 
 ## Visual language (Quiet)
 
-- Pure `#000` background. Font: Hanken Grotesk (Google Fonts), weights 200–600, tabular numerals.
+- Pure `#000` background. Font: Inter, weights 200–500, tabular numerals.
 - Text `#F1F3F3`, secondary `#8B9195`, tertiary `#53595D`. Hairlines `rgba(255,255,255,.08)`.
 - One accent, red `#E8343A`, used only for focus and the live thing. Keys may have barely-there
   fills (`#0E0E0F`–`#161617`); no outlines on every key, no gradients, no shadows, no blur.
@@ -58,7 +58,7 @@ Write exactly one file, `docs/design/keyboard/<slug>.html`, containing in this o
 ```
 
 - The page already styles `.screen` as `width:480px; height:800px; position:relative;
-  overflow:hidden; background:#000; box-sizing:border-box`, loads Hanken Grotesk, and calls
+  overflow:hidden; background:#000; box-sizing:border-box`, loads Inter, and calls
   `window.KB['<slug>'].key(...)` from its own on-page d-pad and from the arrow/Enter/Backspace
   keys. **Do not add your own `keydown` listeners.** Do handle `click` on your keys for touch.
 - No `id` attributes, no globals other than `window.KB[...]`, no external resources, no libraries.

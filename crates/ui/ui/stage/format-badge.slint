@@ -11,8 +11,8 @@ export component FormatBadge inherits HorizontalLayout {
     if root.mark.path != "": Rectangle {
         width: root.mark.size * root.mark.width / root.mark.height;
         Path {
-            // A wordmark sits on the label's baseline (27px down the 40px row, measured for
-            // 22px Hanken Grotesk); a mark is centred.
+            // A wordmark sits on the label's baseline (27px down the 40px row, from 22px Inter's
+            // metrics); a mark is centred.
             y: root.mark.baseline ? 27px - root.mark.size : (40px - root.mark.size) / 2;
             width: parent.width;
             height: root.mark.size;

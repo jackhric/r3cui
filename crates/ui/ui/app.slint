@@ -1,7 +1,7 @@
-import "assets/fonts/HankenGrotesk-200.ttf";
-import "assets/fonts/HankenGrotesk-300.ttf";
-import "assets/fonts/HankenGrotesk-400.ttf";
-import "assets/fonts/HankenGrotesk-500.ttf";
+import "assets/fonts/Inter-200.ttf";
+import "assets/fonts/Inter-300.ttf";
+import "assets/fonts/Inter-400.ttf";
+import "assets/fonts/Inter-500.ttf";
 import { Control } from "globals/control.slint";
 import { Fx } from "globals/fx.slint";
 import { Home } from "globals/home.slint";
@@ -67,7 +67,7 @@ export component AppWindow inherits Window {
     width: Layout.screen-w;
     height: Layout.screen-h;
     background: Theme.bg;
-    default-font-family: "Hanken Grotesk";
+    default-font-family: "Inter";
     forward-focus: keys;
 
     public function hold-library() { stage.hold-library(); }
