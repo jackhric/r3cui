@@ -4,7 +4,10 @@ use voicelink::testing::FakeRelay;
 use voicelink::{connect_to, ErrorCode, Link, LinkEvent, SampleFormat, UiMsg};
 
 async fn next(link: &mut Link) -> LinkEvent {
-    tokio::time::timeout(Duration::from_secs(5), link.events.recv()).await.expect("no event").expect("link ended")
+    tokio::time::timeout(Duration::from_secs(5), link.events.recv())
+        .await
+        .expect("no event")
+        .expect("link ended")
 }
 
 #[tokio::test]
@@ -15,14 +18,38 @@ async fn a_session_arrives_and_the_outcome_goes_back() {
     relay.wait_for_client().await;
 
     relay.script_session(7, &[&[1, 2, 3, 4], &[5, 6]]);
-    assert_eq!(next(&mut link).await, LinkEvent::Begin { session_id: 7, sample_rate: 16000, channels: 1, format: SampleFormat::I16 });
-    assert_eq!(next(&mut link).await, LinkEvent::Audio { session_id: 7, pcm: Bytes::from_static(&[1, 2, 3, 4]) });
-    assert_eq!(next(&mut link).await, LinkEvent::Audio { session_id: 7, pcm: Bytes::from_static(&[5, 6]) });
+    assert_eq!(
+        next(&mut link).await,
+        LinkEvent::Begin {
+            session_id: 7,
+            sample_rate: 16000,
+            channels: 1,
+            format: SampleFormat::I16
+        }
+    );
+    assert_eq!(
+        next(&mut link).await,
+        LinkEvent::Audio {
+            session_id: 7,
+            pcm: Bytes::from_static(&[1, 2, 3, 4])
+        }
+    );
+    assert_eq!(
+        next(&mut link).await,
+        LinkEvent::Audio {
+            session_id: 7,
+            pcm: Bytes::from_static(&[5, 6])
+        }
+    );
     assert_eq!(next(&mut link).await, LinkEvent::End { session_id: 7 });
 
     link.handle.send(UiMsg::Finished { session_id: 7 });
     assert_eq!(relay.next_ui_msg().await, UiMsg::Finished { session_id: 7 });
-    let error = UiMsg::Error { session_id: 7, code: ErrorCode::Timeout, message: "slow".into() };
+    let error = UiMsg::Error {
+        session_id: 7,
+        code: ErrorCode::Timeout,
+        message: "slow".into(),
+    };
     link.handle.send(error.clone());
     assert_eq!(relay.next_ui_msg().await, error);
 }
@@ -35,7 +62,10 @@ async fn audio_outside_a_session_is_dropped() {
     relay.wait_for_client().await;
     relay.send_audio([9u8, 9]);
     relay.script_session(1, &[]);
-    assert!(matches!(next(&mut link).await, LinkEvent::Begin { session_id: 1, .. }));
+    assert!(matches!(
+        next(&mut link).await,
+        LinkEvent::Begin { session_id: 1, .. }
+    ));
 }
 
 #[tokio::test]

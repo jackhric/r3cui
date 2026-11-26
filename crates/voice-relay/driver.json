@@ -1,0 +1,15 @@
+{
+  "driver_id": "r3cui_voice",
+  "version": "0.1.0",
+  "min_core_api": "0.20.0",
+  "name": { "en": "r3cui voice" },
+  "icon": "uc:integration",
+  "description": {
+    "en": "Hands the remote's microphone audio to r3cui for voice commands."
+  },
+  "developer": {
+    "name": "r3cui",
+    "url": "https://github.com/jackhric/r3cui"
+  },
+  "home_page": "https://github.com/jackhric/r3cui"
+}

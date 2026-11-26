@@ -34,7 +34,9 @@ impl FakeRelay {
         let task = tokio::spawn(async move {
             let mut count = 0;
             while let Ok((tcp, _)) = listener.accept().await {
-                let Ok(ws) = tokio_tungstenite::accept_async(tcp).await else { continue };
+                let Ok(ws) = tokio_tungstenite::accept_async(tcp).await else {
+                    continue;
+                };
                 let (mut sink, mut stream) = ws.split();
                 let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Message>();
                 *slot.lock().unwrap() = Some(out_tx);
@@ -69,7 +71,13 @@ impl FakeRelay {
                 });
             }
         });
-        Self { addr, current, connections, received, task }
+        Self {
+            addr,
+            current,
+            connections,
+            received,
+            task,
+        }
     }
 
     /// `host:port`, for `connect_to`.
@@ -79,12 +87,19 @@ impl FakeRelay {
 
     pub async fn wait_for_client(&mut self) {
         let wait = self.connections.wait_for(|n| *n > 0);
-        tokio::time::timeout(WAIT, wait).await.expect("no client connected").expect("fake relay stopped");
+        tokio::time::timeout(WAIT, wait)
+            .await
+            .expect("no client connected")
+            .expect("fake relay stopped");
     }
 
     fn push(&self, frame: Message) {
         let current = self.current.lock().unwrap();
-        current.as_ref().expect("no client connected").send(frame).expect("client connection is gone");
+        current
+            .as_ref()
+            .expect("no client connected")
+            .send(frame)
+            .expect("client connection is gone");
     }
 
     pub fn send(&self, msg: &RelayMsg) {
@@ -97,7 +112,12 @@ impl FakeRelay {
 
     /// Begin, the chunks, End: a whole session of 16 kHz mono `i16`.
     pub fn script_session(&self, session_id: SessionId, chunks: &[&[u8]]) {
-        self.send(&RelayMsg::Begin { session_id, sample_rate: 16000, channels: 1, format: SampleFormat::I16 });
+        self.send(&RelayMsg::Begin {
+            session_id,
+            sample_rate: 16000,
+            channels: 1,
+            format: SampleFormat::I16,
+        });
         for chunk in chunks {
             self.send_audio(*chunk);
         }
@@ -106,7 +126,10 @@ impl FakeRelay {
 
     /// What r3cui sent next; panics after a few seconds of silence.
     pub async fn next_ui_msg(&mut self) -> UiMsg {
-        tokio::time::timeout(WAIT, self.received.recv()).await.expect("r3cui sent nothing").expect("fake relay stopped")
+        tokio::time::timeout(WAIT, self.received.recv())
+            .await
+            .expect("r3cui sent nothing")
+            .expect("fake relay stopped")
     }
 
     /// Hangs up on the connected client; it should reconnect.

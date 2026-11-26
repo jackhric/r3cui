@@ -15,10 +15,20 @@ const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 pub enum LinkEvent {
     Connected,
     Disconnected,
-    Begin { session_id: SessionId, sample_rate: u32, channels: u16, format: SampleFormat },
+    Begin {
+        session_id: SessionId,
+        sample_rate: u32,
+        channels: u16,
+        format: SampleFormat,
+    },
     /// PCM of the session of the last `Begin`.
-    Audio { session_id: SessionId, pcm: Bytes },
-    End { session_id: SessionId },
+    Audio {
+        session_id: SessionId,
+        pcm: Bytes,
+    },
+    End {
+        session_id: SessionId,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -50,10 +60,17 @@ pub fn connect_to(addr: impl Into<String>) -> Link {
     let (event_tx, events) = mpsc::channel(EVENT_BACKLOG);
     let (out, out_rx) = mpsc::unbounded_channel();
     tokio::spawn(run(format!("ws://{}", addr.into()), event_tx, out_rx));
-    Link { events, handle: LinkHandle { out } }
+    Link {
+        events,
+        handle: LinkHandle { out },
+    }
 }
 
-async fn run(url: String, events: mpsc::Sender<LinkEvent>, mut out: mpsc::UnboundedReceiver<UiMsg>) {
+async fn run(
+    url: String,
+    events: mpsc::Sender<LinkEvent>,
+    mut out: mpsc::UnboundedReceiver<UiMsg>,
+) {
     let mut backoff = Backoff::new();
     loop {
         while out.try_recv().is_ok() {}
@@ -77,7 +94,11 @@ async fn run(url: String, events: mpsc::Sender<LinkEvent>, mut out: mpsc::Unboun
 }
 
 /// Returns false when nobody is listening for events any more.
-async fn serve<S>(mut ws: tokio_tungstenite::WebSocketStream<S>, events: &mpsc::Sender<LinkEvent>, out: &mut mpsc::UnboundedReceiver<UiMsg>) -> bool
+async fn serve<S>(
+    mut ws: tokio_tungstenite::WebSocketStream<S>,
+    events: &mpsc::Sender<LinkEvent>,
+    out: &mut mpsc::UnboundedReceiver<UiMsg>,
+) -> bool
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {

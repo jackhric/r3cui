@@ -42,23 +42,39 @@ pub enum ErrorCode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RelayMsg {
-    Begin { session_id: SessionId, sample_rate: u32, channels: u16, format: SampleFormat },
-    End { session_id: SessionId },
+    Begin {
+        session_id: SessionId,
+        sample_rate: u32,
+        channels: u16,
+        format: SampleFormat,
+    },
+    End {
+        session_id: SessionId,
+    },
 }
 
 /// Text frames from r3cui.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum UiMsg {
-    Finished { session_id: SessionId },
-    Error { session_id: SessionId, code: ErrorCode, message: String },
+    Finished {
+        session_id: SessionId,
+    },
+    Error {
+        session_id: SessionId,
+        code: ErrorCode,
+        message: String,
+    },
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn both<T: Serialize + for<'a> Deserialize<'a> + PartialEq + std::fmt::Debug>(value: T, json: &str) {
+    fn both<T: Serialize + for<'a> Deserialize<'a> + PartialEq + std::fmt::Debug>(
+        value: T,
+        json: &str,
+    ) {
         assert_eq!(serde_json::to_string(&value).unwrap(), json);
         assert_eq!(serde_json::from_str::<T>(json).unwrap(), value);
     }
@@ -66,32 +82,55 @@ mod tests {
     #[test]
     fn begin() {
         both(
-            RelayMsg::Begin { session_id: 7, sample_rate: 16000, channels: 1, format: SampleFormat::I16 },
+            RelayMsg::Begin {
+                session_id: 7,
+                sample_rate: 16000,
+                channels: 1,
+                format: SampleFormat::I16,
+            },
             r#"{"type":"begin","session_id":7,"sample_rate":16000,"channels":1,"format":"i16"}"#,
         );
     }
 
     #[test]
     fn end() {
-        both(RelayMsg::End { session_id: 7 }, r#"{"type":"end","session_id":7}"#);
+        both(
+            RelayMsg::End { session_id: 7 },
+            r#"{"type":"end","session_id":7}"#,
+        );
     }
 
     #[test]
     fn finished() {
-        both(UiMsg::Finished { session_id: 7 }, r#"{"type":"finished","session_id":7}"#);
+        both(
+            UiMsg::Finished { session_id: 7 },
+            r#"{"type":"finished","session_id":7}"#,
+        );
     }
 
     #[test]
     fn error() {
         both(
-            UiMsg::Error { session_id: 7, code: ErrorCode::NoTextRecognized, message: "...".into() },
+            UiMsg::Error {
+                session_id: 7,
+                code: ErrorCode::NoTextRecognized,
+                message: "...".into(),
+            },
             r#"{"type":"error","session_id":7,"code":"NO_TEXT_RECOGNIZED","message":"..."}"#,
         );
     }
 
     #[test]
     fn every_error_code_is_the_cores() {
-        let names = ["TIMEOUT", "NO_TEXT_RECOGNIZED", "INVALID_AUDIO", "SERVICE_UNAVAILABLE", "INTENT_FAILED", "TTS_FAILED", "UNEXPECTED_ERROR"];
+        let names = [
+            "TIMEOUT",
+            "NO_TEXT_RECOGNIZED",
+            "INVALID_AUDIO",
+            "SERVICE_UNAVAILABLE",
+            "INTENT_FAILED",
+            "TTS_FAILED",
+            "UNEXPECTED_ERROR",
+        ];
         let codes = [
             ErrorCode::Timeout,
             ErrorCode::NoTextRecognized,
