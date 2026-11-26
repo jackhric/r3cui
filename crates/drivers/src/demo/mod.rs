@@ -2,10 +2,13 @@
 //! frontend can be tried with nothing to connect to. Desktop builds only (the `demo` feature).
 
 use crate::api::*;
-use crate::config::DriverEntry;
+use crate::config::{Binding, DriverEntry, Modules, Role, Slot};
+use data::{COLUMNS, INPUTS, LEVEL_LIMIT, RECEIVER, SHELF, START_INPUT, START_LEVEL, SWITCH};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
+
+pub mod data;
 
 pub static SPEC: Spec = Spec {
     id: "demo",
@@ -15,25 +18,6 @@ pub static SPEC: Spec = Spec {
     fields: &[],
     provides: Provides { global: true, remote: true, ui: true },
 };
-
-const INPUTS: [&str; 4] = ["ANDROID TV", "KODI", "PLAYSTATION 5", "XBOX 360"];
-const FILM: (&str, u64) = ("Mad Max: Fury Road", 7200);
-const SHELF: [(&str, &str); 6] = [
-    ("2001: A Space Odyssey", "1968 · 2h 29m"),
-    ("Alien", "1979 · 1h 57m"),
-    ("Arrival", "2016 · 1h 56m"),
-    ("Blade Runner", "1982 · 1h 57m"),
-    ("Mad Max: Fury Road", "2015 · 2h 0m"),
-    ("The Godfather", "1972 · 2h 55m"),
-];
-const START_LEVEL: i32 = 62;
-const LEVEL_LIMIT: i32 = 72;
-/// Where in the film playback starts.
-const RESUME_AT: Duration = Duration::from_secs(2788);
-/// The shelf is laid out this many to a row.
-const COLUMNS: usize = 3;
-/// How long the receiver takes to switch input, so the screen's "switching" shows.
-const SWITCH: Duration = Duration::from_millis(1500);
 
 struct State {
     volume: Volume,
@@ -51,49 +35,26 @@ pub struct Demo {
     status: watch::Receiver<Status>,
 }
 
-fn film(now: Instant) -> Media {
-    let track = |label: &str, detail: &str| Track { label: label.into(), detail: detail.into() };
-    Media {
-        title: FILM.0.into(),
-        subtitle: String::new(),
-        paused: false,
-        position: RESUME_AT,
-        measured_at: now,
-        total: Duration::from_secs(FILM.1),
-        format: "DTS-HD MA 7.1".into(),
-        poster: String::new(),
-        backdrop: String::new(),
-        audio: vec![track("English", "DTS-HD MA 7.1"), track("English Commentary", "AAC stereo")],
-        audio_current: Some(0),
-        subtitles: vec![track("English", ""), track("English SDH", ""), track("French · Forced", "")],
-        subtitle_current: None,
+/// A setup that points everything at the demo driver: global volume and source, and every input's remote and screen.
+pub fn modules() -> Modules {
+    let mut m = Modules::default();
+    let id = m.add_driver(SPEC.id, Default::default());
+    let binding = || Some(Binding { driver: id.clone(), target: RECEIVER.into() });
+    m.bind(Role::Volume, binding());
+    m.bind(Role::Source, binding());
+    for input in INPUTS {
+        m.set_slot(input, Slot::Remote, Some(id.clone()));
+        m.set_slot(input, Slot::Ui, Some(id.clone()));
     }
-}
-
-fn shelf() -> Arc<LibraryList> {
-    let items = SHELF
-        .iter()
-        .map(|(title, meta)| LibraryItem {
-            title: (*title).into(),
-            meta: (*meta).into(),
-            rating: "8.1".into(),
-            tail: "R".into(),
-            genre: "Science Fiction".into(),
-            plot: String::new(),
-            detail: String::new(),
-            progress: 0.0,
-            poster: String::new(),
-        })
-        .collect();
-    Arc::new(LibraryList { id: u64::MAX, heading: MOVIES_HEADING.into(), count: format!("{} films", SHELF.len()), items })
+    m
 }
 
 impl Demo {
     pub fn start(_: &DriverEntry) -> Self {
         let state = Arc::new(Mutex::new(State {
             volume: Volume { level: START_LEVEL, max: LEVEL_LIMIT, muted: false },
-            sources: Sources { on: true, current: "PLAYSTATION 5".into(), list: INPUTS.map(String::from).to_vec() },
-            media: Some(film(Instant::now())),
+            sources: Sources { on: true, current: START_INPUT.into(), list: INPUTS.map(String::from).to_vec() },
+            media: Some(data::film(Instant::now())),
             shown: false,
             focus: 0,
         }));
@@ -101,7 +62,7 @@ impl Demo {
         let (source_tx, mut source_rx, source) = port(None);
         let (stage_tx, mut ui_rx, ui) = port(Stage::default());
         let (remote, mut keys) = mpsc::unbounded_channel();
-        let shelf = shelf();
+        let shelf = data::shelf();
         let publish = {
             let state = state.clone();
             move || {
@@ -199,7 +160,7 @@ fn key(s: &mut State, k: RemoteKey) {
     match (k, s.media.is_some()) {
         (RemoteKey::PlayPause, true) => pause(s),
         (RemoteKey::Stop, _) => s.media = None,
-        (RemoteKey::Select | RemoteKey::PlayPause, false) => s.media = Some(film(Instant::now())),
+        (RemoteKey::Select | RemoteKey::PlayPause, false) => s.media = Some(data::film(Instant::now())),
         (RemoteKey::Right, false) => s.focus = (s.focus + 1).min(last),
         (RemoteKey::Left, false) => s.focus = s.focus.saturating_sub(1),
         (RemoteKey::Down, false) => s.focus = (s.focus + COLUMNS).min(last),
@@ -234,7 +195,7 @@ impl Driver for Demo {
     }
 
     fn targets(&self, _: TargetKind) -> Targets<'_> {
-        Box::pin(async { vec![Target { id: "demo.receiver".into(), name: "Demo receiver".into() }] })
+        Box::pin(async { vec![Target { id: RECEIVER.into(), name: "Demo receiver".into() }] })
     }
 }
 
@@ -245,6 +206,16 @@ mod tests {
 
     fn demo() -> Demo {
         Demo::start(&entry(&SPEC, &[]))
+    }
+
+    #[test]
+    fn the_demo_setup_fills_every_slot() {
+        let m = modules();
+        assert!(m.global.volume.is_some() && m.global.source.is_some());
+        for input in INPUTS {
+            let e = m.input(input).unwrap();
+            assert_eq!((e.remote.as_deref(), e.ui.as_deref()), (Some(SPEC.id), Some(SPEC.id)), "{input}");
+        }
     }
 
     #[tokio::test]
