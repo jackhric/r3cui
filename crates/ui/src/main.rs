@@ -110,7 +110,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
     });
-    app.on_select_source(send(UiAction::SelectSource));
+    app.on_select_input(send(UiAction::SelectInput));
     {
         use crate::app::Settings;
         let tx = act_tx.clone();

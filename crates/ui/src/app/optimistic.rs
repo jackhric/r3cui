@@ -1,5 +1,5 @@
 //! A value asked for here and shown straight away, in place of the device's report, until the device reports it too
-//! or gives up. The receiver can take seconds to report a change (a minute for power), and the screen shouldn't
+//! or gives up. The device can take seconds to report a change (a minute for power), and the screen shouldn't
 //! flick back to the old value meanwhile.
 
 use std::time::{Duration, Instant};

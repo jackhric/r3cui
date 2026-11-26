@@ -1,4 +1,4 @@
-// Prototype library views for the Movies and TV menus, fed by Kodi's library. Exploration only:
+// Prototype library views for the Movies and TV menus, fed by a driver's library. Exploration only:
 // `mode` picks the variation (1 river, 2 river with the focused title, 3 carousel, 4 poster
 // wall, 5 shows).
 import { Theme } from "theme.slint";
@@ -290,7 +290,7 @@ export component Library inherits Rectangle {
         Text { text: root.count; font-size: 17px; color: Theme.t2; horizontal-alignment: center; }
     }
 
-    // 2 and 5: the river behind a card for whatever Kodi has highlighted.
+    // 2 and 5: the river behind a card for whatever the driver has highlighted.
     if root.mode == 2 || root.mode == 5: Rectangle {
         Text { x: 24px; y: 92px; text: root.heading; font-size: 15px; font-weight: 600; color: Theme.t2; letter-spacing: 1.5px; }
         Text { x: 24px; y: 92px; width: root.width - 48px; text: root.count; font-size: 15px; color: Theme.t3; horizontal-alignment: right; }
@@ -303,7 +303,7 @@ export component Library inherits Rectangle {
         }
     }
 
-    // 3: a carousel that follows Kodi's highlight.
+    // 3: a carousel that follows the driver's highlight.
     if root.mode == 3: Rectangle {
         Text { x: 24px; y: 92px; text: root.heading; font-size: 15px; font-weight: 600; color: Theme.t2; letter-spacing: 1.5px; }
         Text { x: 24px; y: 92px; width: root.width - 48px; text: root.count; font-size: 15px; color: Theme.t3; horizontal-alignment: right; }

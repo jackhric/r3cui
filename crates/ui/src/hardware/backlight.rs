@@ -4,10 +4,10 @@
 //! light bleeds badly between most of them, so they are treated as two groups: the power zone,
 //! which is cleanly separate, and everything else.
 //!
-//! - Normally every key shows the interface accent, which follows the receiver's input.
+//! - Normally every key shows the interface accent, which follows the input.
 //! - While the power key is held, only it is lit: red to turn off, green to turn on.
-//! - With the receiver off, only the power key is lit, so it is clear what to hold.
-//! - Home Assistant can replace the colour or switch the keys off ([`Ha`]).
+//! - With the power off, only the power key is lit, so it is clear what to hold.
+//! - Another program (a driver's key light) can replace the colour or switch the keys off ([`KeyLight`]).
 //!
 //! ```ignore
 //! let keys = Backlight::start(core);                         // once per core connection
@@ -22,6 +22,7 @@
 //! its own, so colour changes are crossfaded here by sending the colours in between ([`FADE`]).
 
 use crate::{AppWindow, Theme};
+use drivers::api::{KeyLight, KeyMode};
 use serde_json::json;
 use slint::ComponentHandle;
 use std::sync::{Arc, Mutex};
@@ -139,39 +140,21 @@ async fn paint_keys(core: &coreapi::Core, shown: Option<Keys>, keys: Keys) -> bo
     ok
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Mode {
-    /// The colour follows the remote's own accent.
-    #[default]
-    Follow,
-    /// Home Assistant's light decides the colour and brightness.
-    Custom,
-    Off,
-}
+static REQUESTED: Mutex<Option<KeyLight>> = Mutex::new(None);
 
-/// What Home Assistant asks of the keys, read from its two helper entities.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Ha {
-    pub mode: Mode,
-    /// The helper light's colour, already scaled by its brightness; `None` while it is off.
-    pub colour: Option<Rgb>,
-}
-
-static HA: Mutex<Option<Ha>> = Mutex::new(None);
-
-/// Record Home Assistant's latest wishes; the next request takes them into account.
-pub fn set_ha(ha: Ha) {
-    *HA.lock().unwrap_or_else(|e| e.into_inner()) = Some(ha);
+/// Record what another program last asked of the keys; the next request takes it into account.
+pub fn set_requested(light: KeyLight) {
+    *REQUESTED.lock().unwrap_or_else(|e| e.into_inner()) = Some(light);
 }
 
 /// What decides the keys.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UiState {
     pub awake: bool,
-    pub receiver_on: bool,
+    pub power_on: bool,
     /// While the power key is held: `Some(true)` turning off, `Some(false)` turning on.
     pub power_hold: Option<bool>,
-    pub ha: Ha,
+    pub requested: KeyLight,
 }
 
 /// UI thread only.
@@ -179,24 +162,24 @@ pub fn observe(app: &AppWindow) -> (UiState, Rgb) {
     let accent = app.global::<Theme>().get_accent();
     let state = UiState {
         awake: app.get_lit(),
-        receiver_on: app.get_receiver_on(),
+        power_on: app.get_power_on(),
         power_hold: app.get_power_overlay().then(|| app.get_power_turning_off()),
-        ha: HA.lock().unwrap_or_else(|e| e.into_inner()).unwrap_or_default(),
+        requested: REQUESTED.lock().unwrap_or_else(|e| e.into_inner()).unwrap_or_default(),
     };
     (state, Rgb(accent.red(), accent.green(), accent.blue()))
 }
 
 /// The policy: what the keys show for the current state.
 pub fn keys_for(s: UiState, accent: Rgb) -> Keys {
-    if !s.awake || s.ha.mode == Mode::Off {
+    if !s.awake || s.requested.mode == KeyMode::Off {
         return Keys::OFF;
     }
     match s.power_hold {
         Some(turning_off) => Keys { power: if turning_off { Rgb::RED } else { Rgb::GREEN }, rest: Rgb::OFF },
         // Everything is off, and holding power is the way back.
-        None if !s.receiver_on => Keys { power: Rgb::GREEN, rest: Rgb::OFF },
-        None => Keys::all(match (s.ha.mode, s.ha.colour) {
-            (Mode::Custom, Some(colour)) => colour,
+        None if !s.power_on => Keys { power: Rgb::GREEN, rest: Rgb::OFF },
+        None => Keys::all(match (s.requested.mode, s.requested.colour) {
+            (KeyMode::Custom, Some((r, g, b))) => Rgb(r, g, b),
             _ => accent,
         }),
     }
@@ -209,7 +192,7 @@ mod tests {
     const ACCENT: Rgb = Rgb(10, 20, 30);
 
     fn state() -> UiState {
-        UiState { awake: true, receiver_on: true, power_hold: None, ha: Ha::default() }
+        UiState { awake: true, power_on: true, power_hold: None, requested: KeyLight::default() }
     }
 
     #[test]
@@ -231,25 +214,25 @@ mod tests {
     fn holding_power_lights_only_the_power_key() {
         let off = keys_for(UiState { power_hold: Some(true), ..state() }, ACCENT);
         assert_eq!(off, Keys { power: Rgb::RED, rest: Rgb::OFF });
-        let on = keys_for(UiState { power_hold: Some(false), receiver_on: false, ..state() }, ACCENT);
+        let on = keys_for(UiState { power_hold: Some(false), power_on: false, ..state() }, ACCENT);
         assert_eq!(on, Keys { power: Rgb::GREEN, rest: Rgb::OFF });
     }
 
     #[test]
-    fn with_the_receiver_off_only_the_power_key_is_lit() {
-        assert_eq!(keys_for(UiState { receiver_on: false, ..state() }, ACCENT), Keys { power: Rgb::GREEN, rest: Rgb::OFF });
+    fn with_the_power_off_only_the_power_key_is_lit() {
+        assert_eq!(keys_for(UiState { power_on: false, ..state() }, ACCENT), Keys { power: Rgb::GREEN, rest: Rgb::OFF });
     }
 
     #[test]
-    fn home_assistant_can_override_or_switch_off() {
-        let blue = Some(Rgb(0, 0, 200));
-        let custom = Ha { mode: Mode::Custom, colour: blue };
-        assert_eq!(keys_for(UiState { ha: custom, ..state() }, ACCENT), Keys::all(Rgb(0, 0, 200)));
-        assert_eq!(keys_for(UiState { ha: custom, power_hold: Some(true), ..state() }, ACCENT).power, Rgb::RED);
+    fn a_requested_light_can_override_or_switch_off() {
+        let blue = Some((0, 0, 200));
+        let custom = KeyLight { mode: KeyMode::Custom, colour: blue };
+        assert_eq!(keys_for(UiState { requested: custom, ..state() }, ACCENT), Keys::all(Rgb(0, 0, 200)));
+        assert_eq!(keys_for(UiState { requested: custom, power_hold: Some(true), ..state() }, ACCENT).power, Rgb::RED);
         // Custom with the light off, or Follow with it on, both mean the remote's own colour.
-        assert_eq!(keys_for(UiState { ha: Ha { mode: Mode::Custom, colour: None }, ..state() }, ACCENT), Keys::all(ACCENT));
-        assert_eq!(keys_for(UiState { ha: Ha { mode: Mode::Follow, colour: blue }, ..state() }, ACCENT), Keys::all(ACCENT));
-        let off = Ha { mode: Mode::Off, colour: blue };
-        assert_eq!(keys_for(UiState { ha: off, power_hold: Some(true), ..state() }, ACCENT), Keys::OFF);
+        assert_eq!(keys_for(UiState { requested: KeyLight { mode: KeyMode::Custom, colour: None }, ..state() }, ACCENT), Keys::all(ACCENT));
+        assert_eq!(keys_for(UiState { requested: KeyLight { mode: KeyMode::Follow, colour: blue }, ..state() }, ACCENT), Keys::all(ACCENT));
+        let off = KeyLight { mode: KeyMode::Off, colour: blue };
+        assert_eq!(keys_for(UiState { requested: off, power_hold: Some(true), ..state() }, ACCENT), Keys::OFF);
     }
 }

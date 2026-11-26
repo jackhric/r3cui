@@ -29,10 +29,10 @@ const TYPING: &[&str] = &["ok", "right", "ok", "up", "ok", "left", "left", "ok",
 
 const STEPS: &[Step] = &[
     ("01-receiver", |_, _| {}),
-    ("02-inputs", |app, _| app.go_to(Page::Inputs, app.get_source_index())),
+    ("02-inputs", |app, _| app.go_to(Page::Inputs, app.get_input_index())),
     ("03-kodi-playing", |app, m| {
         app.go_to(Page::Home, 0);
-        m.source = "KODI".into();
+        m.input = "KODI".into();
     }),
     ("03b-audio", |app, m| {
         app.show_picker(Picker::Audio);
@@ -70,23 +70,23 @@ const STEPS: &[Step] = &[
         m.volume = 62;
         app.go_to(Page::Menu, 1);
     }),
-    ("07b-menu-playstation", |_, m| m.source = "PLAYSTATION 5".into()),
-    ("07c-menu-xbox", |_, m| m.source = "XBOX 360".into()),
-    ("07d-menu-kodi", |_, m| m.source = "KODI".into()),
+    ("07b-menu-playstation", |_, m| m.input = "PLAYSTATION 5".into()),
+    ("07c-menu-xbox", |_, m| m.input = "XBOX 360".into()),
+    ("07d-menu-kodi", |_, m| m.input = "KODI".into()),
     ("08-menu-display", |app, _| app.go_to(Page::Display, 0)),
     ("09-menu-power", |app, _| app.go_to(Page::Power, 0)),
     ("10-playstation", |app, m| {
         app.go_to(Page::Home, 0);
-        m.source = "PLAYSTATION 5".into();
+        m.input = "PLAYSTATION 5".into();
     }),
-    ("11-xbox", |_, m| m.source = "XBOX 360".into()),
-    ("12-android-tv", |_, m| m.source = "ANDROID TV".into()),
+    ("11-xbox", |_, m| m.input = "XBOX 360".into()),
+    ("12-android-tv", |_, m| m.input = "ANDROID TV".into()),
     ("13-receiver-off", |_, m| {
-        m.source = "KODI".into();
-        m.receiver_on = false;
+        m.input = "KODI".into();
+        m.power_on = false;
     }),
     ("14-wifi", |app, m| {
-        m.receiver_on = true;
+        m.power_on = true;
         app.go_to(Page::Wifi, 1);
     }),
     ("15-keyboard", |app, _| {
@@ -114,111 +114,111 @@ const STEPS: &[Step] = &[
     }),
     ("22-charging-home", |app, _| app.set_charge_card(false)),
     ("23-charging-kodi", |_, m| {
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
     }),
     ("30-codec-00", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "TrueHD Atmos 7.1".into();
     }),
     ("30-codec-01", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DD+ Atmos 5.1".into();
     }),
     ("30-codec-02", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DTS:X 7.1".into();
     }),
     ("30-codec-03", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DTS-HD MA 7.1".into();
     }),
     ("30-codec-04", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DTS-HD HRA 5.1".into();
     }),
     ("30-codec-05", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DTS 5.1".into();
     }),
     ("30-codec-06", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "TrueHD 7.1".into();
     }),
     ("30-codec-07", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DD+ 5.1".into();
     }),
     ("30-codec-08", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "Dolby Digital 5.1".into();
     }),
     ("30-codec-09", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "FLAC 2.0".into();
     }),
     ("30-codec-10", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "Alac 2 channels".into();
     }),
     ("30-codec-11", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "Opus 5.1".into();
     }),
     ("30-codec-12", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "MP3 stereo".into();
     }),
     ("30-codec-13", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "AAC-LC stereo".into();
     }),
     ("30-codec-14", |app, m| {
         app.go_to(Page::Home, 0);
         m.charging = false;
-        m.source = "KODI".into();
+        m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "Pcm_S24Le 2 channels".into();
     }),
@@ -347,17 +347,17 @@ fn ui(f: fn(&AppWindow)) -> Act {
 
 /// Sleep and wake, on the Kodi screen and then on the receiver screen.
 fn power_script() -> Vec<(u64, Act)> {
-    let source = |name: &'static str| -> Act {
+    let input = |name: &'static str| -> Act {
         Box::new(move |_, tx| {
-            let _ = tx.send(UiAction::SelectSource(name.into()));
+            let _ = tx.send(UiAction::SelectInput(name.into()));
         })
     };
     vec![
-        (300, source("KODI")),
+        (300, input("KODI")),
         (2200, key("z")),
         (2400, key("z")),
         (2800, key("z")),
-        (2200, source("PLAYSTATION 5")),
+        (2200, input("PLAYSTATION 5")),
         (300, key("z")),
         (2800, key("z")),
         (2400, ui(|_| {})),
@@ -417,7 +417,7 @@ fn home_script() -> Vec<(u64, Act)> {
     let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "h".into() });
     let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "h".into() });
     let kodi: Act = Box::new(|_, tx| {
-        let _ = tx.send(UiAction::SelectSource("KODI".into()));
+        let _ = tx.send(UiAction::SelectInput("KODI".into()));
     });
     vec![(300, kodi), (1800, ui(down)), (120, ui(up)), (1500, ui(down)), (900, ui(up)), (2200, ui(down)), (120, ui(up)), (1800, ui(|_| {}))]
 }
@@ -462,7 +462,7 @@ fn press(text: &'static str) -> Act {
 /// then the audio and subtitle pickers.
 fn media_script() -> Vec<(u64, Act)> {
     let kodi: Act = Box::new(|_, tx| {
-        let _ = tx.send(UiAction::SelectSource("KODI".into()));
+        let _ = tx.send(UiAction::SelectInput("KODI".into()));
     });
     let tap = |x: f32, y: f32| -> Act {
         Box::new(move |a, _| {
@@ -504,7 +504,7 @@ fn media_script() -> Vec<(u64, Act)> {
 /// menu over the stage, and the power hold over everything.
 fn layers_script() -> Vec<(u64, Act)> {
     let kodi: Act = Box::new(|_, tx| {
-        let _ = tx.send(UiAction::SelectSource("KODI".into()));
+        let _ = tx.send(UiAction::SelectInput("KODI".into()));
     });
     let tap = |x: f32, y: f32| -> Act {
         Box::new(move |a, _| {
@@ -539,22 +539,22 @@ fn layers_script() -> Vec<(u64, Act)> {
 
 /// Main stage to main stage: stop and play on Kodi, change input, and the receiver off and on.
 fn stages_script() -> Vec<(u64, Act)> {
-    let source = |name: &'static str| -> Act {
+    let input = |name: &'static str| -> Act {
         Box::new(move |_, tx| {
-            let _ = tx.send(UiAction::SelectSource(name.into()));
+            let _ = tx.send(UiAction::SelectInput(name.into()));
         })
     };
     use slint::platform::WindowEvent;
     let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "p".into() });
     let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "p".into() });
     vec![
-        (300, source("KODI")),
+        (300, input("KODI")),
         (1800, key("s")),
         (1600, key(" ")),
-        (1800, source("PLAYSTATION 5")),
-        (1600, source("XBOX 360")),
-        (1600, source("ANDROID TV")),
-        (1600, source("KODI")),
+        (1800, input("PLAYSTATION 5")),
+        (1600, input("XBOX 360")),
+        (1600, input("ANDROID TV")),
+        (1600, input("KODI")),
         (1600, ui(down)),
         (1500, ui(up)),
         (2000, ui(down)),
@@ -567,14 +567,14 @@ fn stages_script() -> Vec<(u64, Act)> {
 /// with a sheen until the receiver confirms.
 fn switch_script() -> Vec<(u64, Act)> {
     vec![
-        (900, ui(|a| a.go_to(Page::Inputs, a.get_source_index()))),
+        (900, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
         (700, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(1))),
         (600, ui(|a| a.invoke_move(1))),
         (600, ui(|a| a.invoke_move(1))),
         (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
-        (3000, ui(|a| a.go_to(Page::Inputs, a.get_source_index()))),
+        (3000, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
         (700, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(-1))),
@@ -673,7 +673,7 @@ fn wall_script() -> Vec<(u64, Act)> {
     let load: Act = {
         let shelf = movies.clone();
         Box::new(move |app, tx| {
-            let _ = tx.send(UiAction::SelectSource("KODI".into()));
+            let _ = tx.send(UiAction::SelectInput("KODI".into()));
             app.set_lib_heading("MOVIES".into());
             app.set_lib_count(shelf.count.clone().into());
             app.set_lib_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
@@ -691,7 +691,7 @@ fn feature_script() -> Vec<(u64, Act)> {
     let want = std::env::var("UC_DEMO_FOCUS").unwrap_or_default().to_lowercase();
     let focus = movies.items.iter().position(|i| !want.is_empty() && i.title.to_lowercase().contains(&want)).unwrap_or(0) as i32;
     let load: Act = Box::new(move |app, tx| {
-        let _ = tx.send(UiAction::SelectSource("KODI".into()));
+        let _ = tx.send(UiAction::SelectInput("KODI".into()));
         app.set_lib_heading("MOVIES".into());
         app.set_lib_count(movies.count.clone().into());
         app.set_lib_items(Rc::new(slint::VecModel::from(movies.items.clone())).into());
@@ -706,7 +706,7 @@ fn walls_script() -> Vec<(u64, Act)> {
     let load: Act = {
         let shelf = movies.clone();
         Box::new(move |app, tx| {
-            let _ = tx.send(UiAction::SelectSource("KODI".into()));
+            let _ = tx.send(UiAction::SelectInput("KODI".into()));
             app.set_lib_heading("MOVIES".into());
             app.set_lib_count(shelf.count.clone().into());
             app.set_lib_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
@@ -778,22 +778,22 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
     let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "p".into() });
     let start = std::env::var("UC_SITE_SOURCE").unwrap_or_else(|_| "KODI".into());
     let first: Act = Box::new(move |_, tx| {
-        let _ = tx.send(UiAction::SelectSource(start.clone()));
+        let _ = tx.send(UiAction::SelectInput(start.clone()));
     });
     let mut s: Vec<(u64, Act)> = vec![(300, first), (SITE_LEAD - 300, ui(|_| {}))];
     s.extend(match name {
         "site-inputs" => vec![
-            (900, ui(|a| a.go_to(Page::Inputs, a.get_source_index()))),
+            (900, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
             (700, ui(|a| a.invoke_move(1))),
             (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
-            (2300, ui(|a| a.go_to(Page::Inputs, a.get_source_index()))),
+            (2300, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
             (700, ui(|a| a.invoke_move(1))),
             (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
             (2400, ui(|_| {})),
         ],
         "site-switch" => {
             let steps: i32 = std::env::var("UC_SITE_STEPS").ok().and_then(|n| n.parse().ok()).unwrap_or(1);
-            let mut v: Vec<(u64, Act)> = vec![(1400, ui(|a| a.go_to(Page::Inputs, a.get_source_index())))];
+            let mut v: Vec<(u64, Act)> = vec![(1400, ui(|a| a.go_to(Page::Inputs, a.get_input_index())))];
             for _ in 0..steps.abs() {
                 v.push((550, Box::new(move |a: &AppWindow, _: &Tx| a.invoke_move(steps.signum()))));
             }
@@ -935,16 +935,16 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
 }
 
 fn lava_script() -> Vec<(u64, Act)> {
-    let source = |name: &'static str| -> Act {
+    let input = |name: &'static str| -> Act {
         Box::new(move |_, tx| {
-            let _ = tx.send(UiAction::SelectSource(name.into()));
+            let _ = tx.send(UiAction::SelectInput(name.into()));
         })
     };
     vec![
-        (200, source("KODI")),
-        (4500, source("PLAYSTATION 5")),
-        (4000, source("XBOX 360")),
-        (4000, source("ANDROID TV")),
+        (200, input("KODI")),
+        (4500, input("PLAYSTATION 5")),
+        (4000, input("XBOX 360")),
+        (4000, input("ANDROID TV")),
         (4000, ui(|_| {})),
     ]
 }
@@ -1002,7 +1002,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         (320, key("+")),
         (320, key("+")),
         // Open the input list, walk up to KODI, select it.
-        (1300, ui(|a| a.go_to(Page::Inputs, a.get_source_index()))),
+        (1300, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
         (800, ui(|a| a.invoke_move(-1))),
         (380, ui(|a| a.invoke_move(-1))),
         (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
@@ -1028,10 +1028,10 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         (1200, ui(|a| a.invoke_back())),
         (700, ui(|a| a.invoke_back())),
         // Switching input changes the interface colour, and the keys follow.
-        (1400, ui(|a| a.invoke_select_source("PLAYSTATION 5".into()))),
-        (1700, ui(|a| a.invoke_select_source("XBOX 360".into()))),
-        (1700, ui(|a| a.invoke_select_source("ANDROID TV".into()))),
-        (1700, ui(|a| a.invoke_select_source("KODI".into()))),
+        (1400, ui(|a| a.invoke_select_input("PLAYSTATION 5".into()))),
+        (1700, ui(|a| a.invoke_select_input("XBOX 360".into()))),
+        (1700, ui(|a| a.invoke_select_input("ANDROID TV".into()))),
+        (1700, ui(|a| a.invoke_select_input("KODI".into()))),
         (1600, ui(|_| {})),
     ]
 }

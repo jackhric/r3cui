@@ -21,7 +21,7 @@ pub(crate) enum UiAction {
     PlayPause,
     /// Desktop only: a key that toggles part of the demo (c charging, x Home Assistant down, z awake).
     DemoKey(char),
-    SelectSource(String),
+    SelectInput(String),
     Power(String),
     PowerHeld,
     WifiScan,
@@ -50,7 +50,7 @@ pub(crate) enum Settings {
 pub(crate) enum Later {
     Wifi(String, Vec<wifi::Network>),
     JoinDone(bool),
-    /// Demo only: the receiver has caught up with an input change.
+    /// Demo only: the device has caught up with an input change.
     Switched,
     /// The slider's throttled volume command is due.
     SendVolume,

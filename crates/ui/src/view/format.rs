@@ -142,7 +142,7 @@ pub(crate) fn codec_logo(app: &AppWindow, id: &str) -> CodecLogo {
     }
 }
 /// A brand mark found from an input's name, for inputs with no driver to give one.
-pub(crate) fn source_logo(logos: &Logos, name: &str) -> SharedString {
+pub(crate) fn input_logo(logos: &Logos, name: &str) -> SharedString {
     let n = name.to_lowercase();
     let has = |words: &[&str]| words.iter().any(|w| n.contains(w));
     if has(&["playstation", "ps4", "ps5"]) {

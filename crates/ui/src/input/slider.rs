@@ -4,7 +4,7 @@
 use std::time::{Duration, Instant};
 
 /// How far a finger travels for one step: the whole strip is 100 steps, which the caller maps
-/// onto the receiver's usable range.
+/// onto the device's usable range.
 const STEP: f32 = 1.0 / 100.0;
 /// Further than this and a touch is a slide, not a tap.
 const TAP_TRAVEL: f32 = 0.05;
@@ -68,16 +68,16 @@ impl Slider {
     }
 }
 
-/// Paces volume commands to what the receiver can take: one in flight at a time, at least
-/// `min_gap` apart. The next goes out once the receiver reports the last one, or after `max_wait`
+/// Paces volume commands to what the device can take: one in flight at a time, at least
+/// `min_gap` apart. The next goes out once the device reports the last one, or after `max_wait`
 /// if it never does. Changes in between are merged, and the latest always goes out, so the
-/// receiver heads for wherever the finger is now and never builds up a queue.
+/// device heads for wherever the finger is now and never builds up a queue.
 pub struct Pacer {
     min_gap: Duration,
     max_wait: Duration,
     sent: Option<(i32, Instant)>,
     confirmed: bool,
-    /// The level the receiver last reported.
+    /// The level the device last reported.
     level: Option<i32>,
     pending: Option<i32>,
     /// Moves folded into the next send, for the log.
@@ -107,7 +107,7 @@ impl Pacer {
         self.next(now)
     }
 
-    /// The receiver reported this level.
+    /// The device reported this level.
     /// How many changes were merged into the send just made, for the log; counting starts again.
     pub fn take_merged(&mut self) -> u32 {
         std::mem::take(&mut self.merged)
@@ -131,7 +131,7 @@ impl Pacer {
 
     fn next(&mut self, now: Instant) -> Send {
         let Some(value) = self.pending else { return Send::Wait };
-        // The receiver reports only changes, so asking for the level it is already at would
+        // The device reports only changes, so asking for the level it is already at would
         // never be answered. Safe to skip only when nothing else is on its way.
         if self.confirmed && self.level == Some(value) {
             self.pending = None;
@@ -163,20 +163,20 @@ mod tests {
     }
 
     #[test]
-    fn pacer_waits_for_the_receiver_and_sends_only_the_latest() {
+    fn pacer_waits_for_the_device_and_sends_only_the_latest() {
         let t0 = Instant::now();
         let mut p = Pacer::new(Duration::from_millis(250), Duration::from_millis(1000));
         assert_eq!(p.offer(60, t0), Send::Now(60));
         // Not confirmed yet: wait up to a second, merging what comes in.
         assert_eq!(p.offer(61, ms(t0, 50)), Send::Later(Duration::from_millis(950)));
         assert_eq!(p.offer(64, ms(t0, 100)), Send::Wait);
-        // The receiver reports 60 after 400 ms: the latest goes out at once (past the 250 ms gap).
+        // The device reports 60 after 400 ms: the latest goes out at once (past the 250 ms gap).
         assert_eq!(p.reported(60, ms(t0, 400)), Send::Now(64));
         // Confirmed quickly: the next still keeps the minimum gap.
         assert_eq!(p.reported(64, ms(t0, 450)), Send::Wait);
         assert_eq!(p.offer(66, ms(t0, 500)), Send::Later(Duration::from_millis(150)));
         assert_eq!(p.due(ms(t0, 650)), Send::Now(66));
-        // A receiver that never answers costs a second, not a queue.
+        // A device that never answers costs a second, not a queue.
         assert_eq!(p.offer(70, ms(t0, 700)), Send::Later(Duration::from_millis(950)));
         assert_eq!(p.due(ms(t0, 1650)), Send::Now(70));
         // Stale reports of other levels do not count as confirmation.
@@ -185,13 +185,13 @@ mod tests {
     }
 
     #[test]
-    fn pacer_skips_the_level_the_receiver_is_at() {
+    fn pacer_skips_the_level_the_device_is_at() {
         let t0 = Instant::now();
         let mut p = Pacer::new(Duration::from_millis(250), Duration::from_millis(600));
         p.reported(72, t0);
         assert_eq!(p.offer(72, ms(t0, 10)), Send::Wait);
         assert_eq!(p.offer(70, ms(t0, 20)), Send::Now(70));
-        // Back to 72 while 70 is still on its way: 72 must still go, or the receiver ends at 70.
+        // Back to 72 while 70 is still on its way: 72 must still go, or the device ends at 70.
         assert_eq!(p.offer(72, ms(t0, 30)), Send::Later(Duration::from_millis(590)));
         assert_eq!(p.reported(70, ms(t0, 300)), Send::Now(72));
     }

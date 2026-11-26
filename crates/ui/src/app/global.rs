@@ -1,4 +1,4 @@
-//! Global control as the screen shows it: the volume and source the host reports, with what was asked here shown
+//! Global control as the screen shows it: the volume and input the host reports, with what was asked here shown
 //! until the device confirms it (it can take seconds, and a minute to come on), and the volume scale.
 
 use crate::app::optimistic::Optimistic;
@@ -16,7 +16,7 @@ const POWER_TIMEOUT: Duration = Duration::from_secs(120);
 
 pub(crate) struct Global {
     volume: Optimistic<i32>,
-    source: Optimistic<String>,
+    input: Optimistic<String>,
     power: Optimistic<bool>,
     /// So a second double tap undoes the first even before the device reports.
     mute: Optimistic<bool>,
@@ -29,7 +29,7 @@ pub(crate) struct View {
     pub(crate) volume_max: i32,
     pub(crate) muted: bool,
     /// The input on now, by id.
-    pub(crate) source: String,
+    pub(crate) input: String,
     /// An input picked here that the device hasn't confirmed yet.
     pub(crate) switching: bool,
     pub(crate) on: bool,
@@ -39,7 +39,7 @@ impl Default for Global {
     fn default() -> Self {
         Self {
             volume: Optimistic::new(SLIDER_HOLD, SLIDER_SETTLE),
-            source: Optimistic::new(Duration::ZERO, SWITCH_TIMEOUT),
+            input: Optimistic::new(Duration::ZERO, SWITCH_TIMEOUT),
             power: Optimistic::new(Duration::ZERO, POWER_TIMEOUT),
             mute: Optimistic::new(Duration::ZERO, SLIDER_SETTLE),
         }
@@ -55,16 +55,16 @@ impl Global {
             volume: self.volume.resolve(v.level),
             volume_max: v.max,
             muted: self.mute.resolve(v.muted),
-            switching: self.source.pending(&reported),
-            source: self.source.resolve(reported),
-            // The device is the source of truth: anything short of on is off. With no source there is nothing to
+            switching: self.input.pending(&reported),
+            input: self.input.resolve(reported),
+            // The device is the source of truth: anything short of on is off. With no input list there is nothing to
             // switch off.
             on: self.power.resolve(s.as_ref().is_none_or(|s| s.on)),
         }
     }
 
-    pub(crate) fn select_source(&mut self, host: &Host, id: String) {
-        self.source.ask(id.clone());
+    pub(crate) fn select_input(&mut self, host: &Host, id: String) {
+        self.input.ask(id.clone());
         host.send_source(SourceIntent::Select(id));
     }
 

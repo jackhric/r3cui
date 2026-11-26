@@ -127,14 +127,14 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
                 }
                 UiAction::DemoKey('c') => m.charging = !m.charging,
                 UiAction::DemoKey('x') => m.demo_ha_down = !m.demo_ha_down,
-                UiAction::SelectSource(name) => {
-                    m.source = name;
+                UiAction::SelectInput(name) => {
+                    m.input = name;
                     m.switching = true;
                     after(1800, Later::Switched);
                 }
                 UiAction::PlayPause => m.paused = !m.paused,
                 UiAction::Power(what) => tracing::info!("power action {what}"),
-                UiAction::PowerHeld => m.receiver_on = !m.receiver_on,
+                UiAction::PowerHeld => m.power_on = !m.power_on,
                 // Stand-in for the core's power-mode event.
                 UiAction::DemoKey('z') => m.awake = !m.awake,
                 UiAction::DemoKey(_) | UiAction::Integrations(_) => {}

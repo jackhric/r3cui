@@ -5,7 +5,7 @@
 use crate::AppWindow;
 use crate::app::global::{slide, Global};
 use crate::app::integrations::{Effect, Integrations};
-use crate::app::model::{Model, Source};
+use crate::app::model::{InputEntry, Model};
 use crate::app::{Later, Settings, UiAction, settings};
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
 use crate::hardware::{backlight, feedback};
@@ -17,7 +17,7 @@ use crate::view::library::Wall;
 use crate::view::screen::{Page, Picker, Screen};
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
-use drivers::api::{KeyLight, KeyMode, Media, Stage, UiIntent, VolumeIntent};
+use drivers::api::{Media, Stage, UiIntent, VolumeIntent};
 use drivers::{Host, Input, Modules, Registry, Store};
 
 use std::sync::atomic::AtomicU64;
@@ -69,7 +69,7 @@ impl Frontend {
     }
 
     fn current(&self) -> Option<Input> {
-        self.host.current(&self.global.view(&self.host).source)
+        self.host.current(&self.global.view(&self.host).input)
     }
 
     fn stage(&self) -> Stage {
@@ -99,7 +99,7 @@ impl Session<'_> {
         let current = self.front.current();
         let stage = self.front.host.stage(current.as_ref());
         let m = self.model(current.as_ref(), &stage);
-        self.front.host.show(current.as_ref(), m.awake && m.receiver_on);
+        self.front.host.show(current.as_ref(), m.awake && m.power_on);
         self.front.wall.show(stage.library.as_ref());
         self.sync_poster(weak, stage.media.as_ref());
         show_settings(weak, self.front.settings.page(&self.front.host));
@@ -158,7 +158,7 @@ impl Session<'_> {
         let media = stage.media.as_ref();
         let (duration, position) = media.map_or((0.0, 0.0), |m| (m.total.as_secs_f64(), m.position_at(now).as_secs_f64()));
         Model {
-            keys: keys(host.key_light()),
+            key_light: host.key_light().unwrap_or_default(),
             wifi_ssid: self.wifi.ssid.clone(),
             wifi: self.wifi.networks.clone(),
             wifi_band: self.wifi.band.clone(),
@@ -170,8 +170,8 @@ impl Session<'_> {
             has_volume: host.has_volume(),
             volume_max: g.volume_max,
             muted: g.muted,
-            sources: host.inputs().into_iter().filter(|i| !i.hidden).map(|i| Source { icon: host.icon(&i), id: i.id, name: i.name }).collect(),
-            source: current.map_or(g.source, |i| i.id.clone()),
+            inputs: host.inputs().into_iter().filter(|i| !i.hidden).map(|i| InputEntry { icon: host.icon(&i), id: i.id, name: i.name }).collect(),
+            input: current.map_or(g.input, |i| i.id.clone()),
             switching: g.switching,
             staged: current.is_some_and(|i| i.ui.is_some()),
             title: media.map(|m| m.title.clone()).unwrap_or_default(),
@@ -185,7 +185,7 @@ impl Session<'_> {
             battery: self.system.battery,
             charging: self.system.charging,
             awake: self.system.awake,
-            receiver_on: g.on,
+            power_on: g.on,
         }
     }
 
@@ -211,16 +211,6 @@ impl Session<'_> {
             });
         });
     }
-}
-
-fn keys(light: Option<KeyLight>) -> backlight::Ha {
-    let Some(k) = light else { return backlight::Ha::default() };
-    let mode = match k.mode {
-        KeyMode::Follow => backlight::Mode::Follow,
-        KeyMode::Custom => backlight::Mode::Custom,
-        KeyMode::Off => backlight::Mode::Off,
-    };
-    backlight::Ha { mode, colour: k.colour.map(|(r, g, b)| backlight::Rgb(r, g, b)) }
 }
 
 /// The picker's rows (label, detail) and the one on now; subtitles start with Off.
@@ -386,7 +376,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         };
                         front.host.send_ui(front.current().as_ref(), intent);
                     }
-                    UiAction::SelectSource(id) => front.global.select_source(&front.host, id),
+                    UiAction::SelectInput(id) => front.global.select_input(&front.host, id),
                     UiAction::Power(what) => {
                         // Not wired yet: a stray tap in a prototype should not switch the remote off.
                         tracing::info!("power action {what} (not sent)");

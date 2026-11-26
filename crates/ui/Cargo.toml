@@ -24,7 +24,7 @@ ureq = { version = "2", default-features = false }
 
 # `desktop` (default) runs in a window on the workstation. `device` renders straight to the
 # remote's display through KMS; libinput is left out because the device has none, and
-# evdev_input.rs reads the touchscreen and keys itself.
+# input/evdev.rs reads the touchscreen and keys itself.
 [dependencies.slint]
 version = "1.19"
 default-features = false

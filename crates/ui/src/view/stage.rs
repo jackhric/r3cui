@@ -29,9 +29,9 @@ pub(crate) fn soften(img: &image::RgbaImage, sigma: f32) -> slint::Image {
 /// What decides which main stage is showing.
 #[derive(Clone, PartialEq)]
 pub(crate) struct StageKey {
-    receiver_on: bool,
+    power_on: bool,
     playing: bool,
-    source: String,
+    input: String,
     /// The poster wall, standing in for the idle stage.
     library: bool,
 }
@@ -40,7 +40,7 @@ thread_local!(static STAGE: RefCell<Option<StageKey>> = const { RefCell::new(Non
 /// view, blur through from the old one to the new.
 pub(crate) fn stage_change(app: &AppWindow, m: &Model, change: impl FnOnce()) {
     let playing = m.staged && !m.title.is_empty();
-    let key = StageKey { receiver_on: m.receiver_on, playing, source: m.source.clone(), library: app.lib_mode() != LibMode::Off && !playing };
+    let key = StageKey { power_on: m.power_on, playing, input: m.input.clone(), library: app.lib_mode() != LibMode::Off && !playing };
     swap_stage(app, key, change);
 }
 /// Show or hide the poster wall, blurring across like any other change of stage.
@@ -85,7 +85,7 @@ pub(crate) fn swap_stage(app: &AppWindow, key: StageKey, change: impl FnOnce()) 
     change();
     let new = snapshot_stage(app);
     let (Some(old), Some(new)) = (old, new) else { return };
-    let plain = before.is_some_and(|b| b.receiver_on == key.receiver_on && b.source == key.source);
+    let plain = before.is_some_and(|b| b.power_on == key.power_on && b.input == key.input);
     app.set_swap_plain(plain);
     app.set_swap_out_blur(soften(&old, 2.2));
     app.set_swap_in_blur(soften(&new, 2.2));

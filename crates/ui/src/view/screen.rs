@@ -27,7 +27,7 @@ impl Page {
     }
 }
 
-/// What the stage shows of Kodi's library. Only `Off` and `Wall` are live; the rest are the previews' variations.
+/// What the stage shows of an input's library. Only `Off` and `Wall` are live; the rest are the previews' variations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LibMode {
     Off = 0,

@@ -9,13 +9,13 @@ pub(crate) mod screen;
 pub(crate) mod stage;
 
 use crate::view::screen::{Capture, JoinState, Page, Screen};
-use crate::{AppWindow, Choice, Logos, SourceRow, StatusRow, Theme, WifiRow};
+use crate::{AppWindow, Choice, Logos, InputRow, StatusRow, Theme, WifiRow};
 
 use crate::app::settings;
 use crate::app::model::Model;
 use crate::hardware::backlight;
 use crate::app::global::{volume_db, volume_percent};
-use crate::view::format::{band_label, clock, codec_badge, codec_logo, source_logo};
+use crate::view::format::{band_label, clock, codec_badge, codec_logo, input_logo};
 use crate::view::idle::poke;
 use crate::view::stage::{capture, stage_change};
 #[cfg(feature = "device")]
@@ -42,7 +42,7 @@ pub(crate) fn set_poster_accent(app: &AppWindow, tint: Option<(u8, u8, u8)>) {
         app.set_poster_accent(slint::Color::from_rgb_u8(r, g, b));
     }
     // The poster arrives after the film is already showing, so take the colour up at once.
-    let film_on_screen = app.get_receiver_on() && app.get_staged() && !app.get_media_title().is_empty();
+    let film_on_screen = app.get_power_on() && app.get_staged() && !app.get_media_title().is_empty();
     if film_on_screen && tint.is_some() && std::env::var_os("UC_ACCENT").is_none() {
         set_accent(app, app.get_poster_accent());
     }
@@ -159,8 +159,8 @@ pub(crate) fn kick_if_changed(m: &Model) {
     use std::hash::{Hash, Hasher};
     thread_local!(static LAST: std::cell::Cell<u64> = const { std::cell::Cell::new(0) });
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    (m.volume, m.muted, &m.source, &m.title, m.paused, m.awake, m.receiver_on, &m.warning, m.scanning, m.wifi.len()).hash(&mut h);
-    format!("{:?}", m.keys).hash(&mut h);
+    (m.volume, m.muted, &m.input, &m.title, m.paused, m.awake, m.power_on, &m.warning, m.scanning, m.wifi.len()).hash(&mut h);
+    format!("{:?}", m.key_light).hash(&mut h);
     let now = h.finish();
     if LAST.with(|l| l.replace(now)) != now {
         frames::kick();
@@ -178,15 +178,15 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
 
     app.set_clock(now.format("%H:%M").to_string().into());
     if std::env::var_os("UC_ACCENT").is_none() {
-        let film_on_screen = m.receiver_on && m.staged && !m.title.is_empty() && app.get_poster_tinted();
-        let accent = if film_on_screen { Some(app.get_poster_accent()) } else { settings::get().accent_for(&m.source).and_then(parse_color) };
+        let film_on_screen = m.power_on && m.staged && !m.title.is_empty() && app.get_poster_tinted();
+        let accent = if film_on_screen { Some(app.get_poster_accent()) } else { settings::get().accent_for(&m.input).and_then(parse_color) };
         if let Some(accent) = accent {
             set_accent(app, accent);
         }
     }
     app.set_awake(m.awake);
-    app.set_receiver_on(m.receiver_on);
-    backlight::set_ha(m.keys);
+    app.set_power_on(m.power_on);
+    backlight::set_requested(m.key_light);
     app.set_battery(m.battery);
     if m.charging != app.get_charging() {
         // Put on the charger: show the battery, and start counting down to dark from now.
@@ -201,26 +201,26 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
         }
     }
     app.set_charging(m.charging);
-    // Shown as 0-100 of the receiver's limit; the dB figure stays the receiver's own.
+    // Shown as 0-100 of the volume limit; the dB figure stays the device's own.
     app.set_volume(volume_percent(m.volume, m.volume_max));
     app.set_volume_db(volume_db(m.volume).into());
     app.set_muted(m.muted);
     app.set_has_volume(m.has_volume);
 
-    let name = m.sources.iter().find(|s| s.id == m.source).map_or(m.source.as_str(), |s| s.name.as_str());
-    app.set_source(name.into());
+    let name = m.inputs.iter().find(|s| s.id == m.input).map_or(m.input.as_str(), |s| s.name.as_str());
+    app.set_input(name.into());
     app.set_switching(m.switching);
-    let mark = |s: &crate::app::model::Source| s.icon.map_or_else(|| source_logo(&logos, &s.id), SharedString::from);
-    app.set_source_icon(m.sources.iter().find(|s| s.id == m.source).map_or_else(|| source_logo(&logos, &m.source), mark));
-    let current = m.sources.iter().position(|s| s.id == m.source).map_or(-1, |i| i as i32);
-    let rows: Vec<SourceRow> =
-        m.sources.iter().map(|s| SourceRow { id: (&s.id).into(), name: (&s.name).into(), icon: mark(s) }).collect();
-    if app.get_sources().iter().ne(rows.iter().cloned()) {
-        app.set_sources(ModelRc::new(VecModel::from(rows)));
+    let mark = |s: &crate::app::model::InputEntry| s.icon.map_or_else(|| input_logo(&logos, &s.id), SharedString::from);
+    app.set_input_icon(m.inputs.iter().find(|s| s.id == m.input).map_or_else(|| input_logo(&logos, &m.input), mark));
+    let current = m.inputs.iter().position(|s| s.id == m.input).map_or(-1, |i| i as i32);
+    let rows: Vec<InputRow> =
+        m.inputs.iter().map(|s| InputRow { id: (&s.id).into(), name: (&s.name).into(), icon: mark(s) }).collect();
+    if app.get_inputs().iter().ne(rows.iter().cloned()) {
+        app.set_inputs(ModelRc::new(VecModel::from(rows)));
     }
-    app.set_source_index(current);
+    app.set_input_index(current);
     let inputs: Vec<Choice> = m
-        .sources
+        .inputs
         .iter()
         .enumerate()
         .map(|(i, s)| Choice { label: (&s.name).into(), icon: mark(s), checked: i as i32 == current, ..Default::default() })

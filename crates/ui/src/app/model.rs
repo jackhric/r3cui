@@ -1,6 +1,6 @@
 //! Everything the screen shows, independent of where it came from (core or demo).
 
-use crate::hardware::backlight;
+use drivers::api::KeyLight;
 use crate::remote::{health, wifi};
 
 /// Everything the screen shows, independent of where it came from (core or demo).
@@ -11,12 +11,12 @@ pub(crate) struct Model {
     pub has_volume: bool,
     pub muted: bool,
     /// The input on now, by id.
-    pub source: String,
+    pub input: String,
     /// The inputs to choose from, in order, hidden ones left out.
-    pub sources: Vec<Source>,
+    pub inputs: Vec<InputEntry>,
     /// The input on now has something in its UI slot: the home page is its stage.
     pub staged: bool,
-    /// The input was just picked here and the receiver has not confirmed it yet.
+    /// The input was just picked here and the source has not confirmed it yet.
     pub switching: bool,
     pub title: String,
     pub paused: bool,
@@ -30,10 +30,10 @@ pub(crate) struct Model {
     pub battery: i32,
     /// On the dock or a cable.
     pub charging: bool,
-    /// The highest volume allowed (the receiver's own volume limit), on the same scale as `volume`.
+    /// The highest volume allowed (the device's own volume limit), on the same scale as `volume`.
     pub volume_max: i32,
     pub awake: bool,
-    pub receiver_on: bool,
+    pub power_on: bool,
     pub wifi_ssid: String,
     pub wifi: Vec<wifi::Network>,
     /// The preferred Wi-Fi band as the core names it: "a" 5 GHz, "b" 2.4 GHz; empty when unknown.
@@ -41,13 +41,13 @@ pub(crate) struct Model {
     pub scanning: bool,
     pub status: Vec<health::StatusLine>,
     pub warning: String,
-    pub keys: backlight::Ha,
+    pub key_light: KeyLight,
     /// Demo only: pretend Home Assistant cannot be reached.
     pub demo_ha_down: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct Source {
+pub(crate) struct InputEntry {
     pub id: String,
     pub name: String,
     /// The mark of the driver in its slots; without one, a brand mark is found from the name.
@@ -59,10 +59,10 @@ impl Model {
             volume: 62,
             has_volume: true,
             muted: false,
-            source: "PLAYSTATION 5".into(),
-            sources: ["ANDROID TV", "KODI", "PLAYSTATION 5", "XBOX 360"]
+            input: "PLAYSTATION 5".into(),
+            inputs: ["ANDROID TV", "KODI", "PLAYSTATION 5", "XBOX 360"]
                 .into_iter()
-                .map(|s| Source { id: s.into(), name: s.into(), icon: (s == "KODI").then_some(drivers::kodi::SPEC.icon) })
+                .map(|s| InputEntry { id: s.into(), name: s.into(), icon: (s == "KODI").then_some(drivers::kodi::SPEC.icon) })
                 .collect(),
             title: "Mad Max: Fury Road".into(),
             paused: false,
@@ -74,7 +74,7 @@ impl Model {
             battery: 81,
             volume_max: 72,
             awake: true,
-            receiver_on: true,
+            power_on: true,
             wifi_ssid: "HomeNetwork".into(),
             wifi: wifi::demo_networks("HomeNetwork"),
             wifi_band: "b".into(),
@@ -92,7 +92,7 @@ impl Model {
             self.title = t;
         }
         if let Some(s) = var("UC_DEMO_SOURCE") {
-            self.source = s;
+            self.input = s;
         }
         if let Some(f) = var("UC_DEMO_FORMAT") {
             self.media_format = f;
@@ -104,7 +104,7 @@ impl Model {
     pub fn with_demo_health(mut self) -> Self {
         use drivers::api::{Health, Status};
         let link = |name: &str, up: bool| health::Link { name: name.into(), status: Status::new(if up { Health::Up } else { Health::Down }), in_use: true };
-        self.staged = self.source.eq_ignore_ascii_case("kodi");
+        self.staged = self.input.eq_ignore_ascii_case("kodi");
         (self.status, self.warning) = health::health(&self.wifi_ssid, &[link("Home Assistant", !self.demo_ha_down), link("Kodi", true)]);
         self
     }
