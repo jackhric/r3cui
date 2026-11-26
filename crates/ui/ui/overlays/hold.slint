@@ -1,0 +1,173 @@
+import { Capture, Haptic, PageId } from "../types.slint";
+import { Control } from "../globals/control.slint";
+import { Fx } from "../globals/fx.slint";
+import { Nav } from "../globals/nav.slint";
+import { KeyChars } from "../keys.slint";
+import { Glyph, Icons, Logo, Theme } from "../theme.slint";
+
+enum HoldKind {
+    home,
+    power,
+}
+
+// Holding power or Home: one overlay. A ring fills around a mark placed exactly where the home
+// screen's mark sits. Progress runs from the clock, so every hold starts from an empty ring.
+export component HoldOverlay inherits Rectangle {
+    out property <bool> power-overlay: root.power-holding || root.power-latched;
+    out property <bool> power-turning-off: true;
+    out property <bool> home-holding: root.home-down && root.home-rumbling && !root.home-used;
+    property <bool> power-holding;
+    property <bool> power-latched;
+    // Stays set through the fade-out so the label does not flip back while disappearing.
+    property <bool> power-completed;
+    property <color> power-tint: root.power-turning-off ? Theme.off : Theme.on;
+    // The home key: a tap is home, a hold opens the input list.
+    property <bool> home-down;
+    property <bool> home-used;
+    property <bool> home-rumbling;
+    property <duration> home-hold-start;
+    property <duration> power-hold-start;
+    // Which hold the overlay shows. Kept through the fade-out so the overlay does not change look
+    // while it disappears.
+    property <HoldKind> hold-look: HoldKind.home;
+    property <bool> hold-shown: root.power-overlay || root.home-holding;
+    property <float> hold-linear: root.power-latched ? 1
+        : root.power-holding ? clamp((animation-tick() - root.power-hold-start) / 1200ms, 0, 1)
+        : root.home-holding ? clamp((animation-tick() - root.home-hold-start) / 490ms, 0, 1)
+        : 0;
+    property <float> hold-progress: root.hold-linear * root.hold-linear * (3 - 2 * root.hold-linear);
+    property <float> ring: min(root.hold-progress, 0.9999);
+    property <color> ring-tint: root.hold-look == HoldKind.power ? root.power-tint : Theme.accent;
+
+    public function press-power() {
+        if (!root.power-latched) {
+            root.power-turning-off = Control.power-on;
+            root.power-completed = false;
+            Fx.capture(Capture.world);
+            root.hold-look = HoldKind.power;
+            root.power-hold-start = animation-tick();
+            root.power-holding = true;
+            Fx.haptic(Haptic.power-hold);
+        }
+    }
+    public function release-power() {
+        if (root.power-holding) {
+            root.power-holding = false;
+            Fx.haptic(Haptic.hold-cancel);
+        }
+    }
+    public function press-home() {
+        root.home-down = true;
+        root.home-used = false;
+        root.home-rumbling = false;
+    }
+    public function release-home() {
+        if (root.home-down) {
+            root.home-down = false;
+            if (!root.home-used) {
+                if (root.home-rumbling) {
+                    Fx.haptic(Haptic.hold-cancel);
+                }
+                // A tap: back to the home screen from anywhere else, or the input's own home.
+                if (Nav.page != PageId.home) {
+                    Nav.go(PageId.home, 0);
+                } else {
+                    Control.key(KeyChars.home);
+                }
+            }
+        }
+    }
+
+    background: #000000A6;
+    opacity: root.hold-shown ? 1 : 0;
+    visible: self.opacity > 0 && Fx.capturing == Capture.none;
+    animate opacity { duration: 160ms; easing: ease-out; }
+
+    Timer {
+        interval: 1200ms;
+        running: root.power-holding;
+        triggered => {
+            root.power-holding = false;
+            root.power-latched = true;
+            root.power-completed = true;
+            Control.power-held();
+            Fx.haptic(Haptic.power-complete);
+        }
+    }
+    // Taps are common, so the rumble waits a moment before starting.
+    Timer {
+        interval: 160ms;
+        running: root.home-down && !root.home-used && !root.home-rumbling;
+        triggered => {
+            Fx.capture(Capture.world);
+            root.hold-look = HoldKind.home;
+            root.home-hold-start = animation-tick();
+            root.home-rumbling = true;
+            Fx.haptic(Haptic.home-hold);
+        }
+    }
+    Timer {
+        interval: 650ms;
+        running: root.home-down && !root.home-used;
+        triggered => {
+            root.home-used = true;
+            Fx.haptic(Haptic.home-complete);
+            Nav.go(PageId.inputs, Control.input-index);
+        }
+    }
+    Timer {
+        interval: 900ms;
+        running: root.power-latched;
+        triggered => { root.power-latched = false; }
+    }
+
+    Path {
+        x: 120px;
+        y: 280px;
+        width: 240px;
+        height: 240px;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M12 1.5A10.5 10.5 0 1 1 11.999 1.5";
+        fill: transparent;
+        stroke: Theme.track;
+        stroke-width: 10px;
+    }
+    Path {
+        x: 120px;
+        y: 280px;
+        width: 240px;
+        height: 240px;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M12 1.5A10.5 10.5 0 " + (root.ring > 0.5 ? "1" : "0") + " 1 " + (12 + 10.5 * sin(root.ring * 360deg)) + " " + (12 - 10.5 * cos(root.ring * 360deg));
+        fill: transparent;
+        stroke: root.ring-tint;
+        stroke-width: 10px;
+        stroke-line-cap: round;
+        opacity: root.hold-progress > 0.001 ? 1 : 0;
+    }
+    if root.hold-look == HoldKind.home: Logo {
+        y: 330px;
+        size: 140px;
+        commands: Control.input-icon;
+        tint: Theme.text;
+    }
+    if root.hold-look == HoldKind.power: Glyph {
+        y: 345px;
+        size: 110px;
+        commands: Icons.power;
+        tint: root.power-completed ? root.power-tint : Theme.text;
+    }
+    Text {
+        y: 548px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: root.hold-look == HoldKind.home ? "Inputs"
+            : root.power-completed ? (root.power-turning-off ? "Off" : "On")
+            : (root.power-turning-off ? "Hold to turn off" : "Hold to turn on");
+        font-size: 26px;
+        font-weight: 300;
+        color: root.hold-look == HoldKind.power && root.power-completed ? Theme.text : Theme.t2;
+    }
+}
