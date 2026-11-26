@@ -269,7 +269,7 @@ export component PageHeader inherits Rectangle {
 }
 
 // A full-screen page that fades and slides by its depth in the navigation stack.
-export component Page inherits Rectangle {
+export component Layer inherits Rectangle {
     in property <int> depth;
     in property <int> current-depth;
     in property <bool> active;

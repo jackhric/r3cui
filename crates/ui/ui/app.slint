@@ -2,7 +2,7 @@ import "fonts/HankenGrotesk-200.ttf";
 import "fonts/HankenGrotesk-300.ttf";
 import "fonts/HankenGrotesk-400.ttf";
 import "fonts/HankenGrotesk-500.ttf";
-import { Choice, ChoiceList, Theme, Icons, Marks, Glyph, Logo, Bar, StatusBar, ListRow, PageHeader, Page } from "theme.slint";
+import { Choice, ChoiceList, Theme, Icons, Marks, Glyph, Logo, Bar, StatusBar, ListRow, PageHeader, Layer } from "theme.slint";
 import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
@@ -45,7 +45,7 @@ export struct KeyCell {
     style: int,
 }
 
-component Dot inherits Rectangle {
+component StatusDot inherits Rectangle {
     in property <int> level;
     width: 14px;
     height: 14px;
@@ -65,7 +65,7 @@ component WarningRow inherits Rectangle {
         spacing: 14px;
         VerticalLayout {
             alignment: center;
-            Dot { level: 1; }
+            StatusDot { level: 1; }
         }
         Text {
             text: root.message;
@@ -1117,7 +1117,7 @@ export component AppWindow inherits Window {
                 TouchArea { mouse-cursor: Theme.cursor; }
 
             // Inputs
-            Page {
+            Layer {
                 depth: 1;
                 current-depth: root.depth;
                 active: root.page == 1;
@@ -1132,7 +1132,7 @@ export component AppWindow inherits Window {
             }
 
             // Menu
-            Page {
+            Layer {
                 depth: 1;
                 current-depth: root.depth;
                 active: root.page == 2;
@@ -1155,7 +1155,7 @@ export component AppWindow inherits Window {
             }
 
             // Menu / Display
-            Page {
+            Layer {
                 depth: 2;
                 current-depth: root.depth;
                 active: root.page == 3;
@@ -1260,7 +1260,7 @@ export component AppWindow inherits Window {
             }
 
             // Menu / Power
-            Page {
+            Layer {
                 depth: 2;
                 current-depth: root.depth;
                 active: root.page == 4;
@@ -1279,7 +1279,7 @@ export component AppWindow inherits Window {
             }
 
             // Menu / Wi-Fi
-            Page {
+            Layer {
                 depth: 2;
                 current-depth: root.depth;
                 active: root.page == 5;
@@ -1293,7 +1293,7 @@ export component AppWindow inherits Window {
             }
 
             // Menu / Wi-Fi / password
-            Page {
+            Layer {
                 depth: 3;
                 current-depth: root.depth;
                 active: root.page == 6;
@@ -1405,7 +1405,7 @@ export component AppWindow inherits Window {
             }
 
             // Menu / Status
-            Page {
+            Layer {
                 depth: 2;
                 current-depth: root.depth;
                 active: root.page == 7;
@@ -1417,7 +1417,7 @@ export component AppWindow inherits Window {
             }
 
             // Menu / Integrations, every screen of it
-            Page {
+            Layer {
                 depth: 2;
                 current-depth: root.depth;
                 active: root.page == 11;
@@ -1431,7 +1431,7 @@ export component AppWindow inherits Window {
             }
 
             // Menu / Feedback lab
-            Page {
+            Layer {
                 depth: 2;
                 current-depth: root.depth;
                 active: root.page == 10;
@@ -1445,7 +1445,7 @@ export component AppWindow inherits Window {
             }
 
             // Menu / Wi-Fi / join failed
-            Page {
+            Layer {
                 depth: 4;
                 current-depth: root.depth;
                 active: root.page == 8;
@@ -1487,7 +1487,7 @@ export component AppWindow inherits Window {
             }
 
             // Audio or subtitle tracks
-            Page {
+            Layer {
                 depth: 1;
                 current-depth: root.depth;
                 active: root.page == 9;
