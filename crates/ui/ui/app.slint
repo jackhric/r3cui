@@ -7,17 +7,17 @@ import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
-import { Capture, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, StatusRow, KeyCell, LibItem } from "types.slint";
+import { Capture, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
 
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars }
 
 component StatusDot inherits Rectangle {
-    in property <int> level;
+    in property <Dot> dot;
     width: 14px;
     height: 14px;
     border-radius: 7px;
-    background: root.level == 0 ? Theme.good : root.level == 1 ? Theme.off : Theme.t3;
+    background: root.dot == Dot.up ? Theme.good : root.dot == Dot.down ? Theme.off : Theme.t3;
 }
 
 // Why the screen cannot do its job, shown on the home screen itself.
@@ -32,7 +32,7 @@ component WarningRow inherits Rectangle {
         spacing: 14px;
         VerticalLayout {
             alignment: center;
-            StatusDot { level: 1; }
+            StatusDot { dot: Dot.down; }
         }
         Text {
             text: root.message;
@@ -329,10 +329,8 @@ export component AppWindow inherits Window {
     in property <string> sleep-after;
 
     in property <[WifiRow]> wifi-rows;
-    in property <bool> wifi-scanning;
     in-out property <WifiRow> wifi-target;
     in-out property <JoinState> join-state;
-    in property <[StatusRow]> status-rows;
     // Non-empty when something the home screen depends on is unreachable.
     in property <string> home-warning;
     in property <[KeyCell]> kb-keys;

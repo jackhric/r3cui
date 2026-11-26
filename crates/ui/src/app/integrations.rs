@@ -2,6 +2,7 @@
 //! list drawn from the host and the driver specs, so a new driver needs no new screen. This is the logic alone: it
 //! says what to show and what to do, and the session does it.
 
+use crate::Dot;
 use drivers::api::{FieldKind, Health, Spec, Target, TargetKind};
 use drivers::{Binding, Host, Input, Modules, Role, Slot};
 
@@ -17,17 +18,6 @@ enum Screen {
     Inputs,
     Input(String),
     PickSlot { input: String, slot: Slot },
-}
-
-/// A status dot: working, broken, unknown, or changed by the user.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum Dot {
-    #[default]
-    None,
-    Up,
-    Down,
-    Unknown,
-    Changed,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]

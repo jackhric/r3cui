@@ -9,7 +9,7 @@ pub(crate) mod screen;
 pub(crate) mod stage;
 
 use crate::view::screen::{Page, Screen};
-use crate::{AppWindow, Capture, Choice, JoinState, Logos, InputRow, StatusRow, Theme, WifiRow};
+use crate::{AppWindow, Capture, Choice, JoinState, Logos, InputRow, Theme, WifiRow};
 
 use crate::app::settings;
 use crate::app::model::Model;
@@ -73,7 +73,6 @@ pub(crate) fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, Stri
 }
 /// Draw the Integrations screen on show, keeping the focus where the logic says.
 pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::integrations::Page) {
-    use crate::app::integrations::Dot;
     ui(weak, move |app| {
         let rows: Vec<Choice> = page
             .rows
@@ -85,13 +84,7 @@ pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::int
                 value: (&r.value).into(),
                 chevron: r.chevron,
                 checked: r.checked,
-                dot: match r.dot {
-                    Dot::None => 0,
-                    Dot::Up => 1,
-                    Dot::Down => 2,
-                    Dot::Unknown => 3,
-                    Dot::Changed => 4,
-                },
+                dot: r.dot,
                 ..Default::default()
             })
             .collect();
@@ -238,7 +231,6 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     if app.get_wifi_rows().iter().ne(wifi.iter().cloned()) {
         app.set_wifi_rows(ModelRc::new(VecModel::from(wifi)));
     }
-    app.set_wifi_scanning(m.scanning);
     let mut networks: Vec<Choice> = m
         .wifi
         .iter()
@@ -258,13 +250,8 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     if app.get_wifi_choices().iter().ne(networks.iter().cloned()) {
         app.set_wifi_choices(ModelRc::new(VecModel::from(networks)));
     }
-    let status: Vec<StatusRow> =
-        m.status.iter().map(|s| StatusRow { label: (&s.label).into(), value: (&s.value).into(), level: s.level }).collect();
-    if app.get_status_rows().iter().ne(status.iter().cloned()) {
-        app.set_status_rows(ModelRc::new(VecModel::from(status)));
-    }
     let status_rows: Vec<Choice> =
-        m.status.iter().map(|s| Choice { label: (&s.label).into(), value: (&s.value).into(), dot: s.level + 1, ..Default::default() }).collect();
+        m.status.iter().map(|s| Choice { label: (&s.label).into(), value: (&s.value).into(), dot: s.dot, ..Default::default() }).collect();
     if app.get_status_choices().iter().ne(status_rows.iter().cloned()) {
         app.set_status_choices(ModelRc::new(VecModel::from(status_rows)));
     }

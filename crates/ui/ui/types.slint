@@ -1,3 +1,12 @@
+// A status dot: a link working, broken or unknown, or a setting changed by the user.
+export enum Dot {
+    none,
+    up,
+    down,
+    unknown,
+    changed,
+}
+
 // The d-pad as the on-screen keyboard sees it.
 export enum NavKey {
     up,
@@ -93,13 +102,6 @@ export struct WifiRow {
     connected: bool,
 }
 
-export struct StatusRow {
-    label: string,
-    value: string,
-    // 0 working, 1 broken, 2 unknown because something it depends on is broken
-    level: int,
-}
-
 export struct KeyCell {
     label: string,
     glyph: KeyGlyph,
@@ -124,8 +126,8 @@ export struct Choice {
     checked: bool,
     // Leads somewhere else: a chevron.
     chevron: bool,
-    // A status dot before the label: 1 working, 2 broken, 3 unknown, 4 changed by the user; 0 for none.
-    dot: int,
+    // A status dot before the label.
+    dot: Dot,
     // Wi-Fi strength, 1 to 4; 0 for none.
     bars: int,
     locked: bool,

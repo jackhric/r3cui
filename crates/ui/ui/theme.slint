@@ -1,4 +1,4 @@
-import { Choice } from "types.slint";
+import { Choice, Dot } from "types.slint";
 
 // `accent` is the one interface colour. It is in-out so Rust can change it at runtime:
 // `app.global::<Theme>().set_accent(color)`.
@@ -339,7 +339,7 @@ export component ChoiceList inherits Rectangle {
         animate content-y { duration: 200ms; easing: ease-out; }
         for row[i] in root.rows: Rectangle {
             property <bool> focused: i == root.focused-row;
-            property <length> lead: row.icon != "" ? 96px : row.dot > 0 ? 72px : 40px;
+            property <length> lead: row.icon != "" ? 96px : row.dot != Dot.none ? 72px : 40px;
             property <length> edge: (row.checked || row.chevron || row.bars > 0 ? 402px : 440px) - (row.locked ? 44px : 0px);
             x: 0;
             y: i * root.row-h;
@@ -356,8 +356,8 @@ export component ChoiceList inherits Rectangle {
                 width: 4px;
                 height: 40px;
                 border-radius: 2px;
-                background: row.dot == 2 ? Theme.off : Theme.accent;
-                opacity: parent.focused || row.dot == 2 ? 1 : 0;
+                background: row.dot == Dot.down ? Theme.off : Theme.accent;
+                opacity: parent.focused || row.dot == Dot.down ? 1 : 0;
                 animate opacity { duration: 140ms; }
             }
             // The focused or hovered row lifts very slightly; the others settle back.
@@ -371,7 +371,7 @@ export component ChoiceList inherits Rectangle {
                 transform-scale: parent.lift;
             }
             // Beside the label, or as a badge on the icon's corner when there is one.
-            if row.dot > 0: Rectangle {
+            if row.dot != Dot.none: Rectangle {
                 x: row.icon != "" ? 60px : 40px;
                 y: row.icon != "" ? parent.height / 2 + 4px : (parent.height - self.height) / 2;
                 width: 14px;
@@ -379,7 +379,7 @@ export component ChoiceList inherits Rectangle {
                 border-radius: 7px;
                 border-width: row.icon != "" ? 2px : 0px;
                 border-color: Theme.bg;
-                background: row.dot == 1 ? Theme.good : row.dot == 2 ? Theme.off : row.dot == 4 ? Theme.accent : Theme.t3;
+                background: row.dot == Dot.up ? Theme.good : row.dot == Dot.down ? Theme.off : row.dot == Dot.changed ? Theme.accent : Theme.t3;
             }
             Text {
                 x: parent.lead;
@@ -390,8 +390,8 @@ export component ChoiceList inherits Rectangle {
                 transform-origin: { x: 0, y: self.height / 2 };
                 transform-scale: parent.lift;
                 font-size: 26px;
-                font-weight: parent.focused || row.dot == 2 ? 500 : 400;
-                color: parent.focused || row.dot == 2 ? Theme.text : Theme.text-dim;
+                font-weight: parent.focused || row.dot == Dot.down ? 500 : 400;
+                color: parent.focused || row.dot == Dot.down ? Theme.text : Theme.text-dim;
                 animate color { duration: 140ms; }
             }
             if row.detail != "": Text {

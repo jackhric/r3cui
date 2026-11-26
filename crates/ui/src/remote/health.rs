@@ -1,13 +1,13 @@
 //! The health of each link the remote depends on, for the status page and the home screen's warning.
 
+use crate::Dot;
 use drivers::api::{Health, Status};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatusLine {
     pub label: String,
     pub value: String,
-    /// 0 working, 1 broken, 2 unknown or not set up
-    pub level: i32,
+    pub dot: Dot,
 }
 
 /// A driver as the status page lists it.
@@ -24,18 +24,18 @@ pub fn health(wifi_ssid: &str, links: &[Link]) -> (Vec<StatusLine>, String) {
     let mut rows = vec![StatusLine {
         label: "Wi-Fi".into(),
         value: if wifi_up { wifi_ssid.into() } else { "Disconnected".into() },
-        level: if wifi_up { 0 } else { 1 },
+        dot: if wifi_up { Dot::Up } else { Dot::Down },
     }];
     for l in links {
         rows.push(if !wifi_up {
-            StatusLine { label: l.name.clone(), value: "Unknown".into(), level: 2 }
+            StatusLine { label: l.name.clone(), value: "Unknown".into(), dot: Dot::Unknown }
         } else {
-            let level = match l.status.health {
-                Health::Up => 0,
-                Health::Down => 1,
-                Health::Connecting | Health::NotSetUp => 2,
+            let dot = match l.status.health {
+                Health::Up => Dot::Up,
+                Health::Down => Dot::Down,
+                Health::Connecting | Health::NotSetUp => Dot::Unknown,
             };
-            StatusLine { label: l.name.clone(), value: l.status.word().into(), level }
+            StatusLine { label: l.name.clone(), value: l.status.word().into(), dot }
         });
     }
     // The first broken link in the chain is the cause; the rest are consequences.
@@ -62,14 +62,14 @@ mod tests {
     #[test]
     fn healthy_has_no_warning() {
         let (rows, warning) = health("home", &[link("Home Assistant", Health::Up, true), link("Kodi", Health::Up, true)]);
-        assert!(rows.iter().all(|r| r.level == 0));
+        assert!(rows.iter().all(|r| r.dot == Dot::Up));
         assert_eq!((rows.len(), warning.as_str()), (3, ""));
     }
 
     #[test]
     fn no_wifi_greys_every_driver() {
         let (rows, warning) = health("", &[link("Kodi", Health::Down, true)]);
-        assert_eq!((rows[0].level, rows[1].level, rows[1].value.as_str()), (1, 2, "Unknown"));
+        assert_eq!((rows[0].dot, rows[1].dot, rows[1].value.as_str()), (Dot::Down, Dot::Unknown, "Unknown"));
         assert_eq!(warning, "Wi-Fi disconnected");
     }
 
