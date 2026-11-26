@@ -949,8 +949,26 @@ fn lava_script() -> Vec<(u64, Act)> {
     ]
 }
 
+/// `--script steps:<file>`: a `--steps` script, filmed. Its pictures aren't taken; a failure to read it ends the
+/// recording at once.
+fn steps_script(path: &str) -> Vec<(u64, Act)> {
+    let timeline = super::steps::load(std::path::Path::new(path)).unwrap_or_else(|e| {
+        tracing::error!("{path}: {e:#}");
+        Vec::new()
+    });
+    // Like `--steps`, two seconds for the window and the drivers first.
+    std::iter::once((2000, ui(|_| {})))
+        .chain(timeline.into_iter().map(|(wait, action)| (wait.as_millis() as u64, Box::new(move |app: &AppWindow, _: &Tx| {
+            super::steps::perform(app, &action, None);
+        }) as Act)))
+        .collect()
+}
+
 /// (pause before the step in ms, what happens)
 fn script(name: Option<&str>) -> Vec<(u64, Act)> {
+    if let Some(path) = name.and_then(|n| n.strip_prefix("steps:")) {
+        return steps_script(path);
+    }
     match name {
         Some("media") => return media_script(),
         Some("charge") => return charge_script(),
