@@ -1,13 +1,24 @@
 # Core-API WebSocket protocol
 
+This is reference for the Core-API, not a description of what r3cui sends. The UI uses the core only for
+the remote's own state (`crates/coreapi`). It no longer reads entities, entity commands or activities from
+the core: the receiver, Kodi and the hard keys' targets are drivers (`docs/drivers.md`), and the entity,
+activity and button-mapping rows below are kept as spec notes only.
+
+Requests the UI sends today (`crates/ui/src/remote/`, `hardware/backlight.rs`): `get_power_mode`,
+`get_battery_charger`, `get_display_cfg` / `set_display_cfg`, `get_haptic_cfg`, `get_sound_cfg`,
+`get_power_saving_cfg`, `get_network_cfg` / `set_network_cfg`, `get_wifi_status`, `get_wifi_scan_status`,
+`wifi_scan_start`, `add_wifi_network`, `set_button_cfg`. Events it acts on (`coreapi::events`):
+`power_mode_change`, `battery_status`, `wifi_change`. The connection runs on `crates/wsclient`.
+
 Authoritative spec: `unfoldedcircle/core-api`, `core-api/websocket/UCR-core-asyncapi.yaml`
 (AsyncAPI 2.6, v0.50.5). Reference implementation: `unfoldedcircle/remote-ui`, `src/core/core.cpp`.
-Code the `coreapi` crate against these; the `msg_data` shapes below are summarized, not exhaustive.
+`coreapi` is coded against these; the `msg_data` shapes below are summarized, not exhaustive.
 
 ## Transport
 
 - One channel: `/ws` on the same port as REST. Device URL via `UC_SOCKET_URL`
-  (default `ws://127.0.0.1:8080/ws`). Simulator: `ws://localhost:8080/ws`.
+  (default `ws://127.0.0.1:8080/ws`). Simulator: `ws://127.0.0.1:8090/ws` (`scripts/sim.sh env`; upstream listens on 8080).
 - The `/intg`, `/profiles`, `/events` "channels" in the spec are doc groupings — all messages
   share `/ws`.
 
@@ -37,9 +48,9 @@ handy for the simulator. The stock on-device path is the token-file `auth` messa
 ## Keep-alive
 
 Server pings every 10 s, closes after ~30 s silence. There's also an app-level `ping`/`pong`.
-`tokio-tungstenite` answers WS pings automatically. Reconnect loop: retry ~every 2 s on drop.
+`tokio-tungstenite` answers WS pings automatically. The UI retries every 2 s after a drop (`RECONNECT_DELAY` in `crates/ui/src/app/session.rs`).
 
-## Messages a UI needs
+## Messages a UI could use
 
 | Area | Messages |
 |---|---|
@@ -56,5 +67,6 @@ Server pings every 10 s, closes after ~30 s silence. There's also an app-level `
 ## Gotcha: physical buttons are not on the WS
 
 Button presses and the capacitive slider arrive via **evdev in our process**, not as WS events.
-The UI resolves them itself: fetch the activity's button mappings over WS, then on a press send the
-mapped `execute_entity_command` (short vs long press distinguished ~800 ms in the stock UI).
+The stock UI fetches the activity's button mappings and sends the mapped `execute_entity_command`
+(short vs long press distinguished ~800 ms). r3cui doesn't: the drivers host routes the keys
+(`docs/drivers.md`, "Buttons").

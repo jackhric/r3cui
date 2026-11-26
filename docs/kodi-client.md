@@ -1,6 +1,6 @@
 # `crates/kodi`: r3cui's own Kodi client (design)
 
-Status: design, not implemented. Source of truth for method, type and notification names is the
+Status: implemented (`crates/kodi`, on `crates/wsclient`; the Kodi driver in `crates/drivers` uses it). The text below is the original design and may differ in detail from the code. Source of truth for method, type and notification names is the
 `JSONRPC.Introspect` output from the owner's Kodi 21.3 (JSON-RPC API **13.5.0**), which this
 design vendors (see §1, *Schema*). Names in `code` that look like `Player.Seek` or
 `Player.Audio.Stream` are exact ids from that file.
@@ -11,7 +11,7 @@ r3cui stops using the Remote 3 core's Kodi integration and talks to Kodi itself.
 `crates/kodi`, owns all of it: setup, discovery, the connection, the state, commands and artwork.
 Like `crates/coreapi` it has no UI dependencies. The UI subscribes to one
 `watch::Receiver<KodiState>` and sends commands through a cloneable `KodiHandle`. The core is
-still used for everything else (Home Assistant receiver, power, battery, Wi-Fi).
+used for the remote's own state (power, battery, Wi-Fi); the Home Assistant receiver is another driver (`docs/drivers.md`).
 
 | Decision | Choice | Reason |
 |---|---|---|

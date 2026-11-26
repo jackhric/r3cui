@@ -45,13 +45,15 @@ remote itself (power, battery, Wi-Fi, display, the key backlight hardware).
 ## Crates
 
 ```
-crates/homeassistant   HA WebSocket client: auth, states, entity subscriptions, service calls.
-                       Like crates/kodi: an engine with no IO, a service that reconnects, a handle.
+crates/wsclient        Shared WebSocket plumbing: connection with keep-alive, backoff, pending calls, a reconnecting
+                       `Session`. `testing` feature: the FakeServer scaffold the fakes are built on.
+crates/homeassistant   HA WebSocket client: auth, states, entity subscriptions, service calls. `protocol` holds its
+                       wire constants. Like crates/kodi: an engine with no IO, a service that reconnects, a handle.
                        `testing` feature: FakeHa, an in-process HA server for tests.
-crates/kodi            (exists) `testing` feature: FakeKodi.
+crates/kodi            Kodi JSON-RPC client. `testing` feature: FakeKodi.
 crates/drivers         The contract and the drivers. No Slint.
-  api/                   ports, views, intents, the setup schema (Field), Status
-  homeassistant/         the HA driver (global control, key backlight)
+  api.rs                 ports, views, intents, the setup schema (Field), Status
+  homeassistant.rs       the HA driver (global control, key backlight)
   kodi/                  the Kodi driver (remote + UI slots, library wall)
   demo/                  made-up receiver, film and shelf, to try the frontend with nothing to connect to;
                          demo/data.rs holds every made-up value, and `demo::modules()` the setup that binds it
@@ -66,7 +68,7 @@ crates/ui              The frontend: renders the host's view, sends it intents, 
 
 A driver module only uses `crate::api` and its own client crate. Nothing outside `registry.rs`
 names a driver type. Adding a driver: a client crate (if it needs one), a module under
-`crates/drivers/src/`, one line in the registry.
+`crates/drivers/src/`, one line in the registry. See also `docs/conventions.md`.
 
 ## The contract (`drivers::api`)
 
@@ -162,8 +164,8 @@ A driver's status may name what is wrong ("Token rejected", "media_player.x not 
 ## Testing
 
 - Every engine (HA, Kodi, the input list, the host's routing) is plain logic with unit tests.
-- `FakeHa` and `FakeKodi` are real WebSocket servers in-process: the clients are tested end to
-  end, including reconnects.
+- `FakeHa` and `FakeKodi` are real WebSocket servers in-process, built on `wsclient::testing`: the clients are
+  tested end to end, including reconnects.
 - `FakeDriver` lets host tests check routing without any network.
 - `scripts/test.sh` runs what CI runs: the whole workspace's tests, then clippy with warnings as errors.
 - On the desktop, `--steps <script> --out <dir>` drives the live window key by key and takes pictures, against the

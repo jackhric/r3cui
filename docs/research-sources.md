@@ -18,7 +18,7 @@ documented interface for exactly this, and it needs no shell.
 | [`unfoldedcircle/remote-ui`](https://github.com/unfoldedcircle/remote-ui) | Stock GPLv3 Qt/QML UI. ADRs (rendering, input, hardware minimalism), `src/core/core.cpp` (WS client reference), `docs/`, `openspec/` specs, launch env, packaging. Commit 6b3e54a3. |
 | [`unfoldedcircle/core-api`](https://github.com/unfoldedcircle/core-api) | **Authoritative API specs.** `websocket/UCR-core-asyncapi.yaml` (v0.50.5) and `rest/UCR-core-openapi.yaml` (install endpoints, `release.json` schema). |
 | [`unfoldedcircle/ucr2-toolchain`](https://github.com/unfoldedcircle/ucr2-toolchain) | aarch64 Buildroot SDK + sysroot (glibc, fontconfig, freetype, openssl, glib). Reused as the cross toolchain for our Rust build (we don't need its Qt). |
-| [`unfoldedcircle/core-simulator`](https://github.com/unfoldedcircle/core-simulator) | Dockerized real core for desktop dev. Milestone-1 target. |
+| [`unfoldedcircle/core-simulator`](https://github.com/unfoldedcircle/core-simulator) | Dockerized real core for desktop dev (`scripts/sim.sh`). |
 
 ## Device facts (UCR3 under test — from ../ucr3-cfw)
 
