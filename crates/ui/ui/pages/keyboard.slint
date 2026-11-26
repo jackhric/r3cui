@@ -1,8 +1,11 @@
-import { Glyph, Icons, Layer, PageHeader, Theme } from "../theme.slint";
-import { JoinState, KbPurpose, KeyGlyph, KeyStyle, PageId } from "../types.slint";
 import { Kb } from "../globals/kb.slint";
 import { Nav } from "../globals/nav.slint";
 import { Wifi } from "../globals/wifi.slint";
+import { Glyph, Icons } from "../marks/icons.slint";
+import { Theme } from "../theme.slint";
+import { JoinState, KbPurpose, KeyGlyph, KeyStyle, PageId } from "../types.slint";
+import { Layer } from "../widgets/layer.slint";
+import { PageHeader } from "../widgets/page-header.slint";
 
 export component KeyboardPage inherits Layer {
     property <bool> caret-on: true;

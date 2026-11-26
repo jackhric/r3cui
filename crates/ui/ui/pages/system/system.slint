@@ -1,9 +1,12 @@
-import { Icons, Layer, PageHeader, Theme } from "../theme.slint";
-import { Nav } from "../globals/nav.slint";
-import { Software } from "../globals/software.slint";
-import { PageId, UpdateState } from "../types.slint";
-import { R3Wordmark } from "../widgets/brand.slint";
-import { SysRow } from "../widgets/sys-row.slint";
+import { Nav } from "../../globals/nav.slint";
+import { Software } from "../../globals/software.slint";
+import { R3Wordmark } from "../../marks/brand.slint";
+import { Icons } from "../../marks/icons.slint";
+import { Theme } from "../../theme.slint";
+import { PageId, UpdateState } from "../../types.slint";
+import { Layer } from "../../widgets/layer.slint";
+import { PageHeader } from "../../widgets/page-header.slint";
+import { SysRow } from "../../widgets/sys-row.slint";
 
 export component SystemPage inherits Layer {
     page: PageId.system;

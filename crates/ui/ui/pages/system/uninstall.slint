@@ -1,9 +1,12 @@
-import { Glyph, Icons, Layer, PageHeader, Theme } from "../theme.slint";
-import { Fx } from "../globals/fx.slint";
-import { Nav } from "../globals/nav.slint";
-import { Software } from "../globals/software.slint";
-import { Haptic, PageId, UninstallState } from "../types.slint";
-import { Ring } from "../widgets/ring.slint";
+import { Fx } from "../../globals/fx.slint";
+import { Nav } from "../../globals/nav.slint";
+import { Software } from "../../globals/software.slint";
+import { Glyph, Icons } from "../../marks/icons.slint";
+import { Theme } from "../../theme.slint";
+import { Haptic, PageId, UninstallState } from "../../types.slint";
+import { Layer } from "../../widgets/layer.slint";
+import { PageHeader } from "../../widgets/page-header.slint";
+import { Ring } from "../../widgets/ring.slint";
 
 export component UninstallPage inherits Layer {
     page: PageId.uninstall;

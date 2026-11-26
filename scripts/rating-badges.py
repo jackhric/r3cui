@@ -5,7 +5,7 @@ The lettering is converted to outlines, so the remote needs no font to show them
 mark is white on transparent: the UI tints them. MPA ratings are an outlined box; TV ratings a
 filled "TV" block joined to an outlined rating, after the TV Parental Guidelines icons.
 
-    python3 scripts/rating-badges.py /usr/share/fonts/TTF/RobotoCondensed-Bold.ttf crates/ui/ui/ratings
+    python3 scripts/rating-badges.py /usr/share/fonts/TTF/RobotoCondensed-Bold.ttf crates/ui/ui/assets/ratings
 """
 
 import sys

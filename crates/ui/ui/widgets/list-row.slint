@@ -1,0 +1,71 @@
+import { Glyph, Icons, Logo } from "../marks/icons.slint";
+
+import { Theme } from "../theme.slint";
+
+export component ListRow inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <string> icon;
+    in property <bool> focused;
+    in property <bool> chevron;
+    in property <bool> checked;
+    in property <bool> divider: true;
+    // Room kept free at the right edge for whatever the caller places there.
+    in property <length> trailing: 0px;
+    callback tapped();
+
+    x: 0;
+    width: 480px;
+    height: 112px;
+
+    if root.divider: Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.hair;
+    }
+    Rectangle {
+        x: 0;
+        width: 4px;
+        height: 40px;
+        border-radius: 2px;
+        background: Theme.accent;
+        opacity: root.focused ? 1 : 0;
+        animate opacity { duration: 140ms; }
+    }
+    if root.icon != "": Logo {
+        x: 40px;
+        commands: root.icon;
+        tint: root.focused ? Theme.text : Theme.t2;
+    }
+    Text {
+        x: root.icon != "" ? 96px : 40px;
+        text: root.label;
+        font-size: 26px;
+        font-weight: root.focused ? 500 : 400;
+        color: root.focused ? Theme.text : Theme.text-dim;
+        animate color { duration: 140ms; }
+    }
+    Text {
+        x: 0;
+        width: (root.chevron || root.checked ? 402px : 440px) - root.trailing;
+        horizontal-alignment: right;
+        text: root.value;
+        font-size: 22px;
+        font-weight: 300;
+        color: Theme.t2;
+    }
+    if root.chevron: Glyph {
+        x: 416px;
+        commands: Icons.right;
+        tint: Theme.t3;
+    }
+    if root.checked: Glyph {
+        x: 416px;
+        commands: Icons.check;
+        tint: Theme.text;
+    }
+    TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { root.tapped(); }
+    }
+}

@@ -1,8 +1,8 @@
-import { Capture } from "../types.slint";
 import { Control } from "../globals/control.slint";
 import { Fx } from "../globals/fx.slint";
-import { Glyph, Icons } from "../theme.slint";
-import { VolumeReadout } from "../widgets/volume-readout.slint";
+import { Glyph, Icons } from "../marks/icons.slint";
+import { Capture } from "../types.slint";
+import { VolumeReadout } from "volume-readout.slint";
 
 export component VolumeOverlay inherits Rectangle {
     property <bool> shown: Control.volume-overlay && Control.power-on;

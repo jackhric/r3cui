@@ -10,7 +10,7 @@ A string or number that means something is named once, and everything else uses 
 | Kodi's methods, parameters and shared value types | `crates/kodi/src/methods/` (one struct per method, checked against the vendored schema by `tests/schema.rs`) and `crates/kodi/src/wire.rs` |
 | Core-API message names and the events the UI acts on | `crates/coreapi/src/messages.rs`, `crates/coreapi/src/events.rs`; the System page's requests are typed in `system.rs` |
 | A driver's setup field keys | the driver's own `field` module: `drivers/src/homeassistant.rs`, `drivers/src/kodi/mod.rs` |
-| The characters hard keys arrive as | `keys` in `crates/ui/src/input/mod.rs`; the window gets the same values through `KeyChars` in `crates/ui/ui/keys.slint` |
+| The characters hard keys arrive as | `keys` in `crates/ui/src/input/mod.rs`; the window gets the same values through `KeyChars` in `crates/ui/ui/globals/keys.slint` |
 | Anything Slint and Rust both know about (pages, haptic events, library modes, ...) | a Slint `enum` in `crates/ui/ui/types.slint`, matched exhaustively in Rust |
 | Timings | a named `const` at the top of the module that uses it, with a `Duration` type |
 

@@ -1,14 +1,14 @@
-import { Capture, HomeView, LibMode } from "../types.slint";
 import { Fx } from "../globals/fx.slint";
 import { Home } from "../globals/home.slint";
 import { Lib } from "../globals/lib.slint";
-import { Library } from "../library.slint";
+import { Sys } from "../globals/sys.slint";
+import { Theme } from "../theme.slint";
+import { Capture, HomeView, LibMode } from "../types.slint";
+import { Library } from "library.slint";
 import { MarkView } from "mark.slint";
 import { OffView } from "off.slint";
 import { PlayingView } from "playing.slint";
 import { StageSwap } from "swap.slint";
-import { Sys } from "../globals/sys.slint";
-import { Theme } from "../theme.slint";
 
 export component Stage inherits Rectangle {
     in property <float> recede;

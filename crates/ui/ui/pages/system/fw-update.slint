@@ -1,10 +1,13 @@
-import { Layer, Marks, PageHeader, Theme } from "../theme.slint";
-import { Nav } from "../globals/nav.slint";
-import { Software } from "../globals/software.slint";
-import { PageId, UpdateState } from "../types.slint";
-import { UcMark } from "../widgets/brand.slint";
-import { SysRow } from "../widgets/sys-row.slint";
-import { Upgrade } from "../widgets/upgrade.slint";
+import { Nav } from "../../globals/nav.slint";
+import { Software } from "../../globals/software.slint";
+import { UcMark } from "../../marks/brand.slint";
+import { Marks } from "../../marks/icons.slint";
+import { Theme } from "../../theme.slint";
+import { PageId, UpdateState } from "../../types.slint";
+import { Layer } from "../../widgets/layer.slint";
+import { PageHeader } from "../../widgets/page-header.slint";
+import { SysRow } from "../../widgets/sys-row.slint";
+import { Upgrade } from "upgrade.slint";
 
 export component FwUpdatePage inherits Layer {
     page: PageId.fw-update;

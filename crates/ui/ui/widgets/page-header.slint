@@ -1,0 +1,31 @@
+import { Glyph, Icons } from "../marks/icons.slint";
+
+import { Theme } from "../theme.slint";
+
+export component PageHeader inherits Rectangle {
+    in property <string> title;
+    callback back();
+
+    x: 0;
+    y: 64px;
+    width: 480px;
+    height: 104px;
+
+    Glyph {
+        x: 40px;
+        size: 28px;
+        commands: Icons.left;
+        tint: Theme.text;
+    }
+    Text {
+        x: 84px;
+        text: root.title;
+        font-size: 26px;
+        font-weight: 500;
+        color: Theme.text;
+    }
+    TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { root.back(); }
+    }
+}

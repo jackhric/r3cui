@@ -1,7 +1,9 @@
+import { Theme } from "../theme.slint";
+
+import { LibItem, LibMode, WallStyle } from "../types.slint";
+
 // Prototype library views for the Movies and TV menus, fed by a driver's library. Exploration only:
 // `mode` picks the variation.
-import { Theme } from "theme.slint";
-import { LibItem, LibMode, WallStyle } from "types.slint";
 
 // A library poster; until it arrives, a frosted stand-in with the title and a spinner.
 component PosterTile inherits Rectangle {
@@ -63,18 +65,18 @@ component PosterTile inherits Rectangle {
 // Certification badges, drawn by scripts/rating-badges.py; `code` as library::entry writes it.
 global Ratings {
     public pure function badge(code: string) -> image {
-        if code == "G" { return @image-url("ratings/g.svg"); }
-        if code == "PG" { return @image-url("ratings/pg.svg"); }
-        if code == "PG-13" { return @image-url("ratings/pg-13.svg"); }
-        if code == "R" { return @image-url("ratings/r.svg"); }
-        if code == "NC-17" { return @image-url("ratings/nc-17.svg"); }
-        if code == "NR" { return @image-url("ratings/nr.svg"); }
-        if code == "TV-Y" { return @image-url("ratings/tv-y.svg"); }
-        if code == "TV-Y7" { return @image-url("ratings/tv-y7.svg"); }
-        if code == "TV-G" { return @image-url("ratings/tv-g.svg"); }
-        if code == "TV-PG" { return @image-url("ratings/tv-pg.svg"); }
-        if code == "TV-14" { return @image-url("ratings/tv-14.svg"); }
-        if code == "TV-MA" { return @image-url("ratings/tv-ma.svg"); }
+        if code == "G" { return @image-url("../assets/ratings/g.svg"); }
+        if code == "PG" { return @image-url("../assets/ratings/pg.svg"); }
+        if code == "PG-13" { return @image-url("../assets/ratings/pg-13.svg"); }
+        if code == "R" { return @image-url("../assets/ratings/r.svg"); }
+        if code == "NC-17" { return @image-url("../assets/ratings/nc-17.svg"); }
+        if code == "NR" { return @image-url("../assets/ratings/nr.svg"); }
+        if code == "TV-Y" { return @image-url("../assets/ratings/tv-y.svg"); }
+        if code == "TV-Y7" { return @image-url("../assets/ratings/tv-y7.svg"); }
+        if code == "TV-G" { return @image-url("../assets/ratings/tv-g.svg"); }
+        if code == "TV-PG" { return @image-url("../assets/ratings/tv-pg.svg"); }
+        if code == "TV-14" { return @image-url("../assets/ratings/tv-14.svg"); }
+        if code == "TV-MA" { return @image-url("../assets/ratings/tv-ma.svg"); }
         return @image-url("");
     }
 }
@@ -94,7 +96,7 @@ component MetaLine inherits HorizontalLayout {
         Image {
             width: root.size * 0.85;
             height: root.size * 0.85;
-            source: @image-url("icons/star.svg");
+            source: @image-url("../assets/icons/star.svg");
             colorize: root.tint;
         }
     }
