@@ -7,10 +7,22 @@ import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
-import { Capture, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
+import { Capture, FormatMark, PowerAction, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
 
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars }
+
+enum HomeView {
+    playing,
+    mark,
+    off,
+    wall,
+}
+
+enum HoldKind {
+    home,
+    power,
+}
 
 component StatusDot inherits Rectangle {
     in property <Dot> dot;
@@ -69,31 +81,25 @@ component Pill inherits Rectangle {
     }
 }
 
-// A codec's logo and the rest of its name. The logo is drawn from the part of its viewbox that
-// `logo-top`, `logo-width` and `logo-height` mark out, `size` tall.
+// A codec's logo and the rest of its name.
 component FormatBadge inherits HorizontalLayout {
-    in property <string> logo;
-    in property <float> logo-width: 24;
-    in property <float> logo-top: 0;
-    in property <float> logo-height: 24;
+    in property <FormatMark> mark;
     in property <string> label;
-    in property <length> size: 30px;
-    in property <bool> on-baseline;
     alignment: center;
     spacing: 12px;
     height: 40px;
-    if root.logo != "": Rectangle {
-        width: root.size * root.logo-width / root.logo-height;
+    if root.mark.path != "": Rectangle {
+        width: root.mark.size * root.mark.width / root.mark.height;
         Path {
             // A wordmark sits on the label's baseline (27px down the 40px row, measured for
             // 22px Hanken Grotesk); a mark is centred.
-            y: root.on-baseline ? 27px - root.size : (40px - root.size) / 2;
+            y: root.mark.baseline ? 27px - root.mark.size : (40px - root.mark.size) / 2;
             width: parent.width;
-            height: root.size;
-            viewbox-y: root.logo-top;
-            viewbox-width: root.logo-width;
-            viewbox-height: root.logo-height;
-            commands: root.logo;
+            height: root.mark.size;
+            viewbox-y: root.mark.top;
+            viewbox-width: root.mark.width;
+            viewbox-height: root.mark.height;
+            commands: root.mark.path;
             fill: Theme.text;
         }
     }
@@ -272,6 +278,8 @@ export component AppWindow inherits Window {
     in property <bool> volume-overlay;
     in property <string> input;
     in property <string> input-icon;
+    // The input has no mark of its own, so its name stands in for it.
+    in property <bool> input-generic;
     // An input picked here that the source has not confirmed yet.
     in property <bool> switching;
     in property <[InputRow]> inputs;
@@ -291,12 +299,7 @@ export component AppWindow inherits Window {
     in property <string> media-sub;
     in property <bool> paused;
     in property <string> elapsed;
-    in property <string> media-format-logo;
-    in property <float> media-format-logo-width: 24;
-    in property <float> media-format-logo-top: 0;
-    in property <float> media-format-logo-height: 24;
-    in property <length> media-format-logo-size: 30px;
-    in property <bool> media-format-logo-baseline;
+    in property <FormatMark> media-format-mark;
     in property <string> media-format-label;
     in-out property <Picker> picker;
     in-out property <[Choice]> tracks;
@@ -314,7 +317,7 @@ export component AppWindow inherits Window {
     in property <WallStyle> lib-wall-style: WallStyle.fade;
     public function hold-library() { lib.hold(); }
     public function run-library() { lib.run(); }
-    out property <bool> lava-on: root.page == 0 && root.home-view == 2 && root.lit;
+    out property <bool> lava-on: root.page == 0 && root.home-view == HomeView.mark && root.lit;
     in property <bool> charging;
     // On the charger the screen and keys go dark after a short while; any input brings them back.
     in-out property <bool> resting;
@@ -364,7 +367,7 @@ export component AppWindow inherits Window {
     // Raw key text; mapped to a hard button in Rust (desktop stand-in for evdev).
     callback key(string);
     callback select-input(string);
-    callback power-action(string);
+    callback power-action(PowerAction);
     callback wifi-scan();
     // Switch the remote's preferred Wi-Fi band between 2.4 and 5 GHz.
     callback wifi-band();
@@ -439,8 +442,7 @@ export component AppWindow inherits Window {
     property <bool> home-down;
     property <bool> home-used;
     property <bool> home-rumbling;
-    // 1 something is playing, 2 the input's mark (when idle), 3 power off, 4 a library wall
-    property <int> home-view: !root.power-on ? 3 : root.staged && root.media-title != "" ? 1 : root.lib-mode != LibMode.off ? 4 : 2;
+    property <HomeView> home-view: !root.power-on ? HomeView.off : root.staged && root.media-title != "" ? HomeView.playing : root.lib-mode != LibMode.off ? HomeView.wall : HomeView.mark;
 
     // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
     public function go(p: int, f: int) {
@@ -553,11 +555,11 @@ export component AppWindow inherits Window {
             root.go(i == 0 ? 6 : 5, 0);
         } else if (root.page == 4) {
             if (i == 0) {
-                root.power-action("STANDBY");
+                root.power-action(PowerAction.standby);
             } else if (i == 1) {
-                root.power-action("RESTART");
+                root.power-action(PowerAction.restart);
             } else if (i == 2) {
-                root.power-action("POWER_OFF");
+                root.power-action(PowerAction.power-off);
             }
         }
     }
@@ -583,7 +585,7 @@ export component AppWindow inherits Window {
                     root.power-turning-off = root.power-on;
                     root.power-completed = false;
                     root.capture(Capture.world);
-                    root.hold-look = 2;
+                    root.hold-look = HoldKind.power;
                     root.power-hold-start = animation-tick();
                     root.power-holding = true;
                     root.haptic(Haptic.power-hold);
@@ -697,7 +699,7 @@ export component AppWindow inherits Window {
             running: root.home-down && !root.home-used && !root.home-rumbling;
             triggered => {
                 root.capture(Capture.world);
-                root.hold-look = 1;
+                root.hold-look = HoldKind.home;
                 root.home-hold-start = animation-tick();
                 root.home-rumbling = true;
                 root.haptic(Haptic.home-hold);
@@ -750,7 +752,7 @@ export component AppWindow inherits Window {
 
                     // The input's UI slot, playing
                     Rectangle {
-                        opacity: root.home-view == 1 ? 1 : 0;
+                        opacity: root.home-view == HomeView.playing ? 1 : 0;
                         visible: self.opacity > 0;
 
                         // The backdrop arrives already blurred and darkened; the scrim fades it into black
@@ -883,15 +885,10 @@ export component AppWindow inherits Window {
                             alignment: center;
                             spacing: 18px;
                             FormatBadge {
-                                logo: root.media-format-logo;
-                                logo-width: root.media-format-logo-width;
-                        logo-top: root.media-format-logo-top;
-                        logo-height: root.media-format-logo-height;
-                        size: root.media-format-logo-size;
-                        on-baseline: root.media-format-logo-baseline;
+                                mark: root.media-format-mark;
                                 label: root.media-format-label;
                             }
-                            if root.media-format-label != "" || root.media-format-logo != "": Text {
+                            if root.media-format-label != "" || root.media-format-mark.path != "": Text {
                                 text: "·";
                                 font-size: 22px;
                                 color: Theme.t3;
@@ -926,7 +923,7 @@ export component AppWindow inherits Window {
 
                     // The current input, shown as its mark. An input showing its library looks the same as any other.
                     Rectangle {
-                        opacity: root.home-view == 2 ? 1 : 0;
+                        opacity: root.home-view == HomeView.mark ? 1 : 0;
                         visible: self.opacity > 0;
 
                         // The colour wash behind the mark, faded out at the top and bottom so the navbar
@@ -966,7 +963,7 @@ export component AppWindow inherits Window {
                                 Theme.t2-muted 100%);
                         }
                         // An input with no mark of its own needs its name to be told apart.
-                        if root.input != "" && root.input-icon == Logos.generic: Text {
+                        if root.input != "" && root.input-generic: Text {
                             y: 490px;
                             width: 480px;
                             horizontal-alignment: center;
@@ -998,7 +995,7 @@ export component AppWindow inherits Window {
 
                     // Power off
                     Rectangle {
-                        opacity: root.home-view == 3 ? 1 : 0;
+                        opacity: root.home-view == HomeView.off ? 1 : 0;
                         visible: self.opacity > 0;
 
                         Glyph {
@@ -1026,7 +1023,7 @@ export component AppWindow inherits Window {
                         items: root.lib-items;
                         at: root.lib-focus;
                         wall-style: root.lib-wall-style;
-                        opacity: root.home-view == 4 ? 1 : 0;
+                        opacity: root.home-view == HomeView.wall ? 1 : 0;
                         visible: self.opacity > 0 && root.lib-mode != LibMode.off;
                     }
 
@@ -1517,9 +1514,9 @@ export component AppWindow inherits Window {
     property <bool> home-holding: root.home-down && root.home-rumbling && !root.home-used;
     property <duration> home-hold-start;
     property <duration> power-hold-start;
-    // Which hold the overlay shows: 1 Home (inputs), 2 power. Kept through the fade-out so the
-    // overlay does not change look while it disappears.
-    property <int> hold-look: 1;
+    // Which hold the overlay shows. Kept through the fade-out so the overlay does not change look
+    // while it disappears.
+    property <HoldKind> hold-look: HoldKind.home;
     property <bool> hold-shown: root.power-overlay || root.home-holding;
     property <float> hold-linear: root.power-latched ? 1
         : root.power-holding ? clamp((animation-tick() - root.power-hold-start) / 1200ms, 0, 1)
@@ -1527,7 +1524,7 @@ export component AppWindow inherits Window {
         : 0;
     property <float> hold-progress: root.hold-linear * root.hold-linear * (3 - 2 * root.hold-linear);
     property <float> ring: min(root.hold-progress, 0.9999);
-    property <color> ring-tint: root.hold-look == 2 ? root.power-tint : Theme.accent;
+    property <color> ring-tint: root.hold-look == HoldKind.power ? root.power-tint : Theme.accent;
     Rectangle {
         background: #000000A6;
         opacity: root.hold-shown ? 1 : 0;
@@ -1559,13 +1556,13 @@ export component AppWindow inherits Window {
             stroke-line-cap: round;
             opacity: root.hold-progress > 0.001 ? 1 : 0;
         }
-        if root.hold-look == 1: Logo {
+        if root.hold-look == HoldKind.home: Logo {
             y: 330px;
             size: 140px;
             commands: root.input-icon;
             tint: Theme.text;
         }
-        if root.hold-look == 2: Glyph {
+        if root.hold-look == HoldKind.power: Glyph {
             y: 345px;
             size: 110px;
             commands: Icons.power;
@@ -1575,12 +1572,12 @@ export component AppWindow inherits Window {
             y: 548px;
             width: 480px;
             horizontal-alignment: center;
-            text: root.hold-look == 1 ? "Inputs"
+            text: root.hold-look == HoldKind.home ? "Inputs"
                 : root.power-completed ? (root.power-turning-off ? "Off" : "On")
                 : (root.power-turning-off ? "Hold to turn off" : "Hold to turn on");
             font-size: 26px;
             font-weight: 300;
-            color: root.hold-look == 2 && root.power-completed ? Theme.text : Theme.t2;
+            color: root.hold-look == HoldKind.power && root.power-completed ? Theme.text : Theme.t2;
         }
     }
 
@@ -1669,7 +1666,7 @@ export component AppWindow inherits Window {
         // The input's mark sits in the middle everywhere but the input's own screen (or the power-off one), so
         // away from it you can always tell where you are; tapping it opens the list.
         TouchArea {
-            property <bool> shown: root.inputs.length > 0 && !(root.page == 0 && (root.home-view == 2 || root.home-view == 3));
+            property <bool> shown: root.inputs.length > 0 && !(root.page == 0 && (root.home-view == HomeView.mark || root.home-view == HomeView.off));
             mouse-cursor: Theme.cursor;
             x: 190px;
             width: 100px;

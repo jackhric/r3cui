@@ -204,7 +204,9 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     app.set_input(name.into());
     app.set_switching(m.switching);
     let mark = |s: &crate::app::model::InputEntry| s.icon.map_or_else(|| input_logo(&logos, &s.id), SharedString::from);
-    app.set_input_icon(m.inputs.iter().find(|s| s.id == m.input).map_or_else(|| input_logo(&logos, &m.input), mark));
+    let icon = m.inputs.iter().find(|s| s.id == m.input).map_or_else(|| input_logo(&logos, &m.input), mark);
+    app.set_input_generic(icon == logos.get_generic());
+    app.set_input_icon(icon);
     let current = m.inputs.iter().position(|s| s.id == m.input).map_or(-1, |i| i as i32);
     let rows: Vec<InputRow> =
         m.inputs.iter().map(|s| InputRow { id: (&s.id).into(), name: (&s.name).into(), icon: mark(s) }).collect();
@@ -269,11 +271,6 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     app.set_ends_at(if known { (now + chrono::Duration::seconds(left as i64)).format("ends %H:%M").to_string().into() } else { SharedString::new() });
     let (logo, label) = codec_badge(&m.media_format);
     let mark = codec_logo(app, logo);
-    app.set_media_format_logo(mark.path);
-    app.set_media_format_logo_top(mark.top);
-    app.set_media_format_logo_width(mark.width);
-    app.set_media_format_logo_height(mark.height);
-    app.set_media_format_logo_size(mark.size);
-    app.set_media_format_logo_baseline(mark.baseline);
+    app.set_media_format_mark(mark);
     app.set_media_format_label(label.into());
 }

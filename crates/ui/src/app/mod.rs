@@ -11,7 +11,7 @@ pub(crate) mod settings;
 
 use crate::hardware::backlight;
 use crate::input::{slider, Button};
-use crate::Picker;
+use crate::{Picker, PowerAction};
 use crate::remote::wifi;
 
 pub(crate) enum UiAction {
@@ -22,7 +22,7 @@ pub(crate) enum UiAction {
     /// Desktop only: a key that toggles part of the demo (c charging, x Home Assistant down, z awake).
     DemoKey(char),
     SelectInput(String),
-    Power(String),
+    Power(PowerAction),
     PowerHeld,
     WifiScan,
     WifiBand,

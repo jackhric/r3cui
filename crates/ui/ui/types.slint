@@ -1,3 +1,20 @@
+export enum PowerAction {
+    standby,
+    restart,
+    power-off,
+}
+
+// A codec's logo, drawn from the part of its viewbox that `top`, `width` and `height` mark out, `size` tall.
+export struct FormatMark {
+    path: string,
+    top: float,
+    width: float,
+    height: float,
+    size: length,
+    // A wordmark with no descenders is set on the label's baseline instead of centred.
+    baseline: bool,
+}
+
 // A status dot: a link working, broken or unknown, or a setting changed by the user.
 export enum Dot {
     none,

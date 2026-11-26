@@ -1,6 +1,6 @@
 //! Text for the screen: times, volume, audio codecs and channel layouts, input and codec logos.
 
-use crate::{AppWindow, Codecs, Logos};
+use crate::{AppWindow, Codecs, FormatMark, Logos};
 use slint::{ComponentHandle, SharedString};
 
 pub(crate) fn band_label(band: &str) -> Option<&'static str> {
@@ -115,25 +115,14 @@ pub(crate) fn channels(s: &str) -> String {
         _ => String::new(),
     }
 }
-pub(crate) struct CodecLogo {
-    pub(crate) path: SharedString,
-    /// The part of the viewbox the mark fills: top, width, height.
-    pub(crate) top: f32,
-    pub(crate) width: f32,
-    pub(crate) height: f32,
-    /// How tall it is drawn, in logical pixels.
-    pub(crate) size: f32,
-    /// A wordmark with no descenders, set on the label's baseline instead of centred.
-    pub(crate) baseline: bool,
-}
-pub(crate) fn codec_logo(app: &AppWindow, id: &str) -> CodecLogo {
+pub(crate) fn codec_logo(app: &AppWindow, id: &str) -> FormatMark {
     let c = app.global::<Codecs>();
-    let lockup = |path: SharedString, width: f32| CodecLogo { path, top: 0.0, width, height: 24.0, size: 30.0, baseline: false };
+    let lockup = |path: SharedString, width: f32| FormatMark { path, top: 0.0, width, height: 24.0, size: 30.0, baseline: false };
     match id {
         // The simple-icons DTS mark sits in a 24x24 box with empty space above and below.
-        "dolby" => CodecLogo { path: c.get_dolby_box(), top: 0.0, width: 33.03, height: 24.0, size: 20.0, baseline: false },
-        "dts" => CodecLogo { path: app.global::<Logos>().get_dts(), top: 7.12, width: 24.0, height: 9.76, size: 17.0, baseline: true },
-        "flac" => CodecLogo { size: 18.0, baseline: true, ..lockup(c.get_flac(), 49.63) },
+        "dolby" => FormatMark { path: c.get_dolby_box(), top: 0.0, width: 33.03, height: 24.0, size: 20.0, baseline: false },
+        "dts" => FormatMark { path: app.global::<Logos>().get_dts(), top: 7.12, width: 24.0, height: 9.76, size: 17.0, baseline: true },
+        "flac" => FormatMark { size: 18.0, baseline: true, ..lockup(c.get_flac(), 49.63) },
         "opus" => lockup(c.get_opus(), 42.19),
         "alac" => lockup(c.get_alac(), 44.99),
         "mp3" => lockup(c.get_mp3(), 47.89),

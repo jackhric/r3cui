@@ -131,7 +131,10 @@ fn main() -> anyhow::Result<()> {
         let tx = act_tx.clone();
         app.on_cfg_back(move || drop(tx.send(UiAction::Integrations(Settings::Back))));
     }
-    app.on_power_action(send(UiAction::Power));
+    app.on_power_action({
+        let tx = act_tx.clone();
+        move |action| drop(tx.send(UiAction::Power(action)))
+    });
     app.on_haptic(feedback::ui_event);
     let lab = Rc::new(RefCell::new(feedback::Lab::default()));
     let show_lab = {

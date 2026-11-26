@@ -387,7 +387,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     UiAction::SelectInput(id) => front.global.select_input(&front.host, id),
                     UiAction::Power(what) => {
                         // Not wired yet: a stray tap in a prototype should not switch the remote off.
-                        tracing::info!("power action {what} (not sent)");
+                        tracing::info!("power action {what:?} (not sent)");
                     }
                     UiAction::PowerHeld => {
                         let on = front.global.view(&front.host).on;

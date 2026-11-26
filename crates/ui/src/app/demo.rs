@@ -133,7 +133,7 @@ pub(crate) async fn run_demo(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::
                     after(1800, Later::Switched);
                 }
                 UiAction::PlayPause => m.paused = !m.paused,
-                UiAction::Power(what) => tracing::info!("power action {what}"),
+                UiAction::Power(what) => tracing::info!("power action {what:?}"),
                 UiAction::PowerHeld => m.power_on = !m.power_on,
                 // Stand-in for the core's power-mode event.
                 UiAction::DemoKey('z') => m.awake = !m.awake,
