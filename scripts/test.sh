@@ -6,5 +6,8 @@
 set -eu
 cd "$(dirname "$0")/.."
 cargo test --workspace --locked "$@"
+# Nothing depends on androidtv's `testing` feature until its driver lands, so its fake-TV tests are run here.
+cargo test -p androidtv --features testing --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo clippy -p androidtv --all-targets --features testing --locked -- -D warnings
 cargo clippy -p remote-ui --no-default-features --features device --locked -- -D warnings

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/coreapi", "crates/drivers", "crates/homeassistant", "crates/kodi", "crates/ui", "crates/wsclient"]
+members = ["crates/androidtv", "crates/coreapi", "crates/drivers", "crates/homeassistant", "crates/kodi", "crates/ui", "crates/wsclient"]
 
 [workspace.package]
 version = "0.1.0"
@@ -16,3 +16,9 @@ serde_json = "1"
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.dev.package.rsa]
+opt-level = 3
+
+[profile.dev.package.num-bigint-dig]
+opt-level = 3
