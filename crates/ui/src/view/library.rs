@@ -14,8 +14,6 @@ use std::time::Duration;
 
 /// Posters fetched either side of the highlight.
 const AHEAD: usize = 15;
-const W: u32 = 136;
-const H: u32 = 204;
 
 pub(crate) struct Wall {
     weak: slint::Weak<AppWindow>,
@@ -73,7 +71,7 @@ impl Wall {
                 }
                 let url = &list.items[i].poster;
                 let img = match crate::art::fetch_image(url) {
-                    Ok(img) => poster(&img),
+                    Ok(img) => crate::art::wall_poster_pixels(&img),
                     Err(e) => {
                         tracing::debug!("library poster {url}: {e:#}");
                         continue;
@@ -122,9 +120,4 @@ pub(crate) fn item(e: &LibraryItem, poster: slint::Image) -> LibItem {
         detail: e.detail.as_str().into(),
         progress: e.progress,
     }
-}
-
-fn poster(img: &image::DynamicImage) -> slint::SharedPixelBuffer<slint::Rgb8Pixel> {
-    let small = img.resize_to_fill(W, H, image::imageops::FilterType::Triangle).to_rgb8();
-    slint::SharedPixelBuffer::clone_from_slice(small.as_raw(), W, H)
 }
