@@ -28,6 +28,15 @@ documented interface for exactly this, and it needs no shell.
   (Kodi), confirming the supported custom-code install paths work on this unit. The `remote-ui`
   scope exists for the UI's WebSocket role.
 
+## Android TV Remote protocol (crates/androidtv)
+
+- [`tronikos/androidtvremote2`](https://github.com/tronikos/androidtvremote2) (Apache-2.0): `polo.proto` and
+  `remotemessage.proto` are the source of the protobuf field numbers and enum values in
+  `crates/androidtv/src/protocol/`; `pairing.py`, `remote.py`, `base.py` and `certificate_generator.py` are the source
+  of the pairing hash, the handshake order, the varint framing, the ping and idle behaviour, and the ports. Those
+  files in turn credit Google's polo pairing protocol and `louis49/androidtv-remote`. Verified by reading the
+  source; not yet by talking to a real box.
+
 ## Rust GUI survey (library decision — see plan.md)
 
 Slint chosen. Key source: [Slint LinuxKMS backend docs](https://docs.slint.dev/latest/docs/slint/guide/backends-and-renderers/backend_linuxkms/).
