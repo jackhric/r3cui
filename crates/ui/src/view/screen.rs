@@ -38,20 +38,6 @@ pub(crate) enum LibMode {
     DimRiverCard = 5,
 }
 
-/// Which picture a blur is taken from (Slint's `capturing`): the stage alone, or the stage with the world over it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Capture {
-    Stage = 1,
-    World = 2,
-}
-
-impl Capture {
-    /// Slint's `capture(which)` callback: 0 the stage, 1 the world.
-    pub(crate) fn from_slint(which: i32) -> Self {
-        if which == 0 { Self::Stage } else { Self::World }
-    }
-}
-
 /// The window's state, by name.
 pub(crate) trait Screen {
     fn on_page(&self, page: Page) -> bool;

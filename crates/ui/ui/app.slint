@@ -7,7 +7,7 @@ import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
-import { Choice, JoinState, KbPurpose, Picker, InputRow, WifiRow, StatusRow, KeyCell, LibItem } from "types.slint";
+import { Capture, Choice, JoinState, KbPurpose, Picker, InputRow, WifiRow, StatusRow, KeyCell, LibItem } from "types.slint";
 
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars }
@@ -410,8 +410,8 @@ export component AppWindow inherits Window {
     animate under { duration: 380ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
     in property <image> stage-blur;
     in property <image> world-blur;
-    // Ask for a blurred picture of what is on screen now: 0 the stage, 1 everything.
-    callback capture(int);
+    // Ask for a blurred picture of what is on screen now.
+    callback capture(Capture);
     // A change of main stage in progress; Rust supplies the pictures and starts it.
     in-out property <bool> swapping;
     // Timed from the animation clock: a declared animation on a property nothing reads while
@@ -435,8 +435,8 @@ export component AppWindow inherits Window {
     in property <image> swap-out;
     in property <image> swap-out-blur;
     in property <image> swap-in-blur;
-    // Set by Rust only while it takes that picture: 1 shows the stage alone, 2 hides the overlays.
-    in-out property <int> capturing;
+    // Set by Rust only while it takes a picture: `stage` shows the stage alone, `world` hides the overlays.
+    in-out property <Capture> capturing;
     property <bool> caret-on: true;
     // The home key: a tap is home, a hold opens the input list.
     property <bool> home-down;
@@ -451,7 +451,7 @@ export component AppWindow inherits Window {
             root.haptic("page");
         }
         if (root.page == 0 && p != 0) {
-            root.capture(0);
+            root.capture(Capture.stage);
         }
         root.focus-index = f;
         root.page = p;
@@ -585,7 +585,7 @@ export component AppWindow inherits Window {
                 if (!event.repeat && !root.power-latched) {
                     root.power-turning-off = root.power-on;
                     root.power-completed = false;
-                    root.capture(1);
+                    root.capture(Capture.world);
                     root.hold-look = 2;
                     root.power-hold-start = animation-tick();
                     root.power-holding = true;
@@ -687,7 +687,7 @@ export component AppWindow inherits Window {
             interval: 160ms;
             running: root.home-down && !root.home-used && !root.home-rumbling;
             triggered => {
-                root.capture(1);
+                root.capture(Capture.world);
                 root.hold-look = 1;
                 root.home-hold-start = animation-tick();
                 root.home-rumbling = true;
@@ -731,12 +731,12 @@ export component AppWindow inherits Window {
         // since Slint cannot blur live content.
         world := Rectangle {
             transform-origin: { x: self.width / 2, y: self.height / 2 };
-            transform-scale: root.capturing != 0 ? 1 : 1 - 0.05 * root.under;
+            transform-scale: root.capturing != Capture.none ? 1 : 1 - 0.05 * root.under;
 
             stage := Rectangle {
                 transform-origin: { x: self.width / 2, y: self.height / 2 };
-                transform-scale: root.capturing == 1 ? 1 : (1 - 0.08 * root.recede) * (root.swapping && !root.swap-plain ? 0.97 + 0.03 * root.swap : 1);
-                opacity: root.capturing == 1 ? 1 : 1 - 0.55 * root.recede;
+                transform-scale: root.capturing == Capture.stage ? 1 : (1 - 0.08 * root.recede) * (root.swapping && !root.swap-plain ? 0.97 + 0.03 * root.swap : 1);
+                opacity: root.capturing == Capture.stage ? 1 : 1 - 0.55 * root.recede;
 
 
                     // The input's UI slot, playing
@@ -1034,7 +1034,7 @@ export component AppWindow inherits Window {
                 // One stage giving way to another: the old one, sharp then blurred, dissolves into
                 // the new one blurred, which sharpens into the live stage beneath.
                 Rectangle {
-                    visible: root.swapping && root.capturing == 0;
+                    visible: root.swapping && root.capturing == Capture.none;
                     Image {
                         width: 480px;
                         height: 800px;
@@ -1068,12 +1068,12 @@ export component AppWindow inherits Window {
                     source: root.stage-blur;
                     image-fit: fill;
                     opacity: root.recede;
-                    visible: self.opacity > 0 && root.capturing != 1;
+                    visible: self.opacity > 0 && root.capturing != Capture.stage;
                 }
             }
 
             options := Rectangle {
-                visible: root.recede > 0 && root.capturing != 1;
+                visible: root.recede > 0 && root.capturing != Capture.stage;
                 opacity: root.recede;
                 transform-origin: { x: self.width / 2, y: self.height / 2 };
                 transform-scale: 1.04 - 0.04 * root.recede;
@@ -1473,7 +1473,7 @@ export component AppWindow inherits Window {
                 source: root.world-blur;
                 image-fit: fill;
                 opacity: root.under;
-                visible: self.opacity > 0 && root.capturing == 0;
+                visible: self.opacity > 0 && root.capturing == Capture.none;
             }
         }
 
@@ -1482,7 +1482,7 @@ export component AppWindow inherits Window {
             property <bool> shown: root.volume-overlay && root.power-on;
             background: #000000A6;
             opacity: self.shown ? 1 : 0;
-            visible: self.opacity > 0 && root.capturing == 0;
+            visible: self.opacity > 0 && root.capturing == Capture.none;
             animate opacity { duration: 180ms; easing: ease-out; }
 
             Glyph {
@@ -1522,7 +1522,7 @@ export component AppWindow inherits Window {
     Rectangle {
         background: #000000A6;
         opacity: root.hold-shown ? 1 : 0;
-        visible: self.opacity > 0 && root.capturing == 0;
+        visible: self.opacity > 0 && root.capturing == Capture.none;
         animate opacity { duration: 160ms; easing: ease-out; }
         Path {
             x: 120px;
@@ -1579,7 +1579,7 @@ export component AppWindow inherits Window {
     Rectangle {
         background: #000000C0;
         opacity: root.charge-card && root.lit ? 1 : 0;
-        visible: self.opacity > 0 && root.capturing == 0;
+        visible: self.opacity > 0 && root.capturing == Capture.none;
         animate opacity { duration: 300ms; easing: ease-in-out; }
         Rectangle {
             x: 122px;
@@ -1648,7 +1648,7 @@ export component AppWindow inherits Window {
         y: 0;
         height: 64px;
         opacity: root.reveal * (root.page == 6 || root.page == 8 ? 0 : 1);
-        visible: self.opacity > 0 && root.capturing == 0;
+        visible: self.opacity > 0 && root.capturing == Capture.none;
         animate opacity { duration: Theme.page-time; }
         StatusBar {
             clock: root.clock;

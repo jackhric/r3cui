@@ -8,8 +8,8 @@ pub(crate) mod library;
 pub(crate) mod screen;
 pub(crate) mod stage;
 
-use crate::view::screen::{Capture, Page, Screen};
-use crate::{AppWindow, Choice, JoinState, Logos, InputRow, StatusRow, Theme, WifiRow};
+use crate::view::screen::{Page, Screen};
+use crate::{AppWindow, Capture, Choice, JoinState, Logos, InputRow, StatusRow, Theme, WifiRow};
 
 use crate::app::settings;
 use crate::app::model::Model;

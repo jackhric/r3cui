@@ -4,8 +4,8 @@
 
 use crate::hardware::backlight;
 use crate::input::{keys, Button};
-use crate::view::screen::{Capture, LibMode, Page, Screen};
-use crate::{JoinState, Picker};
+use crate::view::screen::{LibMode, Page, Screen};
+use crate::{Capture, JoinState, Picker};
 use crate::preview::device::{self, Device};
 use crate::{view::apply, app::demo::apply_demo_settings, AppWindow, app::model::Model, app::UiAction};
 use anyhow::Context;

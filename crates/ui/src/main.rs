@@ -19,7 +19,7 @@ use crate::art::grain;
 use crate::hardware::{backlight, feedback};
 use crate::input::{key_action, keys, wire_keyboard};
 use crate::view::{parse_color, set_accent, set_status};
-use crate::view::screen::{Capture, Page, Screen};
+use crate::view::screen::{Page, Screen};
 use crate::view::idle::{animate_lava, poke, rest_on_charger};
 use crate::view::stage::capture;
 #[cfg(feature = "device")]
@@ -84,7 +84,7 @@ fn main() -> anyhow::Result<()> {
         let weak = app.as_weak();
         move |which| {
             if let Some(app) = weak.upgrade() {
-                capture(&app, Capture::from_slint(which));
+                capture(&app, which);
             }
         }
     });

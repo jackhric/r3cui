@@ -1,10 +1,10 @@
 //! The stage behind the controls (now playing, inputs, the poster wall, off) and the blurred crossfade from one
 //! to the next.
 
-use crate::AppWindow;
+use crate::{AppWindow, Capture};
 use crate::app::model::Model;
 use crate::art::pixels;
-use crate::view::screen::{Capture, LibMode, Page, Screen};
+use crate::view::screen::{LibMode, Page, Screen};
 
 use slint::ComponentHandle;
 use std::cell::RefCell;
@@ -16,9 +16,9 @@ const LIBRARY_REVEAL_LEAD: Duration = Duration::from_millis(250);
 /// The stage as it looks right now, alone and unreceded.
 /// The window as one blur's picture: the stage alone, or the stage with the world over it.
 fn snapshot(app: &AppWindow, what: Capture) -> Option<image::RgbaImage> {
-    app.set_capturing(what as i32);
+    app.set_capturing(what);
     let shot = app.window().take_snapshot();
-    app.set_capturing(0);
+    app.set_capturing(Capture::None);
     let shot = shot.map_err(|e| tracing::warn!("snapshot: {e}")).ok()?;
     image::RgbaImage::from_raw(shot.width(), shot.height(), shot.as_bytes().to_vec())
 }
@@ -79,7 +79,7 @@ pub(crate) fn reveal_library(app: &AppWindow, delay: Duration) {
 }
 pub(crate) fn swap_stage(app: &AppWindow, key: StageKey, change: impl FnOnce()) {
     let before = STAGE.with(|s| s.replace(Some(key.clone())));
-    let visible = app.on_page(Page::Home) && app.get_lit() && app.get_capturing() == 0;
+    let visible = app.on_page(Page::Home) && app.get_lit() && app.get_capturing() == Capture::None;
     if before.is_none() || before.as_ref() == Some(&key) || !visible {
         change();
         return;
@@ -109,5 +109,6 @@ pub(crate) fn capture(app: &AppWindow, what: Capture) {
     match what {
         Capture::Stage => app.set_stage_blur(img),
         Capture::World => app.set_world_blur(img),
+        Capture::None => {}
     }
 }
