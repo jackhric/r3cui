@@ -31,6 +31,7 @@ pub static SPEC: Spec = Spec {
         Field { key: field::KEY_PEM, label: "Key", kind: FieldKind::Credential, required: false, default: None },
     ],
     provides: Provides { global: false, remote: true, ui: true, power: true },
+    address: Some(field::HOST),
     pairing: Some(CodePairing { code_len: CODE_LEN }),
 };
 

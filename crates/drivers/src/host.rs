@@ -230,6 +230,12 @@ impl Host {
         self.running.iter().map(|(id, r)| (id.clone(), r.driver.spec().name.to_string(), r.driver.status().borrow().clone())).collect()
     }
 
+    /// Where the driver `id` reaches its device, as set up.
+    pub fn address(&self, id: &str) -> Option<String> {
+        let entry = self.modules.drivers.get(id)?;
+        entry.text(self.registry.spec(&entry.kind)?.address?)
+    }
+
     /// The mark of the driver that fills `input`'s screen slot, or else its remote slot.
     pub fn icon(&self, input: &Input) -> Option<&'static str> {
         let mark = |slot: &Option<String>| Some(self.running.get(slot.as_deref()?)?.driver.mark(&input.id)).filter(|i| !i.is_empty());
@@ -293,6 +299,17 @@ mod tests {
 
     fn report_sources(fake: &FakeDriver, current: &str) {
         fake.set_sources(Sources { current: current.into(), list: vec!["TV".into(), "KODI".into()] });
+    }
+
+    #[tokio::test]
+    async fn a_drivers_address_is_its_address_field() {
+        let (mut host, _fakes) = setup();
+        assert_eq!(host.address(FAKE_PLAYER.id), None, "not filled in");
+        assert_eq!(host.address(FAKE_GLOBAL.id), None, "has no address field");
+        let mut m = host.modules().clone();
+        m.drivers.get_mut(FAKE_PLAYER.id).unwrap().fields.insert(FAKE_HOST.into(), "192.0.2.20".into());
+        host.apply(m);
+        assert_eq!(host.address(FAKE_PLAYER.id).as_deref(), Some("192.0.2.20"));
     }
 
     #[tokio::test]

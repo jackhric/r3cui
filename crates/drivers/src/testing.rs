@@ -11,13 +11,14 @@ use tokio::sync::{mpsc, watch};
 
 pub const FAKE_HOST: &str = "host";
 
-pub static FAKE_GLOBAL: Spec = Spec { id: "fake-global", name: "Fake", icon: "", fields: &[], provides: Provides { global: true, remote: false, ui: false, power: false }, pairing: None };
+pub static FAKE_GLOBAL: Spec = Spec { id: "fake-global", name: "Fake", icon: "", fields: &[], address: None, provides: Provides { global: true, remote: false, ui: false, power: false }, pairing: None };
 pub static FAKE_PLAYER: Spec = Spec {
     id: "fake-player",
     name: "Fake",
     icon: "",
     fields: &[Field { key: FAKE_HOST, label: "Host", kind: FieldKind::Text, required: true, default: None }],
     provides: Provides { global: false, remote: true, ui: true, power: false },
+    address: Some(FAKE_HOST),
     pairing: None,
 };
 
@@ -31,6 +32,7 @@ pub static FAKE_PAIRABLE: Spec = Spec {
         Field { key: FAKE_PAIRABLE_CREDENTIAL, label: "Credential", kind: FieldKind::Credential, required: false, default: None },
     ],
     provides: Provides { global: false, remote: true, ui: true, power: true },
+    address: None,
     pairing: Some(CodePairing { code_len: 6 }),
 };
 

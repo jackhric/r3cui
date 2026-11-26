@@ -30,6 +30,7 @@ pub static SPEC: Spec = Spec {
         Field { key: field::KEYS_MODE, label: "Key light mode", kind: FieldKind::Target(TargetKind::Select), required: false, default: None },
     ],
     provides: Provides { global: true, remote: false, ui: false, power: false },
+    address: Some(field::URL),
     pairing: None,
 };
 

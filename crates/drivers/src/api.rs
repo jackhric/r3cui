@@ -304,6 +304,8 @@ pub struct Spec {
     /// Its mark: 24×24 SVG path data, filled in one colour.
     pub icon: &'static str,
     pub fields: &'static [Field],
+    /// The field that says where the device is, named when it cannot be reached.
+    pub address: Option<&'static str>,
     pub provides: Provides,
     pub pairing: Option<CodePairing>,
 }

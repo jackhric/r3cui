@@ -111,9 +111,11 @@ same for every driver.
 
 ## Setup schema
 
-Each driver type has a static `Spec { id, name, icon, fields, provides, pairing }`. A `Field` is
+Each driver type has a static `Spec { id, name, icon, fields, address, provides, pairing }`. A `Field` is
 `{ key, label, kind: Text | Url | Port | Secret | Credential | Target(kind), required, default }`. The
-Integrations pages are drawn from it, so a new driver needs no new Slint.
+Integrations pages are drawn from it, so a new driver needs no new Slint. `address` names the field that says where
+the device is: when the source has listed no inputs, the empty Inputs page shows the driver's mark and status and
+asks whether that address is online.
 
 `Secret` fields (the HA token) are never shown back; the row reads "Set" or "Not set". A token is
 pasted into `modules.json` for now; pairing through an HA integration (HACS) comes later.

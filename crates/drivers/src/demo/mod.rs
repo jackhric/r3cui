@@ -17,6 +17,7 @@ pub static SPEC: Spec = Spec {
     icon: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm5 5v8l6-4z",
     fields: &[],
     provides: Provides { global: true, remote: true, ui: true, power: false },
+    address: None,
     pairing: None,
 };
 
