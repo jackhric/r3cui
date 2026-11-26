@@ -10,6 +10,7 @@ mod input;
 #[cfg(feature = "preview")]
 mod preview;
 mod remote;
+mod remote_control;
 mod view;
 
 use crate::app::{UiAction, settings};
@@ -320,6 +321,7 @@ fn main() -> anyhow::Result<()> {
     let _lava = animate_lava(&app);
     let _aurora = crate::view::voice::animate_aurora(&app);
     crate::view::voice::bench_aurora();
+    remote_control::start(app.as_weak());
     #[cfg(feature = "preview")]
     let _recording = match record {
         Some(out) => {
