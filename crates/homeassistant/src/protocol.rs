@@ -81,6 +81,11 @@ pub mod field {
 
 pub mod domain {
     pub const MEDIA_PLAYER: &str = "media_player";
+    pub const LIGHT: &str = "light";
+    pub const SELECT: &str = "select";
+    pub const INPUT_SELECT: &str = "input_select";
+    pub const SENSOR: &str = "sensor";
+    pub const INPUT_NUMBER: &str = "input_number";
 }
 
 /// Services of the `media_player` domain.

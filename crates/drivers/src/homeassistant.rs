@@ -72,11 +72,12 @@ impl HomeAssistant {
 
 /// The entity domains a target field of this kind lists.
 fn domains(kind: TargetKind) -> &'static [&'static str] {
+    use homeassistant::protocol::domain::*;
     match kind {
-        TargetKind::MediaPlayer => &["media_player"],
-        TargetKind::Light => &["light"],
-        TargetKind::Select => &["select", "input_select"],
-        TargetKind::Sensor => &["sensor", "input_number"],
+        TargetKind::MediaPlayer => &[MEDIA_PLAYER],
+        TargetKind::Light => &[LIGHT],
+        TargetKind::Select => &[SELECT, INPUT_SELECT],
+        TargetKind::Sensor => &[SENSOR, INPUT_NUMBER],
     }
 }
 
