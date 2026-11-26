@@ -9,6 +9,11 @@ pub const H: u32 = 200;
 const BAYER: [[f32; 4]; 4] = [[0.0, 8.0, 2.0, 10.0], [12.0, 4.0, 14.0, 6.0], [3.0, 11.0, 1.0, 9.0], [15.0, 7.0, 13.0, 5.0]];
 /// Where the four bands swell along the bottom edge, left to right.
 const LOBES: [f32; 4] = [0.18, 0.4, 0.62, 0.84];
+/// Past this many thicknesses from its edge the light is below one step of 255: nothing there is drawn.
+const REACH_OUT: f32 = 6.0;
+/// The most the noise widens the light, and the most a band's lobe adds.
+const SHAPE_MAX: f32 = 1.4;
+const LOBE: f32 = 0.045;
 /// Hue steps from the accent, in degrees: a neighbour, a cool counterpoint, a warm tint.
 const HUES: [f32; 4] = [0.0, 35.0, 190.0, -40.0];
 
@@ -40,6 +45,16 @@ pub fn render(look: &Look, palette: &[[f32; 3]; 4]) -> SharedPixelBuffer<Rgba8Pi
     // How high up the sides it climbs, as a share of the height.
     let rise = look.reach * (0.26 + 0.22 * look.level);
     let strength = 1.0 - 0.55 * look.dim;
+    let loudest_band = look.bands.iter().copied().fold(0.0, f32::max);
+    let bottom_most = look.reach * (0.04 + 0.05 * look.level + LOBE * loudest_band) * SHAPE_MAX * REACH_OUT;
+    let side_most = look.reach * (0.022 + 0.028 * look.level) * SHAPE_MAX * REACH_OUT;
+    // The band lobes depend only on the column.
+    let lobes: Vec<f32> = (0..W)
+        .map(|i| {
+            let u = (i as f32 + 0.5) / W as f32;
+            LOBES.iter().zip(look.bands).map(|(&c, b)| b * LOBE * (-((u - c) / 0.12).powi(2)).exp()).sum()
+        })
+        .collect();
     let px = buf.make_mut_slice();
     for j in 0..H {
         let v = (j as f32 + 0.5) / H as f32;
@@ -47,13 +62,16 @@ pub fn render(look: &Look, palette: &[[f32; 3]; 4]) -> SharedPixelBuffer<Rgba8Pi
         let climb = smoothstep(rise, 0.0, up);
         for i in 0..W {
             let u = (i as f32 + 0.5) / W as f32;
+            // Most of the screen is far from every edge: left clear, without the noise.
+            if up > bottom_most && (climb <= 0.0 || u.min(1.0 - u) * aspect > side_most) {
+                continue;
+            }
             let (x, y) = (u * aspect, v);
             let warp = fbm(x * 1.6, y * 1.6 + t * 0.05, seed);
             let n = fbm(x * 2.6 + warp * 1.3 + t * 0.12, y * 2.6 - t * 0.17, seed.wrapping_add(1));
             let shape = 0.6 + 0.8 * n;
 
-            let lobes: f32 = LOBES.iter().zip(look.bands).map(|(&c, b)| b * 0.045 * (-((u - c) / 0.12).powi(2)).exp()).sum();
-            let bottom = look.reach * (0.04 + 0.05 * look.level + lobes) * shape;
+            let bottom = look.reach * (0.04 + 0.05 * look.level + lobes[i as usize]) * shape;
             let side = look.reach * (0.022 + 0.028 * look.level) * shape * climb;
             let edge = |d: f32, thick: f32| if thick > 1e-4 { (-d / thick).exp() } else { 0.0 };
             let fb = edge(up, bottom);
@@ -97,8 +115,9 @@ fn noise(x: f32, y: f32, seed: u32) -> f32 {
     let (xi, yi) = (x.floor() as i32, y.floor() as i32);
     let (xf, yf) = (x - x.floor(), y - y.floor());
     let (sx, sy) = (xf * xf * (3.0 - 2.0 * xf), yf * yf * (3.0 - 2.0 * yf));
-    let top = hash(xi, yi, seed) + (hash(xi + 1, yi, seed) - hash(xi, yi, seed)) * sx;
-    let bottom = hash(xi, yi + 1, seed) + (hash(xi + 1, yi + 1, seed) - hash(xi, yi + 1, seed)) * sx;
+    let (a, b) = (hash(xi, yi, seed), hash(xi + 1, yi, seed));
+    let (c, d) = (hash(xi, yi + 1, seed), hash(xi + 1, yi + 1, seed));
+    let (top, bottom) = (a + (b - a) * sx, c + (d - c) * sx);
     top + (bottom - top) * sy
 }
 

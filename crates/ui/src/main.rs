@@ -319,6 +319,7 @@ fn main() -> anyhow::Result<()> {
     let _rest = rest_on_charger(&app);
     let _lava = animate_lava(&app);
     let _aurora = crate::view::voice::animate_aurora(&app);
+    crate::view::voice::bench_aurora();
     #[cfg(feature = "preview")]
     let _recording = match record {
         Some(out) => {

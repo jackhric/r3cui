@@ -17,6 +17,11 @@ const ATTACK: Duration = Duration::from_millis(50);
 const RELEASE: Duration = Duration::from_millis(280);
 /// How quickly it settles once the voice has ended.
 const SETTLE: Duration = Duration::from_millis(600);
+/// Set (in `settings.json`'s `env`, say) to time the aurora once at startup, for a device without a voice to hand.
+const BENCH_ENV: &str = "R3CUI_AURORA_BENCH";
+const BENCH_FRAMES: u32 = 90;
+/// While it runs, how often the frame times are logged.
+const REPORT_EVERY: u32 = 150;
 
 pub(crate) fn show(app: &AppWindow, voice: Option<&Voice>) {
     let v = app.global::<Shown>();
@@ -60,6 +65,51 @@ struct Scene {
     last: Instant,
 }
 
+/// Draws aurora frames off the UI thread, always the newest asked for, and hands each to the window.
+fn painter(weak: slint::Weak<AppWindow>) -> std::sync::mpsc::Sender<(Look, [[f32; 3]; 4])> {
+    let (tx, rx) = std::sync::mpsc::channel::<(Look, [[f32; 3]; 4])>();
+    std::thread::spawn(move || {
+        let (mut frames, mut total, mut longest) = (0u32, Duration::ZERO, Duration::ZERO);
+        while let Ok(mut job) = rx.recv() {
+            // A slow frame is not worth drawing once a newer one is waiting.
+            while let Ok(newer) = rx.try_recv() {
+                job = newer;
+            }
+            let start = Instant::now();
+            let pixels = aurora::render(&job.0, &job.1);
+            let took = start.elapsed();
+            (frames, total, longest) = (frames + 1, total + took, longest.max(took));
+            if frames == REPORT_EVERY {
+                tracing::info!("aurora: {frames} frames, mean {:.2} ms, longest {:.2} ms", total.as_secs_f64() * 1000.0 / f64::from(frames), longest.as_secs_f64() * 1000.0);
+                (frames, total, longest) = (0, Duration::ZERO, Duration::ZERO);
+            }
+            let _ = weak.upgrade_in_event_loop(move |app| app.global::<Shown>().set_aurora(slint::Image::from_rgba8(pixels)));
+        }
+    });
+    tx
+}
+
+/// Times the aurora off the UI thread, at full voice, when `R3CUI_AURORA_BENCH` is set.
+pub(crate) fn bench_aurora() {
+    if std::env::var_os(BENCH_ENV).is_none() {
+        return;
+    }
+    std::thread::spawn(|| {
+        let palette = aurora::palette((0x2E, 0x7B, 0xFF));
+        let (mut total, mut longest) = (Duration::ZERO, Duration::ZERO);
+        for i in 0..BENCH_FRAMES {
+            let x = i as f32 / BENCH_FRAMES as f32;
+            let look = Look { seed: 7, flow: x * 4.0, reach: 1.0, level: 0.5 + 0.5 * (x * 20.0).sin(), bands: [0.5; 4], dim: 0.0 };
+            let start = Instant::now();
+            std::hint::black_box(aurora::render(&look, &palette));
+            let took = start.elapsed();
+            total += took;
+            longest = longest.max(took);
+        }
+        tracing::info!("aurora bench: {}x{}, {BENCH_FRAMES} frames, mean {:.2} ms, longest {:.2} ms", aurora::W, aurora::H, total.as_secs_f64() * 1000.0 / f64::from(BENCH_FRAMES), longest.as_secs_f64() * 1000.0);
+    });
+}
+
 /// Moves `cur` toward `target`, at `attack` rising and `release` falling.
 fn follow(cur: f32, target: f32, dt: f32, attack: Duration, release: Duration) -> f32 {
     let tau = if target > cur { attack } else { release }.as_secs_f32();
@@ -69,6 +119,7 @@ fn follow(cur: f32, target: f32, dt: f32, attack: Duration, release: Duration) -
 /// Redraws the aurora while the voice overlay is up; each session gets its own seed.
 pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
     let weak = app.as_weak();
+    let paint = painter(app.as_weak());
     let scene: RefCell<Option<Scene>> = RefCell::new(None);
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, FRAME, move || {
@@ -98,8 +149,7 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
         l.reach = 1.0 - (1.0 - t).powi(3);
         l.flow += dt * (1.0 + 3.0 * l.level) * (1.0 - 0.6 * l.dim);
         let a = app.global::<Theme>().get_accent();
-        let pixels = aurora::render(l, &aurora::palette((a.red(), a.green(), a.blue())));
-        app.global::<Shown>().set_aurora(slint::Image::from_rgba8(pixels));
+        let _ = paint.send((*l, aurora::palette((a.red(), a.green(), a.blue()))));
     });
     timer
 }
