@@ -11,7 +11,8 @@ path = "src/main.rs"
 [dependencies]
 coreapi = { path = "../coreapi" }
 tokio.workspace = true
-kodi = { path = "../kodi" }
+# Only the previews read Kodi's own types (a saved library); the app reaches Kodi through `drivers`.
+kodi = { path = "../kodi", optional = true }
 drivers = { path = "../drivers" }
 serde.workspace = true
 serde_json.workspace = true
@@ -39,7 +40,7 @@ default = ["desktop"]
 desktop = ["slint/backend-winit", "slint/renderer-femtovg", "preview", "drivers/demo"]
 device = ["slint/backend-linuxkms", "slint/renderer-femtovg", "slint/renderer-software", "slint/software-renderer-path", "dep:evdev"]
 # Screenshot, recording and remote-photo framing tools (--shots, --snap, --record, --frame).
-preview = []
+preview = ["dep:kodi"]
 
 [dev-dependencies]
 drivers = { path = "../drivers", features = ["testing"] }
