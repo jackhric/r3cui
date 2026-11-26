@@ -23,7 +23,9 @@ pub struct Look {
     pub seed: u32,
     /// Seconds since it began; the flow runs faster as the voice gets louder.
     pub flow: f32,
-    /// 0 to 1: how far in it has come.
+    /// 0 to 1: how far the light has spread along the bottom from the centre.
+    pub spread: f32,
+    /// 0 to 1: how far it has climbed the sides.
     pub reach: f32,
     pub level: f32,
     pub bands: [f32; 4],
@@ -43,10 +45,12 @@ pub fn render(look: &Look, palette: &[[f32; 3]; 4]) -> SharedPixelBuffer<Rgba8Pi
     let seed = look.seed;
     let t = look.flow;
     // How high up the sides it climbs, as a share of the height.
-    let rise = look.reach * (0.26 + 0.22 * look.level);
+    let rise = look.reach * (0.4 + 0.25 * look.level);
     let strength = 1.0 - 0.55 * look.dim;
     let loudest_band = look.bands.iter().copied().fold(0.0, f32::max);
-    let bottom_most = look.reach * (0.04 + 0.05 * look.level + LOBE * loudest_band) * SHAPE_MAX * REACH_OUT;
+    let bottom_most = look.spread * (0.04 + 0.05 * look.level + LOBE * loudest_band) * SHAPE_MAX * REACH_OUT;
+    // How far from the centre the light has spread: a bloom at first, past the corners when it is in.
+    let half_width = 0.06 + 0.56 * look.spread;
     let side_most = look.reach * (0.022 + 0.028 * look.level) * SHAPE_MAX * REACH_OUT;
     // The band lobes depend only on the column.
     let lobes: Vec<f32> = (0..W)
@@ -71,7 +75,7 @@ pub fn render(look: &Look, palette: &[[f32; 3]; 4]) -> SharedPixelBuffer<Rgba8Pi
             let n = fbm(x * 2.6 + warp * 1.3 + t * 0.12, y * 2.6 - t * 0.17, seed.wrapping_add(1));
             let shape = 0.6 + 0.8 * n;
 
-            let bottom = look.reach * (0.04 + 0.05 * look.level + lobes[i as usize]) * shape;
+            let bottom = look.spread * (0.04 + 0.05 * look.level + lobes[i as usize]) * shape * smoothstep(half_width, half_width - 0.18, (u - 0.5).abs());
             let side = look.reach * (0.022 + 0.028 * look.level) * shape * climb;
             let edge = |d: f32, thick: f32| if thick > 1e-4 { (-d / thick).exp() } else { 0.0 };
             let fb = edge(up, bottom);
@@ -177,7 +181,7 @@ mod tests {
     fn the_accent_survives_the_round_trip_and_the_middle_stays_clear() {
         let red = palette((0xE8, 0x34, 0x3A))[0];
         assert!(red[0] > red[1] && red[0] > red[2], "{red:?}");
-        let look = Look { seed: 7, flow: 1.0, reach: 1.0, level: 0.6, bands: [0.4; 4], dim: 0.0 };
+        let look = Look { seed: 7, flow: 1.0, spread: 1.0, reach: 1.0, level: 0.6, bands: [0.4; 4], dim: 0.0 };
         let buf = render(&look, &palette((0xE8, 0x34, 0x3A)));
         let at = |u: u32, v: u32| buf.as_slice()[(v * W + u) as usize].a;
         assert!(at(W / 2, H - 1) > 150, "bright along the bottom");

@@ -10,8 +10,11 @@ use std::cell::RefCell;
 use std::time::{Duration, Instant};
 
 const FRAME: Duration = Duration::from_millis(33);
-/// The aurora comes in this fast, easing out.
-const ENTER: Duration = Duration::from_millis(900);
+/// The aurora's entrance, each part easing out: it spreads from the bottom centre along the edge, and from a moment
+/// after it begins, climbs the sides.
+const SPREAD: Duration = Duration::from_millis(450);
+const CLIMB_AFTER: Duration = Duration::from_millis(250);
+const CLIMB: Duration = Duration::from_millis(650);
 /// How quickly it follows the voice getting louder, and quieter.
 const ATTACK: Duration = Duration::from_millis(50);
 const RELEASE: Duration = Duration::from_millis(280);
@@ -99,7 +102,7 @@ pub(crate) fn bench_aurora() {
         let (mut total, mut longest) = (Duration::ZERO, Duration::ZERO);
         for i in 0..BENCH_FRAMES {
             let x = i as f32 / BENCH_FRAMES as f32;
-            let look = Look { seed: 7, flow: x * 4.0, reach: 1.0, level: 0.5 + 0.5 * (x * 20.0).sin(), bands: [0.5; 4], dim: 0.0 };
+            let look = Look { seed: 7, flow: x * 4.0, spread: 1.0, reach: 1.0, level: 0.5 + 0.5 * (x * 20.0).sin(), bands: [0.5; 4], dim: 0.0 };
             let start = Instant::now();
             std::hint::black_box(aurora::render(&look, &palette));
             let took = start.elapsed();
@@ -133,7 +136,7 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
         let now = Instant::now();
         let s = scene.get_or_insert_with(|| {
             let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_nanos());
-            Scene { look: Look { seed, flow: 0.0, reach: 0.0, level: 0.0, bands: [0.0; 4], dim: 0.0 }, began: now, last: now }
+            Scene { look: Look { seed, flow: 0.0, spread: 0.0, reach: 0.0, level: 0.0, bands: [0.0; 4], dim: 0.0 }, began: now, last: now }
         });
         let dt = now.duration_since(s.last).as_secs_f32();
         s.last = now;
@@ -145,8 +148,10 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
             *b = follow(*b, target, dt, ATTACK, RELEASE);
         }
         l.dim = follow(l.dim, if listening { 0.0 } else { 1.0 }, dt, SETTLE, SETTLE);
-        let t = (now.duration_since(s.began).as_secs_f32() / ENTER.as_secs_f32()).min(1.0);
-        l.reach = 1.0 - (1.0 - t).powi(3);
+        let since = now.duration_since(s.began);
+        let ease_out = |part: f32| 1.0 - (1.0 - part.clamp(0.0, 1.0)).powi(3);
+        l.spread = ease_out(since.as_secs_f32() / SPREAD.as_secs_f32());
+        l.reach = ease_out(since.saturating_sub(CLIMB_AFTER).as_secs_f32() / CLIMB.as_secs_f32());
         l.flow += dt * (1.0 + 3.0 * l.level) * (1.0 - 0.6 * l.dim);
         let a = app.global::<Theme>().get_accent();
         let _ = paint.send((*l, aurora::palette((a.red(), a.green(), a.blue()))));
