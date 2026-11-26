@@ -40,10 +40,11 @@ pub(crate) fn page_name(page: PageId) -> &'static str {
         PageId::FwUpdate => "fw-update",
         PageId::FwInstalling => "fw-installing",
         PageId::WebConfig => "web-config",
+        PageId::RemoteControl => "remote-control",
     }
 }
 
-const PAGES: [PageId; 19] = [
+const PAGES: [PageId; 20] = [
     PageId::Home,
     PageId::Inputs,
     PageId::Menu,
@@ -63,6 +64,7 @@ const PAGES: [PageId; 19] = [
     PageId::FwUpdate,
     PageId::FwInstalling,
     PageId::WebConfig,
+    PageId::RemoteControl,
 ];
 
 pub(crate) fn page_by_name(name: &str) -> Option<PageId> {

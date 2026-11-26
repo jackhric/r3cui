@@ -1,117 +1,114 @@
-//! Remote control: a small server inside r3cui so the remote can be watched and driven from the local network. Off
-//! unless `R3CUI_REMOTE_CONTROL` is set (in `settings.json`'s `env`, say). It does nothing until asked: no polling, and
-//! the screen is captured only when a screenshot is requested, so a remote on battery pays only for what is used.
-//!
-//! First step: `GET /health` and `GET /screenshot.png`, with how long the capture and the encoding took.
+//! Remote control: a small server inside r3cui so the remote can be watched and driven from the local network
+//! (`crates/remotewire` is the protocol, `r3ctl` a client). Switched on and off in Settings → System → Remote
+//! control, with an access key shown there; a client proves it holds the key without sending it. While off nothing
+//! listens; while on it waits on its socket and works only when asked, so a remote on battery pays only for use.
 
-use crate::AppWindow;
-use image::ImageEncoder;
+mod act;
+mod server;
+
+use crate::app::session::data_dir;
+use crate::app::UiAction;
+use crate::{AppWindow, RemoteControl};
+use serde::{Deserialize, Serialize};
 use slint::ComponentHandle;
-use std::net::{IpAddr, SocketAddr};
-use std::time::{Duration, Instant};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use std::sync::{Arc, Mutex};
+use tokio::sync::{mpsc, watch};
 
-const ENV: &str = "R3CUI_REMOTE_CONTROL";
-/// Outside the ports a custom integration may not use, and beside the voice link (10790).
-pub(crate) const PORT: u16 = 10780;
-const REQUEST_LIMIT: usize = 4096;
-const READ_TIMEOUT: Duration = Duration::from_secs(5);
+const FILE: &str = "remote-control.json";
+/// Set to a key to switch remote control on with it, for a test install that a tool must reach at once.
+const KEY_ENV: &str = "R3CUI_REMOTE_CONTROL_KEY";
+/// Easy to read off the screen and type: no 0/O, 1/I/L.
+const ALPHABET: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const KEY_LEN: usize = 10;
 
-mod route {
-    pub const HEALTH: &str = "/health";
-    pub const SCREENSHOT: &str = "/screenshot.png";
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+struct Config {
+    enabled: bool,
+    key: String,
 }
 
-/// Starts the server on its own thread when switched on.
-pub(crate) fn start(weak: slint::Weak<AppWindow>) {
-    if std::env::var_os(ENV).is_none() {
-        return;
+fn load() -> Config {
+    std::fs::read_to_string(data_dir().join(FILE)).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
+fn save(config: &Config) {
+    let path = data_dir().join(FILE);
+    if let Err(e) = serde_json::to_string_pretty(config).map_err(std::io::Error::other).and_then(|t| std::fs::write(&path, t)) {
+        tracing::warn!("remote control: saving {}: {e}", path.display());
     }
+}
+
+pub(crate) fn random_key() -> String {
+    let mut bytes = [0u8; KEY_LEN];
+    getrandom::getrandom(&mut bytes).expect("the system's random source");
+    let chars: String = bytes.iter().map(|b| ALPHABET[usize::from(*b) % ALPHABET.len()] as char).collect();
+    format!("{}-{}", &chars[..KEY_LEN / 2], &chars[KEY_LEN / 2..])
+}
+
+/// The switch and the key, as the settings page changes them.
+#[derive(Clone)]
+pub(crate) struct Handle {
+    config: Arc<Mutex<Config>>,
+    /// The key while it is on, `None` while off: what the server listens by.
+    serving: watch::Sender<Option<String>>,
+    weak: slint::Weak<AppWindow>,
+    /// Kept off disk: a key from the environment is for one test run.
+    from_env: bool,
+}
+
+impl Handle {
+    pub(crate) fn toggle(&self) {
+        let mut c = self.config.lock().unwrap();
+        c.enabled = !c.enabled;
+        if c.enabled && c.key.is_empty() {
+            c.key = random_key();
+        }
+        self.apply(&c);
+    }
+
+    pub(crate) fn new_key(&self) {
+        let mut c = self.config.lock().unwrap();
+        c.key = random_key();
+        self.apply(&c);
+    }
+
+    fn apply(&self, c: &Config) {
+        if !self.from_env {
+            save(c);
+        }
+        self.serving.send_replace(c.enabled.then(|| c.key.clone()));
+        show(&self.weak, c);
+    }
+}
+
+fn show(weak: &slint::Weak<AppWindow>, c: &Config) {
+    let (on, key) = (c.enabled, c.key.clone());
+    let address = server::address();
+    let _ = weak.upgrade_in_event_loop(move |app| {
+        let r = app.global::<RemoteControl>();
+        r.set_on(on);
+        r.set_key(key.as_str().into());
+        r.set_address(address.as_str().into());
+        let link = format!("r3ctl://{address}#{key}");
+        r.set_qr(if on { crate::view::qr::image(&link, server::QR_SIZE).unwrap_or_default() } else { slint::Image::default() });
+    });
+}
+
+/// Starts the server's thread; it listens only while switched on.
+pub(crate) fn start(weak: slint::Weak<AppWindow>, actions: mpsc::UnboundedSender<UiAction>) -> Handle {
+    let (config, from_env) = match std::env::var(KEY_ENV) {
+        Ok(key) if !key.is_empty() => (Config { enabled: true, key }, true),
+        _ => (load(), false),
+    };
+    let (serving, listen) = watch::channel(config.enabled.then(|| config.key.clone()));
+    show(&weak, &config);
+    let handle = Handle { config: Arc::new(Mutex::new(config)), serving, weak: weak.clone(), from_env };
     std::thread::spawn(move || {
         let rt = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
             Ok(rt) => rt,
             Err(e) => return tracing::error!("remote control: {e}"),
         };
-        rt.block_on(serve(weak));
+        rt.block_on(server::run(listen, weak, actions));
     });
-}
-
-async fn serve(weak: slint::Weak<AppWindow>) {
-    let addr = SocketAddr::from(([0, 0, 0, 0], PORT));
-    let listener = match TcpListener::bind(addr).await {
-        Ok(l) => l,
-        Err(e) => return tracing::error!("remote control: cannot listen on {addr}: {e}"),
-    };
-    tracing::info!("remote control: listening on {addr}");
-    loop {
-        let Ok((stream, peer)) = listener.accept().await else { continue };
-        if !local(peer.ip()) {
-            tracing::warn!("remote control: refused {peer}: not on the local network");
-            continue;
-        }
-        let weak = weak.clone();
-        tokio::spawn(async move {
-            if let Err(e) = answer(stream, weak).await {
-                tracing::warn!("remote control: {peer}: {e}");
-            }
-        });
-    }
-}
-
-/// Loopback, link-local or a private range: never an address from the internet.
-fn local(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(v4) => v4.is_loopback() || v4.is_private() || v4.is_link_local(),
-        IpAddr::V6(v6) => v6.is_loopback() || v6.is_unicast_link_local() || v6.to_ipv4_mapped().is_some_and(|v4| v4.is_private() || v4.is_loopback()),
-    }
-}
-
-async fn answer(mut stream: TcpStream, weak: slint::Weak<AppWindow>) -> anyhow::Result<()> {
-    let mut buf = vec![0; REQUEST_LIMIT];
-    let n = tokio::time::timeout(READ_TIMEOUT, stream.read(&mut buf)).await??;
-    let request = String::from_utf8_lossy(&buf[..n]);
-    let path = request.lines().next().and_then(|line| line.split_whitespace().nth(1)).unwrap_or("");
-    match path {
-        route::HEALTH => respond(&mut stream, "200 OK", "text/plain", &[], b"r3cui\n").await,
-        route::SCREENSHOT => {
-            let (png, capture, encode) = screenshot(weak).await?;
-            let timing = [("X-Capture-Ms", millis(capture)), ("X-Encode-Ms", millis(encode))];
-            tracing::info!("remote control: screenshot, capture {} ms, encode {} ms, {} KB", timing[0].1, timing[1].1, png.len() / 1024);
-            respond(&mut stream, "200 OK", "image/png", &timing, &png).await
-        }
-        _ => respond(&mut stream, "404 Not Found", "text/plain", &[], b"not found\n").await,
-    }
-}
-
-fn millis(d: Duration) -> String {
-    format!("{:.1}", d.as_secs_f64() * 1000.0)
-}
-
-/// Captured on the UI thread, which owns the window, and encoded here, off it.
-async fn screenshot(weak: slint::Weak<AppWindow>) -> anyhow::Result<(Vec<u8>, Duration, Duration)> {
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    weak.upgrade_in_event_loop(move |app| {
-        let start = Instant::now();
-        let shot = app.window().take_snapshot();
-        let _ = tx.send((shot, start.elapsed()));
-    })?;
-    let (shot, capture) = rx.await?;
-    let shot = shot?;
-    let start = Instant::now();
-    let mut png = Vec::new();
-    image::codecs::png::PngEncoder::new_with_quality(&mut png, image::codecs::png::CompressionType::Fast, image::codecs::png::FilterType::Adaptive)
-        .write_image(shot.as_bytes(), shot.width(), shot.height(), image::ExtendedColorType::Rgba8)?;
-    Ok((png, capture, start.elapsed()))
-}
-
-async fn respond(stream: &mut TcpStream, status: &str, kind: &str, headers: &[(&str, String)], body: &[u8]) -> anyhow::Result<()> {
-    let mut head = format!("HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n", body.len());
-    for (name, value) in headers {
-        head.push_str(&format!("{name}: {value}\r\n"));
-    }
-    head.push_str("\r\n");
-    stream.write_all(head.as_bytes()).await?;
-    stream.write_all(body).await?;
-    Ok(())
+    handle
 }

@@ -7,6 +7,7 @@ import { Lab } from "lab.slint";
 import { Menu } from "menu.slint";
 import { Power } from "power.slint";
 import { Prefs } from "prefs.slint";
+import { RemoteControl } from "remote-control.slint";
 import { Software } from "software.slint";
 import { Tracks } from "tracks.slint";
 import { Wifi } from "wifi.slint";
@@ -21,7 +22,7 @@ export global Nav {
         p == PageId.home || p == PageId.inputs || p == PageId.menu || p == PageId.tracks ? 1
             : p == PageId.keyboard ? 3
             : p == PageId.join-failed || p == PageId.r3-installing || p == PageId.fw-installing ? 4
-            : p == PageId.r3-update || p == PageId.fw-update || p == PageId.web-config || p == PageId.uninstall ? 3
+            : p == PageId.r3-update || p == PageId.fw-update || p == PageId.web-config || p == PageId.uninstall || p == PageId.remote-control ? 3
             : 2
     }
     pure public function shows-menu(p: PageId) -> bool {
@@ -82,6 +83,9 @@ export global Nav {
         if (p == PageId.fw-update || p == PageId.fw-installing) {
             return { page: PageId.system, focus: Software.firmware-row };
         }
+        if (p == PageId.remote-control) {
+            return { page: PageId.system, focus: Software.control-row };
+        }
         if (p == PageId.web-config) {
             return { page: PageId.system, focus: Software.web-row };
         }
@@ -126,6 +130,7 @@ export global Nav {
             : Nav.page == PageId.system ? Software.system-rows
             : Nav.page == PageId.fw-update && Software.fw-state == UpdateState.available ? 2
             : Nav.page == PageId.r3-update || Nav.page == PageId.web-config ? 2
+            : Nav.page == PageId.remote-control ? (RemoteControl.on ? 2 : 1)
             : 1
     }
 
@@ -163,6 +168,8 @@ export global Nav {
             }
         } else if (i == Software.firmware-row) {
             Nav.go(PageId.fw-update, 0);
+        } else if (i == Software.control-row) {
+            Nav.go(PageId.remote-control, 0);
         } else if (i == Software.web-row) {
             Software.open-web();
             Nav.go(PageId.web-config, 0);
@@ -236,6 +243,12 @@ export global Nav {
                     Software.install-fw();
                 } else {
                     Nav.back();
+                }
+            } else if (Nav.page == PageId.remote-control) {
+                if (i == 0) {
+                    RemoteControl.toggle();
+                } else {
+                    RemoteControl.new-key();
                 }
             } else if (Nav.page == PageId.web-config) {
                 if (i == 0) {

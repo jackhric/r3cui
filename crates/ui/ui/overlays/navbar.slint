@@ -2,6 +2,7 @@ import { Control } from "../globals/control.slint";
 import { Fx } from "../globals/fx.slint";
 import { Home } from "../globals/home.slint";
 import { Nav } from "../globals/nav.slint";
+import { RemoteControl } from "../globals/remote-control.slint";
 import { Software } from "../globals/software.slint";
 import { Sys } from "../globals/sys.slint";
 import { Logo } from "../marks/icons.slint";
@@ -20,6 +21,7 @@ export component NavBar inherits Rectangle {
         clock: Sys.clock;
         battery: Sys.battery;
         charging: Sys.charging;
+        watched: RemoteControl.watched;
         in-menu: !Nav.shows-menu(Nav.page);
         menu-enabled: Nav.shows-menu(Nav.page) || !Software.blocking;
         menu => { Nav.go(PageId.menu, 0); }

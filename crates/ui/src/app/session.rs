@@ -119,11 +119,20 @@ fn demo_pins() -> impl FnMut() -> String + Send + 'static {
 /// `UC_DATA_HOME` on the remote (the only place it may write), seeded from the archive's `config/`; `./config` on
 /// the desktop.
 fn store() -> Store {
-    let config = std::env::var_os("UC_CONFIG_HOME").map_or_else(|| "config".into(), std::path::PathBuf::from);
+    let config = config_dir();
     match std::env::var_os("UC_DATA_HOME") {
         Some(data) => Store::new(std::path::Path::new(&data), Some(&config)),
         None => Store::new(&config, None),
     }
+}
+
+fn config_dir() -> std::path::PathBuf {
+    std::env::var_os("UC_CONFIG_HOME").map_or_else(|| "config".into(), std::path::PathBuf::from)
+}
+
+/// Where r3cui may write what it keeps: `UC_DATA_HOME` on the remote, `./config` on the desktop.
+pub(crate) fn data_dir() -> std::path::PathBuf {
+    std::env::var_os("UC_DATA_HOME").map_or_else(config_dir, std::path::PathBuf::from)
 }
 
 struct Session<'a> {

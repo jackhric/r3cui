@@ -2,6 +2,7 @@
 //! for them. Both feed the same `Button` → command routing.
 #[cfg(feature = "device")]
 pub(crate) mod evdev;
+pub(crate) mod inject;
 pub(crate) mod slider;
 use crate::Nav;
 use crate::Wifi;

@@ -32,6 +32,7 @@ import { R3InstallingPage } from "pages/system/r3-installing.slint";
 import { R3UpdatePage } from "pages/system/r3-update.slint";
 import { SystemPage } from "pages/system/system.slint";
 import { UninstallPage } from "pages/system/uninstall.slint";
+import { RemoteControlPage } from "pages/system/remote-control.slint";
 import { WebConfigPage } from "pages/system/web-config.slint";
 import { TracksPage } from "pages/tracks.slint";
 import { JoinFailedPage } from "pages/wifi/join-failed.slint";
@@ -62,6 +63,7 @@ export { Prefs } from "globals/prefs.slint";
 export { Software } from "globals/software.slint";
 export { Sys } from "globals/sys.slint";
 export { Tracks } from "globals/tracks.slint";
+export { RemoteControl } from "globals/remote-control.slint";
 export { Voice } from "globals/voice.slint";
 export { Wifi } from "globals/wifi.slint";
 
@@ -246,6 +248,7 @@ export component AppWindow inherits Window {
                 FwUpdatePage { }
                 FwInstallingPage { }
                 WebConfigPage { }
+                RemoteControlPage { }
                 LabPage { }
                 JoinFailedPage { }
                 TracksPage { }

@@ -5,10 +5,11 @@ import { InstallPhase, UninstallState, UpdateState } from "../types.slint";
 export global Software {
     // The System page's rows.
     out property <int> action-row: 0;
-    out property <int> firmware-row: 1;
-    out property <int> web-row: 2;
-    out property <int> uninstall-row: 3;
-    out property <int> system-rows: 4;
+    out property <int> control-row: 1;
+    out property <int> firmware-row: 2;
+    out property <int> web-row: 3;
+    out property <int> uninstall-row: 4;
+    out property <int> system-rows: 5;
 
     in property <string> r3-version;
     // Where the releases are read about, without the scheme.

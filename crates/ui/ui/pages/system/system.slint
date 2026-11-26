@@ -1,4 +1,5 @@
 import { Nav } from "../../globals/nav.slint";
+import { RemoteControl } from "../../globals/remote-control.slint";
 import { Software } from "../../globals/software.slint";
 import { R3Wordmark } from "../../marks/brand.slint";
 import { Icons } from "../../marks/icons.slint";
@@ -57,6 +58,14 @@ export component SystemPage inherits Layer {
             choice: { label: root.available ? "Update r3cui" : Software.r3-state == UpdateState.checking ? "Checking…" : "Check for updates", value: root.available ? Software.r3-new-version : "", chevron: root.available };
             focused: Nav.focus == Software.action-row;
             tapped => { Nav.activate(Software.action-row); }
+        }
+        Row {
+            size: RowSize.compact;
+            glyph: Icons.remote;
+            bottom-line: true;
+            choice: { label: "Remote control", value: RemoteControl.on ? "On" : "Off", chevron: true };
+            focused: Nav.focus == Software.control-row;
+            tapped => { Nav.activate(Software.control-row); }
         }
         Gap { size: Layout.gap-l; }
         Inset {

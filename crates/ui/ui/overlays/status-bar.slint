@@ -7,6 +7,8 @@ export component StatusBar inherits Rectangle {
     in property <bool> in-menu;
     in property <bool> menu-enabled: true;
     in property <bool> charging;
+    // Someone is connected through remote control.
+    in property <bool> watched;
     callback menu();
     callback close();
 
@@ -21,6 +23,14 @@ export component StatusBar inherits Rectangle {
         text: root.clock;
         font-size: Layout.navbar-ink / Type.digit-height;
         color: Theme.text;
+    }
+    if root.watched: Rectangle {
+        x: cell.x - Layout.gap-m - self.width;
+        y: (Layout.navbar-h - self.height) / 2;
+        width: Layout.dot-size;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: Theme.accent;
     }
     cell := Rectangle {
         x: 350px;

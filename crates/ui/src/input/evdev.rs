@@ -136,14 +136,7 @@ fn activity(weak: &slint::Weak<AppWindow>) {
 }
 
 fn send(weak: &slint::Weak<AppWindow>, event: WindowEvent) {
-    crate::view::idle::poke();
-    let weak = weak.clone();
-    let _ = slint::invoke_from_event_loop(move || {
-        if let Some(app) = weak.upgrade() {
-            crate::hardware::frames::kick();
-            app.window().dispatch_event(event);
-        }
-    });
+    crate::input::inject::deliver(weak, event);
 }
 
 fn read(mut device: Device, is_touch: bool, weak: slint::Weak<AppWindow>) {

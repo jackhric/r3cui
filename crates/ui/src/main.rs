@@ -321,7 +321,12 @@ fn main() -> anyhow::Result<()> {
     let _lava = animate_lava(&app);
     let _aurora = crate::view::voice::animate_aurora(&app);
     crate::view::voice::bench_aurora();
-    remote_control::start(app.as_weak());
+    let remote = remote_control::start(app.as_weak(), act_tx.clone());
+    app.global::<RemoteControl>().on_toggle({
+        let remote = remote.clone();
+        move || remote.toggle()
+    });
+    app.global::<RemoteControl>().on_new_key(move || remote.new_key());
     #[cfg(feature = "preview")]
     let _recording = match record {
         Some(out) => {
