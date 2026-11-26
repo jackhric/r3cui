@@ -5,7 +5,7 @@ import { Theme, Layout, Type } from "../../theme.slint";
 import { PageId } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
-import { SysRow } from "../../widgets/sys-row.slint";
+import { Row } from "../../widgets/row.slint";
 
 export component WebConfigPage inherits Layer {
     page: PageId.web-config;
@@ -73,18 +73,18 @@ export component WebConfigPage inherits Layer {
         font-size: Type.small;
         color: Theme.t3;
     }
-    SysRow {
+    Row {
         y: 616px;
-        height: 72px;
         top-line: true;
-        label: "New PIN";
+        bottom-line: true;
+        choice: { label: "New PIN" };
         focused: Nav.focus == 0;
         tapped => { Nav.activate(0); }
     }
-    SysRow {
+    Row {
         y: 688px;
-        height: 72px;
-        label: "Turn off";
+        bottom-line: true;
+        choice: { label: "Turn off" };
         focused: Nav.focus == 1;
         tapped => { Nav.activate(1); }
     }

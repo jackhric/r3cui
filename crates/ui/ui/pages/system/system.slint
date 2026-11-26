@@ -3,10 +3,10 @@ import { Software } from "../../globals/software.slint";
 import { R3Wordmark } from "../../marks/brand.slint";
 import { Icons } from "../../marks/icons.slint";
 import { Theme, Layout, Type } from "../../theme.slint";
-import { PageId, UpdateState } from "../../types.slint";
+import { PageId, RowSize, UpdateState } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
-import { SysRow } from "../../widgets/sys-row.slint";
+import { Row } from "../../widgets/row.slint";
 
 export component SystemPage inherits Layer {
     page: PageId.system;
@@ -52,13 +52,11 @@ export component SystemPage inherits Layer {
             vertical-alignment: center;
         }
     }
-    SysRow {
+    Row {
         y: 384px;
         top-line: true;
-        label: root.available ? "Update r3cui" : Software.r3-state == UpdateState.checking ? "Checking…" : "Check for updates";
-        label-size: 24px;
-        value: root.available ? Software.r3-new-version : "";
-        chevron: root.available;
+        bottom-line: true;
+        choice: { label: root.available ? "Update r3cui" : Software.r3-state == UpdateState.checking ? "Checking…" : "Check for updates", value: root.available ? Software.r3-new-version : "", chevron: root.available };
         focused: Nav.focus == Software.action-row;
         tapped => { Nav.activate(Software.action-row); }
     }
@@ -70,40 +68,32 @@ export component SystemPage inherits Layer {
         letter-spacing: 2px;
         color: Theme.t2;
     }
-    SysRow {
+    Row {
         y: 514px;
-        height: 64px;
+        size: RowSize.compact;
+        uc-mark: true;
         top-line: true;
-        remote-mark: true;
-        label: "Firmware";
-        label-size: 22px;
-        value: Software.fw-installed;
-        chevron: true;
+        bottom-line: true;
+        choice: { label: "Firmware", value: Software.fw-installed, chevron: true };
         focused: Nav.focus == Software.firmware-row;
         tapped => { Nav.activate(Software.firmware-row); }
     }
-    SysRow {
+    Row {
         y: 578px;
-        height: 64px;
-        remote-mark: true;
-        label: "Web configurator";
-        label-size: 22px;
-        value: Software.web-on ? "On" : "Off";
-        chevron: true;
+        size: RowSize.compact;
+        uc-mark: true;
+        bottom-line: true;
+        choice: { label: "Web configurator", value: Software.web-on ? "On" : "Off", chevron: true };
         focused: Nav.focus == Software.web-row;
         tapped => { Nav.activate(Software.web-row); }
     }
-    SysRow {
+    Row {
         y: 692px;
-        height: 84px;
-        top-line: true;
         glyph: Icons.trash;
-        glyph-tint: Theme.off;
-        label: "Uninstall r3cui";
-        label-tint: Theme.off;
-        focused-tint: Theme.off;
-        detail: "Erases r3cui; the stock UI comes back.";
-        chevron: true;
+        danger: true;
+        top-line: true;
+        bottom-line: true;
+        choice: { label: "Uninstall r3cui", detail: "Erases r3cui; the stock UI comes back.", chevron: true };
         focused: Nav.focus == Software.uninstall-row;
         tapped => { Nav.activate(Software.uninstall-row); }
     }

@@ -5,7 +5,7 @@ import { Theme, Layout } from "../theme.slint";
 import { Dot, PageId } from "../types.slint";
 import { ChoiceList } from "../widgets/choice-list.slint";
 import { Layer } from "../widgets/layer.slint";
-import { SysRow } from "../widgets/sys-row.slint";
+import { Row } from "../widgets/row.slint";
 
 export component InputsPage inherits Layer {
     page: PageId.inputs;
@@ -70,12 +70,11 @@ export component InputsPage inherits Layer {
         }
     }
 
-    if root.empty: SysRow {
+    if root.empty: Row {
         y: Layout.screen-h - Layout.margin - self.height;
         top-line: true;
-        label: Control.no-inputs.row;
-        value: Control.no-inputs.value;
-        chevron: true;
+        bottom-line: true;
+        choice: { label: Control.no-inputs.row, value: Control.no-inputs.value, chevron: true };
         focused: Nav.focus == 0;
         tapped => { Nav.activate(0); }
     }

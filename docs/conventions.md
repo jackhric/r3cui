@@ -13,6 +13,7 @@ A string or number that means something is named once, and everything else uses 
 | The characters hard keys arrive as | `keys` in `crates/ui/src/input/mod.rs`; the window gets the same values through `KeyChars` in `crates/ui/ui/globals/keys.slint` |
 | Anything Slint and Rust both know about (pages, haptic events, library modes, ...) | a Slint `enum` in `crates/ui/ui/types.slint`, matched exhaustively in Rust |
 | Timings | a named `const` at the top of the module that uses it, with a `Duration` type |
+| The UI's colours, lengths, text sizes and animation timings | `Theme`, `Layout`, `Type` and `Motion` in `crates/ui/ui/theme.slint`, named by role (`Layout.margin`, `Type.label`), never a literal that repeats one |
 
 A new protocol message, field or domain goes in the client crate's constants first. A driver or
 the UI never spells a wire string itself.
@@ -20,6 +21,13 @@ the UI never spells a wire string itself.
 Slint and Rust agree through enums, not integers or strings. `PageId`, for one, is spelled for
 `--page` and the `page` step in `view/screen.rs` by an exhaustive `match`, so a new page cannot be
 left out. Slint contracts are checked when the crate compiles.
+
+## One primitive per look
+
+Every page inherits `Layer` (`widgets/layer.slint`), which slides it in and out and slides its own nested screens
+(`Nav.inner`). Every row on every list and settings page is `Row` (`widgets/row.slint`): a list page hands its rows
+to `ChoiceList`, a hand-laid page places `Row`s itself, with `size`, a leading glyph or mark, `danger` and a slot at
+the right edge for what a row needs beyond that. A new look for rows goes into `Row`, not into a page.
 
 ## Comments
 

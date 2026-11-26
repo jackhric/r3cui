@@ -89,6 +89,12 @@ export struct FormatMark {
     baseline: bool,
 }
 
+// How large a Row's text is: regular for lists, compact for a page's secondary rows.
+export enum RowSize {
+    regular,
+    compact,
+}
+
 // A status dot: a link working, broken or unknown, or a setting changed by the user.
 export enum Dot {
     none,

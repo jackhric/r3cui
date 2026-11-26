@@ -1,8 +1,7 @@
-import { Glyph, Icons, Logo } from "../marks/icons.slint";
 import { Theme, Layout, Type, Motion } from "../theme.slint";
-import { Choice, Dot } from "../types.slint";
-
+import { Choice } from "../types.slint";
 import { PageHeader } from "page-header.slint";
+import { Row } from "row.slint";
 
 // The one primitive for every option layer (inputs, menu, settings, tracks): a header with a
 // way back, then rows that share their look, focus mark and spacing. Rows shrink to fit.
@@ -55,130 +54,13 @@ export component ChoiceList inherits Rectangle {
         content-height: root.list-h;
         interactive: root.scrolls;
         animate content-y { duration: Motion.list-scroll; easing: ease-out; }
-        for row[i] in root.rows: Rectangle {
-            property <bool> focused: i == root.focused-row;
-            property <length> lead: row.icon != "" ? 96px : row.dot != Dot.none ? 72px : Layout.margin;
-            property <length> edge: (row.checked || row.chevron || row.bars > 0 ? Layout.value-edge-trailing : Layout.value-edge) - (row.locked ? 44px : 0px);
-            x: 0;
+        for row[i] in root.rows: Row {
             y: i * root.row-h;
-            width: Layout.screen-w;
             height: root.row-h;
-
-            if i > 0: Rectangle {
-                y: 0;
-                height: Layout.hairline;
-                background: Theme.hair;
-            }
-            Rectangle {
-                x: 0;
-                width: Layout.focus-bar-w;
-                height: Layout.focus-bar-h;
-                border-radius: Layout.focus-bar-radius;
-                background: row.dot == Dot.down ? Theme.off : Theme.accent;
-                opacity: parent.focused || row.dot == Dot.down ? 1 : 0;
-                animate opacity { duration: Motion.fade; }
-            }
-            // The focused or hovered row lifts very slightly; the others settle back.
-            property <float> lift: self.focused || ta.has-hover ? Motion.lift-scale : 1;
-            animate lift { duration: Motion.lift; easing: ease-out; }
-            if row.icon != "": Logo {
-                x: Layout.margin;
-                commands: row.icon;
-                tint: parent.focused ? Theme.text : Theme.t2;
-                transform-origin: { x: self.width / 2, y: self.height / 2 };
-                transform-scale: parent.lift;
-            }
-            // Beside the label, or as a badge on the icon's corner when there is one.
-            if row.dot != Dot.none: Rectangle {
-                x: row.icon != "" ? 60px : 40px;
-                y: row.icon != "" ? parent.height / 2 + 4px : (parent.height - self.height) / 2;
-                width: 14px;
-                height: 14px;
-                border-radius: 7px;
-                border-width: row.icon != "" ? 2px : 0px;
-                border-color: Theme.bg;
-                background: row.dot == Dot.up ? Theme.good : row.dot == Dot.down ? Theme.off : row.dot == Dot.changed ? Theme.accent : Theme.t3;
-            }
-            if row.tag != "": Rectangle {
-                x: parent.lead + min(label-text.preferred-width, label-text.width) * parent.lift + 14px;
-                y: (parent.height - self.height) / 2;
-                height: 26px;
-                width: tag-text.preferred-width + 16px;
-                border-radius: 13px;
-                border-width: 1px;
-                border-color: Theme.accent;
-                tag-text := Text {
-                    text: row.tag;
-                    font-size: 13px;
-                    letter-spacing: 0.8px;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                    color: Theme.accent;
-                }
-            }
-            label-text := Text {
-                x: parent.lead;
-                y: row.detail == "" ? (parent.height - self.height) / 2 : parent.height / 2 - 30px;
-                width: parent.edge - parent.lead - (row.value == "" ? 0px : value-text.width + 20px);
-                overflow: elide;
-                text: row.label;
-                transform-origin: { x: 0, y: self.height / 2 };
-                transform-scale: parent.lift;
-                font-size: Type.label;
-                font-weight: parent.focused || row.dot == Dot.down ? Type.label-focused-weight : Type.label-weight;
-                color: parent.focused || row.dot == Dot.down ? Theme.text : Theme.text-dim;
-                animate color { duration: Motion.fade; }
-            }
-            detail-text := Text {
-                visible: row.detail != "";
-                x: parent.lead;
-                y: parent.height / 2 + 6px;
-                width: parent.edge - parent.lead - (row.value == "" ? 0px : value-text.width + 20px);
-                overflow: elide;
-                text: row.detail;
-                font-size: Type.body;
-                color: Theme.t2;
-            }
-            // The label and its detail come first: the value gets what they leave, but always room for a status word.
-            value-text := Text {
-                width: max(min(self.preferred-width, parent.edge - parent.lead - max(label-text.preferred-width * parent.lift, detail-text.preferred-width) - 20px), min(self.preferred-width, 140px));
-                x: parent.edge - self.width;
-                overflow: elide;
-                horizontal-alignment: right;
-                text: row.value;
-                font-size: Type.value;
-                font-weight: Type.value-weight;
-                color: Theme.t2;
-            }
-            if row.locked: Glyph {
-                x: 364px;
-                commands: Icons.lock;
-                tint: Theme.t3;
-            }
-            if row.bars > 0: Rectangle {
-                for n in 4: Rectangle {
-                    x: 408px + n * 8px;
-                    y: parent.height / 2 + 11px - self.height;
-                    width: 5px;
-                    height: 7px + n * 5px;
-                    border-radius: 2px;
-                    background: n < row.bars ? Theme.t2 : Theme.track;
-                }
-            }
-            if row.chevron: Glyph {
-                x: Layout.trailing-x;
-                commands: Icons.right;
-                tint: Theme.t3;
-            }
-            if row.checked: Glyph {
-                x: Layout.trailing-x;
-                commands: Icons.check;
-                tint: Theme.accent;
-            }
-            ta := TouchArea {
-                mouse-cursor: Theme.cursor;
-                clicked => { root.pick(i); }
-            }
+            choice: row;
+            focused: i == root.focused-row;
+            top-line: i > 0;
+            tapped => { root.pick(i); }
         }
     }
 

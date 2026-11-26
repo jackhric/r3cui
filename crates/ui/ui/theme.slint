@@ -44,6 +44,12 @@ export global Layout {
     out property <length> focus-bar-h: 40px;
     out property <length> focus-bar-radius: 2px;
     out property <length> hairline: 1px;
+    // A row's height: a list's own rows fit between row-min and row-max; a page's rows use these.
+    out property <length> row-compact: 64px;
+    out property <length> row-detail: 84px;
+    // Between a row's leading mark and its label.
+    out property <length> lead-gap: 18px;
+    out property <length> dot-size: 14px;
 }
 
 // Font sizes and weights shared across pages.
@@ -55,6 +61,10 @@ export global Type {
     out property <int> value-weight: 300;
     out property <length> body: 18px;
     out property <length> small: 16px;
+    // A row's second line.
+    out property <length> detail: 16px;
+    out property <length> label-compact: 22px;
+    out property <length> value-compact: 20px;
     out property <length> caption: 14px;
     out property <int> display-weight: 200;
 }

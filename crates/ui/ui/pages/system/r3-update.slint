@@ -5,7 +5,7 @@ import { Theme, Layout, Type } from "../../theme.slint";
 import { PageId } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
-import { SysRow } from "../../widgets/sys-row.slint";
+import { Row } from "../../widgets/row.slint";
 import { Upgrade } from "upgrade.slint";
 
 export component R3UpdatePage inherits Layer {
@@ -76,16 +76,18 @@ export component R3UpdatePage inherits Layer {
         font-size: 17px;
         color: Theme.off;
     }
-    SysRow {
+    Row {
         y: 608px;
         top-line: true;
-        label: "Install update";
+        bottom-line: true;
+        choice: { label: "Install update" };
         focused: Nav.focus == 0;
         tapped => { Nav.activate(0); }
     }
-    SysRow {
+    Row {
         y: 684px;
-        label: "Not now";
+        bottom-line: true;
+        choice: { label: "Not now" };
         focused: Nav.focus == 1;
         tapped => { Nav.activate(1); }
     }
