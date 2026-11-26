@@ -5,6 +5,7 @@
 //! wait 800          # milliseconds
 //! key down          # up down left right ok back home menu input power, or a desktop key's character
 //! hold home 900     # held for that long (home and power act on a hold)
+//! press home        # a key held down until `release home`, to take a picture meanwhile
 //! type 127.0.0.1    # tapped out on the on-screen keyboard, a key at a time
 //! tap Done          # one keyboard key, by its label
 //! page menu        # open a page by name (home inputs menu display power wifi keyboard status join-failed tracks
@@ -79,6 +80,10 @@ pub(crate) fn parse(text: &str) -> Result<Vec<(Duration, Do)>, String> {
                 wait = held;
                 push(&mut wait, Do::Release(text));
                 wait = Duration::from_millis(20);
+            }
+            "press" | "release" => {
+                let text = key_text(rest.split_whitespace().next().ok_or(err("a key"))?);
+                push(&mut wait, if verb == "press" { Do::Press(text) } else { Do::Release(text) });
             }
             "type" => {
                 for c in rest.chars() {
@@ -197,6 +202,7 @@ mod tests {
         assert_eq!(t[5..8].iter().map(|(_, d)| d.clone()).collect::<Vec<_>>(), [Do::Tap("a".into()), Do::Tap(".".into()), Do::Tap("1".into())]);
         assert_eq!(t[6].0, TYPING);
         assert_eq!(t.last(), Some(&(Duration::ZERO, Do::Quit)));
+        assert_eq!(parse("press home\nrelease home").unwrap()[1], (Duration::ZERO, Do::Release("h".into())));
         assert!(parse("jump 3").unwrap_err().contains("line 1"));
         assert!(parse("wait soon").is_err());
     }

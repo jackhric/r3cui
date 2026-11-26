@@ -142,5 +142,19 @@ snap 31-back-to-menu-integrations
 key back
 wait 700
 snap 32-back-to-home
+page home
+wait 900
+press home
+wait 450
+snap 33-home-hold-ring
+wait 500
+snap 34-home-hold-complete
+release home
+wait 900
+press power
+wait 500
+snap 35-power-hold-ring
+release power
+wait 600
 wait 1500
 quit
