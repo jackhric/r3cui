@@ -1,0 +1,16 @@
+import { ChoiceList, Layer } from "../theme.slint";
+import { Control } from "../globals/control.slint";
+import { Nav } from "../globals/nav.slint";
+import { PageId } from "../types.slint";
+
+export component InputsPage inherits Layer {
+    page: PageId.inputs;
+    ChoiceList {
+        title: "Inputs";
+        show-title: false;
+        rows: Control.input-choices;
+        focused-row: Nav.focus;
+        pick(i) => { Nav.activate(i); }
+        back => { Nav.back(); }
+    }
+}

@@ -1,0 +1,16 @@
+import { ChoiceList, Layer } from "../theme.slint";
+import { Nav } from "../globals/nav.slint";
+import { PageId, Picker } from "../types.slint";
+import { Tracks } from "../globals/tracks.slint";
+
+export component TracksPage inherits Layer {
+    page: PageId.tracks;
+    ChoiceList {
+        title: Tracks.picker == Picker.audio ? "Audio" : "Subtitles";
+        rows: Tracks.rows;
+        empty: "Loading…";
+        focused-row: Nav.focus;
+        pick(i) => { Nav.activate(i); }
+        back => { Nav.back(); }
+    }
+}

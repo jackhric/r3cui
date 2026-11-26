@@ -1,0 +1,44 @@
+import { Nav } from "../globals/nav.slint";
+import { Layer, PageHeader, Theme } from "../theme.slint";
+import { PageId } from "../types.slint";
+import { Pill } from "../widgets/pill.slint";
+import { Wifi } from "../globals/wifi.slint";
+
+export component JoinFailedPage inherits Layer {
+    page: PageId.join-failed;
+
+    PageHeader {
+        y: 0;
+        title: Wifi.target.ssid;
+        back => { Nav.back(); }
+    }
+    Text {
+        y: 300px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: "Couldn’t join";
+        font-size: 44px;
+        font-weight: 300;
+        color: Theme.text;
+    }
+    Text {
+        y: 376px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: "Check the password and try again.";
+        font-size: 22px;
+        color: Theme.t2;
+    }
+    Pill {
+        y: 500px;
+        label: "Try again";
+        focused: Nav.focus == Wifi.retry-row;
+        tapped => { Nav.activate(Wifi.retry-row); }
+    }
+    Pill {
+        y: 580px;
+        label: Wifi.name == "" ? "Cancel" : "Stay on " + Wifi.name;
+        focused: Nav.focus == Wifi.stay-row;
+        tapped => { Nav.activate(Wifi.stay-row); }
+    }
+}

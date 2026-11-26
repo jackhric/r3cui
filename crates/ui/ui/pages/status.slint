@@ -1,0 +1,13 @@
+import { ChoiceList, Layer } from "../theme.slint";
+import { Health } from "../globals/health.slint";
+import { Nav } from "../globals/nav.slint";
+import { PageId } from "../types.slint";
+
+export component StatusPage inherits Layer {
+    page: PageId.status;
+    ChoiceList {
+        title: "Status";
+        rows: Health.choices;
+        back => { Nav.back(); }
+    }
+}

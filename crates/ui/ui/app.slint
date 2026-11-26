@@ -51,6 +51,28 @@ import { PlayingView } from "stage/playing.slint";
 
 import { Stage } from "stage/stage.slint";
 
+import { TracksPage } from "pages/tracks.slint";
+
+import { JoinFailedPage } from "pages/join-failed.slint";
+
+import { LabPage } from "pages/lab.slint";
+
+import { IntegrationsPage } from "pages/integrations.slint";
+
+import { StatusPage } from "pages/status.slint";
+
+import { KeyboardPage } from "pages/keyboard.slint";
+
+import { WifiPage } from "pages/wifi.slint";
+
+import { PowerPage } from "pages/power.slint";
+
+import { DisplayPage } from "pages/display.slint";
+
+import { MenuPage } from "pages/menu.slint";
+
+import { InputsPage } from "pages/inputs.slint";
+
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs, Kb, Wifi, Cfg, Lab, Tracks, Lib, Fx, Sys, Control, Playback, Health, Nav, Menu, Power }
 
@@ -77,7 +99,6 @@ export component AppWindow inherits Window {
     animate under { duration: 380ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
     public function hold-swap() { stage.hold-swap(); }
     public function run-swap() { stage.run-swap(); }
-    property <bool> caret-on: true;
 
     property <float> wake: Sys.lit ? 1 : 0;
     animate wake { duration: 650ms; easing: ease-in-out; }
@@ -177,11 +198,6 @@ export component AppWindow inherits Window {
             }
             return accept;
         }
-        Timer {
-            interval: 550ms;
-            running: Nav.page == PageId.keyboard;
-            triggered => { root.caret-on = !root.caret-on; }
-        }
 
         // Catches touches that land on nothing, so the pointer stays hidden there too.
         TouchArea {
@@ -209,354 +225,37 @@ export component AppWindow inherits Window {
                 TouchArea { mouse-cursor: Theme.cursor; }
 
             // Inputs
-            Layer {
-                page: PageId.inputs;
-                ChoiceList {
-                    title: "Inputs";
-                    show-title: false;
-                    rows: Control.input-choices;
-                    focused-row: Nav.focus;
-                    pick(i) => { Nav.activate(i); }
-                    back => { Nav.back(); }
-                }
-            }
+            InputsPage { }
 
             // Menu
-            Layer {
-                page: PageId.menu;
-
-                ChoiceList {
-                    title: "Menu";
-                    rows: Menu.rows;
-                    focused-row: Nav.focus;
-                    pick(i) => { Nav.activate(i); }
-                    back => { Nav.back(); }
-                }
-            }
+            MenuPage { }
 
             // Menu / Display
-            Layer {
-                page: PageId.display;
-
-                PageHeader {
-                    title: "Display";
-                    back => { Nav.back(); }
-                }
-                Rectangle {
-                    x: 0;
-                    y: 168px;
-                    width: 4px;
-                    height: 40px;
-                    border-radius: 2px;
-                    background: Theme.accent;
-                    opacity: Nav.focus == Prefs.brightness-row ? 1 : 0;
-                    animate opacity { duration: 140ms; }
-                }
-                Text {
-                    x: 40px;
-                    y: 172px;
-                    text: "Brightness";
-                    font-size: 26px;
-                    font-weight: Nav.focus == Prefs.brightness-row ? 500 : 400;
-                    color: Prefs.auto-brightness ? Theme.t3 : Nav.focus == Prefs.brightness-row ? Theme.text : Theme.text-dim;
-                }
-                Text {
-                    x: 40px;
-                    y: 176px;
-                    width: 400px;
-                    horizontal-alignment: right;
-                    text: Prefs.auto-brightness ? "Automatic" : Prefs.brightness + "%";
-                    font-size: 22px;
-                    font-weight: 300;
-                    color: Theme.t2;
-                }
-                // Locked while auto brightness is on: the remote sets the level itself then.
-                Bar {
-                    x: 40px;
-                    y: 250px;
-                    value: Prefs.brightness / 100;
-                    handle: !Prefs.auto-brightness;
-                    tint: Prefs.auto-brightness ? Theme.t3 : Theme.accent;
-                    opacity: Prefs.auto-brightness ? 0.5 : 1;
-                    animate opacity { duration: 160ms; }
-                }
-                TouchArea {
-                    mouse-cursor: Theme.cursor;
-                    x: 24px;
-                    y: 220px;
-                    width: 432px;
-                    height: 74px;
-                    enabled: !Prefs.auto-brightness;
-                    function set() {
-                        Nav.focus = Prefs.brightness-row;
-                        Prefs.brightness = max(5, min(100, round((self.mouse-x - 16px) / 400px * 100)));
-                        Prefs.changed();
-                    }
-                    pointer-event(e) => {
-                        if (e.kind == PointerEventKind.down) {
-                            self.set();
-                        }
-                    }
-                    moved => {
-                        if (self.pressed) {
-                            self.set();
-                        }
-                    }
-                }
-                ListRow {
-                    y: 328px;
-                    height: 104px;
-                    label: "Auto brightness";
-                    focused: Nav.focus == Prefs.auto-row;
-                    tapped => { Nav.activate(Prefs.auto-row); }
-                    Rectangle {
-                        x: 384px;
-                        width: 56px;
-                        height: 32px;
-                        border-radius: 16px;
-                        background: Prefs.auto-brightness ? Theme.text : Theme.track;
-                        animate background { duration: 160ms; }
-                        Rectangle {
-                            x: Prefs.auto-brightness ? 28px : 4px;
-                            width: 24px;
-                            height: 24px;
-                            border-radius: 12px;
-                            background: Prefs.auto-brightness ? Theme.bg : Theme.t2;
-                            animate x { duration: 160ms; easing: ease-out; }
-                        }
-                    }
-                }
-                ListRow {
-                    y: 432px;
-                    height: 104px;
-                    label: "Screen off after";
-                    value: Prefs.screen-off-after;
-                    chevron: true;
-                    focused: Nav.focus == Prefs.screen-off-row;
-                    tapped => { Nav.activate(Prefs.screen-off-row); }
-                }
-            }
+            DisplayPage { }
 
             // Menu / Power
-            Layer {
-                page: PageId.power;
-                ChoiceList {
-                    title: "Power";
-                    rows: Power.rows;
-                    focused-row: Nav.focus;
-                    pick(i) => { Nav.activate(i); }
-                    back => { Nav.back(); }
-                }
-            }
+            PowerPage { }
 
             // Menu / Wi-Fi
-            Layer {
-                page: PageId.wifi;
-                ChoiceList {
-                    title: "Wi-Fi";
-                    rows: Wifi.choices;
-                    focused-row: Nav.focus;
-                    pick(i) => { Nav.activate(i); }
-                    back => { Nav.back(); }
-                }
-            }
+            WifiPage { }
 
             // Menu / Wi-Fi / password
-            Layer {
-                page: PageId.keyboard;
-
-                PageHeader {
-                    y: 0;
-                    title: Kb.purpose == KbPurpose.text ? Kb.title : Wifi.target.ssid;
-                    back => { Nav.back(); }
-                }
-                Text {
-                    x: 40px;
-                    y: 128px;
-                    text: Kb.purpose == KbPurpose.text ? Kb.caption : "PASSWORD";
-                    font-size: 13px;
-                    font-weight: 500;
-                    letter-spacing: 1.8px;
-                    color: Theme.t2;
-                }
-                Rectangle {
-                    x: 40px;
-                    y: 158px;
-                    width: 400px;
-                    height: 84px;
-                    clip: true;
-                    HorizontalLayout {
-                        alignment: end;
-                        spacing: 3px;
-                        Text {
-                            text: Kb.text;
-                            font-size: 40px;
-                            font-weight: 300;
-                            letter-spacing: 0.8px;
-                            color: Theme.text;
-                            vertical-alignment: center;
-                        }
-                        VerticalLayout {
-                            alignment: center;
-                            Rectangle {
-                                width: 3px;
-                                height: 40px;
-                                border-radius: 2px;
-                                background: Theme.accent;
-                                opacity: root.caret-on && Wifi.join-state != JoinState.joining ? 1 : 0;
-                            }
-                        }
-                    }
-                }
-                Rectangle {
-                    x: 40px;
-                    y: 242px;
-                    width: 400px;
-                    height: 1px;
-                    background: Theme.hair;
-                }
-
-                if Wifi.join-state != JoinState.joining: Rectangle {
-                    for key[i] in Kb.keys: Rectangle {
-                        x: key.x;
-                        y: key.y;
-                        width: key.w;
-                        height: key.h;
-                        border-radius: key.style == KeyStyle.char ? 12px : 16px;
-                        background: key.focused ? Theme.accent : key.style == KeyStyle.action-on ? #2A2A2C : key.style == KeyStyle.char ? #121213 : #161617;
-                        opacity: key.focused && key.style == KeyStyle.join-dim ? 0.45 : 1;
-                        transform-scale: key.focused ? (key.style == KeyStyle.char ? 1.12 : 1.06) : 1;
-                        animate transform-scale, background { duration: 80ms; }
-                        if key.glyph == KeyGlyph.none: Text {
-                            text: key.label;
-                            font-size: key.style == KeyStyle.char ? 26px : 20px;
-                            font-weight: key.focused || key.style == KeyStyle.join-ready ? 600 : key.style == KeyStyle.char ? 400 : 500;
-                            color: key.focused ? #000000 : key.style == KeyStyle.join-dim ? Theme.t3 : key.style == KeyStyle.join-ready ? Theme.accent : Theme.text;
-                        }
-                        if key.glyph != KeyGlyph.none: Glyph {
-                            commands: key.glyph == KeyGlyph.shift ? Icons.shift : Icons.delete;
-                            tint: key.focused ? #000000 : Theme.text;
-                        }
-                        TouchArea {
-                            mouse-cursor: Theme.cursor;
-                            clicked => { Kb.tap(i); }
-                        }
-                    }
-                }
-                if Wifi.join-state == JoinState.joining: Rectangle {
-                    Text {
-                        y: 440px;
-                        width: 480px;
-                        horizontal-alignment: center;
-                        text: "Joining…";
-                        font-size: 32px;
-                        font-weight: 300;
-                        color: Theme.text;
-                    }
-                    Rectangle {
-                        x: 120px;
-                        y: 524px;
-                        width: 240px;
-                        height: 14px;
-                        border-radius: 7px;
-                        background: Theme.track;
-                        clip: true;
-                        Rectangle {
-                            x: 75px + 75px * sin(animation-tick() / 1ms * 0.33deg);
-                            width: 90px;
-                            border-radius: 7px;
-                            background: Theme.accent;
-                        }
-                    }
-                }
-            }
+            KeyboardPage { }
 
             // Menu / Status
-            Layer {
-                page: PageId.status;
-                ChoiceList {
-                    title: "Status";
-                    rows: Health.choices;
-                    back => { Nav.back(); }
-                }
-            }
+            StatusPage { }
 
             // Menu / Integrations, every screen of it
-            Layer {
-                page: PageId.integrations;
-                ChoiceList {
-                    title: Cfg.title;
-                    rows: Cfg.rows;
-                    focused-row: Nav.focus;
-                    pick(i) => { Nav.activate(i); }
-                    back => { Nav.back(); }
-                }
-            }
+            IntegrationsPage { }
 
             // Menu / Feedback lab
-            Layer {
-                page: PageId.feedback-lab;
-                ChoiceList {
-                    title: Lab.title;
-                    rows: Lab.rows;
-                    focused-row: Nav.focus;
-                    pick(i) => { Nav.activate(i); }
-                    back => { Nav.back(); }
-                }
-            }
+            LabPage { }
 
             // Menu / Wi-Fi / join failed
-            Layer {
-                page: PageId.join-failed;
-
-                PageHeader {
-                    y: 0;
-                    title: Wifi.target.ssid;
-                    back => { Nav.back(); }
-                }
-                Text {
-                    y: 300px;
-                    width: 480px;
-                    horizontal-alignment: center;
-                    text: "Couldn’t join";
-                    font-size: 44px;
-                    font-weight: 300;
-                    color: Theme.text;
-                }
-                Text {
-                    y: 376px;
-                    width: 480px;
-                    horizontal-alignment: center;
-                    text: "Check the password and try again.";
-                    font-size: 22px;
-                    color: Theme.t2;
-                }
-                Pill {
-                    y: 500px;
-                    label: "Try again";
-                    focused: Nav.focus == Wifi.retry-row;
-                    tapped => { Nav.activate(Wifi.retry-row); }
-                }
-                Pill {
-                    y: 580px;
-                    label: Wifi.name == "" ? "Cancel" : "Stay on " + Wifi.name;
-                    focused: Nav.focus == Wifi.stay-row;
-                    tapped => { Nav.activate(Wifi.stay-row); }
-                }
-            }
+            JoinFailedPage { }
 
             // Audio or subtitle tracks
-            Layer {
-                page: PageId.tracks;
-                ChoiceList {
-                    title: Tracks.picker == Picker.audio ? "Audio" : "Subtitles";
-                    rows: Tracks.rows;
-                    empty: "Loading…";
-                    focused-row: Nav.focus;
-                    pick(i) => { Nav.activate(i); }
-                    back => { Nav.back(); }
-                }
-            }
+            TracksPage { }
             }
 
             Image {

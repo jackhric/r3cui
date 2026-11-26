@@ -1,0 +1,106 @@
+import { Bar, Layer, ListRow, PageHeader, Theme } from "../theme.slint";
+import { Nav } from "../globals/nav.slint";
+import { PageId } from "../types.slint";
+import { Prefs } from "../globals/prefs.slint";
+
+export component DisplayPage inherits Layer {
+    page: PageId.display;
+
+    PageHeader {
+        title: "Display";
+        back => { Nav.back(); }
+    }
+    Rectangle {
+        x: 0;
+        y: 168px;
+        width: 4px;
+        height: 40px;
+        border-radius: 2px;
+        background: Theme.accent;
+        opacity: Nav.focus == Prefs.brightness-row ? 1 : 0;
+        animate opacity { duration: 140ms; }
+    }
+    Text {
+        x: 40px;
+        y: 172px;
+        text: "Brightness";
+        font-size: 26px;
+        font-weight: Nav.focus == Prefs.brightness-row ? 500 : 400;
+        color: Prefs.auto-brightness ? Theme.t3 : Nav.focus == Prefs.brightness-row ? Theme.text : Theme.text-dim;
+    }
+    Text {
+        x: 40px;
+        y: 176px;
+        width: 400px;
+        horizontal-alignment: right;
+        text: Prefs.auto-brightness ? "Automatic" : Prefs.brightness + "%";
+        font-size: 22px;
+        font-weight: 300;
+        color: Theme.t2;
+    }
+    // Locked while auto brightness is on: the remote sets the level itself then.
+    Bar {
+        x: 40px;
+        y: 250px;
+        value: Prefs.brightness / 100;
+        handle: !Prefs.auto-brightness;
+        tint: Prefs.auto-brightness ? Theme.t3 : Theme.accent;
+        opacity: Prefs.auto-brightness ? 0.5 : 1;
+        animate opacity { duration: 160ms; }
+    }
+    TouchArea {
+        mouse-cursor: Theme.cursor;
+        x: 24px;
+        y: 220px;
+        width: 432px;
+        height: 74px;
+        enabled: !Prefs.auto-brightness;
+        function set() {
+            Nav.focus = Prefs.brightness-row;
+            Prefs.brightness = max(5, min(100, round((self.mouse-x - 16px) / 400px * 100)));
+            Prefs.changed();
+        }
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down) {
+                self.set();
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                self.set();
+            }
+        }
+    }
+    ListRow {
+        y: 328px;
+        height: 104px;
+        label: "Auto brightness";
+        focused: Nav.focus == Prefs.auto-row;
+        tapped => { Nav.activate(Prefs.auto-row); }
+        Rectangle {
+            x: 384px;
+            width: 56px;
+            height: 32px;
+            border-radius: 16px;
+            background: Prefs.auto-brightness ? Theme.text : Theme.track;
+            animate background { duration: 160ms; }
+            Rectangle {
+                x: Prefs.auto-brightness ? 28px : 4px;
+                width: 24px;
+                height: 24px;
+                border-radius: 12px;
+                background: Prefs.auto-brightness ? Theme.bg : Theme.t2;
+                animate x { duration: 160ms; easing: ease-out; }
+            }
+        }
+    }
+    ListRow {
+        y: 432px;
+        height: 104px;
+        label: "Screen off after";
+        value: Prefs.screen-off-after;
+        chevron: true;
+        focused: Nav.focus == Prefs.screen-off-row;
+        tapped => { Nav.activate(Prefs.screen-off-row); }
+    }
+}

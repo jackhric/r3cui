@@ -1,0 +1,15 @@
+import { ChoiceList, Layer } from "../theme.slint";
+import { Nav } from "../globals/nav.slint";
+import { PageId } from "../types.slint";
+import { Power } from "../globals/power.slint";
+
+export component PowerPage inherits Layer {
+    page: PageId.power;
+    ChoiceList {
+        title: "Power";
+        rows: Power.rows;
+        focused-row: Nav.focus;
+        pick(i) => { Nav.activate(i); }
+        back => { Nav.back(); }
+    }
+}
