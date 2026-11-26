@@ -71,11 +71,13 @@ a `media_player.receiver` that works as global control too.
 
 `--steps <file> --out <dir>` presses keys through the window and takes pictures along the way
 (`crates/ui/src/preview/steps.rs` lists the steps). `awake` puts away the charger card the simulator always shows.
+`scripts/tour.steps` visits every page and overlay: run it before and after a change to the Slint files and compare
+the pictures to see that nothing moved.
 
 ## Hot reload
 
 `scripts/dev.sh` runs the UI against the simulator with Slint live preview
-(`SLINT_LIVE_PREVIEW=1` + `--features slint/live-preview`): saving `crates/ui/ui/*.slint` reloads
+(`SLINT_LIVE_PREVIEW=1` + `--features slint/live-preview`): saving any `.slint` file under `crates/ui/ui/` reloads
 the running window. Rust edits need a restart; with `watchexec` installed the script does that too.
 
 ## Kodi integration (optional)

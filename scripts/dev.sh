@@ -1,5 +1,5 @@
 #!/bin/sh
-# Run the UI against the simulator with Slint live preview: edits to crates/ui/ui/*.slint reload in
+# Run the UI against the simulator with Slint live preview: edits to the .slint files under crates/ui/ui reload in
 # the running window. With watchexec installed, Rust edits rebuild and restart it too.
 set -eu
 
