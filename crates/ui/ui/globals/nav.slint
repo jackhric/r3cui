@@ -43,13 +43,6 @@ export global Nav {
         Nav.inner-moves += 1;
     }
 
-    // The voice key's tap, from anywhere: the input list, or back from it.
-    public function toggle-inputs() {
-        if (Nav.page != PageId.keyboard) {
-            Nav.go(Nav.page == PageId.inputs ? PageId.home : PageId.inputs, Control.input-index);
-        }
-    }
-
     public function go(p: PageId, f: int) {
         if (p != Nav.page) {
             Fx.haptic(Haptic.page);

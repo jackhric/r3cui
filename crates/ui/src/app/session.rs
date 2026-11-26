@@ -22,7 +22,7 @@ use crate::remote::link::Link;
 use crate::remote::wifi::Wifi;
 use crate::view::library::Wall;
 use crate::view::screen::Screen;
-use crate::{Menu, MenuItem, Nav, PageId};
+use crate::{Menu, MenuItem, PageId};
 use crate::{KbPurpose, Picker};
 use crate::view::software::show as show_software;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
@@ -165,7 +165,7 @@ impl Session<'_> {
         render(weak, &m);
     }
 
-    fn voice_do(&mut self, weak: &slint::Weak<AppWindow>, link: &Link, later: &mpsc::UnboundedSender<Later>, todo: Vec<voice_key::Do>) {
+    fn voice_do(&mut self, link: &Link, later: &mpsc::UnboundedSender<Later>, todo: Vec<voice_key::Do>) {
         for d in todo {
             match d {
                 voice_key::Do::Driver(intent) => {
@@ -182,7 +182,6 @@ impl Session<'_> {
                     let link = link.clone();
                     tokio::spawn(async move { link.voice_end(s).await });
                 }
-                voice_key::Do::ToggleInputs => ui(weak, |app| app.global::<Nav>().invoke_toggle_inputs()),
                 voice_key::Do::EndAfter(s, wait) => {
                     let later = later.clone();
                     tokio::spawn(async move {
@@ -484,14 +483,14 @@ pub(crate) async fn serve(
             }
             Some(event) = next_relay(&mut relay) => {
                 let todo = session.voice.relay(event);
-                session.voice_do(weak, &link, &later_tx, todo);
+                session.voice_do(&link, &later_tx, todo);
                 session.show(weak);
             }
             Some(later) = later_rx.recv() => {
                 match later {
                     Later::VoiceEndDue(s) => {
                         let todo = session.voice.end_due(s);
-                        session.voice_do(weak, &link, &later_tx, todo);
+                        session.voice_do(&link, &later_tx, todo);
                     }
                     Later::Wifi(ssid, networks) => session.wifi.found(ssid, networks),
                     Later::Targets { driver, kind, targets } => {
@@ -628,7 +627,7 @@ pub(crate) async fn serve(
                     UiAction::Display { brightness, auto } => link.set_display(brightness, auto),
                     UiAction::VoiceKey { down } => {
                         let todo = if down { session.voice.press(Instant::now()) } else { session.voice.release(Instant::now(), link.voice_grace()) };
-                        session.voice_do(weak, &link, &later_tx, todo);
+                        session.voice_do(&link, &later_tx, todo);
                     }
                     UiAction::Wake => link.wake(),
                     UiAction::VoiceDismiss => session.voice.dismiss(session.front.host.voice().as_ref()),

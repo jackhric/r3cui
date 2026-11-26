@@ -5,7 +5,7 @@ use drivers::api::{Voice, VoiceFailure, VoiceIntent, VoicePhase};
 use std::time::{Duration, Instant};
 use voicelink::{ErrorCode, LinkEvent, UiMsg};
 
-/// Let go sooner and it was a tap: the input switcher, as the key is without voice.
+/// Let go sooner and it was only a tap: nothing is sent, and the session goes at once.
 pub(crate) const TAP: Duration = Duration::from_millis(250);
 /// After the key is let go, how long the relay has to bring the last audio before r3cui ends it itself.
 pub(crate) const END_GRACE: Duration = Duration::from_millis(1500);
@@ -19,7 +19,6 @@ pub(crate) enum Do {
     /// Ask the core to start or end recording for the session.
     CoreStart(u32),
     CoreEnd(u32),
-    ToggleInputs,
     /// End the session's audio after this long, unless the relay has by then.
     EndAfter(u32, Duration),
     /// Tell the relay how the session ended, so it can tell the core.
@@ -55,7 +54,7 @@ impl VoiceKey {
         let session = a.session;
         if now.duration_since(a.pressed) < TAP {
             self.active = None;
-            return vec![Do::Driver(VoiceIntent::Cancel { session }), Do::CoreEnd(session), Do::ToggleInputs];
+            return vec![Do::Driver(VoiceIntent::Cancel { session }), Do::CoreEnd(session)];
         }
         let mut out = vec![Do::CoreEnd(session)];
         if grace.is_zero() {
@@ -160,10 +159,10 @@ mod tests {
     }
 
     #[test]
-    fn a_tap_is_the_input_switcher() {
+    fn a_tap_sends_nothing() {
         let (mut key, t) = (VoiceKey::default(), Instant::now());
         key.press(t);
-        assert_eq!(key.release(t + Duration::from_millis(100), END_GRACE), [Do::Driver(VoiceIntent::Cancel { session: 1 }), Do::CoreEnd(1), Do::ToggleInputs]);
+        assert_eq!(key.release(t + Duration::from_millis(100), END_GRACE), [Do::Driver(VoiceIntent::Cancel { session: 1 }), Do::CoreEnd(1)]);
         assert!(key.relay(audio(1, &[1])).is_empty());
     }
 

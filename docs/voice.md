@@ -47,7 +47,7 @@ Audio is what the core sends by default: PCM, 16 kHz, mono, signed 16-bit, in ch
 | Assist | `crates/homeassistant` | `assist_pipeline/pipeline/list` and `assist_pipeline/run`, the binary audio frames, typed pipeline events. Needs binary frames in `crates/wsclient`. |
 | Voice port | `crates/drivers` | A driver can take voice (`Provides.voice`, `Driver::voice()`): start a session, push chunks, end, and report what was heard and the answer. Global control gains **Voice**, bound like Volume and Inputs. Home Assistant provides it, one target per Assist pipeline. |
 | Core | `crates/coreapi` | `execute_entity_command` (`voice_start`, `voice_end`) and the `assistant_event` stream. |
-| UI | `crates/ui` | The voice key held starts a session, released ends it (a short press stays the input switcher); the voice overlay: listening, what was heard, the answer or an error. |
+| UI | `crates/ui` | The voice key held starts a session, released ends it (a tap sends nothing; the inputs are Home's, held); the voice overlay: listening, what was heard, the answer or an error. |
 
 ## The voice link
 
@@ -112,8 +112,7 @@ Holding the key brings up an aurora: light along the bottom edge and up the side
 the input's accent and seeded per session (`view/aurora.rs`, drawn on the CPU at 120×200 and scaled up smooth). It
 follows the voice: `app/meter.rs` measures each chunk's loudness and four bands (Goertzel), and the frame loop in
 `view/voice.rs` (30 Hz, only while the overlay is up) eases toward them, quick up and slow down, so it breathes. Let
-go and it settles behind a `Spinner`; the answer shows, then everything fades. A tap that was only the input switcher
-goes at once. The demo feeds a made-up voice (`app/demo/voice.rs`); `scripts/voice.steps` films it.
+go and it settles behind a `Spinner`; the answer shows, then everything fades. A tap goes at once. The demo feeds a made-up voice (`app/demo/voice.rs`); `scripts/voice.steps` films it.
 
 ## Setting it up on the remote (once, the user's call)
 

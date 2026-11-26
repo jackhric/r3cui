@@ -121,14 +121,10 @@ export component AppWindow inherits Window {
                 }
                 return accept;
             }
-            // The voice key: held, it talks (when something takes voice); tapped, it is the input switcher.
+            // The voice key: held, it talks, when something takes voice. The inputs are Home's, held.
             if (event.text.to-lowercase() == KeyChars.input) {
-                if (!event.repeat) {
-                    if (Control.has-voice) {
-                        Voice.press();
-                    } else {
-                        Nav.toggle-inputs();
-                    }
+                if (!event.repeat && Control.has-voice) {
+                    Voice.press();
                 }
                 return accept;
             }

@@ -20,7 +20,7 @@ Global control                        what the whole remote drives
    └─ ...
 ```
 
-- **Global control** gets volume, mute, power, the input switcher and Home, whatever input is on. Settings →
+- **Global control** gets volume, mute, power, Home (a tap goes home, a hold opens the input list), whatever input is on. Settings →
   Integrations → Global control has one row each for Volume, Inputs, Power and Voice. Voice is the `VoicePort`
   (`Driver::voice`, `Provides.voice`): start, audio, end or cancel a session; the view says what was heard and the
   answer. See docs/voice.md.
