@@ -3,6 +3,8 @@ import { VoiceStage } from "../types.slint";
 // Hold the voice key to talk: the session on screen, and the key's press and release for Rust.
 export global Voice {
     in property <VoiceStage> stage;
+    // Which session is on screen; a new one starts its aurora afresh.
+    in property <int> session;
     in property <string> heard;
     // The answer; or, when the session failed, why, said for a person.
     in property <string> answer;

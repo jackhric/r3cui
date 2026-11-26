@@ -7,6 +7,7 @@ use crate::{AppWindow, Capture, Theme, Voice as Shown, VoiceStage};
 use drivers::api::{Voice, VoiceFailure, VoicePhase};
 use slint::ComponentHandle;
 use std::cell::RefCell;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 const FRAME: Duration = Duration::from_millis(33);
@@ -47,6 +48,7 @@ pub(crate) fn show(app: &AppWindow, voice: Option<&Voice>) {
         capture(app, Capture::World);
     }
     v.set_stage(stage);
+    v.set_session(voice.session as i32);
     v.set_heard(voice.heard.as_str().into());
     v.set_answer(answer.into());
 }
@@ -61,8 +63,12 @@ fn failure(f: VoiceFailure) -> &'static str {
     }
 }
 
+/// The seed of the aurora on screen; a frame drawn for any other is from a session already gone, and dropped.
+static SHOWING: AtomicU32 = AtomicU32::new(0);
+
 /// One session's aurora as it moves.
 struct Scene {
+    session: i32,
     look: Look,
     began: Instant,
     last: Instant,
@@ -86,7 +92,12 @@ fn painter(weak: slint::Weak<AppWindow>) -> std::sync::mpsc::Sender<(Look, [[f32
                 tracing::info!("aurora: {frames} frames, mean {:.2} ms, longest {:.2} ms", total.as_secs_f64() * 1000.0 / f64::from(frames), longest.as_secs_f64() * 1000.0);
                 (frames, total, longest) = (0, Duration::ZERO, Duration::ZERO);
             }
-            let _ = weak.upgrade_in_event_loop(move |app| app.global::<Shown>().set_aurora(slint::Image::from_rgba8(pixels)));
+            let seed = job.0.seed;
+            let _ = weak.upgrade_in_event_loop(move |app| {
+                if SHOWING.load(Ordering::SeqCst) == seed {
+                    app.global::<Shown>().set_aurora(slint::Image::from_rgba8(pixels));
+                }
+            });
         }
     });
     tx
@@ -130,14 +141,21 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
         let stage = app.global::<Shown>().get_stage();
         let mut scene = scene.borrow_mut();
         if stage == VoiceStage::Off {
+            // The last frame stays to fade out with the overlay; nothing newer is drawn over it.
             *scene = None;
+            SHOWING.store(0, Ordering::SeqCst);
             return;
         }
         let now = Instant::now();
-        let s = scene.get_or_insert_with(|| {
-            let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_nanos());
-            Scene { look: Look { seed, flow: 0.0, spread: 0.0, reach: 0.0, level: 0.0, bands: [0.0; 4], dim: 0.0 }, began: now, last: now }
-        });
+        let session = app.global::<Shown>().get_session();
+        // A new session, even one started straight from the last one's answer, starts from nothing.
+        if scene.as_ref().is_none_or(|s| s.session != session) {
+            let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_nanos()).max(1);
+            SHOWING.store(seed, Ordering::SeqCst);
+            app.global::<Shown>().set_aurora(slint::Image::default());
+            *scene = Some(Scene { session, look: Look { seed, flow: 0.0, spread: 0.0, reach: 0.0, level: 0.0, bands: [0.0; 4], dim: 0.0 }, began: now, last: now });
+        }
+        let Some(s) = scene.as_mut() else { return };
         let dt = now.duration_since(s.last).as_secs_f32();
         s.last = now;
         let listening = stage == VoiceStage::Listening;
