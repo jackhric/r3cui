@@ -38,6 +38,13 @@ use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
 slint::include_modules!();
+
+const BACKLIGHT_POLL: Duration = Duration::from_millis(150);
+/// Pages blur the screen behind them, which needs the window to be showing first.
+const PAGE_FLAG_DELAY: Duration = Duration::from_millis(1500);
+#[cfg(feature = "preview")]
+const PRESS_FLAG_DELAY: Duration = Duration::from_millis(4000);
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
@@ -230,9 +237,8 @@ fn main() -> anyhow::Result<()> {
     });
 
     if let Some(page) = arg("--page").and_then(|p| p.parse().ok()).and_then(Page::from_number) {
-        // Pages blur the screen behind them, which needs the window to be showing.
         let weak = app.as_weak();
-        slint::Timer::single_shot(Duration::from_millis(1500), move || {
+        slint::Timer::single_shot(PAGE_FLAG_DELAY, move || {
             if let Some(app) = weak.upgrade() {
                 app.go_to(page, 0);
             }
@@ -242,7 +248,7 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "preview")]
     if let Some(key) = arg("--press").cloned() {
         let tx = act_tx.clone();
-        slint::Timer::single_shot(Duration::from_millis(4000), move || {
+        slint::Timer::single_shot(PRESS_FLAG_DELAY, move || {
             if let Some(action) = key_action(&key) {
                 let _ = tx.send(action);
             }
@@ -261,7 +267,7 @@ fn main() -> anyhow::Result<()> {
         let (weak, tx) = (app.as_weak(), act_tx.clone());
         let mut last = None;
         let timer = slint::Timer::default();
-        timer.start(slint::TimerMode::Repeated, Duration::from_millis(150), move || {
+        timer.start(slint::TimerMode::Repeated, BACKLIGHT_POLL, move || {
             let Some(app) = weak.upgrade() else { return };
             let (state, accent) = backlight::observe(&app);
             let keys = backlight::keys_for(state, accent);

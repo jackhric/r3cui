@@ -26,6 +26,13 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 pub(crate) const RECONNECT_DELAY: Duration = Duration::from_secs(2);
+const CLOCK_TICK: Duration = Duration::from_secs(1);
+const DEFAULT_VOLUME_GAP_MS: u64 = 250;
+const VOLUME_MAX_WAIT: Duration = Duration::from_millis(600);
+const WIFI_REFRESH_AFTER_JOIN: Duration = Duration::from_millis(500);
+const WIFI_REFRESH_AFTER_BAND_SWITCH: Duration = Duration::from_secs(10);
+const WIFI_REFRESH_AFTER_SCAN: Duration = Duration::from_secs(6);
+const KEYS_REPAINT_AFTER_WAKE: Duration = Duration::from_millis(400);
 
 /// What outlives a core reconnect: the drivers and what the screen keeps of them.
 pub(crate) struct Frontend {
@@ -251,10 +258,10 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
             let _ = tx.send(Later::Wifi(ssid, networks));
         });
     };
-    let mut tick = tokio::time::interval(Duration::from_secs(1));
+    let mut tick = tokio::time::interval(CLOCK_TICK);
     let mut changes = session.front.host.changes();
     let mut reported_volume = session.front.host.volume().map(|v| v.level);
-    let mut volume_gate = slider::Pacer::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(250)), Duration::from_millis(600));
+    let mut volume_gate = slider::Pacer::new(Duration::from_millis(settings::get().volume_interval_ms.unwrap_or(DEFAULT_VOLUME_GAP_MS)), VOLUME_MAX_WAIT);
     // Spawns the timer a `Send::Later` asks for, or sends at once.
     let pace = |gate: &mut slider::Pacer, send: slider::Send, host: &Host| match send {
         slider::Send::Now(v) => {
@@ -301,7 +308,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     Later::JoinDone(ok) => {
                         if session.wifi.end_join() {
                             finish_join(weak, ok);
-                            refresh_wifi(Duration::from_millis(500));
+                            refresh_wifi(WIFI_REFRESH_AFTER_JOIN);
                         }
                     }
                 }
@@ -317,7 +324,7 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                             // The core restores its own idea of the keys as it wakes; paint over it again once it has.
                             let keys = keys.clone();
                             tokio::spawn(async move {
-                                tokio::time::sleep(Duration::from_millis(400)).await;
+                                tokio::time::sleep(KEYS_REPAINT_AFTER_WAKE).await;
                                 keys.repaint();
                             });
                         }
@@ -405,12 +412,12 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                     UiAction::WifiBand => {
                         session.wifi.toggle_band(&core).await;
                         // The remote reconnects on the new band; look again once it has.
-                        refresh_wifi(Duration::from_secs(10));
+                        refresh_wifi(WIFI_REFRESH_AFTER_BAND_SWITCH);
                     }
                     UiAction::WifiScan => {
                         session.wifi.start_scan(&core);
                         // SCAN_COMPLETED normally brings the results sooner; this covers a missed event.
-                        refresh_wifi(Duration::from_secs(6));
+                        refresh_wifi(WIFI_REFRESH_AFTER_SCAN);
                     }
                     UiAction::WifiJoin { ssid, hex, password } => {
                         if !session.wifi.join(&core, &ssid, &hex, &password).await {

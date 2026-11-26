@@ -10,6 +10,9 @@ use slint::ComponentHandle;
 use std::cell::RefCell;
 use std::time::Duration;
 
+/// How long into the old stage's blur-out the library wall starts to come in.
+const LIBRARY_REVEAL_LEAD: Duration = Duration::from_millis(250);
+
 /// The stage as it looks right now, alone and unreceded.
 /// The window as one blur's picture: the stage alone, or the stage with the world over it.
 fn snapshot(app: &AppWindow, what: Capture) -> Option<image::RgbaImage> {
@@ -61,7 +64,7 @@ pub(crate) fn library_stage(app: &AppWindow, mode: LibMode) {
     });
     if mode != LibMode::Off {
         // Under way as the old stage's blur clears, rather than hidden beneath it.
-        reveal_library(app, Duration::from_millis(250));
+        reveal_library(app, LIBRARY_REVEAL_LEAD);
     }
 }
 /// Play the wall's entrance from the start after `delay` (at the soonest, the next frame).

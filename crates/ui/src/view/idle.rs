@@ -10,6 +10,9 @@ use std::time::{Duration, Instant};
 
 /// On the charger, the screen and keys go dark after this long without a touch or key.
 pub(crate) const CHARGER_REST: Duration = Duration::from_secs(10);
+const CHARGER_CHECK: Duration = Duration::from_millis(500);
+/// 20 fps.
+const LAVA_FRAME: Duration = Duration::from_millis(50);
 pub(crate) static LAST_INPUT: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
 /// A key or touch: the charger's countdown to dark starts over.
 pub(crate) fn poke() {
@@ -23,7 +26,7 @@ pub(crate) fn since_input() -> Duration {
 pub(crate) fn rest_on_charger(app: &AppWindow) -> slint::Timer {
     let weak = app.as_weak();
     let timer = slint::Timer::default();
-    timer.start(slint::TimerMode::Repeated, Duration::from_millis(500), move || {
+    timer.start(slint::TimerMode::Repeated, CHARGER_CHECK, move || {
         let Some(app) = weak.upgrade() else { return };
         // Typing a Wi-Fi password is slow; never black out the keyboard.
         let busy = app.on_page(Page::Password) || app.get_power_overlay();
@@ -39,7 +42,7 @@ pub(crate) fn animate_lava(app: &AppWindow) -> slint::Timer {
     let weak = app.as_weak();
     let start = Instant::now();
     let timer = slint::Timer::default();
-    timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
+    timer.start(slint::TimerMode::Repeated, LAVA_FRAME, move || {
         let Some(app) = weak.upgrade() else { return };
         if !app.get_lava_on() {
             return;
