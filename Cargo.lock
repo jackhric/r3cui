@@ -3693,6 +3693,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
+name = "r3ctl"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "remotewire",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
 name = "radium"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3863,9 +3875,12 @@ dependencies = [
  "coreapi",
  "drivers",
  "evdev",
+ "futures-util",
+ "getrandom 0.2.17",
  "image",
  "kodi",
  "qrcode",
+ "remotewire",
  "semver",
  "serde",
  "serde_json",
@@ -3873,10 +3888,20 @@ dependencies = [
  "slint",
  "slint-build",
  "tokio",
+ "tokio-tungstenite",
  "tracing",
  "tracing-subscriber",
  "ureq",
  "voicelink",
+]
+
+[[package]]
+name = "remotewire"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

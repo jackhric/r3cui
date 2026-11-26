@@ -1,0 +1,14 @@
+[package]
+name = "r3ctl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Drive and watch r3cui on a remote (or the desktop demo) over the network: keys, touches, pages, state, screenshots."
+
+[dependencies]
+remotewire = { path = "../remotewire" }
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true

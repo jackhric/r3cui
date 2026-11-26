@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/androidtv", "crates/coreapi", "crates/drivers", "crates/homeassistant", "crates/kodi", "crates/ui", "crates/voice-relay", "crates/voicelink", "crates/wsclient"]
+members = ["crates/androidtv", "crates/coreapi", "crates/drivers", "crates/homeassistant", "crates/kodi", "crates/r3ctl", "crates/remotewire", "crates/ui", "crates/voice-relay", "crates/voicelink", "crates/wsclient"]
 
 [workspace.package]
 version = "0.1.0"
