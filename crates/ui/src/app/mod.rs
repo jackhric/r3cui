@@ -41,6 +41,8 @@ pub(crate) enum UiAction {
     /// Settings → Integrations.
     Integrations(Settings),
     Display { brightness: i32, auto: bool },
+    /// Wake the remote as a key press would, for input that does not come through the keys (remote control).
+    Wake,
     /// The voice key, down or up, while something takes voice.
     VoiceKey { down: bool },
     VoiceDismiss,

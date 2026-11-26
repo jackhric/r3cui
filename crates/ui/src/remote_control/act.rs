@@ -17,6 +17,9 @@ use tokio::sync::mpsc;
 
 /// How long a tap holds, a key's or a finger's.
 const TAP: Duration = Duration::from_millis(80);
+/// How long to wait for an asleep remote to wake before the input goes in anyway, and how often to look.
+const WAKE_WAIT: Duration = Duration::from_secs(2);
+const WAKE_LOOK: Duration = Duration::from_millis(100);
 /// A swipe's finger moves this often.
 const SWIPE_STEP: Duration = Duration::from_millis(16);
 
@@ -129,9 +132,25 @@ async fn screenshot(weak: &slint::Weak<AppWindow>) -> anyhow::Result<(Reply, Vec
     Ok((reply, png))
 }
 
+/// A real key wakes the remote through the core; virtual input has to ask for it, then wait for the screen.
+async fn wake(weak: &slint::Weak<AppWindow>, actions: &mpsc::UnboundedSender<UiAction>) {
+    let awake = || on_ui(weak, |app| app.global::<Sys>().get_awake());
+    if awake().await.unwrap_or(true) {
+        return;
+    }
+    let _ = actions.send(UiAction::Wake);
+    let until = Instant::now() + WAKE_WAIT;
+    while Instant::now() < until && !awake().await.unwrap_or(true) {
+        tokio::time::sleep(WAKE_LOOK).await;
+    }
+}
+
 /// Does what is asked; a screenshot also hands back its PNG.
 pub(super) async fn run(request: Request, weak: &slint::Weak<AppWindow>, actions: &mpsc::UnboundedSender<UiAction>) -> (Reply, Option<Vec<u8>>) {
     let error = |e: anyhow::Error| (Reply::Error { message: e.to_string() }, None);
+    if matches!(request, Request::Key { .. } | Request::Tap { .. } | Request::Swipe { .. } | Request::Slide { .. }) {
+        wake(weak, actions).await;
+    }
     match request {
         Request::Key { key: k, action } => {
             key(weak, k, action).await;

@@ -48,6 +48,22 @@ impl Core {
     pub async fn announce_ui(&self, version: &str) -> Result<(), CallError> {
         self.call(&SetUiInfo { version: version.to_string(), entity_types: Vec::new() }).await.map(drop)
     }
+
+    /// `Normal` wakes the remote, as a key press would.
+    pub async fn set_power_mode(&self, mode: crate::PowerMode) -> Result<(), CallError> {
+        self.call(&SetPowerMode { mode }).await.map(drop)
+    }
+}
+
+/// `set_power_mode`: experimental in the Core-API.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SetPowerMode {
+    pub mode: crate::PowerMode,
+}
+
+impl Request for SetPowerMode {
+    const MSG: &'static str = messages::SET_POWER_MODE;
+    type Reply = serde_json::Value;
 }
 
 /// `version`: what the remote is.

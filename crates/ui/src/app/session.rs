@@ -630,6 +630,7 @@ pub(crate) async fn serve(
                         let todo = if down { session.voice.press(Instant::now()) } else { session.voice.release(Instant::now(), link.voice_grace()) };
                         session.voice_do(weak, &link, &later_tx, todo);
                     }
+                    UiAction::Wake => link.wake(),
                     UiAction::VoiceDismiss => session.voice.dismiss(session.front.host.voice().as_ref()),
                     UiAction::Slider(slider::Gesture::Steps(n)) => {
                         let g = front.global.view(&front.host);

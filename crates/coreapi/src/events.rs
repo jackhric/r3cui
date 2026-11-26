@@ -1,7 +1,7 @@
 //! The core's events the UI acts on, typed after `core-api`'s AsyncAPI spec (`components/messages`). A value the
 //! spec doesn't list (a newer core) becomes `Unknown` rather than failing the event.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::system::SoftwareUpdate;
@@ -19,7 +19,7 @@ pub enum CoreEvent {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PowerMode {
     Normal,

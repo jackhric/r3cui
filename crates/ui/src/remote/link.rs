@@ -186,4 +186,20 @@ impl Link {
             Self::Demo(_) => crate::app::demo::voice::stop(session),
         }
     }
+
+    /// Out of standby, as a key press does: the core only hears real keys.
+    pub(crate) fn wake(&self) {
+        match self {
+            Self::Core(core) => {
+                let core = core.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = core.set_power_mode(coreapi::PowerMode::Normal).await {
+                        tracing::warn!("waking the remote: {e}");
+                    }
+                });
+            }
+            #[cfg(feature = "demo")]
+            Self::Demo(_) => {}
+        }
+    }
 }
