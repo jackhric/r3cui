@@ -170,7 +170,7 @@ impl Session<'_> {
             has_volume: host.has_volume(),
             volume_max: g.volume_max,
             muted: g.muted,
-            sources: host.inputs().into_iter().filter(|i| !i.hidden).map(|i| Source { id: i.id, name: i.name }).collect(),
+            sources: host.inputs().into_iter().filter(|i| !i.hidden).map(|i| Source { icon: host.icon(&i), id: i.id, name: i.name }).collect(),
             source: current.map_or(g.source, |i| i.id.clone()),
             switching: g.switching,
             staged: current.is_some_and(|i| i.ui.is_some()),

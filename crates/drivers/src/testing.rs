@@ -8,10 +8,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 
-pub static FAKE_GLOBAL: Spec = Spec { id: "fake-global", name: "Fake", fields: &[], provides: Provides { global: true, remote: false, ui: false } };
+pub static FAKE_GLOBAL: Spec = Spec { id: "fake-global", name: "Fake", icon: "", fields: &[], provides: Provides { global: true, remote: false, ui: false } };
 pub static FAKE_PLAYER: Spec = Spec {
     id: "fake-player",
     name: "Fake",
+    icon: "",
     fields: &[Field { key: "host", label: "Host", kind: FieldKind::Text, required: true, default: None }],
     provides: Provides { global: false, remote: true, ui: true },
 };

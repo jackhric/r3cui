@@ -494,7 +494,7 @@ export component AppWindow inherits Window {
         if (root.page == 10) {
             let focus = root.lab-back();
             if (focus < 0) {
-                root.go(2, 5);
+                root.go(2, 6);
             } else {
                 root.focus-index = focus;
             }
@@ -982,7 +982,7 @@ export component AppWindow inherits Window {
                             height: 140px;
                             viewbox-width: 24;
                             viewbox-height: 24;
-                            commands: root.source == "" ? Logos.kodi : root.source-icon;
+                            commands: root.source-icon;
                             fill: !root.switching ? Theme.t2-muted : @linear-gradient(110deg,
                                 Theme.t2-muted 0%,
                                 Theme.t2-muted clamp(parent.sheen - 0.18, 0, 1) * 100%,
@@ -1587,7 +1587,7 @@ export component AppWindow inherits Window {
         if root.hold-look == 1: Logo {
             y: 330px;
             size: 140px;
-            commands: root.source == "" ? Logos.kodi : root.source-icon;
+            commands: root.source-icon;
             tint: Theme.text;
         }
         if root.hold-look == 2: Glyph {

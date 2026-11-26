@@ -388,17 +388,21 @@ export component ChoiceList inherits Rectangle {
                 transform-origin: { x: self.width / 2, y: self.height / 2 };
                 transform-scale: parent.lift;
             }
+            // Beside the label, or as a badge on the icon's corner when there is one.
             if row.dot > 0: Rectangle {
-                x: 40px;
+                x: row.icon != "" ? 60px : 40px;
+                y: row.icon != "" ? parent.height / 2 + 4px : (parent.height - self.height) / 2;
                 width: 14px;
                 height: 14px;
                 border-radius: 7px;
+                border-width: row.icon != "" ? 2px : 0px;
+                border-color: Theme.bg;
                 background: row.dot == 1 ? Theme.good : row.dot == 2 ? Theme.off : row.dot == 4 ? Theme.accent : Theme.t3;
             }
             Text {
                 x: parent.lead;
                 y: row.detail == "" ? (parent.height - self.height) / 2 : parent.height / 2 - 30px;
-                width: parent.edge - parent.lead - (row.value == "" ? 0px : 150px);
+                width: parent.edge - parent.lead - (row.value == "" ? 0px : value-text.width + 20px);
                 overflow: elide;
                 text: row.label;
                 transform-origin: { x: 0, y: self.height / 2 };
@@ -411,15 +415,17 @@ export component ChoiceList inherits Rectangle {
             if row.detail != "": Text {
                 x: parent.lead;
                 y: parent.height / 2 + 6px;
-                width: parent.edge - parent.lead - (row.value == "" ? 0px : 150px);
+                width: parent.edge - parent.lead - (row.value == "" ? 0px : value-text.width + 20px);
                 overflow: elide;
                 text: row.detail;
                 font-size: 18px;
                 color: Theme.t2;
             }
-            if row.value != "": Text {
-                x: 0;
-                width: parent.edge;
+            // As wide as it needs, up to a point; the label takes the rest.
+            value-text := Text {
+                width: min(self.preferred-width, 220px);
+                x: parent.edge - self.width;
+                overflow: elide;
                 horizontal-alignment: right;
                 text: row.value;
                 font-size: 22px;

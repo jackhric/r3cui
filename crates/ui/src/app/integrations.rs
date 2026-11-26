@@ -32,6 +32,8 @@ pub(crate) enum Dot {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct Row {
+    /// A driver's mark, as SVG path data.
+    pub icon: &'static str,
     pub label: String,
     pub detail: String,
     pub value: String,
@@ -78,6 +80,10 @@ fn row(label: impl Into<String>) -> Row {
 
 fn spec_of(host: &Host, driver: &str) -> Option<&'static Spec> {
     host.registry().spec(&host.modules().drivers.get(driver)?.kind)
+}
+
+fn icon_of(host: &Host, driver: &str) -> &'static str {
+    spec_of(host, driver).map_or("", |s| s.icon)
 }
 
 fn name_of(host: &Host, driver: &str) -> String {
@@ -130,7 +136,7 @@ impl Integrations {
                         _ => Dot::Unknown,
                     };
                     let value = status.map_or("Unknown type".to_string(), |s| s.word().to_string());
-                    rows.push(Row { value, chevron: true, dot, ..row(name_of(host, id)) });
+                    rows.push(Row { icon: icon_of(host, id), value, chevron: true, dot, ..row(name_of(host, id)) });
                 }
                 if self.addable(host).next().is_some() {
                     rows.push(Row { chevron: true, ..row("Add integration") });
@@ -187,7 +193,7 @@ impl Integrations {
                     .map(|s| {
                         let jobs: Vec<&str> =
                             [(s.provides.global, "volume and inputs"), (s.provides.remote, "buttons"), (s.provides.ui, "screen")].into_iter().filter(|(y, _)| *y).map(|(_, j)| j).collect();
-                        Row { detail: capitalise(&jobs.join(", ")), chevron: true, ..row(s.name) }
+                        Row { icon: s.icon, detail: capitalise(&jobs.join(", ")), chevron: true, ..row(s.name) }
                     })
                     .collect();
                 ("Add integration".to_string(), rows)
@@ -197,6 +203,7 @@ impl Integrations {
                     .inputs()
                     .into_iter()
                     .map(|i| Row {
+                        icon: host.icon(&i).unwrap_or(""),
                         detail: if i.hidden { "Hidden".into() } else { String::new() },
                         value: i.ui.as_deref().map(|d| name_of(host, d)).unwrap_or_default(),
                         chevron: true,
@@ -230,7 +237,7 @@ impl Integrations {
                 let current = input_of(host, input).and_then(|i| if *slot == Slot::Remote { i.remote } else { i.ui });
                 let mut rows = vec![Row { checked: current.is_none(), ..row("Nothing") }];
                 for id in self.slot_drivers(host, *slot) {
-                    rows.push(Row { checked: current.as_deref() == Some(id.as_str()), ..row(name_of(host, &id)) });
+                    rows.push(Row { icon: icon_of(host, &id), checked: current.as_deref() == Some(id.as_str()), ..row(name_of(host, &id)) });
                 }
                 (if *slot == Slot::Remote { "Remote" } else { "Screen" }.to_string(), rows)
             }
@@ -483,6 +490,7 @@ mod tests {
         tap(&mut ui, &mut host, "Fake");
         assert_eq!(host.current("KODI").unwrap().ui.as_deref(), Some("fake-player"));
         assert_eq!(ui.page(&host).rows[5].value, "Fake", "back on the input, its screen slot filled");
+        assert_eq!(ui.page(&host).focus, 5, "on the row it left from");
     }
 
     #[tokio::test]

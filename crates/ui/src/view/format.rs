@@ -141,6 +141,7 @@ pub(crate) fn codec_logo(app: &AppWindow, id: &str) -> CodecLogo {
         _ => lockup(SharedString::new(), 24.0),
     }
 }
+/// A brand mark found from an input's name, for inputs with no driver to give one.
 pub(crate) fn source_logo(logos: &Logos, name: &str) -> SharedString {
     let n = name.to_lowercase();
     let has = |words: &[&str]| words.iter().any(|w| n.contains(w));
@@ -148,8 +149,6 @@ pub(crate) fn source_logo(logos: &Logos, name: &str) -> SharedString {
         logos.get_playstation()
     } else if has(&["xbox"]) {
         logos.get_xbox()
-    } else if has(&["kodi"]) {
-        logos.get_kodi()
     } else if has(&["android", "shield", "google"]) {
         logos.get_android()
     } else if has(&["bluetooth"]) {

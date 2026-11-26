@@ -79,6 +79,7 @@ pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::int
             .rows
             .iter()
             .map(|r| Choice {
+                icon: r.icon.into(),
                 label: (&r.label).into(),
                 detail: (&r.detail).into(),
                 value: (&r.value).into(),
@@ -209,10 +210,11 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     let name = m.sources.iter().find(|s| s.id == m.source).map_or(m.source.as_str(), |s| s.name.as_str());
     app.set_source(name.into());
     app.set_switching(m.switching);
-    app.set_source_icon(source_logo(&logos, &m.source));
+    let mark = |s: &crate::app::model::Source| s.icon.map_or_else(|| source_logo(&logos, &s.id), SharedString::from);
+    app.set_source_icon(m.sources.iter().find(|s| s.id == m.source).map_or_else(|| source_logo(&logos, &m.source), mark));
     let current = m.sources.iter().position(|s| s.id == m.source).map_or(-1, |i| i as i32);
     let rows: Vec<SourceRow> =
-        m.sources.iter().map(|s| SourceRow { id: (&s.id).into(), name: (&s.name).into(), icon: source_logo(&logos, &s.id) }).collect();
+        m.sources.iter().map(|s| SourceRow { id: (&s.id).into(), name: (&s.name).into(), icon: mark(s) }).collect();
     if app.get_sources().iter().ne(rows.iter().cloned()) {
         app.set_sources(ModelRc::new(VecModel::from(rows)));
     }
@@ -221,7 +223,7 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
         .sources
         .iter()
         .enumerate()
-        .map(|(i, s)| Choice { label: (&s.name).into(), icon: source_logo(&logos, &s.id), checked: i as i32 == current, ..Default::default() })
+        .map(|(i, s)| Choice { label: (&s.name).into(), icon: mark(s), checked: i as i32 == current, ..Default::default() })
         .collect();
     if app.get_input_choices().iter().ne(inputs.iter().cloned()) {
         app.set_input_choices(ModelRc::new(VecModel::from(inputs)));

@@ -50,6 +50,8 @@ pub(crate) struct Model {
 pub(crate) struct Source {
     pub id: String,
     pub name: String,
+    /// The mark of the driver in its slots; without one, a brand mark is found from the name.
+    pub icon: Option<&'static str>,
 }
 impl Model {
     pub fn demo() -> Self {
@@ -58,7 +60,10 @@ impl Model {
             has_volume: true,
             muted: false,
             source: "PLAYSTATION 5".into(),
-            sources: ["ANDROID TV", "KODI", "PLAYSTATION 5", "XBOX 360"].into_iter().map(|s| Source { id: s.into(), name: s.into() }).collect(),
+            sources: ["ANDROID TV", "KODI", "PLAYSTATION 5", "XBOX 360"]
+                .into_iter()
+                .map(|s| Source { id: s.into(), name: s.into(), icon: (s == "KODI").then_some(drivers::kodi::SPEC.icon) })
+                .collect(),
             title: "Mad Max: Fury Road".into(),
             paused: false,
             duration: 7200.0,

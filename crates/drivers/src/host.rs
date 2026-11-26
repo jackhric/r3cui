@@ -13,18 +13,28 @@ use tokio::task::JoinHandle;
 struct Running {
     entry: DriverEntry,
     driver: Arc<dyn Driver>,
+    /// Which start this is, so a port from before a restart is known to be stale.
+    start: u64,
+}
+
+/// A global control port, with what it was bound to.
+struct Bound<P> {
+    port: P,
+    start: u64,
+    target: String,
 }
 
 pub struct Host {
     registry: Registry,
     modules: Modules,
     running: BTreeMap<String, Running>,
-    volume: Option<VolumePort>,
-    source: Option<SourcePort>,
+    volume: Option<Bound<VolumePort>>,
+    source: Option<Bound<SourcePort>>,
     key_light: Option<watch::Receiver<Option<KeyLight>>>,
     /// Bumped whenever anything a driver shows changes.
     changed: watch::Sender<u64>,
     forwarders: Vec<JoinHandle<()>>,
+    starts: u64,
     /// The UI slot told it is on screen, and whether it was told the remote is awake.
     shown: Option<(String, bool)>,
 }
@@ -41,6 +51,7 @@ impl Host {
             key_light: None,
             changed: watch::channel(0).0,
             forwarders: Vec::new(),
+            starts: 0,
             shown: None,
         };
         host.apply(modules);
@@ -66,7 +77,8 @@ impl Host {
             match self.registry.start(entry) {
                 Some(driver) => {
                     tracing::info!("driver {id} ({}) started", entry.kind);
-                    self.running.insert(id.clone(), Running { entry: entry.clone(), driver });
+                    self.starts += 1;
+                    self.running.insert(id.clone(), Running { entry: entry.clone(), driver, start: self.starts });
                 }
                 None => tracing::warn!("driver {id}: no driver type {:?}", entry.kind),
             }
@@ -82,18 +94,19 @@ impl Host {
         for f in self.forwarders.drain(..) {
             f.abort();
         }
-        let find = |b: &Option<Binding>| b.as_ref().and_then(|b| Some((self.running.get(&b.driver)?.driver.clone(), b.target.clone())));
-        self.volume = find(&self.modules.global.volume).and_then(|(d, t)| d.volume(&t));
-        self.source = find(&self.modules.global.source).and_then(|(d, t)| d.source(&t));
+        // A binding that hasn't changed keeps its port: a new one starts empty until the driver fills it, and the
+        // inputs would blink out meanwhile.
+        self.volume = rebind(self.volume.take(), &self.modules.global.volume, &self.running, |d, t| d.volume(t));
+        self.source = rebind(self.source.take(), &self.modules.global.source, &self.running, |d, t| d.source(t));
         self.key_light = self.running.values().find_map(|r| r.driver.key_light());
 
         let changed = self.changed.clone();
         let mut watch_all = Vec::new();
-        if let Some(p) = &self.volume {
-            watch_all.push(forward(p.view.clone(), changed.clone()));
+        if let Some(b) = &self.volume {
+            watch_all.push(forward(b.port.view.clone(), changed.clone()));
         }
-        if let Some(p) = &self.source {
-            watch_all.push(forward(p.view.clone(), changed.clone()));
+        if let Some(b) = &self.source {
+            watch_all.push(forward(b.port.view.clone(), changed.clone()));
         }
         if let Some(k) = &self.key_light {
             watch_all.push(forward(k.clone(), changed.clone()));
@@ -118,7 +131,7 @@ impl Host {
     }
 
     pub fn volume(&self) -> Option<Volume> {
-        self.volume.as_ref().and_then(|p| p.get())
+        self.volume.as_ref().and_then(|b| b.port.get())
     }
 
     pub fn has_volume(&self) -> bool {
@@ -126,15 +139,15 @@ impl Host {
     }
 
     pub fn send_volume(&self, intent: VolumeIntent) -> bool {
-        self.volume.as_ref().map(|p| p.send(intent)).is_some()
+        self.volume.as_ref().map(|b| b.port.send(intent)).is_some()
     }
 
     pub fn sources(&self) -> Option<Sources> {
-        self.source.as_ref().and_then(|p| p.get())
+        self.source.as_ref().and_then(|b| b.port.get())
     }
 
     pub fn send_source(&self, intent: SourceIntent) -> bool {
-        self.source.as_ref().map(|p| p.send(intent)).is_some()
+        self.source.as_ref().map(|b| b.port.send(intent)).is_some()
     }
 
     pub fn key_light(&self) -> Option<KeyLight> {
@@ -203,6 +216,12 @@ impl Host {
         self.running.iter().map(|(id, r)| (id.clone(), r.driver.spec().name.to_string(), r.driver.status().borrow().clone())).collect()
     }
 
+    /// The mark of the driver that fills `input`'s screen slot, or else its remote slot.
+    pub fn icon(&self, input: &Input) -> Option<&'static str> {
+        let mark = |slot: &Option<String>| Some(self.running.get(slot.as_deref()?)?.driver.spec().icon).filter(|i| !i.is_empty());
+        mark(&input.ui).or_else(|| mark(&input.remote))
+    }
+
     /// Whether global control or `input` relies on the driver `id`.
     pub fn in_use(&self, id: &str, input: Option<&Input>) -> bool {
         let g = &self.modules.global;
@@ -217,6 +236,15 @@ impl Drop for Host {
             f.abort();
         }
     }
+}
+
+fn rebind<P>(old: Option<Bound<P>>, binding: &Option<Binding>, running: &BTreeMap<String, Running>, make: impl Fn(&dyn Driver, &str) -> Option<P>) -> Option<Bound<P>> {
+    let b = binding.as_ref()?;
+    let r = running.get(&b.driver)?;
+    if let Some(old) = old.filter(|o| o.start == r.start && o.target == b.target) {
+        return Some(old);
+    }
+    Some(Bound { port: make(r.driver.as_ref(), &b.target)?, start: r.start, target: b.target.clone() })
 }
 
 fn forward<T: Send + Sync + 'static>(mut rx: watch::Receiver<T>, changed: watch::Sender<u64>) -> JoinHandle<()> {
@@ -334,6 +362,17 @@ mod tests {
         assert!(host.key(host.current("anything").as_ref(), RemoteKey::Select));
         assert_eq!(host.volume(), None);
         assert!(!host.send_volume(VolumeIntent::Up));
+    }
+
+    #[tokio::test]
+    async fn other_changes_keep_global_control_bound() {
+        let (mut host, fakes) = setup();
+        report_sources(&fakes.get("fake-global"), "KODI");
+        let mut m = host.modules().clone();
+        m.set_hidden("TV", true);
+        host.apply(m);
+        assert_eq!(fakes.get("fake-global").targets_bound().len(), 2, "not asked for new ports");
+        assert_eq!(host.inputs().len(), 2, "the inputs never blink out");
     }
 
     #[tokio::test]

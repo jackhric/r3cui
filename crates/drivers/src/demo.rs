@@ -7,7 +7,14 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
 
-pub static SPEC: Spec = Spec { id: "demo", name: "Demo", fields: &[], provides: Provides { global: true, remote: true, ui: true } };
+pub static SPEC: Spec = Spec {
+    id: "demo",
+    name: "Demo",
+    // A play mark in a rounded square.
+    icon: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm5 5v8l6-4z",
+    fields: &[],
+    provides: Provides { global: true, remote: true, ui: true },
+};
 
 const INPUTS: [&str; 4] = ["ANDROID TV", "KODI", "PLAYSTATION 5", "XBOX 360"];
 const FILM: (&str, u64) = ("Mad Max: Fury Road", 7200);

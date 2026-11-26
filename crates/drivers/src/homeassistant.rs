@@ -12,6 +12,8 @@ use tokio::sync::watch;
 pub static SPEC: Spec = Spec {
     id: "homeassistant",
     name: "Home Assistant",
+    // Simple Icons (CC0); the mark is Home Assistant's.
+    icon: "M22.939 10.627 13.061.749a1.505 1.505 0 0 0-2.121 0l-9.879 9.878C.478 11.21 0 12.363 0 13.187v9c0 .826.675 1.5 1.5 1.5h9.227l-4.063-4.062a2.034 2.034 0 0 1-.664.113c-1.13 0-2.05-.92-2.05-2.05s.92-2.05 2.05-2.05 2.05.92 2.05 2.05c0 .233-.041.456-.113.665l3.163 3.163V9.928a2.05 2.05 0 0 1-1.15-1.84c0-1.13.92-2.05 2.05-2.05s2.05.92 2.05 2.05a2.05 2.05 0 0 1-1.15 1.84v8.127l3.146-3.146A2.051 2.051 0 0 1 18 12.239c1.13 0 2.05.92 2.05 2.05s-.92 2.05-2.05 2.05c-.25 0-.488-.047-.709-.13L12.9 20.602v3.088h9.6c.825 0 1.5-.675 1.5-1.5v-9c0-.825-.477-1.977-1.061-2.561z",
     fields: &[
         Field { key: "url", label: "Address", kind: FieldKind::Url, required: true, default: Some("http://homeassistant.local:8123") },
         Field { key: "token", label: "Access token", kind: FieldKind::Secret, required: true, default: None },
@@ -122,8 +124,9 @@ impl Driver for HomeAssistant {
     fn volume(&self, target: &str) -> Option<VolumePort> {
         let target = EntityId::from(target);
         self.watch(&target);
-        let (view, mut intents, port) = port(None);
         let limit = self.limit.clone();
+        // Filled from what is known now, so a new binding shows at once.
+        let (view, mut intents, port) = port(volume_of(&self.ha.state().borrow(), &target, limit.as_ref()));
         follow(self.ha.state(), view, {
             let target = target.clone();
             move |s: &HaState| volume_of(s, &target, limit.as_ref())
@@ -147,7 +150,7 @@ impl Driver for HomeAssistant {
     fn source(&self, target: &str) -> Option<SourcePort> {
         let target = EntityId::from(target);
         self.watch(&target);
-        let (view, mut intents, port) = port(None);
+        let (view, mut intents, port) = port(sources_of(&self.ha.state().borrow(), &target));
         follow(self.ha.state(), view, {
             let target = target.clone();
             move |s: &HaState| sources_of(s, &target)

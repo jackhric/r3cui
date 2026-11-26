@@ -269,6 +269,8 @@ pub struct Provides {
 pub struct Spec {
     pub id: &'static str,
     pub name: &'static str,
+    /// Its mark: 24×24 SVG path data, filled in one colour.
+    pub icon: &'static str,
     pub fields: &'static [Field],
     pub provides: Provides,
 }
