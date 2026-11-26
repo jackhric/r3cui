@@ -27,23 +27,10 @@ impl Page {
     }
 }
 
-/// What the stage shows of an input's library. Only `Off` and `Wall` are live; the rest are the previews' variations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LibMode {
-    Off = 0,
-    River = 1,
-    RiverCard = 2,
-    Carousel = 3,
-    Wall = 4,
-    DimRiverCard = 5,
-}
-
 /// The window's state, by name.
 pub(crate) trait Screen {
     fn on_page(&self, page: Page) -> bool;
     fn go_to(&self, page: Page, focus: i32);
-    fn lib_mode(&self) -> LibMode;
-    fn show_lib_mode(&self, mode: LibMode);
 }
 
 impl Screen for AppWindow {
@@ -52,19 +39,6 @@ impl Screen for AppWindow {
     }
     fn go_to(&self, page: Page, focus: i32) {
         self.invoke_go(page as i32, focus);
-    }
-    fn lib_mode(&self) -> LibMode {
-        match self.get_lib_mode() {
-            1 => LibMode::River,
-            2 => LibMode::RiverCard,
-            3 => LibMode::Carousel,
-            4 => LibMode::Wall,
-            5 => LibMode::DimRiverCard,
-            _ => LibMode::Off,
-        }
-    }
-    fn show_lib_mode(&self, mode: LibMode) {
-        self.set_lib_mode(mode as i32);
     }
 }
 

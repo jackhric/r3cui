@@ -1,3 +1,21 @@
+// What the library shows. Only `off` and `wall` are live; the rest are the previews' variations.
+export enum LibMode {
+    off,
+    river,
+    river-card,
+    carousel,
+    wall,
+    dim-river-card,
+}
+
+// How the poster wall shows the highlighted title: `sheet` a solid sheet under the grid, `fade` the grid fading out
+// behind the words, `inline` the details opening under the highlighted row.
+export enum WallStyle {
+    sheet,
+    fade,
+    inline,
+}
+
 // What a snapshot takes in: the stage alone, or the stage with the layers over it.
 export enum Capture {
     none,

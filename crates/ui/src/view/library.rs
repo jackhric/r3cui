@@ -1,10 +1,9 @@
 //! The library wall on screen: the list a UI driver publishes, with posters fetched around the highlight, nearest
 //! first, as it moves.
 
-use crate::view::screen::{LibMode, Screen};
 use crate::view::stage::{library_stage, reveal_library};
 use crate::view::ui;
-use crate::{AppWindow, LibItem};
+use crate::{AppWindow, LibItem, LibMode, WallStyle};
 use drivers::api::{Library, LibraryItem, LibraryList};
 use slint::Model as _;
 use std::collections::HashSet;
@@ -98,11 +97,11 @@ fn show_list(weak: &slint::Weak<AppWindow>, list: Arc<LibraryList>) {
     ui(weak, move |app| {
         let rows: Vec<LibItem> = list.items.iter().map(|e| item(e, slint::Image::default())).collect();
         app.set_lib_items(std::rc::Rc::new(slint::VecModel::from(rows)).into());
-        app.set_lib_wall_style(crate::app::settings::get().wall_style.unwrap_or(2));
+        app.set_lib_wall_style(WallStyle::from_config(crate::app::settings::get().wall_style));
         app.set_lib_heading(list.heading.as_str().into());
         app.set_lib_count(list.count.as_str().into());
         // A different list while the wall is up comes in the same way.
-        if app.lib_mode() == LibMode::Wall {
+        if app.get_lib_mode() == LibMode::Wall {
             reveal_library(&app, Duration::ZERO);
         }
     });

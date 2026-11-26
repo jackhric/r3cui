@@ -1,10 +1,10 @@
 //! The stage behind the controls (now playing, inputs, the poster wall, off) and the blurred crossfade from one
 //! to the next.
 
-use crate::{AppWindow, Capture};
+use crate::{AppWindow, Capture, LibMode};
 use crate::app::model::Model;
 use crate::art::pixels;
-use crate::view::screen::{LibMode, Page, Screen};
+use crate::view::screen::{Page, Screen};
 
 use slint::ComponentHandle;
 use std::cell::RefCell;
@@ -43,21 +43,21 @@ thread_local!(static STAGE: RefCell<Option<StageKey>> = const { RefCell::new(Non
 /// view, blur through from the old one to the new.
 pub(crate) fn stage_change(app: &AppWindow, m: &Model, change: impl FnOnce()) {
     let playing = m.staged && !m.title.is_empty();
-    let key = StageKey { power_on: m.power_on, playing, input: m.input.clone(), library: app.lib_mode() != LibMode::Off && !playing };
+    let key = StageKey { power_on: m.power_on, playing, input: m.input.clone(), library: app.get_lib_mode() != LibMode::Off && !playing };
     swap_stage(app, key, change);
 }
 /// Show or hide the poster wall, blurring across like any other change of stage.
 pub(crate) fn library_stage(app: &AppWindow, mode: LibMode) {
-    if app.lib_mode() == mode {
+    if app.get_lib_mode() == mode {
         return;
     }
     let Some(mut key) = STAGE.with(|s| s.borrow().clone()) else {
-        app.show_lib_mode(mode);
+        app.set_lib_mode(mode);
         return;
     };
     key.library = mode != LibMode::Off && !key.playing;
     swap_stage(app, key, || {
-        app.show_lib_mode(mode);
+        app.set_lib_mode(mode);
         if mode != LibMode::Off {
             app.invoke_hold_library();
         }

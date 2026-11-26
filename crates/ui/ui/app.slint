@@ -7,7 +7,7 @@ import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
-import { Capture, Choice, JoinState, KbPurpose, Picker, InputRow, WifiRow, StatusRow, KeyCell, LibItem } from "types.slint";
+import { Capture, Choice, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, StatusRow, KeyCell, LibItem } from "types.slint";
 
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars }
@@ -305,13 +305,13 @@ export component AppWindow inherits Window {
     in property <[Choice]> status-choices;
     // The idle home screen's animated background.
     in property <image> lava;
-    in property <int> lib-mode;
+    in property <LibMode> lib-mode;
     in property <string> lib-heading;
     in property <string> lib-count;
     in property <[image]> lib-posters;
     in property <[LibItem]> lib-items;
     in property <int> lib-focus;
-    in property <int> lib-wall-style: 2;
+    in property <WallStyle> lib-wall-style: WallStyle.fade;
     public function hold-library() { lib.hold(); }
     public function run-library() { lib.run(); }
     out property <bool> lava-on: root.page == 0 && root.home-view == 2 && root.lit;
@@ -443,7 +443,7 @@ export component AppWindow inherits Window {
     property <bool> home-used;
     property <bool> home-rumbling;
     // 1 something is playing, 2 the input's mark (when idle), 3 power off, 4 a library wall
-    property <int> home-view: !root.power-on ? 3 : root.staged && root.media-title != "" ? 1 : root.lib-mode > 0 ? 4 : 2;
+    property <int> home-view: !root.power-on ? 3 : root.staged && root.media-title != "" ? 1 : root.lib-mode != LibMode.off ? 4 : 2;
 
     // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
     public function go(p: int, f: int) {
@@ -1018,7 +1018,7 @@ export component AppWindow inherits Window {
                         at: root.lib-focus;
                         wall-style: root.lib-wall-style;
                         opacity: root.home-view == 4 ? 1 : 0;
-                        visible: self.opacity > 0 && root.lib-mode > 0;
+                        visible: self.opacity > 0 && root.lib-mode != LibMode.off;
                     }
 
                     if !root.connected: Text {

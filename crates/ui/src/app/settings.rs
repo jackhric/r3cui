@@ -35,6 +35,17 @@ pub struct Settings {
     legacy: drivers::config::Legacy,
 }
 
+impl crate::WallStyle {
+    /// From `wall_style` in the settings file: 1 sheet, 2 fade (the default), 3 inline.
+    pub fn from_config(n: Option<i32>) -> Self {
+        match n {
+            Some(1) => Self::Sheet,
+            Some(3) => Self::Inline,
+            _ => Self::Fade,
+        }
+    }
+}
+
 impl Settings {
     /// The colour for an input, by its id.
     pub fn accent_for(&self, source: &str) -> Option<&str> {

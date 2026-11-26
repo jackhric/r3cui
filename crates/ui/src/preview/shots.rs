@@ -4,8 +4,8 @@
 
 use crate::hardware::backlight;
 use crate::input::{keys, Button};
-use crate::view::screen::{LibMode, Page, Screen};
-use crate::{Capture, JoinState, Picker};
+use crate::view::screen::{Page, Screen};
+use crate::{Capture, LibMode, WallStyle, JoinState, Picker};
 use crate::preview::device::{self, Device};
 use crate::{view::apply, app::demo::apply_demo_settings, AppWindow, app::model::Model, app::UiAction};
 use anyhow::Context;
@@ -651,7 +651,7 @@ fn library_script() -> Vec<(u64, Act)> {
             app.set_lib_posters(Rc::new(slint::VecModel::from(shelf.posters.clone())).into());
             app.set_lib_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
             app.set_lib_focus(0);
-            app.show_lib_mode(mode);
+            app.set_lib_mode(mode);
         })
     };
     let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
@@ -721,17 +721,17 @@ fn walls_script() -> Vec<(u64, Act)> {
             app.set_lib_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
         })
     };
-    let style = |n: i32| -> Act {
+    let style = |style: WallStyle| -> Act {
         Box::new(move |app, _| {
             crate::view::stage::library_stage(app, LibMode::Off);
-            app.set_lib_wall_style(n);
+            app.set_lib_wall_style(style);
             app.set_lib_focus(12);
         })
     };
     let wall: fn() -> Act = || Box::new(|app, _| crate::view::stage::library_stage(app, LibMode::Wall));
     let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
     let mut s: Vec<(u64, Act)> = vec![(300, load), (600, button(Button::Stop))];
-    for n in 1..=3 {
+    for n in [WallStyle::Sheet, WallStyle::Fade, WallStyle::Inline] {
         s.push((1200, style(n)));
         s.push((900, wall()));
         s.push((2000, step(1)));
