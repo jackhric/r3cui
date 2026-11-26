@@ -14,7 +14,8 @@ use crate::remote::health::{self, Link};
 use crate::remote::system::{self, load_settings, System};
 use crate::remote::wifi::{self, Wifi};
 use crate::view::library::Wall;
-use crate::view::screen::{Page, Picker, Screen};
+use crate::view::screen::{Page, Screen};
+use crate::{KbPurpose, Picker};
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
 use drivers::api::{Media, Stage, UiIntent, VolumeIntent};
@@ -143,7 +144,7 @@ impl Session<'_> {
             Effect::Text { title, caption, text } => {
                 let focus = front.settings.page(&front.host).focus as i32;
                 ui(weak, move |app| {
-                    app.set_kb_purpose(1);
+                    app.set_kb_purpose(KbPurpose::Text);
                     app.set_kb_title(title.into());
                     app.set_kb_caption(caption.into());
                     app.set_cfg_focus(focus);

@@ -8,8 +8,8 @@ pub(crate) mod library;
 pub(crate) mod screen;
 pub(crate) mod stage;
 
-use crate::view::screen::{Capture, JoinState, Page, Screen};
-use crate::{AppWindow, Choice, Logos, InputRow, StatusRow, Theme, WifiRow};
+use crate::view::screen::{Capture, Page, Screen};
+use crate::{AppWindow, Choice, JoinState, Logos, InputRow, StatusRow, Theme, WifiRow};
 
 use crate::app::settings;
 use crate::app::model::Model;
@@ -113,7 +113,7 @@ pub(crate) fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
         if !app.on_page(Page::Password) {
             return;
         }
-        app.show_join(if ok { JoinState::Idle } else { JoinState::Failed });
+        app.set_join_state(if ok { JoinState::Idle } else { JoinState::Failed });
         app.go_to(if ok { Page::Wifi } else { Page::JoinFailed }, 0);
     });
 }

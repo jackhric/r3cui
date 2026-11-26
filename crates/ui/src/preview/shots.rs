@@ -4,7 +4,8 @@
 
 use crate::hardware::backlight;
 use crate::input::{keys, Button};
-use crate::view::screen::{Capture, JoinState, LibMode, Page, Picker, Screen};
+use crate::view::screen::{Capture, LibMode, Page, Screen};
+use crate::{JoinState, Picker};
 use crate::preview::device::{self, Device};
 use crate::{view::apply, app::demo::apply_demo_settings, AppWindow, app::model::Model, app::UiAction};
 use anyhow::Context;
@@ -36,13 +37,13 @@ const STEPS: &[Step] = &[
         m.input = "KODI".into();
     }),
     ("03b-audio", |app, m| {
-        app.show_picker(Picker::Audio);
+        app.set_picker(Picker::Audio);
         app.go_to(Page::Tracks, 0);
         let (rows, current) = crate::app::demo::demo_tracks(m, Picker::Audio, 1);
         crate::view::show_tracks(&app.as_weak(), rows, current);
     }),
     ("03c-subtitles", |app, m| {
-        app.show_picker(Picker::Subtitles);
+        app.set_picker(Picker::Subtitles);
         app.go_to(Page::Tracks, 0);
         let (rows, current) = crate::app::demo::demo_tracks(m, Picker::Subtitles, 1);
         crate::view::show_tracks(&app.as_weak(), rows, current);
@@ -98,13 +99,13 @@ const STEPS: &[Step] = &[
             app.invoke_kb_nav((*k).into());
         }
     }),
-    ("16-joining", |app, _| app.show_join(JoinState::Joining)),
+    ("16-joining", |app, _| app.set_join_state(JoinState::Joining)),
     ("17-join-failed", |app, _| {
-        app.show_join(JoinState::Failed);
+        app.set_join_state(JoinState::Failed);
         app.go_to(Page::JoinFailed, 0);
     }),
     ("18-status", |app, _| {
-        app.show_join(JoinState::Idle);
+        app.set_join_state(JoinState::Idle);
         app.go_to(Page::Status, 0);
     }),
     ("19-status-ha-down", |_, m| m.demo_ha_down = true),
@@ -745,7 +746,7 @@ fn walls_script() -> Vec<(u64, Act)> {
 /// The subtitle picker with a long list: walk down past the screen and back.
 fn picker_script() -> Vec<(u64, Act)> {
     let open: Act = Box::new(|app, _| {
-        app.show_picker(Picker::Subtitles);
+        app.set_picker(Picker::Subtitles);
         app.go_to(Page::Tracks, 0);
         let (rows, current) = crate::app::demo::demo_tracks(&crate::app::model::Model::default(), Picker::Subtitles, 1);
         crate::view::show_tracks(&app.as_weak(), rows, current);

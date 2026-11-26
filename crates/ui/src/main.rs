@@ -19,7 +19,7 @@ use crate::art::grain;
 use crate::hardware::{backlight, feedback};
 use crate::input::{key_action, keys, wire_keyboard};
 use crate::view::{parse_color, set_accent, set_status};
-use crate::view::screen::{Capture, Page, Picker, Screen};
+use crate::view::screen::{Capture, Page, Screen};
 use crate::view::idle::{animate_lava, poke, rest_on_charger};
 use crate::view::stage::capture;
 #[cfg(feature = "device")]
@@ -190,13 +190,13 @@ fn main() -> anyhow::Result<()> {
     app.on_open_picker({
         let tx = act_tx.clone();
         move |kind| {
-            let _ = tx.send(UiAction::OpenPicker(Picker::from_slint(kind)));
+            let _ = tx.send(UiAction::OpenPicker(kind));
         }
     });
     app.on_pick_track({
         let tx = act_tx.clone();
         move |kind, i| {
-            let _ = tx.send(UiAction::PickTrack(Picker::from_slint(kind), i.max(0) as usize));
+            let _ = tx.send(UiAction::PickTrack(kind, i.max(0) as usize));
         }
     });
     app.on_activity(poke);

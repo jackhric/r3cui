@@ -11,7 +11,7 @@ pub(crate) mod settings;
 
 use crate::hardware::backlight;
 use crate::input::{slider, Button};
-use crate::view::screen::Picker;
+use crate::Picker;
 use crate::remote::wifi;
 
 pub(crate) enum UiAction {

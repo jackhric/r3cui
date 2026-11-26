@@ -1,3 +1,20 @@
+export enum JoinState {
+    idle,
+    joining,
+    failed,
+}
+
+// What the keyboard page is for.
+export enum KbPurpose {
+    wifi-password,
+    text,
+}
+
+export enum Picker {
+    audio,
+    subtitles,
+}
+
 export struct InputRow {
     // What the source calls it; picking a row sends this.
     id: string,

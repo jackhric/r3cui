@@ -38,26 +38,6 @@ pub(crate) enum LibMode {
     DimRiverCard = 5,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum JoinState {
-    Idle = 0,
-    Joining = 1,
-    Failed = 2,
-}
-
-/// The audio or the subtitle picker (Slint's `picker`, 0 or 1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Picker {
-    Audio = 0,
-    Subtitles = 1,
-}
-
-impl Picker {
-    pub(crate) fn from_slint(kind: i32) -> Self {
-        if kind == 0 { Self::Audio } else { Self::Subtitles }
-    }
-}
-
 /// Which picture a blur is taken from (Slint's `capturing`): the stage alone, or the stage with the world over it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Capture {
@@ -78,9 +58,6 @@ pub(crate) trait Screen {
     fn go_to(&self, page: Page, focus: i32);
     fn lib_mode(&self) -> LibMode;
     fn show_lib_mode(&self, mode: LibMode);
-    fn show_join(&self, state: JoinState);
-    #[cfg(feature = "preview")]
-    fn show_picker(&self, picker: Picker);
 }
 
 impl Screen for AppWindow {
@@ -102,13 +79,6 @@ impl Screen for AppWindow {
     }
     fn show_lib_mode(&self, mode: LibMode) {
         self.set_lib_mode(mode as i32);
-    }
-    fn show_join(&self, state: JoinState) {
-        self.set_join_state(state as i32);
-    }
-    #[cfg(feature = "preview")]
-    fn show_picker(&self, picker: Picker) {
-        self.set_picker(picker as i32);
     }
 }
 

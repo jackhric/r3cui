@@ -3,11 +3,10 @@
 #[cfg(feature = "device")]
 pub(crate) mod evdev;
 pub(crate) mod slider;
-use crate::{AppWindow, Icons, KeyCell};
+use crate::{AppWindow, Icons, JoinState, KbPurpose, KeyCell};
 use crate::app::UiAction;
 use drivers::api::RemoteKey;
 use crate::view::keyboard;
-use crate::view::screen::{JoinState, Screen};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -220,12 +219,12 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
             match outcome {
                 keyboard::Outcome::Stay => {}
                 keyboard::Outcome::Leave => app.invoke_back(),
-                keyboard::Outcome::Done(text) if app.get_kb_purpose() == 1 => {
+                keyboard::Outcome::Done(text) if app.get_kb_purpose() == KbPurpose::Text => {
                     let _ = tx.send(UiAction::Integrations(crate::app::Settings::Text(text)));
                 }
                 keyboard::Outcome::Done(password) => {
                     let target = app.get_wifi_target();
-                    app.show_join(JoinState::Joining);
+                    app.set_join_state(JoinState::Joining);
                     let _ = tx.send(UiAction::WifiJoin { ssid: target.ssid.into(), hex: target.ssid_hex.into(), password });
                 }
             }

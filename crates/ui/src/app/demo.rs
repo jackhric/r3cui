@@ -6,7 +6,7 @@ use crate::app::model::Model;
 use crate::art::{backdrop_pixels, poster_pixels, vibrant};
 use crate::hardware::feedback;
 use crate::input::{Button, slider};
-use crate::view::screen::Picker;
+use crate::Picker;
 use crate::remote::wifi;
 use crate::app::global::slide;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_tracks};
