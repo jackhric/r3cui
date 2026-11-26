@@ -63,6 +63,7 @@ fn main() -> anyhow::Result<()> {
     let key_chars = app.global::<KeyChars>();
     key_chars.set_home(keys::HOME.into());
     key_chars.set_input(keys::INPUT.into());
+    key_chars.set_menu(keys::MENU.into());
     key_chars.set_power(keys::POWER.into());
     app.global::<Fx>().set_grain(grain());
     #[cfg(feature = "device")]

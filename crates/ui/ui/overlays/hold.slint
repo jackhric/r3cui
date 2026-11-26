@@ -9,33 +9,36 @@ import { Ring } from "../widgets/ring.slint";
 
 enum HoldKind {
     home,
+    menu,
     power,
 }
 
-// Holding power or Home: one overlay. A ring fills around a mark placed exactly where the home
+// Holding power, Home or the menu key: one overlay. A ring fills around a mark placed exactly where the home
 // screen's mark sits. Progress runs from the clock, so every hold starts from an empty ring.
 export component HoldOverlay inherits Rectangle {
     out property <bool> power-overlay: root.power-holding || root.power-latched;
     out property <bool> power-turning-off: true;
-    out property <bool> home-holding: root.home-down && root.home-rumbling && !root.home-used;
+    out property <bool> key-holding: root.key-down && root.key-rumbling && !root.key-used;
     property <bool> power-holding;
     property <bool> power-latched;
     // Stays set through the fade-out so the label does not flip back while disappearing.
     property <bool> power-completed;
     property <color> power-tint: root.power-turning-off ? Theme.off : Theme.on;
-    // The home key: a tap is home, a hold opens the input list.
-    property <bool> home-down;
-    property <bool> home-used;
-    property <bool> home-rumbling;
-    property <duration> home-hold-start;
+    // Home and the menu key: a tap is the key's own, a hold opens something (Home the input list, the menu key the
+    // menu). One of them at a time.
+    property <HoldKind> key-held: HoldKind.home;
+    property <bool> key-down;
+    property <bool> key-used;
+    property <bool> key-rumbling;
+    property <duration> key-hold-start;
     property <duration> power-hold-start;
     // Which hold the overlay shows. Kept through the fade-out so the overlay does not change look
     // while it disappears.
     property <HoldKind> hold-look: HoldKind.home;
-    property <bool> hold-shown: root.power-overlay || root.home-holding;
+    property <bool> hold-shown: root.power-overlay || root.key-holding;
     property <float> hold-linear: root.power-latched ? 1
         : root.power-holding ? clamp((animation-tick() - root.power-hold-start) / 1200ms, 0, 1)
-        : root.home-holding ? clamp((animation-tick() - root.home-hold-start) / 490ms, 0, 1)
+        : root.key-holding ? clamp((animation-tick() - root.key-hold-start) / 490ms, 0, 1)
         : 0;
     property <float> hold-progress: root.hold-linear * root.hold-linear * (3 - 2 * root.hold-linear);
     property <color> ring-tint: root.hold-look == HoldKind.power ? root.power-tint : Theme.accent;
@@ -57,26 +60,42 @@ export component HoldOverlay inherits Rectangle {
             Fx.haptic(Haptic.hold-cancel);
         }
     }
-    public function press-home() {
-        root.home-down = true;
-        root.home-used = false;
-        root.home-rumbling = false;
+    function press-key(kind: HoldKind) {
+        root.key-held = kind;
+        root.key-down = true;
+        root.key-used = false;
+        root.key-rumbling = false;
     }
-    public function release-home() {
-        if (root.home-down) {
-            root.home-down = false;
-            if (!root.home-used) {
-                if (root.home-rumbling) {
+    function release-key(kind: HoldKind) {
+        if (root.key-down && root.key-held == kind) {
+            root.key-down = false;
+            if (!root.key-used) {
+                if (root.key-rumbling) {
                     Fx.haptic(Haptic.hold-cancel);
                 }
-                // A tap: back to the home screen from anywhere else, or the input's own home.
-                if (Nav.page != PageId.home) {
+                if (kind == HoldKind.menu) {
+                    // A tap: the menu key of the input's own device.
+                    Control.key(KeyChars.menu);
+                } else if (Nav.page != PageId.home) {
+                    // A tap: back to the home screen from anywhere else, or the input's own home.
                     Nav.go(PageId.home, 0);
                 } else {
                     Control.key(KeyChars.home);
                 }
             }
         }
+    }
+    public function press-home() {
+        root.press-key(HoldKind.home);
+    }
+    public function release-home() {
+        root.release-key(HoldKind.home);
+    }
+    public function press-menu() {
+        root.press-key(HoldKind.menu);
+    }
+    public function release-menu() {
+        root.release-key(HoldKind.menu);
     }
 
     background: #000000A6;
@@ -98,22 +117,26 @@ export component HoldOverlay inherits Rectangle {
     // Taps are common, so the rumble waits a moment before starting.
     Timer {
         interval: 160ms;
-        running: root.home-down && !root.home-used && !root.home-rumbling;
+        running: root.key-down && !root.key-used && !root.key-rumbling;
         triggered => {
             Fx.capture(Capture.world);
-            root.hold-look = HoldKind.home;
-            root.home-hold-start = animation-tick();
-            root.home-rumbling = true;
+            root.hold-look = root.key-held;
+            root.key-hold-start = animation-tick();
+            root.key-rumbling = true;
             Fx.haptic(Haptic.home-hold);
         }
     }
     Timer {
         interval: 650ms;
-        running: root.home-down && !root.home-used;
+        running: root.key-down && !root.key-used;
         triggered => {
-            root.home-used = true;
+            root.key-used = true;
             Fx.haptic(Haptic.home-complete);
-            Nav.go(PageId.inputs, Control.input-index);
+            if (root.key-held == HoldKind.menu) {
+                Nav.go(PageId.menu, 0);
+            } else {
+                Nav.go(PageId.inputs, Control.input-index);
+            }
         }
     }
     Timer {
@@ -137,6 +160,12 @@ export component HoldOverlay inherits Rectangle {
         commands: Control.input-icon;
         tint: Theme.text;
     }
+    if root.hold-look == HoldKind.menu: Glyph {
+        y: 345px;
+        size: 110px;
+        commands: Icons.menu;
+        tint: Theme.text;
+    }
     if root.hold-look == HoldKind.power: Glyph {
         y: 345px;
         size: 110px;
@@ -147,7 +176,7 @@ export component HoldOverlay inherits Rectangle {
         y: 548px;
         width: Layout.screen-w;
         horizontal-alignment: center;
-        text: root.hold-look == HoldKind.home ? "Inputs"
+        text: root.hold-look == HoldKind.home ? "Inputs" : root.hold-look == HoldKind.menu ? "Menu"
             : root.power-completed ? (root.power-turning-off ? "Off" : "On")
             : (root.power-turning-off ? "Hold to turn off" : "Hold to turn on");
         font-size: 26px;
