@@ -17,7 +17,7 @@ use crate::app::demo::{apply_demo_settings, run_demo};
 use crate::app::session::{Frontend, RECONNECT_DELAY, run};
 use crate::art::grain;
 use crate::hardware::{backlight, feedback};
-use crate::input::{key_action, wire_keyboard};
+use crate::input::{key_action, keys, wire_keyboard};
 use crate::view::{parse_color, set_accent, set_status};
 use crate::view::screen::{Capture, Page, Picker, Screen};
 use crate::view::idle::{animate_lava, poke, rest_on_charger};
@@ -53,6 +53,10 @@ fn main() -> anyhow::Result<()> {
     select_device_renderer();
     let app = AppWindow::new()?;
     app.global::<Theme>().set_touch_only(cfg!(feature = "device"));
+    let key_chars = app.global::<KeyChars>();
+    key_chars.set_home(keys::HOME.into());
+    key_chars.set_input(keys::INPUT.into());
+    key_chars.set_power(keys::POWER.into());
     app.set_grain(grain());
     #[cfg(feature = "device")]
     frames::install(&app);

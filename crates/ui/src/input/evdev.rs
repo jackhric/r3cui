@@ -2,10 +2,11 @@
 //! evdev here and handed to the window as ordinary pointer and key events. Keys are translated to
 //! the same key text the desktop build uses, so everything downstream is shared.
 
+use crate::input::{keys, Button};
 use crate::{AppWindow, app::UiAction};
 use tokio::sync::mpsc::UnboundedSender;
 use evdev::{Device, EventType};
-use slint::platform::{Key, PointerEventButton, WindowEvent};
+use slint::platform::{PointerEventButton, WindowEvent};
 use slint::{ComponentHandle, LogicalPosition, SharedString};
 
 const SCREEN: (f32, f32) = (480.0, 800.0);
@@ -19,29 +20,29 @@ const BTN_TOUCH: u16 = 0x14a;
 /// Linux key code → the key text the UI understands. The firmware's own table is not published;
 /// these are the standard codes for the names the stock UI uses, and unknown codes are logged.
 fn key_text(code: u16) -> Option<SharedString> {
-    let key = |k: Key| Some(SharedString::from(String::from(char::from(k))));
+    let button = |b: Button| Some(b.key_text());
     let text = |s: &str| Some(SharedString::from(s));
     match code {
-        103 => key(Key::UpArrow),
-        108 => key(Key::DownArrow),
-        105 => key(Key::LeftArrow),
-        106 => key(Key::RightArrow),
-        28 | 96 | 352 | 353 => key(Key::Return), // ENTER, KPENTER, OK, SELECT
-        158 | 174 | 1 => key(Key::Backspace),    // BACK, EXIT, ESC
-        102 | 172 => text("h"),                  // HOME, HOMEPAGE
-        115 => text("+"),
-        114 => text("-"),
-        113 => text("0"),                        // MUTE
-        402 => key(Key::PageUp),                 // CHANNELUP
-        403 => key(Key::PageDown),
-        165 | 168 | 412 => text(","),            // PREVIOUSSONG, REWIND, PREVIOUS
-        164 | 207 | 200 | 201 => text(" "),      // PLAYPAUSE, PLAY, PLAYCD, PAUSECD
-        163 | 208 | 407 => text("."),            // NEXTSONG, FASTFORWARD, NEXT
-        128 | 166 => text("s"),                  // STOP, STOPCD
-        167 => text("r"),                        // RECORD
-        139 | 62 | 127 => text("m"),             // MENU, F4, COMPOSE
-        116 => text("p"),                        // POWER
-        61 | 217 | 248 | 582 => text("v"),         // F3, SEARCH, MICMUTE, VOICECOMMAND: the voice key
+        103 => button(Button::DpadUp),
+        108 => button(Button::DpadDown),
+        105 => button(Button::DpadLeft),
+        106 => button(Button::DpadRight),
+        28 | 96 | 352 | 353 => button(Button::DpadMiddle), // ENTER, KPENTER, OK, SELECT
+        158 | 174 | 1 => button(Button::Back),             // BACK, EXIT, ESC
+        102 | 172 => text(keys::HOME),                     // HOME, HOMEPAGE
+        115 => text(keys::VOLUME_UP),
+        114 => text(keys::VOLUME_DOWN),
+        113 => text(keys::MUTE),
+        402 => button(Button::ChannelUp),                  // CHANNELUP
+        403 => button(Button::ChannelDown),
+        165 | 168 | 412 => text(keys::PREV),               // PREVIOUSSONG, REWIND, PREVIOUS
+        164 | 207 | 200 | 201 => text(keys::PLAY),         // PLAYPAUSE, PLAY, PLAYCD, PAUSECD
+        163 | 208 | 407 => text(keys::NEXT),               // NEXTSONG, FASTFORWARD, NEXT
+        128 | 166 => text(keys::STOP),                     // STOP, STOPCD
+        167 => text(keys::RECORD),                         // RECORD
+        139 | 62 | 127 => text(keys::MENU),                // MENU, F4, COMPOSE
+        116 => text(keys::POWER),                          // POWER
+        61 | 217 | 248 | 582 => text(keys::INPUT),         // F3, SEARCH, MICMUTE, VOICECOMMAND: the voice key
         _ => None,
     }
 }

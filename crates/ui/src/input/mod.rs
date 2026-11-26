@@ -52,6 +52,23 @@ pub enum VolumeKey {
     Mute,
 }
 
+/// The text each hard key arrives as: from evdev on the device, from the keyboard on the desktop, from scripts in
+/// the previews. The window gets the same values as `KeyChars`.
+pub(crate) mod keys {
+    pub const HOME: &str = "h";
+    pub const MENU: &str = "m";
+    pub const INPUT: &str = "v";
+    pub const POWER: &str = "p";
+    pub const VOLUME_UP: &str = "+";
+    pub const VOLUME_DOWN: &str = "-";
+    pub const MUTE: &str = "0";
+    pub const PLAY: &str = " ";
+    pub const PREV: &str = ",";
+    pub const NEXT: &str = ".";
+    pub const STOP: &str = "s";
+    pub const RECORD: &str = "r";
+}
+
 impl Button {
     /// Desktop stand-in for the hard keys: arrows/Enter = d-pad, Backspace/Esc = back, H = home,
     /// M = menu, +/- = volume, 0 = mute, PgUp/PgDn = channel, Space = play, `,` `.` = prev/next,
@@ -59,7 +76,8 @@ impl Button {
     pub fn from_key(text: &str) -> Option<Self> {
         let c = text.chars().next()?;
         let is = |k: Key| c == char::from(k);
-        Some(match c.to_ascii_lowercase() {
+        let lower = text[..c.len_utf8()].to_ascii_lowercase();
+        Some(match lower.as_str() {
             _ if is(Key::UpArrow) => Self::DpadUp,
             _ if is(Key::DownArrow) => Self::DpadDown,
             _ if is(Key::LeftArrow) => Self::DpadLeft,
@@ -68,18 +86,43 @@ impl Button {
             _ if is(Key::Backspace) || is(Key::Escape) => Self::Back,
             _ if is(Key::PageUp) => Self::ChannelUp,
             _ if is(Key::PageDown) => Self::ChannelDown,
-            'h' => Self::Home,
-            'm' => Self::Menu,
-            '+' | '=' => Self::VolumeUp,
-            '-' => Self::VolumeDown,
-            '0' => Self::Mute,
-            ' ' => Self::Play,
-            ',' => Self::Prev,
-            '.' => Self::Next,
-            's' => Self::Stop,
-            'r' => Self::Record,
+            keys::HOME => Self::Home,
+            keys::MENU => Self::Menu,
+            keys::VOLUME_UP | "=" => Self::VolumeUp,
+            keys::VOLUME_DOWN => Self::VolumeDown,
+            keys::MUTE => Self::Mute,
+            keys::PLAY => Self::Play,
+            keys::PREV => Self::Prev,
+            keys::NEXT => Self::Next,
+            keys::STOP => Self::Stop,
+            keys::RECORD => Self::Record,
             _ => return None,
         })
+    }
+
+    /// The inverse of [`Button::from_key`].
+    pub fn key_text(self) -> SharedString {
+        let key = |k: Key| SharedString::from(char::from(k).to_string());
+        match self {
+            Self::DpadUp => key(Key::UpArrow),
+            Self::DpadDown => key(Key::DownArrow),
+            Self::DpadLeft => key(Key::LeftArrow),
+            Self::DpadRight => key(Key::RightArrow),
+            Self::DpadMiddle => key(Key::Return),
+            Self::Back => key(Key::Backspace),
+            Self::ChannelUp => key(Key::PageUp),
+            Self::ChannelDown => key(Key::PageDown),
+            Self::Home => keys::HOME.into(),
+            Self::Menu => keys::MENU.into(),
+            Self::VolumeUp => keys::VOLUME_UP.into(),
+            Self::VolumeDown => keys::VOLUME_DOWN.into(),
+            Self::Mute => keys::MUTE.into(),
+            Self::Play => keys::PLAY.into(),
+            Self::Prev => keys::PREV.into(),
+            Self::Next => keys::NEXT.into(),
+            Self::Stop => keys::STOP.into(),
+            Self::Record => keys::RECORD.into(),
+        }
     }
 
     pub fn name(self) -> &'static str {
@@ -214,4 +257,18 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
         let outcome = kb.borrow_mut().tap(index.max(0) as usize);
         after(outcome);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn key_text_is_the_inverse_of_from_key() {
+        use Button::*;
+        for b in [Back, Home, Menu, DpadUp, DpadDown, DpadLeft, DpadRight, DpadMiddle, VolumeUp, VolumeDown, Mute, ChannelUp, ChannelDown, Prev, Play, Next, Stop, Record] {
+            assert_eq!(Button::from_key(&b.key_text()), Some(b));
+        }
+        assert_eq!(Button::from_key("H"), Some(Home));
+    }
 }

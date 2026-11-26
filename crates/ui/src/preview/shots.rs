@@ -3,11 +3,12 @@
 //! inside the remote with its keys lit.
 
 use crate::hardware::backlight;
+use crate::input::{keys, Button};
 use crate::view::screen::{Capture, JoinState, LibMode, Page, Picker, Screen};
 use crate::preview::device::{self, Device};
 use crate::{view::apply, app::demo::apply_demo_settings, AppWindow, app::model::Model, app::UiAction};
 use anyhow::Context;
-use slint::{ComponentHandle, Model as _};
+use slint::{ComponentHandle, Model as _, SharedString};
 use std::cell::RefCell;
 use std::io::Write;
 use std::path::PathBuf;
@@ -317,11 +318,18 @@ pub fn snap(app: &AppWindow, path: PathBuf, mut frame: Option<Device>) -> slint:
 type Tx = UnboundedSender<UiAction>;
 type Act = Box<dyn Fn(&AppWindow, &Tx)>;
 
+/// A demo toggle key (see `UiAction::DemoKey`).
 fn key(k: &'static str) -> Act {
     Box::new(move |_, tx| {
         if let Some(action) = crate::input::key_action(k) {
             let _ = tx.send(action);
         }
+    })
+}
+
+fn button(button: Button) -> Act {
+    Box::new(move |_, tx| {
+        let _ = tx.send(UiAction::Button(button));
     })
 }
 
@@ -368,8 +376,8 @@ fn power_script() -> Vec<(u64, Act)> {
 /// (receiver off), from the menu to show it works anywhere, then a hold to turn it back on.
 fn hold_script() -> Vec<(u64, Act)> {
     use slint::platform::WindowEvent;
-    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "p".into() });
-    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "p".into() });
+    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: keys::POWER.into() });
+    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: keys::POWER.into() });
     vec![
         (1500, ui(down)),
         (450, ui(up)),
@@ -414,8 +422,8 @@ fn wifi_script() -> Vec<(u64, Act)> {
 /// changes here), then a hold that opens the input list, then a tap that returns home.
 fn home_script() -> Vec<(u64, Act)> {
     use slint::platform::WindowEvent;
-    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "h".into() });
-    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "h".into() });
+    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: keys::HOME.into() });
+    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: keys::HOME.into() });
     let kodi: Act = Box::new(|_, tx| {
         let _ = tx.send(UiAction::SelectInput("KODI".into()));
     });
@@ -450,11 +458,11 @@ fn tap_strip() -> Act {
     swipe(vec![0.5, 0.5])
 }
 
-fn press(text: &'static str) -> Act {
+fn press(text: SharedString) -> Act {
     Box::new(move |a, _| {
         use slint::platform::WindowEvent;
-        a.window().dispatch_event(WindowEvent::KeyPressed { text: text.into() });
-        a.window().dispatch_event(WindowEvent::KeyReleased { text: text.into() });
+        a.window().dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
+        a.window().dispatch_event(WindowEvent::KeyReleased { text: text.clone() });
     })
 }
 
@@ -492,7 +500,7 @@ fn media_script() -> Vec<(u64, Act)> {
         (180, tap_strip()),
         (2000, tap(348.0, 746.0)),
         (1300, ui(|a| a.invoke_move(1))),
-        (500, press("\n")),
+        (500, press(Button::DpadMiddle.key_text())),
         (1500, tap(132.0, 746.0)),
         (1300, ui(|a| a.invoke_move(1))),
         (500, ui(|a| a.invoke_activate(a.get_focus_index()))),
@@ -518,17 +526,17 @@ fn layers_script() -> Vec<(u64, Act)> {
         })
     };
     use slint::platform::WindowEvent;
-    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "p".into() });
-    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "p".into() });
+    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: keys::POWER.into() });
+    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: keys::POWER.into() });
     vec![
         (300, kodi),
         (1500, tap(132.0, 746.0)),
         (1600, ui(|a| a.invoke_move(1))),
-        (500, key("+")),
-        (300, key("+")),
-        (2200, press("\n")),
+        (500, button(Button::VolumeUp)),
+        (300, button(Button::VolumeUp)),
+        (2200, press(Button::DpadMiddle.key_text())),
         (1600, tap(348.0, 746.0)),
-        (1800, press("\u{8}")),
+        (1800, press(Button::Back.key_text())),
         (1400, tap(436.0, 32.0)),
         (2600, ui(|a| a.invoke_back())),
         (1500, ui(down)),
@@ -545,12 +553,12 @@ fn stages_script() -> Vec<(u64, Act)> {
         })
     };
     use slint::platform::WindowEvent;
-    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "p".into() });
-    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "p".into() });
+    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: keys::POWER.into() });
+    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: keys::POWER.into() });
     vec![
         (300, input("KODI")),
-        (1800, key("s")),
-        (1600, key(" ")),
+        (1800, button(Button::Stop)),
+        (1600, button(Button::Play)),
         (1800, input("PLAYSTATION 5")),
         (1600, input("XBOX 360")),
         (1600, input("ANDROID TV")),
@@ -590,7 +598,7 @@ fn charge_script() -> Vec<(u64, Act)> {
         (3500, ui(|_| {})),
         // Nothing touched for ten seconds after it was put down: dark.
         (8500, ui(|_| {})),
-        (2000, press("+")),
+        (2000, press(Button::VolumeUp.key_text())),
         (2500, ui(|_| {})),
     ]
 }
@@ -682,7 +690,7 @@ fn wall_script() -> Vec<(u64, Act)> {
     };
     let wall = |on: bool| -> Act { Box::new(move |app, _| crate::view::stage::library_stage(app, if on { LibMode::Wall } else { LibMode::Off })) };
     let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
-    vec![(300, load), (600, key("s")), (1500, wall(true)), (2200, step(1)), (500, step(3)), (900, wall(false)), (1600, wall(true)), (2200, ui(|a| crate::view::stage::reveal_library(a, Duration::ZERO))), (2200, ui(|_| {}))]
+    vec![(300, load), (600, button(Button::Stop)), (1500, wall(true)), (2200, step(1)), (500, step(3)), (900, wall(false)), (1600, wall(true)), (2200, ui(|a| crate::view::stage::reveal_library(a, Duration::ZERO))), (2200, ui(|_| {}))]
 }
 
 /// The poster wall settled on one film: the first whose title contains `UC_DEMO_FOCUS`.
@@ -697,7 +705,7 @@ fn feature_script() -> Vec<(u64, Act)> {
         app.set_lib_items(Rc::new(slint::VecModel::from(movies.items.clone())).into());
         app.set_lib_focus(focus);
     });
-    vec![(300, load), (600, key("s")), (1500, ui(|a| crate::view::stage::library_stage(a, LibMode::Wall))), (4000, ui(|_| {}))]
+    vec![(300, load), (600, button(Button::Stop)), (1500, ui(|a| crate::view::stage::library_stage(a, LibMode::Wall))), (4000, ui(|_| {}))]
 }
 
 /// The wall's three ways of showing the highlighted title's details, one after another.
@@ -721,7 +729,7 @@ fn walls_script() -> Vec<(u64, Act)> {
     };
     let wall: fn() -> Act = || Box::new(|app, _| crate::view::stage::library_stage(app, LibMode::Wall));
     let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
-    let mut s: Vec<(u64, Act)> = vec![(300, load), (600, key("s"))];
+    let mut s: Vec<(u64, Act)> = vec![(300, load), (600, button(Button::Stop))];
     for n in 1..=3 {
         s.push((1200, style(n)));
         s.push((900, wall()));
@@ -774,8 +782,8 @@ pub const SITE_LEAD: u64 = 2500;
 
 fn site_script(name: &str) -> Vec<(u64, Act)> {
     use slint::platform::WindowEvent;
-    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: "p".into() });
-    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: "p".into() });
+    let down: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyPressed { text: keys::POWER.into() });
+    let up: fn(&AppWindow) = |a| a.window().dispatch_event(WindowEvent::KeyReleased { text: keys::POWER.into() });
     let start = std::env::var("UC_SITE_SOURCE").unwrap_or_else(|_| "KODI".into());
     let first: Act = Box::new(move |_, tx| {
         let _ = tx.send(UiAction::SelectInput(start.clone()));
@@ -826,8 +834,8 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             vec![
                 (2500, key(RIGHT)),
                 (1300, key(RIGHT)),
-                (1400, key("\n")),
-                (1500, key("\n")),
+                (1400, button(Button::DpadMiddle)),
+                (1500, button(Button::DpadMiddle)),
                 (4600, tap_at(132.0, 746.0)),
                 (1800, ui(|a| a.invoke_move(1))),
                 (1700, ui(|a| a.invoke_activate(a.get_focus_index()))),
@@ -843,7 +851,7 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             (11000, ui(|_| {})),
             (900, tap_at(348.0, 746.0)),
             (1500, ui(|a| a.invoke_move(1))),
-            (900, press("\n")),
+            (900, press(Button::DpadMiddle.key_text())),
             (1400, tap_at(132.0, 746.0)),
             (1400, ui(|a| a.invoke_move(1))),
             (900, ui(|a| a.invoke_activate(a.get_focus_index()))),
@@ -853,7 +861,7 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
         "site-tracks" => vec![
             (900, tap_at(348.0, 746.0)),
             (1600, ui(|a| a.invoke_move(1))),
-            (900, press("\n")),
+            (900, press(Button::DpadMiddle.key_text())),
             (1500, tap_at(132.0, 746.0)),
             (1500, ui(|a| a.invoke_move(1))),
             (1000, ui(|a| a.invoke_activate(a.get_focus_index()))),
@@ -864,7 +872,7 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             (1300, tap_at(240.0, 584.0)),
             (1300, tap_at(348.0, 746.0)),
             (1100, ui(|a| a.invoke_move(1))),
-            (600, press("\n")),
+            (600, press(Button::DpadMiddle.key_text())),
             (1300, tap_at(132.0, 746.0)),
             (1100, ui(|a| a.invoke_move(1))),
             (600, ui(|a| a.invoke_activate(a.get_focus_index()))),
@@ -873,12 +881,12 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
         // Keys tick the level up and down, the slider sweeps it, the overlay fades back to the film, then a
         // double tap mutes and unmutes.
         "site-volume" => vec![
-            (900, key("+")),
-            (260, key("+")),
-            (260, key("+")),
-            (260, key("+")),
-            (700, key("-")),
-            (260, key("-")),
+            (900, button(Button::VolumeUp)),
+            (260, button(Button::VolumeUp)),
+            (260, button(Button::VolumeUp)),
+            (260, button(Button::VolumeUp)),
+            (700, button(Button::VolumeDown)),
+            (260, button(Button::VolumeDown)),
             (900, swipe((0..30).map(|i| 0.35 + i as f32 * 0.012).collect())),
             (2600, tap_strip()),
             (180, tap_strip()),
@@ -921,7 +929,7 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
             vec![
                 (100, load),
-                (600, key("s")),
+                (600, button(Button::Stop)),
                 (1500, ui(|a| crate::view::stage::library_stage(a, LibMode::Wall))),
                 (1600, step(1)),
                 (700, step(1)),
@@ -998,22 +1006,22 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
     }
     vec![
         // Receiver: nudge the volume.
-        (1400, key("+")),
-        (320, key("+")),
-        (320, key("+")),
+        (1400, button(Button::VolumeUp)),
+        (320, button(Button::VolumeUp)),
+        (320, button(Button::VolumeUp)),
         // Open the input list, walk up to KODI, select it.
         (1300, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
         (800, ui(|a| a.invoke_move(-1))),
         (380, ui(|a| a.invoke_move(-1))),
         (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
         // Kodi is playing: volume overlay, mute, unmute.
-        (2400, key("+")),
-        (320, key("+")),
-        (2600, key("0")),
-        (1500, key("0")),
+        (2400, button(Button::VolumeUp)),
+        (320, button(Button::VolumeUp)),
+        (2600, button(Button::Mute)),
+        (1500, button(Button::Mute)),
         // Stop (browsing), then play again.
-        (2600, key("s")),
-        (2000, key(" ")),
+        (2600, button(Button::Stop)),
+        (2000, button(Button::Play)),
         // Menu → Display → brightness → back → Power → back out.
         (2000, ui(|a| a.go_to(Page::Menu, 0))),
         (700, ui(|a| a.invoke_move(1))),

@@ -5,9 +5,10 @@ import "fonts/HankenGrotesk-500.ttf";
 import { Choice, ChoiceList, Theme, Icons, Marks, Glyph, Logo, Bar, StatusBar, ListRow, PageHeader, Page } from "theme.slint";
 import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
+import { KeyChars } from "keys.slint";
 import { Library, LibItem } from "library.slint";
 
-export { Choice, Theme, Logos, Icons, Marks, Codecs }
+export { Choice, Theme, Logos, Icons, Marks, Codecs, KeyChars }
 
 export struct InputRow {
     // What the source calls it; picking a row sends this.
@@ -615,7 +616,7 @@ export component AppWindow inherits Window {
                 root.charge-card = false;
                 return accept;
             }
-            if (event.text == "p" || event.text == "P") {
+            if (event.text.to-lowercase() == KeyChars.power) {
                 if (!event.repeat && !root.power-latched) {
                     root.power-turning-off = root.power-on;
                     root.power-completed = false;
@@ -627,7 +628,7 @@ export component AppWindow inherits Window {
                 }
                 return accept;
             }
-            if (event.text == "h" || event.text == "H") {
+            if (event.text.to-lowercase() == KeyChars.home) {
                 if (!event.repeat) {
                     root.home-down = true;
                     root.home-used = false;
@@ -636,7 +637,7 @@ export component AppWindow inherits Window {
                 return accept;
             }
             // The voice key is the input switcher, from anywhere.
-            if (event.text == "v" || event.text == "V") {
+            if (event.text.to-lowercase() == KeyChars.input) {
                 if (!event.repeat && root.page != 6) {
                     root.go(root.page == 1 ? 0 : 1, root.input-index);
                 }
@@ -685,7 +686,7 @@ export component AppWindow inherits Window {
         }
 
         key-released(event) => {
-            if ((event.text == "h" || event.text == "H") && root.home-down) {
+            if ((event.text.to-lowercase() == KeyChars.home) && root.home-down) {
                 root.home-down = false;
                 if (!root.home-used) {
                     if (root.home-rumbling) {
@@ -695,11 +696,11 @@ export component AppWindow inherits Window {
                     if (root.page != 0) {
                         root.go(0, 0);
                     } else {
-                        root.key("h");
+                        root.key(KeyChars.home);
                     }
                 }
             }
-            if ((event.text == "p" || event.text == "P") && root.power-holding) {
+            if ((event.text.to-lowercase() == KeyChars.power) && root.power-holding) {
                 root.power-holding = false;
                 root.haptic("hold-cancel");
             }

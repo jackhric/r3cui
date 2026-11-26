@@ -14,6 +14,7 @@
 //! ```
 
 use crate::AppWindow;
+use crate::input::keys;
 use slint::platform::{Key, PointerEventButton, WindowEvent};
 use slint::{ComponentHandle, LogicalPosition, Model as _, SharedString};
 use std::path::{Path, PathBuf};
@@ -44,10 +45,10 @@ fn key_text(name: &str) -> SharedString {
         "right" => Key::RightArrow,
         "ok" => Key::Return,
         "back" => Key::Escape,
-        "home" => return "h".into(),
-        "menu" => return "m".into(),
-        "input" => return "v".into(),
-        "power" => return "p".into(),
+        "home" => return keys::HOME.into(),
+        "menu" => return keys::MENU.into(),
+        "input" => return keys::INPUT.into(),
+        "power" => return keys::POWER.into(),
         other => return other.into(),
     };
     char::from(k).into()
