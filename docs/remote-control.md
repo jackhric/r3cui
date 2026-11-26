@@ -30,6 +30,8 @@ without the simulator. Off by default.
 - `crates/ui/src/remote_control/`: the server. It listens on port 10780 only while switched on, answers only
   local-network addresses, and locks for a minute after five wrong keys. Keys and touches go in through
   `input/inject.rs`, the same door as the remote's own keys and touchscreen, so they behave exactly alike.
+  An asleep remote is woken first (`set_power_mode NORMAL`, as a key press does; the core hears only real keys), and
+  like a real key, the first press on a resting screen or the charging card only wakes it.
   Screenshots are taken only when asked (34-61 ms on the UI thread on the remote, encoded off it).
 - The switch and key live in `remote-control.json` in r3cui's data folder. `R3CUI_REMOTE_CONTROL_KEY` (in
   `settings.json`'s `env`) switches it on with a given key for one test install, without saving it.
