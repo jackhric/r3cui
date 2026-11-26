@@ -25,6 +25,8 @@ pub mod msg {
     pub const ENTITY_STATES: &str = "entity_states";
     pub const SUBSCRIBE_EVENTS: &str = "subscribe_events";
     pub const UNSUBSCRIBE_EVENTS: &str = "unsubscribe_events";
+    pub const SETUP_DRIVER: &str = "setup_driver";
+    pub const DRIVER_SETUP_CHANGE: &str = "driver_setup_change";
     pub const ENTITY_COMMAND: &str = "entity_command";
     pub const ENTITY_CHANGE: &str = "entity_change";
     pub const ASSISTANT_EVENT: &str = "assistant_event";
@@ -175,6 +177,14 @@ fn event(msg: &str, cat: &str, data: impl Serialize) -> Message {
 
 pub fn device_state(state: DeviceState) -> Message {
     event(msg::DEVICE_STATE, cat::DEVICE, json!({ "state": state }))
+}
+
+pub fn setup_finished() -> Message {
+    event(
+        msg::DRIVER_SETUP_CHANGE,
+        cat::DEVICE,
+        json!({ "event_type": "STOP", "state": "OK" }),
+    )
 }
 
 pub fn entity_change() -> Message {

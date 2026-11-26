@@ -211,6 +211,18 @@ async fn handshake_entities_and_subscription() {
 }
 
 #[tokio::test]
+async fn setup_finishes_at_once() {
+    let rig = start().await;
+    let mut core = core_with_handshake(&rig).await;
+    core.request("setup_driver", json!({"setup_data": {}}))
+        .await;
+    assert_eq!(core.frame().await["code"], 200);
+    let v = core.frame().await;
+    assert_eq!(v["msg"], "driver_setup_change");
+    assert_eq!(v["msg_data"], json!({"event_type":"STOP","state":"OK"}));
+}
+
+#[tokio::test]
 async fn a_session_reaches_r3cui_and_its_outcome_reaches_the_core() {
     let rig = start().await;
     let mut link = connect_to(&rig.link_addr);

@@ -95,6 +95,10 @@ fn handle_text(hub: &Hub, out: &Outbox, text: &str) {
             send(api::entity_change());
         }
         msg::UNSUBSCRIBE_EVENTS => send(api::result(id, code::OK)),
+        msg::SETUP_DRIVER => {
+            send(api::result(id, code::OK));
+            send(api::setup_finished());
+        }
         msg::ENTITY_COMMAND => entity_command(hub, out, id, incoming.msg_data),
         other => {
             tracing::debug!("unsupported request {other}");
