@@ -56,6 +56,11 @@ pub trait Peer<M>: Send + 'static {
 
     fn frame(&mut self, text: &str) -> Reply;
 
+    /// A binary frame arrived.
+    fn binary(&mut self, _bytes: &[u8]) -> Reply {
+        Reply::nothing()
+    }
+
     fn broadcast(&mut self, _message: &M) -> Reply {
         Reply::nothing()
     }
@@ -168,6 +173,7 @@ async fn serve<M: Clone + Send + 'static>(stream: TcpStream, mut peer: impl Peer
         reply = tokio::select! {
             frame = source.next() => match frame {
                 Some(Ok(Message::Text(text))) => peer.frame(&text),
+                Some(Ok(Message::Binary(bytes))) => peer.binary(&bytes),
                 Some(Ok(Message::Close(_)) | Err(_)) | None => break,
                 Some(Ok(_)) => Reply::nothing(),
             },

@@ -101,7 +101,7 @@ impl Response {
 /// the last handle is dropped.
 #[derive(Clone)]
 pub struct Core {
-    out: mpsc::UnboundedSender<String>,
+    out: wsclient::Outbox,
     pending: Pending<u64, Response>,
     next_id: Arc<AtomicU64>,
 }

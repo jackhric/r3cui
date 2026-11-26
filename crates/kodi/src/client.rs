@@ -8,20 +8,19 @@ use serde_json::value::RawValue;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
 use wsclient::{Pending, Unanswered};
 
 type Reply = std::result::Result<Box<RawValue>, RpcError>;
 
 #[derive(Clone)]
 pub(crate) struct Client {
-    out: mpsc::UnboundedSender<String>,
+    out: wsclient::Outbox,
     pending: Pending<RequestId, Reply>,
     next: Arc<AtomicU32>,
 }
 
 impl Client {
-    pub(crate) fn new(out: mpsc::UnboundedSender<String>) -> Self {
+    pub(crate) fn new(out: wsclient::Outbox) -> Self {
         Self { out, pending: Pending::new(), next: Arc::new(AtomicU32::new(1)) }
     }
 

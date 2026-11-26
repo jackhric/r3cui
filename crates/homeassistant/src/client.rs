@@ -7,14 +7,14 @@ use serde_json::{json, Value};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 use wsclient::{Pending, Unanswered};
 
 type Outcome = Result<Value>;
 
 #[derive(Clone)]
 pub(crate) struct Client {
-    out: mpsc::UnboundedSender<String>,
+    out: wsclient::Outbox,
     pending: Pending<u32, Outcome>,
     next: Arc<AtomicU32>,
 }
@@ -27,7 +27,7 @@ pub(crate) struct Reply {
 }
 
 impl Client {
-    pub(crate) fn new(out: mpsc::UnboundedSender<String>) -> Self {
+    pub(crate) fn new(out: wsclient::Outbox) -> Self {
         Self { out, pending: Pending::new(), next: Arc::new(AtomicU32::new(1)) }
     }
 

@@ -32,10 +32,30 @@ pub struct ConnectError {
     pub reason: String,
 }
 
-/// One open connection: text frames to send, in the order given, and text frames received. `incoming` ends when the
-/// socket does, however it ended; dropping `incoming`, or every clone of `out`, closes the socket.
+/// What goes out on a connection: text or binary frames, in one queue so they keep the order given.
+#[derive(Clone)]
+pub struct Outbox(mpsc::UnboundedSender<Message>);
+
+/// The connection is closed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("connection closed")]
+pub struct Closed;
+
+impl Outbox {
+    pub fn send(&self, text: String) -> Result<(), Closed> {
+        self.0.send(Message::Text(text)).map_err(|_| Closed)
+    }
+
+    pub fn send_binary(&self, bytes: Vec<u8>) -> Result<(), Closed> {
+        self.0.send(Message::Binary(bytes)).map_err(|_| Closed)
+    }
+}
+
+/// One open connection: frames to send, in the order given, and text frames received (binary frames from the peer
+/// are dropped: no client here has a use for them). `incoming` ends when the socket does, however it ended;
+/// dropping `incoming`, or every clone of `out`, closes the socket.
 pub struct Connection {
-    pub out: mpsc::UnboundedSender<String>,
+    pub out: Outbox,
     pub incoming: mpsc::UnboundedReceiver<String>,
 }
 
@@ -52,7 +72,7 @@ pub async fn connect_with(request: impl IntoClientRequest, timing: Timing) -> Re
         .map_err(|_| failed(format!("no answer in {:?}", timing.connect_within)))?
         .map_err(|e| failed(e.to_string()))?;
     let (mut sink, mut stream) = socket.split();
-    let (out, mut to_send) = mpsc::unbounded_channel::<String>();
+    let (out, mut to_send) = mpsc::unbounded_channel::<Message>();
     let (received, incoming) = mpsc::unbounded_channel::<String>();
     tokio::spawn(async move {
         let mut ping = interval(timing.ping_every);
@@ -61,7 +81,7 @@ pub async fn connect_with(request: impl IntoClientRequest, timing: Timing) -> Re
         loop {
             tokio::select! {
                 frame = to_send.recv() => match frame {
-                    Some(text) => if sink.send(Message::Text(text)).await.is_err() { break },
+                    Some(frame) => if sink.send(frame).await.is_err() { break },
                     None => break,
                 },
                 _ = ping.tick() => if sink.send(Message::Ping(Vec::new())).await.is_err() { break },
@@ -81,7 +101,7 @@ pub async fn connect_with(request: impl IntoClientRequest, timing: Timing) -> Re
         }
         let _ = sink.close().await;
     });
-    Ok(Connection { out, incoming })
+    Ok(Connection { out: Outbox(out), incoming })
 }
 
 #[cfg(test)]
@@ -116,6 +136,30 @@ mod tests {
             got.push(conn.incoming.recv().await.unwrap());
         }
         assert_eq!(got, ["echo a", "echo b", "echo c"]);
+    }
+
+    #[tokio::test]
+    async fn binary_frames_keep_their_place_among_text() {
+        let (listener, url) = listener().await;
+        let (seen, mut seen_rx) = mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            while let Some(Ok(frame)) = ws.next().await {
+                if frame.is_text() || frame.is_binary() {
+                    seen.send(frame).unwrap();
+                }
+            }
+        });
+        let conn = connect(url.as_str()).await.unwrap();
+        conn.out.send("a".into()).unwrap();
+        conn.out.send_binary(vec![1, 2, 3]).unwrap();
+        conn.out.send("b".into()).unwrap();
+        let mut got = Vec::new();
+        for _ in 0..3 {
+            got.push(seen_rx.recv().await.unwrap());
+        }
+        assert_eq!(got, [Message::Text("a".into()), Message::Binary(vec![1, 2, 3]), Message::Text("b".into())]);
     }
 
     #[tokio::test]

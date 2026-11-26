@@ -13,6 +13,6 @@ mod reconnect;
 pub mod testing;
 
 pub use backoff::{delay_for, Backoff, STABLE_AFTER};
-pub use connection::{connect, connect_with, ConnectError, Connection, Timing};
+pub use connection::{connect, connect_with, Closed, ConnectError, Connection, Outbox, Timing};
 pub use pending::{Pending, Unanswered};
 pub use reconnect::{reconnect, Session};
