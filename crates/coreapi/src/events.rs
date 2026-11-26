@@ -4,13 +4,15 @@
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::Event;
+use crate::system::SoftwareUpdate;
+use crate::{messages, Event};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CoreEvent {
     PowerModeChange(PowerModeChange),
     BatteryStatus(BatteryStatus),
     WifiChange(WifiChange),
+    SoftwareUpdate(SoftwareUpdate),
     /// Any other event, or one whose payload didn't match.
     Other,
 }
@@ -105,9 +107,10 @@ impl Event {
             }
         }
         match self.msg.as_str() {
-            "power_mode_change" => parse(&self.data, CoreEvent::PowerModeChange),
-            "battery_status" => parse(&self.data, CoreEvent::BatteryStatus),
-            "wifi_change" => parse(&self.data, CoreEvent::WifiChange),
+            messages::POWER_MODE_CHANGE => parse(&self.data, CoreEvent::PowerModeChange),
+            messages::BATTERY_STATUS => parse(&self.data, CoreEvent::BatteryStatus),
+            messages::WIFI_CHANGE => parse(&self.data, CoreEvent::WifiChange),
+            messages::SOFTWARE_UPDATE => parse(&self.data, CoreEvent::SoftwareUpdate),
             _ => CoreEvent::Other,
         }
     }

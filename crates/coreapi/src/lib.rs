@@ -3,8 +3,13 @@
 //! core's integrations, so entities and their commands aren't here. See `docs/core-ws-protocol.md`.
 
 mod events;
+pub mod messages;
+mod system;
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
 
 pub use events::*;
+pub use system::*;
 
 use anyhow::{anyhow, Context, Result};
 use base64::Engine as _;
@@ -138,7 +143,7 @@ pub async fn connect(cfg: Config) -> Result<(Core, mpsc::Receiver<Event>)> {
     let pending = Pending::new();
 
     // New sessions default to "all", but ask explicitly so behaviour is independent of that.
-    let _ = out.send(request_frame(SUBSCRIBE_REQUEST_ID, "subscribe_events", json!({})));
+    let _ = out.send(request_frame(SUBSCRIBE_REQUEST_ID, messages::SUBSCRIBE_EVENTS, json!({})));
 
     tokio::spawn({
         let pending = pending.clone();
@@ -192,11 +197,11 @@ async fn authenticate(conn: &mut Connection, token: &str) -> Result<()> {
         let Some(text) = frame else { return Err(anyhow!("connection closed during auth")) };
         let v: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
         match v.get("msg").and_then(Value::as_str) {
-            Some("auth_required") => {
-                let frame = request_frame(AUTH_REQUEST_ID, "auth", json!({"token":token}));
+            Some(messages::AUTH_REQUIRED) => {
+                let frame = request_frame(AUTH_REQUEST_ID, messages::AUTH, json!({"token":token}));
                 conn.out.send(frame).map_err(|_| anyhow!("send auth: connection closed"))?;
             }
-            Some("authentication") => {
+            Some(messages::AUTHENTICATION) => {
                 let code = v.get("code").and_then(Value::as_i64).unwrap_or(0);
                 return if code == 200 { Ok(()) } else { Err(anyhow!("authentication failed: code {code}")) };
             }
@@ -208,38 +213,11 @@ async fn authenticate(conn: &mut Connection, token: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wsclient::testing::{FakeServer, Peer, Reply};
+    use crate::testing::{FakeCore, Shared};
+    use wsclient::testing::FakeServer;
 
-    struct FakeCore {
-        token: &'static str,
-        signed_in: bool,
-    }
-
-    impl Peer<()> for FakeCore {
-        fn opened(&mut self) -> Reply {
-            Reply::say(json!({"kind":"event","msg":"auth_required"}).to_string())
-        }
-
-        fn frame(&mut self, text: &str) -> Reply {
-            let req: Value = serde_json::from_str(text).unwrap();
-            let id = req["id"].clone();
-            let answer = |code: i64, data: Value| json!({"kind":"resp","req_id":id,"msg":req["msg"],"code":code,"msg_data":data}).to_string();
-            if !self.signed_in {
-                let good = req["msg_data"]["token"] == self.token;
-                self.signed_in = good;
-                let frame = json!({"kind":"resp","req_id":id,"msg":"authentication","code":if good { 200 } else { 401 }}).to_string();
-                return if good { Reply::say(frame) } else { Reply::say(frame).then_close() };
-            }
-            match req["msg"].as_str() {
-                Some("subscribe_events") => Reply::nothing(),
-                Some("get_version") => Reply::say_all(vec![json!({"kind":"event","msg":"battery_status","msg_data":{"capacity":80}}).to_string(), answer(200, json!({"os":"1.0"}))]),
-                _ => Reply::say(answer(404, json!({"message":"nope"}))),
-            }
-        }
-    }
-
-    async fn fake_core() -> FakeServer<()> {
-        FakeServer::start("127.0.0.1:0", |_| FakeCore { token: "t", signed_in: false }).await
+    async fn fake_core() -> (FakeServer<()>, Shared) {
+        FakeCore::start("t").await
     }
 
     fn config(server: &FakeServer<()>, token: &str) -> Config {
@@ -248,10 +226,10 @@ mod tests {
 
     #[tokio::test]
     async fn requests_are_answered_and_events_arrive() {
-        let server = fake_core().await;
+        let (server, _) = fake_core().await;
         let (core, mut events) = connect(config(&server, "t")).await.unwrap();
-        let version = core.fetch("get_version").await.unwrap();
-        assert_eq!(version["os"], "1.0");
+        let version = core.fetch(messages::VERSION).await.unwrap();
+        assert_eq!(version["os"], "2.8.4");
         let event = events.recv().await.unwrap();
         assert_eq!((event.msg.as_str(), event.data["capacity"].as_i64()), ("battery_status", Some(80)));
         let refused = core.request("unknown", json!({})).await.unwrap();
@@ -261,17 +239,67 @@ mod tests {
 
     #[tokio::test]
     async fn a_wrong_token_fails_the_connection() {
-        let server = fake_core().await;
+        let (server, _) = fake_core().await;
         let Err(e) = connect(config(&server, "wrong")).await else { panic!("connected with a bad token") };
         assert!(e.to_string().contains("401"), "{e}");
     }
 
     #[tokio::test]
     async fn a_dropped_connection_ends_the_events_and_fails_requests() {
-        let server = fake_core().await;
+        let (server, _) = fake_core().await;
         let (core, mut events) = connect(config(&server, "t")).await.unwrap();
         server.kick();
         assert!(events.recv().await.is_none());
-        assert!(core.request("get_version", json!({})).await.is_err());
+        assert!(core.request(messages::VERSION, json!({})).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn version_and_ui_info_round_trip() {
+        let (server, state) = fake_core().await;
+        let (core, _events) = connect(config(&server, "t")).await.unwrap();
+        let info = core.call(&GetVersion {}).await.unwrap();
+        assert_eq!((info.model.as_str(), info.address.as_str(), info.os.as_str()), ("UCR3", "192.168.1.40", "2.8.4"));
+        core.announce_ui("0.1.0").await.unwrap();
+        assert_eq!(state.lock().unwrap().ui_info, Some(json!({"version": "0.1.0", "entity_types": []})));
+    }
+
+    #[tokio::test]
+    async fn a_firmware_update_is_found_downloaded_then_installed() {
+        let (server, state) = fake_core().await;
+        let (core, mut events) = connect(config(&server, "t")).await.unwrap();
+        let info = core.call(&CheckSystemUpdate { force_update: true }).await.unwrap();
+        assert_eq!(state.lock().unwrap().forced, Some(true));
+        assert_eq!((info.installed_version.as_str(), info.available.len()), ("2.8.4", 1));
+        let update = &info.available[0];
+        assert_eq!((update.version.as_str(), update.download, update.size), ("2.9.0", DownloadState::Pending, 120_000_000));
+        assert_eq!(localized(&update.description, "en"), Some("Faster Wi-Fi."));
+
+        assert_eq!(core.update_system(&update.id).await, Ok(UpdateStart::Download));
+        let event = events.recv().await.unwrap();
+        let CoreEvent::SoftwareUpdate(started) = event.typed() else { panic!("{event:?}") };
+        assert_eq!((started.event_type, started.update_id.as_str()), (UpdateEventType::Start, "u-2.9.0"));
+        let info = core.call(&CheckSystemUpdate { force_update: false }).await.unwrap();
+        assert_eq!(info.available[0].download, DownloadState::Downloaded);
+        assert_eq!(core.update_system(&update.id).await, Ok(UpdateStart::Start));
+    }
+
+    #[tokio::test]
+    async fn a_low_battery_refuses_the_update() {
+        let (server, state) = fake_core().await;
+        state.lock().unwrap().battery_ok = false;
+        let (core, _events) = connect(config(&server, "t")).await.unwrap();
+        assert_eq!(core.update_system("u-2.9.0").await, Err(UpdateRefusal::BatteryLow));
+    }
+
+    #[tokio::test]
+    async fn web_configurator_access_is_switched_with_a_pin() {
+        let (server, state) = fake_core().await;
+        let (core, _events) = connect(config(&server, "t")).await.unwrap();
+        assert!(!core.api_access().await.unwrap().web_configurator.enabled);
+        core.enable_web_configurator("4827").await.unwrap();
+        assert!(core.api_access().await.unwrap().web_configurator.enabled);
+        assert_eq!(state.lock().unwrap().web_pin.as_deref(), Some("4827"));
+        core.disable_web_configurator().await.unwrap();
+        assert!(!core.api_access().await.unwrap().web_configurator.enabled);
     }
 }
