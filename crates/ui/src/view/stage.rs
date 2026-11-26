@@ -4,7 +4,8 @@
 use crate::{AppWindow, Capture, LibMode};
 use crate::app::model::Model;
 use crate::art::pixels;
-use crate::view::screen::{Page, Screen};
+use crate::view::screen::Screen;
+use crate::PageId;
 
 use slint::ComponentHandle;
 use std::cell::RefCell;
@@ -79,7 +80,7 @@ pub(crate) fn reveal_library(app: &AppWindow, delay: Duration) {
 }
 pub(crate) fn swap_stage(app: &AppWindow, key: StageKey, change: impl FnOnce()) {
     let before = STAGE.with(|s| s.replace(Some(key.clone())));
-    let visible = app.on_page(Page::Home) && app.get_lit() && app.get_capturing() == Capture::None;
+    let visible = app.on_page(PageId::Home) && app.get_lit() && app.get_capturing() == Capture::None;
     if before.is_none() || before.as_ref() == Some(&key) || !visible {
         change();
         return;

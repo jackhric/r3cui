@@ -7,13 +7,15 @@
 //! hold home 900     # held for that long (home and power act on a hold)
 //! type 127.0.0.1    # tapped out on the on-screen keyboard, a key at a time
 //! tap Done          # one keyboard key, by its label
-//! page 2            # open a page by number, as a tap on its button would (2 is the menu)
+//! page menu        # open a page by name (home inputs menu display power wifi keyboard status join-failed tracks
+//!                   # feedback-lab integrations), as a tap on its button would
 //! snap inputs       # <out>/inputs.png (not when filming)
 //! awake             # put away the charger card the simulator always shows
 //! quit
 //! ```
 
-use crate::AppWindow;
+use crate::view::screen::{Screen, page_by_name};
+use crate::{AppWindow, PageId};
 use crate::input::keys;
 use slint::platform::{Key, PointerEventButton, WindowEvent};
 use slint::{ComponentHandle, LogicalPosition, Model as _, SharedString};
@@ -31,7 +33,7 @@ pub(crate) enum Do {
     Release(SharedString),
     /// One keyboard key, by its label; the keyboard's mode is switched first if it isn't showing.
     Tap(String),
-    Page(i32),
+    Page(PageId),
     Snap(String),
     Awake,
     Quit,
@@ -83,7 +85,7 @@ pub(crate) fn parse(text: &str) -> Result<Vec<(Duration, Do)>, String> {
                 }
             }
             "tap" => push(&mut wait, Do::Tap(rest.to_string())),
-            "page" => push(&mut wait, Do::Page(rest.parse().map_err(|_| err("a number"))?)),
+            "page" => push(&mut wait, Do::Page(page_by_name(rest).ok_or(err("a page name"))?)),
             "snap" if !rest.is_empty() => push(&mut wait, Do::Snap(rest.to_string())),
             "snap" => return Err(err("a name")),
             "awake" => push(&mut wait, Do::Awake),
@@ -128,7 +130,7 @@ pub(crate) fn perform(app: &AppWindow, action: &Do, out: Option<&Path>) -> bool 
                 None => tracing::warn!("steps: no key {label:?} on the keyboard"),
             }
         }
-        Do::Page(n) => app.invoke_go(*n, 0),
+        Do::Page(page) => app.go_to(*page, 0),
         Do::Snap(name) => {
             if let Some(dir) = out {
                 snap(app, &dir.join(format!("{name}.png")));

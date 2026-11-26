@@ -19,7 +19,7 @@ use crate::art::grain;
 use crate::hardware::{backlight, feedback};
 use crate::input::{key_action, keys, wire_keyboard};
 use crate::view::{parse_color, set_accent, set_status};
-use crate::view::screen::{Page, Screen};
+use crate::view::screen::{Screen, page_by_name};
 use crate::view::idle::{animate_lava, poke, rest_on_charger};
 use crate::view::stage::capture;
 #[cfg(feature = "device")]
@@ -239,7 +239,7 @@ fn main() -> anyhow::Result<()> {
         });
     });
 
-    if let Some(page) = arg("--page").and_then(|p| p.parse().ok()).and_then(Page::from_number) {
+    if let Some(page) = arg("--page").and_then(|p| page_by_name(p)) {
         let weak = app.as_weak();
         slint::Timer::single_shot(PAGE_FLAG_DELAY, move || {
             if let Some(app) = weak.upgrade() {

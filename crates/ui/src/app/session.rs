@@ -14,7 +14,8 @@ use crate::remote::health::{self, Link};
 use crate::remote::system::{self, load_settings, System};
 use crate::remote::wifi::{self, Wifi};
 use crate::view::library::Wall;
-use crate::view::screen::{Page, Screen};
+use crate::view::screen::Screen;
+use crate::PageId;
 use crate::{KbPurpose, Picker};
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
@@ -126,7 +127,7 @@ impl Session<'_> {
             Settings::Back => front.settings.back(),
             Settings::Text(text) => {
                 let focus = front.settings.page(&front.host).focus as i32;
-                ui(weak, move |app| app.go_to(Page::Integrations, focus));
+                ui(weak, move |app| app.go_to(PageId::Integrations, focus));
                 front.settings.text_entered(&text, &front.host).map_or(Effect::Stay, Effect::Apply)
             }
         };
@@ -149,10 +150,10 @@ impl Session<'_> {
                     app.set_kb_caption(caption.into());
                     app.set_cfg_focus(focus);
                     app.invoke_kb_start(text.into());
-                    app.go_to(Page::Password, 0);
+                    app.go_to(PageId::Keyboard, 0);
                 });
             }
-            Effect::Leave => ui(weak, |app| app.go_to(Page::Menu, 1)),
+            Effect::Leave => ui(weak, |app| app.go_to(PageId::Menu, 1)),
         }
     }
 

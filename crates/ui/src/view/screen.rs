@@ -1,45 +1,56 @@
-//! Names for the numbers the window's state is kept in. Slint holds pages, library modes and the join state as
-//! ints (see the comments by their properties in app.slint); Rust only ever reads and writes them through these.
+//! The window's page, by name.
 
-use crate::AppWindow;
+use crate::{AppWindow, PageId};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Page {
-    Home = 0,
-    Inputs = 1,
-    Menu = 2,
-    Display = 3,
-    Power = 4,
-    Wifi = 5,
-    Password = 6,
-    Status = 7,
-    JoinFailed = 8,
-    Tracks = 9,
-    FeedbackLab = 10,
-    Integrations = 11,
-}
-
-impl Page {
-    /// From the number app.slint uses, as given to `--page`.
-    pub(crate) fn from_number(n: i32) -> Option<Self> {
-        use Page::*;
-        [Home, Inputs, Menu, Display, Power, Wifi, Password, Status, JoinFailed, Tracks, FeedbackLab, Integrations].into_iter().find(|p| *p as i32 == n)
-    }
-}
-
-/// The window's state, by name.
 pub(crate) trait Screen {
-    fn on_page(&self, page: Page) -> bool;
-    fn go_to(&self, page: Page, focus: i32);
+    fn on_page(&self, page: PageId) -> bool;
+    fn go_to(&self, page: PageId, focus: i32);
 }
 
 impl Screen for AppWindow {
-    fn on_page(&self, page: Page) -> bool {
-        self.get_page() == page as i32
+    fn on_page(&self, page: PageId) -> bool {
+        self.get_page() == page
     }
-    fn go_to(&self, page: Page, focus: i32) {
-        self.invoke_go(page as i32, focus);
+    fn go_to(&self, page: PageId, focus: i32) {
+        self.invoke_go(page, focus);
     }
+}
+
+/// How `--page` and the `page` step spell a page; the match is exhaustive, so a new page cannot be left out.
+pub(crate) fn page_name(page: PageId) -> &'static str {
+    match page {
+        PageId::Home => "home",
+        PageId::Inputs => "inputs",
+        PageId::Menu => "menu",
+        PageId::Display => "display",
+        PageId::Power => "power",
+        PageId::Wifi => "wifi",
+        PageId::Keyboard => "keyboard",
+        PageId::Status => "status",
+        PageId::JoinFailed => "join-failed",
+        PageId::Tracks => "tracks",
+        PageId::FeedbackLab => "feedback-lab",
+        PageId::Integrations => "integrations",
+    }
+}
+
+const PAGES: [PageId; 12] = [
+    PageId::Home,
+    PageId::Inputs,
+    PageId::Menu,
+    PageId::Display,
+    PageId::Power,
+    PageId::Wifi,
+    PageId::Keyboard,
+    PageId::Status,
+    PageId::JoinFailed,
+    PageId::Tracks,
+    PageId::FeedbackLab,
+    PageId::Integrations,
+];
+
+pub(crate) fn page_by_name(name: &str) -> Option<PageId> {
+    PAGES.into_iter().find(|p| page_name(*p) == name)
 }
 
 #[cfg(test)]
@@ -47,10 +58,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pages_by_number() {
-        assert_eq!(Page::from_number(9), Some(Page::Tracks));
-        assert_eq!(Page::from_number(10), Some(Page::FeedbackLab));
-        assert_eq!(Page::from_number(11), Some(Page::Integrations));
-        assert_eq!(Page::from_number(12), None);
+    fn pages_by_name() {
+        assert_eq!(page_by_name("tracks"), Some(PageId::Tracks));
+        assert_eq!(page_by_name("feedback-lab"), Some(PageId::FeedbackLab));
+        assert_eq!(page_by_name("12"), None);
+        for page in PAGES {
+            assert_eq!(page_by_name(page_name(page)), Some(page));
+        }
     }
 }

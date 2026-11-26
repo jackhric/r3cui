@@ -7,7 +7,7 @@ import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
-import { Capture, FormatMark, PowerAction, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
+import { Capture, PageId, FormatMark, PowerAction, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
 
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars }
@@ -317,7 +317,7 @@ export component AppWindow inherits Window {
     in property <WallStyle> lib-wall-style: WallStyle.fade;
     public function hold-library() { lib.hold(); }
     public function run-library() { lib.run(); }
-    out property <bool> lava-on: root.page == 0 && root.home-view == HomeView.mark && root.lit;
+    out property <bool> lava-on: root.page == PageId.home && root.home-view == HomeView.mark && root.lit;
     in property <bool> charging;
     // On the charger the screen and keys go dark after a short while; any input brings them back.
     in-out property <bool> resting;
@@ -339,9 +339,7 @@ export component AppWindow inherits Window {
     in property <[KeyCell]> kb-keys;
     in property <string> kb-text;
 
-    // 0 home, 1 inputs, 2 menu, 3 display, 4 power, 5 wi-fi, 6 keyboard, 7 status, 8 join failed,
-    // 9 audio or subtitle picker, 10 feedback lab, 11 integrations
-    in-out property <int> page: 0;
+    in-out property <PageId> page: PageId.home;
     in property <[Choice]> lab-rows;
     in property <string> lab-title: "Feedback lab";
     // True when the pick opened another lab screen.
@@ -402,8 +400,8 @@ export component AppWindow inherits Window {
 
     // Lists one step from the stage share a depth, so opening one from the stage is the layer
     // transition alone, without a sideways slide.
-    property <int> depth: root.page <= 2 || root.page == 9 ? 1 : root.page == 6 ? 3 : root.page == 8 ? 4 : 2;
-    property <float> recede: root.page != 0 ? 1 : 0;
+    property <int> depth: root.page == PageId.home || root.page == PageId.inputs || root.page == PageId.menu || root.page == PageId.tracks ? 1 : root.page == PageId.keyboard ? 3 : root.page == PageId.join-failed ? 4 : 2;
+    property <float> recede: root.page != PageId.home ? 1 : 0;
     animate recede { duration: 460ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
     property <bool> overlay-open: (root.volume-overlay && root.power-on) || root.power-overlay || root.home-holding || (root.charge-card && root.lit);
     property <float> under: root.overlay-open ? 1 : 0;
@@ -445,47 +443,47 @@ export component AppWindow inherits Window {
     property <HomeView> home-view: !root.power-on ? HomeView.off : root.staged && root.media-title != "" ? HomeView.playing : root.lib-mode != LibMode.off ? HomeView.wall : HomeView.mark;
 
     // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
-    public function go(p: int, f: int) {
+    public function go(p: PageId, f: int) {
         if (p != root.page) {
             root.haptic(Haptic.page);
         }
-        if (root.page == 0 && p != 0) {
+        if (root.page == PageId.home && p != PageId.home) {
             root.capture(Capture.stage);
         }
         root.focus-index = f;
         root.page = p;
     }
     public function back() {
-        if (root.page == 10) {
+        if (root.page == PageId.feedback-lab) {
             let focus = root.lab-back();
             if (focus < 0) {
-                root.go(2, 6);
+                root.go(PageId.menu, 6);
             } else {
                 root.focus-index = focus;
             }
-        } else if (root.page == 11) {
+        } else if (root.page == PageId.integrations) {
             root.cfg-back();
-        } else if (root.page == 6 && root.kb-purpose == KbPurpose.text) {
-            root.go(11, root.cfg-focus);
-        } else if (root.page == 3) {
-            root.go(2, 2);
-        } else if (root.page == 4) {
-            root.go(2, 4);
-        } else if (root.page == 5) {
-            root.go(2, 0);
-        } else if (root.page == 7) {
-            root.go(2, 5);
-        } else if (root.page == 9) {
-            root.go(0, 0);
-        } else if (root.page == 6 || root.page == 8) {
+        } else if (root.page == PageId.keyboard && root.kb-purpose == KbPurpose.text) {
+            root.go(PageId.integrations, root.cfg-focus);
+        } else if (root.page == PageId.display) {
+            root.go(PageId.menu, 2);
+        } else if (root.page == PageId.power) {
+            root.go(PageId.menu, 4);
+        } else if (root.page == PageId.wifi) {
+            root.go(PageId.menu, 0);
+        } else if (root.page == PageId.status) {
+            root.go(PageId.menu, 5);
+        } else if (root.page == PageId.tracks) {
+            root.go(PageId.home, 0);
+        } else if (root.page == PageId.keyboard || root.page == PageId.join-failed) {
             root.join-state = JoinState.idle;
-            root.go(5, 0);
+            root.go(PageId.wifi, 0);
         } else {
-            root.go(0, 0);
+            root.go(PageId.home, 0);
         }
     }
     function row-count() -> int {
-        root.page == 1 ? root.inputs.length : root.page == 11 ? root.cfg-rows.length : root.page == 2 ? 7 : root.page == 3 ? 3 : root.page == 4 ? 4 : root.page == 5 ? root.wifi-rows.length + (root.wifi-band-known ? 2 : 1) : root.page == 8 ? 2 : root.page == 9 ? root.tracks.length : root.page == 10 ? root.lab-rows.length : 1
+        root.page == PageId.inputs ? root.inputs.length : root.page == PageId.integrations ? root.cfg-rows.length : root.page == PageId.menu ? 7 : root.page == PageId.display ? 3 : root.page == PageId.power ? 4 : root.page == PageId.wifi ? root.wifi-rows.length + (root.wifi-band-known ? 2 : 1) : root.page == PageId.join-failed ? 2 : root.page == PageId.tracks ? root.tracks.length : root.page == PageId.feedback-lab ? root.lab-rows.length : 1
     }
     public function move(d: int) {
         root.focus-index = max(0, min(root.row-count() - 1, root.focus-index + d));
@@ -493,42 +491,42 @@ export component AppWindow inherits Window {
     public function activate(i: int) {
         root.focus-index = i;
         // A pick that opens another page already gets the page's haptic.
-        if (root.page != 10 && root.page != 1 && root.page != 2 && root.page != 9 && root.page != 11) {
+        if (root.page != PageId.feedback-lab && root.page != PageId.inputs && root.page != PageId.menu && root.page != PageId.tracks && root.page != PageId.integrations) {
             root.haptic(Haptic.select);
         }
-        if (root.page == 11) {
+        if (root.page == PageId.integrations) {
             root.haptic(Haptic.select);
             root.cfg-pick(i);
-        } else if (root.page == 10) {
+        } else if (root.page == PageId.feedback-lab) {
             if (root.lab-pick(i)) {
                 root.haptic(Haptic.select);
                 root.focus-index = 0;
             }
-        } else if (root.page == 1) {
+        } else if (root.page == PageId.inputs) {
             root.select-input(root.inputs[i].id);
-            root.go(0, 0);
-        } else if (root.page == 2) {
+            root.go(PageId.home, 0);
+        } else if (root.page == PageId.menu) {
             if (i == 0) {
                 root.wifi-scan();
-                root.go(5, 0);
+                root.go(PageId.wifi, 0);
             } else if (i == 1) {
                 root.cfg-open();
-                root.go(11, 0);
+                root.go(PageId.integrations, 0);
             } else if (i == 2) {
-                root.go(3, 0);
+                root.go(PageId.display, 0);
             } else if (i == 4) {
-                root.go(4, 0);
+                root.go(PageId.power, 0);
             } else if (i == 5) {
-                root.go(7, 0);
+                root.go(PageId.status, 0);
             } else if (i == 6) {
-                root.go(10, 0);
+                root.go(PageId.feedback-lab, 0);
             }
-        } else if (root.page == 3) {
+        } else if (root.page == PageId.display) {
             if (i == 1) {
                 root.auto-brightness = !root.auto-brightness;
                 root.display-changed();
             }
-        } else if (root.page == 5) {
+        } else if (root.page == PageId.wifi) {
             if (i == root.wifi-rows.length + 1) {
                 root.wifi-band();
             } else if (i >= root.wifi-rows.length) {
@@ -538,22 +536,22 @@ export component AppWindow inherits Window {
                 if (root.wifi-rows[i].secured) {
                     root.kb-purpose = KbPurpose.wifi-password;
                     root.kb-reset();
-                    root.go(6, 0);
+                    root.go(PageId.keyboard, 0);
                 } else {
                     root.join-state = JoinState.joining;
-                    root.go(6, 0);
+                    root.go(PageId.keyboard, 0);
                     root.wifi-join(root.wifi-target.ssid, root.wifi-target.ssid-hex, "");
                 }
             }
-        } else if (root.page == 9) {
+        } else if (root.page == PageId.tracks) {
             if (i < root.tracks.length) {
                 root.pick-track(root.picker, i);
             }
-            root.go(0, 0);
-        } else if (root.page == 8) {
+            root.go(PageId.home, 0);
+        } else if (root.page == PageId.join-failed) {
             root.join-state = JoinState.idle;
-            root.go(i == 0 ? 6 : 5, 0);
-        } else if (root.page == 4) {
+            root.go(i == 0 ? PageId.keyboard : PageId.wifi, 0);
+        } else if (root.page == PageId.power) {
             if (i == 0) {
                 root.power-action(PowerAction.standby);
             } else if (i == 1) {
@@ -602,12 +600,12 @@ export component AppWindow inherits Window {
             }
             // The voice key is the input switcher, from anywhere.
             if (event.text.to-lowercase() == KeyChars.input) {
-                if (!event.repeat && root.page != 6) {
-                    root.go(root.page == 1 ? 0 : 1, root.input-index);
+                if (!event.repeat && root.page != PageId.keyboard) {
+                    root.go(root.page == PageId.inputs ? PageId.home : PageId.inputs, root.input-index);
                 }
                 return accept;
             }
-            if (root.page == 6) {
+            if (root.page == PageId.keyboard) {
                 if (root.join-state != JoinState.joining) {
                     if (event.text == Key.UpArrow) {
                         root.kb-nav(NavKey.up);
@@ -625,7 +623,7 @@ export component AppWindow inherits Window {
                 }
                 return accept;
             }
-            if (root.page != 0) {
+            if (root.page != PageId.home) {
                 if (event.text == Key.Escape || event.text == Key.Backspace) {
                     root.back();
                     return accept;
@@ -643,7 +641,7 @@ export component AppWindow inherits Window {
                     return accept;
                 }
                 if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
-                    if (root.page == 3 && root.focus-index == 0) {
+                    if (root.page == PageId.display && root.focus-index == 0) {
                         if (!root.auto-brightness) {
                             root.brightness = max(5, min(100, root.brightness + (event.text == Key.LeftArrow ? -5 : 5)));
                             root.display-changed();
@@ -669,8 +667,8 @@ export component AppWindow inherits Window {
                         root.haptic(Haptic.hold-cancel);
                     }
                     // A tap: back to the home screen from anywhere else, or the input's own home.
-                    if (root.page != 0) {
-                        root.go(0, 0);
+                    if (root.page != PageId.home) {
+                        root.go(PageId.home, 0);
                     } else {
                         root.key(KeyChars.home);
                     }
@@ -711,7 +709,7 @@ export component AppWindow inherits Window {
             triggered => {
                 root.home-used = true;
                 root.haptic(Haptic.home-complete);
-                root.go(1, root.input-index);
+                root.go(PageId.inputs, root.input-index);
             }
         }
         Timer {
@@ -721,7 +719,7 @@ export component AppWindow inherits Window {
         }
         Timer {
             interval: 550ms;
-            running: root.page == 6;
+            running: root.page == PageId.keyboard;
             triggered => { root.caret-on = !root.caret-on; }
         }
         Timer {
@@ -903,21 +901,21 @@ export component AppWindow inherits Window {
                         if root.home-warning != "": WarningRow {
                             y: 648px;
                             message: root.home-warning;
-                            tapped => { root.go(7, 0); }
+                            tapped => { root.go(PageId.status, 0); }
                         }
                         TrackButton {
                             x: 32px;
                             y: 716px;
                             icon: Icons.subtitles;
                             label: "Subtitles";
-                            tapped => { root.tracks = []; root.picker = Picker.subtitles; root.go(9, 0); root.open-picker(Picker.subtitles); }
+                            tapped => { root.tracks = []; root.picker = Picker.subtitles; root.go(PageId.tracks, 0); root.open-picker(Picker.subtitles); }
                         }
                         TrackButton {
                             x: 248px;
                             y: 716px;
                             icon: Icons.audio;
                             label: "Audio";
-                            tapped => { root.tracks = []; root.picker = Picker.audio; root.go(9, 0); root.open-picker(Picker.audio); }
+                            tapped => { root.tracks = []; root.picker = Picker.audio; root.go(PageId.tracks, 0); root.open-picker(Picker.audio); }
                         }
                     }
 
@@ -977,12 +975,12 @@ export component AppWindow inherits Window {
                             y: 300px;
                             width: 200px;
                             height: 200px;
-                            clicked => { root.go(1, root.input-index); }
+                            clicked => { root.go(PageId.inputs, root.input-index); }
                         }
                         if root.home-warning != "": WarningRow {
                             y: 540px;
                             message: root.home-warning;
-                            tapped => { root.go(7, 0); }
+                            tapped => { root.go(PageId.status, 0); }
                         }
                         if root.has-volume: VolumeChip {
                             y: 700px;
@@ -1091,7 +1089,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 1;
                 current-depth: root.depth;
-                active: root.page == 1;
+                active: root.page == PageId.inputs;
                 ChoiceList {
                     title: "Inputs";
                     show-title: false;
@@ -1106,7 +1104,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 1;
                 current-depth: root.depth;
-                active: root.page == 2;
+                active: root.page == PageId.menu;
 
                 ChoiceList {
                     title: "Menu";
@@ -1129,7 +1127,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 2;
                 current-depth: root.depth;
-                active: root.page == 3;
+                active: root.page == PageId.display;
 
                 PageHeader {
                     title: "Display";
@@ -1234,7 +1232,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 2;
                 current-depth: root.depth;
-                active: root.page == 4;
+                active: root.page == PageId.power;
                 ChoiceList {
                     title: "Power";
                     rows: [
@@ -1253,7 +1251,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 2;
                 current-depth: root.depth;
-                active: root.page == 5;
+                active: root.page == PageId.wifi;
                 ChoiceList {
                     title: "Wi-Fi";
                     rows: root.wifi-choices;
@@ -1267,7 +1265,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 3;
                 current-depth: root.depth;
-                active: root.page == 6;
+                active: root.page == PageId.keyboard;
 
                 PageHeader {
                     y: 0;
@@ -1379,7 +1377,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 2;
                 current-depth: root.depth;
-                active: root.page == 7;
+                active: root.page == PageId.status;
                 ChoiceList {
                     title: "Status";
                     rows: root.status-choices;
@@ -1391,7 +1389,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 2;
                 current-depth: root.depth;
-                active: root.page == 11;
+                active: root.page == PageId.integrations;
                 ChoiceList {
                     title: root.cfg-title;
                     rows: root.cfg-rows;
@@ -1405,7 +1403,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 2;
                 current-depth: root.depth;
-                active: root.page == 10;
+                active: root.page == PageId.feedback-lab;
                 ChoiceList {
                     title: root.lab-title;
                     rows: root.lab-rows;
@@ -1419,7 +1417,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 4;
                 current-depth: root.depth;
-                active: root.page == 8;
+                active: root.page == PageId.join-failed;
 
                 PageHeader {
                     y: 0;
@@ -1461,7 +1459,7 @@ export component AppWindow inherits Window {
             Layer {
                 depth: 1;
                 current-depth: root.depth;
-                active: root.page == 9;
+                active: root.page == PageId.tracks;
                 ChoiceList {
                     title: root.picker == Picker.audio ? "Audio" : "Subtitles";
                     rows: root.tracks;
@@ -1653,26 +1651,26 @@ export component AppWindow inherits Window {
     navbar := Rectangle {
         y: 0;
         height: 64px;
-        opacity: root.reveal * (root.page == 6 || root.page == 8 ? 0 : 1);
+        opacity: root.reveal * (root.page == PageId.keyboard || root.page == PageId.join-failed ? 0 : 1);
         visible: self.opacity > 0 && root.capturing == Capture.none;
         animate opacity { duration: Theme.page-time; }
         StatusBar {
             clock: root.clock;
             battery: root.battery;
             charging: root.charging;
-            show-menu: root.page <= 1;
-            menu => { root.go(2, 0); }
+            show-menu: root.page == PageId.home || root.page == PageId.inputs;
+            menu => { root.go(PageId.menu, 0); }
         }
         // The input's mark sits in the middle everywhere but the input's own screen (or the power-off one), so
         // away from it you can always tell where you are; tapping it opens the list.
         TouchArea {
-            property <bool> shown: root.inputs.length > 0 && !(root.page == 0 && (root.home-view == HomeView.mark || root.home-view == HomeView.off));
+            property <bool> shown: root.inputs.length > 0 && !(root.page == PageId.home && (root.home-view == HomeView.mark || root.home-view == HomeView.off));
             mouse-cursor: Theme.cursor;
             x: 190px;
             width: 100px;
             height: 64px;
-            enabled: self.shown && root.page != 1;
-            clicked => { root.go(1, root.input-index); }
+            enabled: self.shown && root.page != PageId.inputs;
+            clicked => { root.go(PageId.inputs, root.input-index); }
             Logo {
                 size: 32px;
                 commands: root.input-icon;

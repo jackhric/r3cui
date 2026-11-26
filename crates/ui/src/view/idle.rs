@@ -1,6 +1,7 @@
 //! Time since the last key or touch, resting on the charger, and the menu's lava animation.
 
-use crate::view::screen::{Page, Screen};
+use crate::view::screen::Screen;
+use crate::PageId;
 use crate::{AppWindow, Theme};
 use crate::app::settings;
 use crate::view::lava;
@@ -29,7 +30,7 @@ pub(crate) fn rest_on_charger(app: &AppWindow) -> slint::Timer {
     timer.start(slint::TimerMode::Repeated, CHARGER_CHECK, move || {
         let Some(app) = weak.upgrade() else { return };
         // Typing a Wi-Fi password is slow; never black out the keyboard.
-        let busy = app.on_page(Page::Password) || app.get_power_overlay();
+        let busy = app.on_page(PageId::Keyboard) || app.get_power_overlay();
         if app.get_charging() && app.get_lit() && !busy && since_input() >= CHARGER_REST {
             app.set_resting(true);
             app.set_charge_card(false);

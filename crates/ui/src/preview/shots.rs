@@ -4,7 +4,8 @@
 
 use crate::hardware::backlight;
 use crate::input::{keys, Button};
-use crate::view::screen::{Page, Screen};
+use crate::view::screen::Screen;
+use crate::PageId;
 use crate::NavKey as N;
 use crate::{Capture, LibMode, WallStyle, JoinState, Picker};
 use crate::preview::device::{self, Device};
@@ -32,25 +33,25 @@ const TYPING: &[N] = &[N::Ok, N::Right, N::Ok, N::Up, N::Ok, N::Left, N::Left, N
 
 const STEPS: &[Step] = &[
     ("01-receiver", |_, _| {}),
-    ("02-inputs", |app, _| app.go_to(Page::Inputs, app.get_input_index())),
+    ("02-inputs", |app, _| app.go_to(PageId::Inputs, app.get_input_index())),
     ("03-kodi-playing", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.input = "KODI".into();
     }),
     ("03b-audio", |app, m| {
         app.set_picker(Picker::Audio);
-        app.go_to(Page::Tracks, 0);
+        app.go_to(PageId::Tracks, 0);
         let (rows, current) = crate::app::demo::demo_tracks(m, Picker::Audio, 1);
         crate::view::show_tracks(&app.as_weak(), rows, current);
     }),
     ("03c-subtitles", |app, m| {
         app.set_picker(Picker::Subtitles);
-        app.go_to(Page::Tracks, 0);
+        app.go_to(PageId::Tracks, 0);
         let (rows, current) = crate::app::demo::demo_tracks(m, Picker::Subtitles, 1);
         crate::view::show_tracks(&app.as_weak(), rows, current);
     }),
     ("03d-paused", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.paused = true;
     }),
     ("04-kodi-browsing", |_, m| {
@@ -71,15 +72,15 @@ const STEPS: &[Step] = &[
         app.set_volume_overlay(false);
         m.muted = false;
         m.volume = 62;
-        app.go_to(Page::Menu, 1);
+        app.go_to(PageId::Menu, 1);
     }),
     ("07b-menu-playstation", |_, m| m.input = "PLAYSTATION 5".into()),
     ("07c-menu-xbox", |_, m| m.input = "XBOX 360".into()),
     ("07d-menu-kodi", |_, m| m.input = "KODI".into()),
-    ("08-menu-display", |app, _| app.go_to(Page::Display, 0)),
-    ("09-menu-power", |app, _| app.go_to(Page::Power, 0)),
+    ("08-menu-display", |app, _| app.go_to(PageId::Display, 0)),
+    ("09-menu-power", |app, _| app.go_to(PageId::Power, 0)),
     ("10-playstation", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.input = "PLAYSTATION 5".into();
     }),
     ("11-xbox", |_, m| m.input = "XBOX 360".into()),
@@ -90,12 +91,12 @@ const STEPS: &[Step] = &[
     }),
     ("14-wifi", |app, m| {
         m.power_on = true;
-        app.go_to(Page::Wifi, 1);
+        app.go_to(PageId::Wifi, 1);
     }),
     ("15-keyboard", |app, _| {
         app.set_wifi_target(app.get_wifi_rows().row_data(1).unwrap_or_default());
         app.invoke_kb_reset();
-        app.go_to(Page::Password, 0);
+        app.go_to(PageId::Keyboard, 0);
         for k in TYPING {
             app.invoke_kb_nav(*k);
         }
@@ -103,14 +104,14 @@ const STEPS: &[Step] = &[
     ("16-joining", |app, _| app.set_join_state(JoinState::Joining)),
     ("17-join-failed", |app, _| {
         app.set_join_state(JoinState::Failed);
-        app.go_to(Page::JoinFailed, 0);
+        app.go_to(PageId::JoinFailed, 0);
     }),
     ("18-status", |app, _| {
         app.set_join_state(JoinState::Idle);
-        app.go_to(Page::Status, 0);
+        app.go_to(PageId::Status, 0);
     }),
     ("19-status-ha-down", |_, m| m.demo_ha_down = true),
-    ("20-home-warning", |app, _| app.go_to(Page::Home, 0)),
+    ("20-home-warning", |app, _| app.go_to(PageId::Home, 0)),
     ("21-charging", |_, m| {
         m.demo_ha_down = false;
         m.charging = true;
@@ -121,105 +122,105 @@ const STEPS: &[Step] = &[
         m.title = Model::demo().title;
     }),
     ("30-codec-00", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "TrueHD Atmos 7.1".into();
     }),
     ("30-codec-01", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DD+ Atmos 5.1".into();
     }),
     ("30-codec-02", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DTS:X 7.1".into();
     }),
     ("30-codec-03", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DTS-HD MA 7.1".into();
     }),
     ("30-codec-04", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DTS-HD HRA 5.1".into();
     }),
     ("30-codec-05", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DTS 5.1".into();
     }),
     ("30-codec-06", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "TrueHD 7.1".into();
     }),
     ("30-codec-07", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "DD+ 5.1".into();
     }),
     ("30-codec-08", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "Dolby Digital 5.1".into();
     }),
     ("30-codec-09", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "FLAC 2.0".into();
     }),
     ("30-codec-10", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "Alac 2 channels".into();
     }),
     ("30-codec-11", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "Opus 5.1".into();
     }),
     ("30-codec-12", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "MP3 stereo".into();
     }),
     ("30-codec-13", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
         m.media_format = "AAC-LC stereo".into();
     }),
     ("30-codec-14", |app, m| {
-        app.go_to(Page::Home, 0);
+        app.go_to(PageId::Home, 0);
         m.charging = false;
         m.input = "KODI".into();
         m.title = Model::demo().title;
@@ -383,7 +384,7 @@ fn hold_script() -> Vec<(u64, Act)> {
     vec![
         (1500, ui(down)),
         (450, ui(up)),
-        (1800, ui(|a| a.go_to(Page::Menu, 0))),
+        (1800, ui(|a| a.go_to(PageId::Menu, 0))),
         (1300, ui(down)),
         (1500, ui(up)),
         (1400, ui(|a| a.invoke_back())),
@@ -397,7 +398,7 @@ fn hold_script() -> Vec<(u64, Act)> {
 /// that works, then the status page with Home Assistant down and the warning on the home screen.
 fn wifi_script() -> Vec<(u64, Act)> {
     let mut steps: Vec<(u64, Act)> = vec![
-        (1200, ui(|a| a.go_to(Page::Menu, 0))),
+        (1200, ui(|a| a.go_to(PageId::Menu, 0))),
         (800, ui(|a| a.invoke_activate(0))),
         (2400, ui(|a| a.invoke_move(1))),
         (700, ui(|a| a.invoke_activate(1))),
@@ -577,14 +578,14 @@ fn stages_script() -> Vec<(u64, Act)> {
 /// with a sheen until the receiver confirms.
 fn switch_script() -> Vec<(u64, Act)> {
     vec![
-        (900, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
+        (900, ui(|a| a.go_to(PageId::Inputs, a.get_input_index()))),
         (700, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(1))),
         (600, ui(|a| a.invoke_move(1))),
         (600, ui(|a| a.invoke_move(1))),
         (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
-        (3000, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
+        (3000, ui(|a| a.go_to(PageId::Inputs, a.get_input_index()))),
         (700, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(-1))),
         (600, ui(|a| a.invoke_move(-1))),
@@ -748,7 +749,7 @@ fn walls_script() -> Vec<(u64, Act)> {
 fn picker_script() -> Vec<(u64, Act)> {
     let open: Act = Box::new(|app, _| {
         app.set_picker(Picker::Subtitles);
-        app.go_to(Page::Tracks, 0);
+        app.go_to(PageId::Tracks, 0);
         let (rows, current) = crate::app::demo::demo_tracks(&crate::app::model::Model::default(), Picker::Subtitles, 1);
         crate::view::show_tracks(&app.as_weak(), rows, current);
     });
@@ -793,17 +794,17 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
     let mut s: Vec<(u64, Act)> = vec![(300, first), (SITE_LEAD - 300, ui(|_| {}))];
     s.extend(match name {
         "site-inputs" => vec![
-            (900, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
+            (900, ui(|a| a.go_to(PageId::Inputs, a.get_input_index()))),
             (700, ui(|a| a.invoke_move(1))),
             (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
-            (2300, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
+            (2300, ui(|a| a.go_to(PageId::Inputs, a.get_input_index()))),
             (700, ui(|a| a.invoke_move(1))),
             (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
             (2400, ui(|_| {})),
         ],
         "site-switch" => {
             let steps: i32 = std::env::var("UC_SITE_STEPS").ok().and_then(|n| n.parse().ok()).unwrap_or(1);
-            let mut v: Vec<(u64, Act)> = vec![(1400, ui(|a| a.go_to(Page::Inputs, a.get_input_index())))];
+            let mut v: Vec<(u64, Act)> = vec![(1400, ui(|a| a.go_to(PageId::Inputs, a.get_input_index())))];
             for _ in 0..steps.abs() {
                 v.push((550, Box::new(move |a: &AppWindow, _: &Tx| a.invoke_move(steps.signum()))));
             }
@@ -904,7 +905,7 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             (2200, ui(|_| {})),
         ],
         "site-menu" => vec![
-            (900, ui(|a| a.go_to(Page::Menu, 0))),
+            (900, ui(|a| a.go_to(PageId::Menu, 0))),
             (700, ui(|a| a.invoke_move(1))),
             (600, ui(|a| a.invoke_activate(1))),
             (800, ui(|a| a.set_brightness(70))),
@@ -1012,7 +1013,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         (320, button(Button::VolumeUp)),
         (320, button(Button::VolumeUp)),
         // Open the input list, walk up to KODI, select it.
-        (1300, ui(|a| a.go_to(Page::Inputs, a.get_input_index()))),
+        (1300, ui(|a| a.go_to(PageId::Inputs, a.get_input_index()))),
         (800, ui(|a| a.invoke_move(-1))),
         (380, ui(|a| a.invoke_move(-1))),
         (700, ui(|a| a.invoke_activate(a.get_focus_index()))),
@@ -1025,7 +1026,7 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         (2600, button(Button::Stop)),
         (2000, button(Button::Play)),
         // Menu → Display → brightness → back → Power → back out.
-        (2000, ui(|a| a.go_to(Page::Menu, 0))),
+        (2000, ui(|a| a.go_to(PageId::Menu, 0))),
         (700, ui(|a| a.invoke_move(1))),
         (600, ui(|a| a.invoke_activate(1))),
         (900, ui(|a| a.set_brightness(70))),

@@ -8,7 +8,8 @@ pub(crate) mod library;
 pub(crate) mod screen;
 pub(crate) mod stage;
 
-use crate::view::screen::{Page, Screen};
+use crate::view::screen::Screen;
+use crate::PageId;
 use crate::{AppWindow, Capture, Choice, JoinState, Logos, InputRow, Theme, WifiRow};
 
 use crate::app::settings;
@@ -66,7 +67,7 @@ pub(crate) fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, Stri
             .collect();
         let focus = rows.iter().position(|r| r.checked).unwrap_or(0) as i32;
         app.set_tracks(ModelRc::new(VecModel::from(rows)));
-        if app.on_page(Page::Tracks) {
+        if app.on_page(PageId::Tracks) {
             app.set_focus_index(focus);
         }
     });
@@ -95,7 +96,7 @@ pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::int
         let new_screen = app.get_cfg_title() != page.title.as_str();
         app.set_cfg_title(page.title.as_str().into());
         app.set_cfg_rows(ModelRc::new(VecModel::from(rows)));
-        if new_screen && app.on_page(Page::Integrations) {
+        if new_screen && app.on_page(PageId::Integrations) {
             app.set_focus_index(page.focus as i32);
         }
     });
@@ -103,11 +104,11 @@ pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::int
 /// Leave the keyboard for the network list, or for the failure page.
 pub(crate) fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
     ui(weak, move |app| {
-        if !app.on_page(Page::Password) {
+        if !app.on_page(PageId::Keyboard) {
             return;
         }
         app.set_join_state(if ok { JoinState::Idle } else { JoinState::Failed });
-        app.go_to(if ok { Page::Wifi } else { Page::JoinFailed }, 0);
+        app.go_to(if ok { PageId::Wifi } else { PageId::JoinFailed }, 0);
     });
 }
 /// Show the volume overlay and hide it again once the keys have been quiet for a moment.
