@@ -1,5 +1,6 @@
 //! Time since the last key or touch, resting on the charger, and the menu's lava animation.
 
+use crate::Fx;
 use crate::view::screen::Screen;
 use crate::PageId;
 use crate::{AppWindow, Theme};
@@ -50,7 +51,7 @@ pub(crate) fn animate_lava(app: &AppWindow) -> slint::Timer {
         }
         let a = app.global::<Theme>().get_accent();
         let colours = lava::inverted(lava::palette((a.red(), a.green(), a.blue()), settings::get().lava.unwrap_or(1.0)));
-        app.set_lava(slint::Image::from_rgb8(lava::render(start.elapsed().as_secs_f32() * 0.6, colours)));
+        app.global::<Fx>().set_lava(slint::Image::from_rgb8(lava::render(start.elapsed().as_secs_f32() * 0.6, colours)));
     });
     timer
 }

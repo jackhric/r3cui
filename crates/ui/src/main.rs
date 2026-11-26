@@ -64,7 +64,7 @@ fn main() -> anyhow::Result<()> {
     key_chars.set_home(keys::HOME.into());
     key_chars.set_input(keys::INPUT.into());
     key_chars.set_power(keys::POWER.into());
-    app.set_grain(grain());
+    app.global::<Fx>().set_grain(grain());
     #[cfg(feature = "device")]
     frames::install(&app);
     // UC_ACCENT pins one colour; without it the colour follows the input (see `apply`).
@@ -80,7 +80,7 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "device")]
     evdev::start(&app, act_tx.clone());
     wire_keyboard(&app, act_tx.clone());
-    app.on_capture({
+    app.global::<Fx>().on_capture({
         let weak = app.as_weak();
         move |which| {
             if let Some(app) = weak.upgrade() {
@@ -135,7 +135,7 @@ fn main() -> anyhow::Result<()> {
         let tx = act_tx.clone();
         move |action| drop(tx.send(UiAction::Power(action)))
     });
-    app.on_haptic(feedback::ui_event);
+    app.global::<Fx>().on_haptic(feedback::ui_event);
     let lab = Rc::new(RefCell::new(feedback::Lab::default()));
     let show_lab = {
         let weak = app.as_weak();

@@ -2,6 +2,8 @@
 //! plays a scripted session and pipes frames to ffmpeg. With `--frame <photo>` both show the UI
 //! inside the remote with its keys lit.
 
+use crate::Fx;
+use crate::Lib;
 use crate::Tracks;
 use crate::Wifi;
 use crate::Kb;
@@ -237,7 +239,7 @@ fn after_swap(app: &AppWindow, f: impl FnOnce(&AppWindow) + 'static) {
     let weak = app.as_weak();
     slint::Timer::single_shot(Duration::from_millis(300), move || {
         let Some(app) = weak.upgrade() else { return };
-        if app.get_swapping() {
+        if app.global::<Fx>().get_swapping() {
             after_swap(&app, f);
         } else {
             f(&app);
@@ -261,7 +263,7 @@ pub fn run(app: AppWindow, dir: PathBuf, mut frame: Option<Device>) -> anyhow::R
         let Some(app) = weak.upgrade() else { return };
         // A stage swap can outlast its nominal 620 ms while the blur pictures are built, so wait
         // for it to end and then for the page slide and fades to settle.
-        if app.get_swapping() {
+        if app.global::<Fx>().get_swapping() {
             since = Instant::now();
         }
         if since.elapsed() < Duration::from_millis(1500) {
@@ -652,15 +654,15 @@ fn library_script() -> Vec<(u64, Act)> {
     let show = |shelf: &Rc<Shelf>, heading: &'static str, mode: LibMode| -> Act {
         let shelf = shelf.clone();
         Box::new(move |app, _| {
-            app.set_lib_heading(heading.into());
-            app.set_lib_count(shelf.count.clone().into());
-            app.set_lib_posters(Rc::new(slint::VecModel::from(shelf.posters.clone())).into());
-            app.set_lib_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
-            app.set_lib_focus(0);
-            app.set_lib_mode(mode);
+            app.global::<Lib>().set_heading(heading.into());
+            app.global::<Lib>().set_count(shelf.count.clone().into());
+            app.global::<Lib>().set_posters(Rc::new(slint::VecModel::from(shelf.posters.clone())).into());
+            app.global::<Lib>().set_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
+            app.global::<Lib>().set_focus(0);
+            app.global::<Lib>().set_mode(mode);
         })
     };
-    let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
+    let step = |by: i32| -> Act { Box::new(move |app, _| app.global::<Lib>().set_focus((app.global::<Lib>().get_focus() + by).max(0))) };
     let mut s: Vec<(u64, Act)> = vec![(300, show(&movies, "Movies", LibMode::River))];
     s.push((5000, show(&movies, "MOVIES", LibMode::RiverCard)));
     for _ in 0..4 {
@@ -689,14 +691,14 @@ fn wall_script() -> Vec<(u64, Act)> {
         let shelf = movies.clone();
         Box::new(move |app, tx| {
             let _ = tx.send(UiAction::SelectInput("KODI".into()));
-            app.set_lib_heading("MOVIES".into());
-            app.set_lib_count(shelf.count.clone().into());
-            app.set_lib_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
-            app.set_lib_focus(4);
+            app.global::<Lib>().set_heading("MOVIES".into());
+            app.global::<Lib>().set_count(shelf.count.clone().into());
+            app.global::<Lib>().set_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
+            app.global::<Lib>().set_focus(4);
         })
     };
     let wall = |on: bool| -> Act { Box::new(move |app, _| crate::view::stage::library_stage(app, if on { LibMode::Wall } else { LibMode::Off })) };
-    let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
+    let step = |by: i32| -> Act { Box::new(move |app, _| app.global::<Lib>().set_focus((app.global::<Lib>().get_focus() + by).max(0))) };
     vec![(300, load), (600, button(Button::Stop)), (1500, wall(true)), (2200, step(1)), (500, step(3)), (900, wall(false)), (1600, wall(true)), (2200, ui(|a| crate::view::stage::reveal_library(a, Duration::ZERO))), (2200, ui(|_| {}))]
 }
 
@@ -707,10 +709,10 @@ fn feature_script() -> Vec<(u64, Act)> {
     let focus = movies.items.iter().position(|i| !want.is_empty() && i.title.to_lowercase().contains(&want)).unwrap_or(0) as i32;
     let load: Act = Box::new(move |app, tx| {
         let _ = tx.send(UiAction::SelectInput("KODI".into()));
-        app.set_lib_heading("MOVIES".into());
-        app.set_lib_count(movies.count.clone().into());
-        app.set_lib_items(Rc::new(slint::VecModel::from(movies.items.clone())).into());
-        app.set_lib_focus(focus);
+        app.global::<Lib>().set_heading("MOVIES".into());
+        app.global::<Lib>().set_count(movies.count.clone().into());
+        app.global::<Lib>().set_items(Rc::new(slint::VecModel::from(movies.items.clone())).into());
+        app.global::<Lib>().set_focus(focus);
     });
     vec![(300, load), (600, button(Button::Stop)), (1500, ui(|a| crate::view::stage::library_stage(a, LibMode::Wall))), (4000, ui(|_| {}))]
 }
@@ -722,20 +724,20 @@ fn walls_script() -> Vec<(u64, Act)> {
         let shelf = movies.clone();
         Box::new(move |app, tx| {
             let _ = tx.send(UiAction::SelectInput("KODI".into()));
-            app.set_lib_heading("MOVIES".into());
-            app.set_lib_count(shelf.count.clone().into());
-            app.set_lib_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
+            app.global::<Lib>().set_heading("MOVIES".into());
+            app.global::<Lib>().set_count(shelf.count.clone().into());
+            app.global::<Lib>().set_items(Rc::new(slint::VecModel::from(shelf.items.clone())).into());
         })
     };
     let style = |style: WallStyle| -> Act {
         Box::new(move |app, _| {
             crate::view::stage::library_stage(app, LibMode::Off);
-            app.set_lib_wall_style(style);
-            app.set_lib_focus(12);
+            app.global::<Lib>().set_wall_style(style);
+            app.global::<Lib>().set_focus(12);
         })
     };
     let wall: fn() -> Act = || Box::new(|app, _| crate::view::stage::library_stage(app, LibMode::Wall));
-    let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
+    let step = |by: i32| -> Act { Box::new(move |app, _| app.global::<Lib>().set_focus((app.global::<Lib>().get_focus() + by).max(0))) };
     let mut s: Vec<(u64, Act)> = vec![(300, load), (600, button(Button::Stop))];
     for n in [WallStyle::Sheet, WallStyle::Fade, WallStyle::Inline] {
         s.push((1200, style(n)));
@@ -928,12 +930,12 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             let want = std::env::var("UC_DEMO_FOCUS").unwrap_or_default().to_lowercase();
             let focus = movies.items.iter().position(|i| !want.is_empty() && i.title.to_lowercase().contains(&want)).unwrap_or(0) as i32;
             let load: Act = Box::new(move |app, _| {
-                app.set_lib_heading("MOVIES".into());
-                app.set_lib_count(movies.count.clone().into());
-                app.set_lib_items(Rc::new(slint::VecModel::from(movies.items.clone())).into());
-                app.set_lib_focus((focus - 3).max(0));
+                app.global::<Lib>().set_heading("MOVIES".into());
+                app.global::<Lib>().set_count(movies.count.clone().into());
+                app.global::<Lib>().set_items(Rc::new(slint::VecModel::from(movies.items.clone())).into());
+                app.global::<Lib>().set_focus((focus - 3).max(0));
             });
-            let step = |by: i32| -> Act { Box::new(move |app, _| app.set_lib_focus((app.get_lib_focus() + by).max(0))) };
+            let step = |by: i32| -> Act { Box::new(move |app, _| app.global::<Lib>().set_focus((app.global::<Lib>().get_focus() + by).max(0))) };
             vec![
                 (100, load),
                 (600, button(Button::Stop)),

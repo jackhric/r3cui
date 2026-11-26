@@ -1,6 +1,8 @@
 //! The library wall on screen: the list a UI driver publishes, with posters fetched around the highlight, nearest
 //! first, as it moves.
 
+use slint::ComponentHandle;
+use crate::Lib;
 use crate::view::stage::{library_stage, reveal_library};
 use crate::view::ui;
 use crate::{AppWindow, LibItem, LibMode, WallStyle};
@@ -43,7 +45,7 @@ impl Wall {
         }
         let at = lib.focus;
         ui(&self.weak, move |app| {
-            app.set_lib_focus(at as i32);
+            app.global::<Lib>().set_focus(at as i32);
             library_stage(&app, LibMode::Wall);
         });
         self.fetch_posters(&lib.list, at);
@@ -81,7 +83,7 @@ impl Wall {
                     if current.load(Ordering::SeqCst) != id {
                         return;
                     }
-                    let items = app.get_lib_items();
+                    let items = app.global::<Lib>().get_items();
                     if let Some(mut row) = items.row_data(i) {
                         row.poster = slint::Image::from_rgb8(img);
                         items.set_row_data(i, row);
@@ -96,12 +98,12 @@ impl Wall {
 fn show_list(weak: &slint::Weak<AppWindow>, list: Arc<LibraryList>) {
     ui(weak, move |app| {
         let rows: Vec<LibItem> = list.items.iter().map(|e| item(e, slint::Image::default())).collect();
-        app.set_lib_items(std::rc::Rc::new(slint::VecModel::from(rows)).into());
-        app.set_lib_wall_style(WallStyle::from_config(crate::app::settings::get().wall_style));
-        app.set_lib_heading(list.heading.as_str().into());
-        app.set_lib_count(list.count.as_str().into());
+        app.global::<Lib>().set_items(std::rc::Rc::new(slint::VecModel::from(rows)).into());
+        app.global::<Lib>().set_wall_style(WallStyle::from_config(crate::app::settings::get().wall_style));
+        app.global::<Lib>().set_heading(list.heading.as_str().into());
+        app.global::<Lib>().set_count(list.count.as_str().into());
         // A different list while the wall is up comes in the same way.
-        if app.get_lib_mode() == LibMode::Wall {
+        if app.global::<Lib>().get_mode() == LibMode::Wall {
             reveal_library(&app, Duration::ZERO);
         }
     });

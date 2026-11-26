@@ -1,0 +1,11 @@
+import { LibItem, LibMode, WallStyle } from "../types.slint";
+
+export global Lib {
+    in property <LibMode> mode;
+    in property <string> heading;
+    in property <string> count;
+    in property <[image]> posters;
+    in property <[LibItem]> items;
+    in property <int> focus;
+    in property <WallStyle> wall-style: WallStyle.fade;
+}

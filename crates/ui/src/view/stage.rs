@@ -1,6 +1,8 @@
 //! The stage behind the controls (now playing, inputs, the poster wall, off) and the blurred crossfade from one
 //! to the next.
 
+use crate::Fx;
+use crate::Lib;
 use crate::{AppWindow, Capture, LibMode};
 use crate::app::model::Model;
 use crate::art::pixels;
@@ -17,9 +19,9 @@ const LIBRARY_REVEAL_LEAD: Duration = Duration::from_millis(250);
 /// The stage as it looks right now, alone and unreceded.
 /// The window as one blur's picture: the stage alone, or the stage with the world over it.
 fn snapshot(app: &AppWindow, what: Capture) -> Option<image::RgbaImage> {
-    app.set_capturing(what);
+    app.global::<Fx>().set_capturing(what);
     let shot = app.window().take_snapshot();
-    app.set_capturing(Capture::None);
+    app.global::<Fx>().set_capturing(Capture::None);
     let shot = shot.map_err(|e| tracing::warn!("snapshot: {e}")).ok()?;
     image::RgbaImage::from_raw(shot.width(), shot.height(), shot.as_bytes().to_vec())
 }
@@ -44,21 +46,21 @@ thread_local!(static STAGE: RefCell<Option<StageKey>> = const { RefCell::new(Non
 /// view, blur through from the old one to the new.
 pub(crate) fn stage_change(app: &AppWindow, m: &Model, change: impl FnOnce()) {
     let playing = m.staged && !m.title.is_empty();
-    let key = StageKey { power_on: m.power_on, playing, input: m.input.clone(), library: app.get_lib_mode() != LibMode::Off && !playing };
+    let key = StageKey { power_on: m.power_on, playing, input: m.input.clone(), library: app.global::<Lib>().get_mode() != LibMode::Off && !playing };
     swap_stage(app, key, change);
 }
 /// Show or hide the poster wall, blurring across like any other change of stage.
 pub(crate) fn library_stage(app: &AppWindow, mode: LibMode) {
-    if app.get_lib_mode() == mode {
+    if app.global::<Lib>().get_mode() == mode {
         return;
     }
     let Some(mut key) = STAGE.with(|s| s.borrow().clone()) else {
-        app.set_lib_mode(mode);
+        app.global::<Lib>().set_mode(mode);
         return;
     };
     key.library = mode != LibMode::Off && !key.playing;
     swap_stage(app, key, || {
-        app.set_lib_mode(mode);
+        app.global::<Lib>().set_mode(mode);
         if mode != LibMode::Off {
             app.invoke_hold_library();
         }
@@ -80,7 +82,7 @@ pub(crate) fn reveal_library(app: &AppWindow, delay: Duration) {
 }
 pub(crate) fn swap_stage(app: &AppWindow, key: StageKey, change: impl FnOnce()) {
     let before = STAGE.with(|s| s.replace(Some(key.clone())));
-    let visible = app.on_page(PageId::Home) && app.get_lit() && app.get_capturing() == Capture::None;
+    let visible = app.on_page(PageId::Home) && app.get_lit() && app.global::<Fx>().get_capturing() == Capture::None;
     if before.is_none() || before.as_ref() == Some(&key) || !visible {
         change();
         return;
@@ -90,10 +92,10 @@ pub(crate) fn swap_stage(app: &AppWindow, key: StageKey, change: impl FnOnce()) 
     let new = snapshot_stage(app);
     let (Some(old), Some(new)) = (old, new) else { return };
     let plain = before.is_some_and(|b| b.power_on == key.power_on && b.input == key.input);
-    app.set_swap_plain(plain);
-    app.set_swap_out_blur(soften(&old, 2.2));
-    app.set_swap_in_blur(soften(&new, 2.2));
-    app.set_swap_out(slint::Image::from_rgba8(pixels(old)));
+    app.global::<Fx>().set_swap_plain(plain);
+    app.global::<Fx>().set_swap_out_blur(soften(&old, 2.2));
+    app.global::<Fx>().set_swap_in_blur(soften(&new, 2.2));
+    app.global::<Fx>().set_swap_out(slint::Image::from_rgba8(pixels(old)));
     app.invoke_hold_swap();
     let weak = app.as_weak();
     slint::Timer::single_shot(Duration::ZERO, move || {
@@ -108,8 +110,8 @@ pub(crate) fn capture(app: &AppWindow, what: Capture) {
     let Some(full) = snapshot(app, what) else { return };
     let img = soften(&full, 1.6);
     match what {
-        Capture::Stage => app.set_stage_blur(img),
-        Capture::World => app.set_world_blur(img),
+        Capture::Stage => app.global::<Fx>().set_stage_blur(img),
+        Capture::World => app.global::<Fx>().set_world_blur(img),
         Capture::None => {}
     }
 }
