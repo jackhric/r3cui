@@ -32,14 +32,7 @@ pub struct Settings {
     /// How the poster wall shows the highlighted title: 1 sheet, 2 overlay (the default), 3 inline.
     pub wall_style: Option<i32>,
     /// Read only to fill a first `modules.json`; drivers are set up there now.
-    legacy: Legacy,
-}
-
-/// What `settings.json` used to say about Kodi and the inputs.
-#[derive(Debug, Default)]
-struct Legacy {
-    kodi: Option<KodiFile>,
-    hidden_sources: Vec<String>,
+    legacy: drivers::config::Legacy,
 }
 
 impl Settings {
@@ -53,30 +46,10 @@ impl Settings {
             .or(self.accent.as_deref())
     }
 
-    /// A first `modules.json` from what `settings.json` used to hold: Kodi in the remote and UI slots of the KODI
-    /// input (and of Default, for a setup with no source yet), and the hidden inputs. Home Assistant has to be set up
-    /// anew: the old settings never said where it was.
+    /// A first `modules.json` from what `settings.json` used to hold. Home Assistant has to be set up anew: the old
+    /// settings never said where it was.
     pub fn legacy_modules(&self) -> Option<drivers::Modules> {
-        let l = &self.legacy;
-        if l.kodi.is_none() && l.hidden_sources.is_empty() {
-            return None;
-        }
-        let mut m = drivers::Modules::default();
-        if let Some(k) = l.kodi.as_ref().filter(|k| k.host.is_some()) {
-            m.add_driver("kodi", Default::default());
-            let port = |p: Option<u16>| p.map(|p| p.to_string()).unwrap_or_default();
-            for (key, value) in [("host", k.host.clone().unwrap_or_default()), ("http_port", port(k.http_port)), ("ws_port", port(k.ws_port))] {
-                m.set_field("kodi", key, &value);
-            }
-            for input in ["KODI", drivers::DEFAULT_INPUT] {
-                m.set_slot(input, drivers::Slot::Remote, Some("kodi".into()));
-                m.set_slot(input, drivers::Slot::Ui, Some("kodi".into()));
-            }
-        }
-        for h in &l.hidden_sources {
-            m.set_hidden(h, true);
-        }
-        Some(m)
+        drivers::Modules::from_legacy(&self.legacy)
     }
 }
 
@@ -128,6 +101,7 @@ struct KodiFile {
 
 fn parse(text: &str) -> Result<Settings, String> {
     let f: File = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    let kodi = f.kodi.unwrap_or_default();
     let unit = |x: Option<f32>| x.map(|x| x.clamp(0.0, 1.0));
     Ok(Settings {
         accent: f.accent,
@@ -141,7 +115,12 @@ fn parse(text: &str) -> Result<Settings, String> {
         sound_enabled: f.sound_enabled,
         sound_volume: unit(f.sound_volume),
         wall_style: f.wall_style.map(|x| x.clamp(1, 3)),
-        legacy: Legacy { kodi: f.kodi, hidden_sources: f.hidden_sources },
+        legacy: drivers::config::Legacy {
+            kodi_host: kodi.host,
+            kodi_http_port: kodi.http_port,
+            kodi_ws_port: kodi.ws_port,
+            hidden_inputs: f.hidden_sources,
+        },
     })
 }
 
@@ -150,13 +129,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn old_settings_fill_a_first_modules_json() {
+    fn old_settings_are_read_for_a_first_modules_json() {
         let s = parse(r#"{"hidden_sources": ["NET"], "kodi": {"host": "theater", "ws_port": 9091}}"#).unwrap();
-        let m = s.legacy_modules().unwrap();
-        assert_eq!(m.drivers["kodi"].text("host").as_deref(), Some("theater"));
-        assert_eq!(m.drivers["kodi"].text("ws_port").as_deref(), Some("9091"));
-        assert_eq!(m.input("KODI").unwrap().ui.as_deref(), Some("kodi"));
-        assert!(m.input("NET").unwrap().hidden);
+        let old = drivers::config::Legacy { kodi_host: Some("theater".into()), kodi_ws_port: Some(9091), hidden_inputs: vec!["NET".into()], ..Default::default() };
+        assert_eq!(s.legacy_modules(), drivers::Modules::from_legacy(&old));
         assert_eq!(parse("{}").unwrap().legacy_modules(), None);
     }
 

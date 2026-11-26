@@ -1,6 +1,6 @@
 //! Every driver type r3cui knows. The only place that names them.
 
-use crate::api::{Driver, Spec};
+use crate::api::{Driver, FieldKind, Spec};
 use crate::config::DriverEntry;
 use serde_json::{Map, Value};
 use std::sync::Arc;
@@ -45,7 +45,7 @@ impl Registry {
     /// A new driver's fields, from its spec's defaults.
     pub fn defaults(&self, kind: &str) -> Map<String, Value> {
         let Some(spec) = self.spec(kind) else { return Map::new() };
-        spec.fields.iter().filter_map(|f| Some((f.key.to_string(), default_value(f.key, f.default?)))).collect()
+        spec.fields.iter().filter_map(|f| Some((f.key.to_string(), default_value(f.kind, f.default?)))).collect()
     }
 }
 
@@ -55,9 +55,14 @@ impl Default for Registry {
     }
 }
 
-fn default_value(key: &str, text: &str) -> Value {
+fn default_value(kind: FieldKind, text: &str) -> Value {
     match text.parse::<u16>() {
-        Ok(n) if key.ends_with("port") => Value::from(n),
+        Ok(n) if kind == FieldKind::Port => Value::from(n),
         _ => Value::from(text),
     }
+}
+
+/// How a driver type's field is stored, if the type and field are known.
+pub fn field_kind(driver_type: &str, key: &str) -> Option<FieldKind> {
+    Registry::builtin().spec(driver_type)?.field(key).map(|f| f.kind)
 }
