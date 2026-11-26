@@ -1,0 +1,70 @@
+import { Capture } from "../types.slint";
+import { Fx } from "../globals/fx.slint";
+import { Marks, Theme } from "../theme.slint";
+import { Sys } from "../globals/sys.slint";
+
+export component ChargeCard inherits Rectangle {
+    background: #000000C0;
+    opacity: Sys.charge-card && Sys.lit ? 1 : 0;
+    visible: self.opacity > 0 && Fx.capturing == Capture.none;
+    animate opacity { duration: 300ms; easing: ease-in-out; }
+    Rectangle {
+        x: 122px;
+        y: 300px;
+        width: 220px;
+        height: 104px;
+        border-radius: 26px;
+        border-width: 5px;
+        border-color: #FFFFFF59;
+        Rectangle {
+            x: 11px;
+            y: 11px;
+            width: (parent.width - 22px) * clamp(Sys.battery, 4, 100) / 100;
+            height: parent.height - 22px;
+            border-radius: 16px;
+            background: Theme.good;
+        }
+        Path {
+            width: 64px;
+            height: 84px;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: Marks.bolt;
+            fill: Theme.text;
+            stroke: Theme.bg;
+            stroke-width: 4px;
+        }
+    }
+    Rectangle {
+        x: 346px;
+        y: 334px;
+        width: 12px;
+        height: 36px;
+        border-radius: 6px;
+        background: #FFFFFF59;
+    }
+    Text {
+        y: 436px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Sys.battery + "%";
+        font-size: 64px;
+        font-weight: 200;
+        color: Theme.text;
+    }
+    Text {
+        y: 520px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Sys.battery >= 100 ? "Charged" : "Charging";
+        font-size: 22px;
+        color: Theme.t2;
+    }
+    TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => {
+            Sys.charge-card = false;
+            Sys.activity();
+        }
+    }
+}

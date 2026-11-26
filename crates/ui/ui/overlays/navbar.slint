@@ -1,0 +1,41 @@
+import { Capture, HomeView, PageId } from "../types.slint";
+import { Control } from "../globals/control.slint";
+import { Fx } from "../globals/fx.slint";
+import { Home } from "../globals/home.slint";
+import { Logo, StatusBar, Theme } from "../theme.slint";
+import { Nav } from "../globals/nav.slint";
+import { Sys } from "../globals/sys.slint";
+
+export component NavBar inherits Rectangle {
+    in property <float> reveal;
+    y: 0;
+    height: 64px;
+    opacity: root.reveal * (Nav.hides-navbar(Nav.page) ? 0 : 1);
+    visible: self.opacity > 0 && Fx.capturing == Capture.none;
+    animate opacity { duration: Theme.page-time; }
+    StatusBar {
+        clock: Sys.clock;
+        battery: Sys.battery;
+        charging: Sys.charging;
+        show-menu: Nav.shows-menu(Nav.page);
+        menu => { Nav.go(PageId.menu, 0); }
+    }
+    // The input's mark sits in the middle everywhere but the input's own screen (or the power-off one), so
+    // away from it you can always tell where you are; tapping it opens the list.
+    TouchArea {
+        property <bool> shown: Control.inputs.length > 0 && !(Nav.page == PageId.home && (Home.view == HomeView.mark || Home.view == HomeView.off));
+        mouse-cursor: Theme.cursor;
+        x: 190px;
+        width: 100px;
+        height: 64px;
+        enabled: self.shown && Nav.page != PageId.inputs;
+        clicked => { Nav.go(PageId.inputs, Control.input-index); }
+        Logo {
+            size: 32px;
+            commands: Control.input-icon;
+            tint: Theme.t2;
+            opacity: parent.shown ? 1 : 0;
+            animate opacity { duration: 620ms; easing: ease-in-out; }
+        }
+    }
+}

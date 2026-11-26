@@ -1,0 +1,29 @@
+import { Capture } from "../types.slint";
+import { Control } from "../globals/control.slint";
+import { Fx } from "../globals/fx.slint";
+import { Glyph, Icons } from "../theme.slint";
+import { VolumeReadout } from "../widgets/volume-readout.slint";
+
+export component VolumeOverlay inherits Rectangle {
+    property <bool> shown: Control.volume-overlay && Control.power-on;
+    background: #000000A6;
+    opacity: self.shown ? 1 : 0;
+    visible: self.opacity > 0 && Fx.capturing == Capture.none;
+    animate opacity { duration: 180ms; easing: ease-out; }
+
+    Glyph {
+        y: 198px;
+        size: 52px;
+        commands: Icons.muted;
+        opacity: Control.muted ? 1 : 0;
+        animate opacity { duration: 160ms; }
+    }
+    VolumeReadout {
+        y: 0;
+        height: 800px;
+        top: 270px;
+        volume: Control.volume;
+        volume-db: Control.volume-db;
+        muted: Control.muted;
+    }
+}

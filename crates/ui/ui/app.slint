@@ -7,7 +7,7 @@ import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
-import { Capture, PageId, FormatMark, PowerAction, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
+import { Capture, HomeView, PageId, FormatMark, PowerAction, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
 import { Health } from "globals/health.slint";
 import { Playback } from "globals/playback.slint";
 import { Control } from "globals/control.slint";
@@ -21,6 +21,7 @@ import { Wifi } from "globals/wifi.slint";
 import { Kb } from "globals/kb.slint";
 import { Prefs } from "globals/prefs.slint";
 import { Nav } from "globals/nav.slint";
+import { Home } from "globals/home.slint";
 import { Menu } from "globals/menu.slint";
 import { Power } from "globals/power.slint";
 
@@ -33,15 +34,14 @@ import { TrackButton } from "widgets/track-button.slint";
 import { SkipButton } from "widgets/skip-button.slint";
 import { PosterStandIn } from "widgets/poster-stand-in.slint";
 
+import { VolumeOverlay } from "overlays/volume.slint";
+
+import { ChargeCard } from "overlays/charge-card.slint";
+
+import { NavBar } from "overlays/navbar.slint";
+
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs, Kb, Wifi, Cfg, Lab, Tracks, Lib, Fx, Sys, Control, Playback, Health, Nav, Menu, Power }
-
-enum HomeView {
-    playing,
-    mark,
-    off,
-    wall,
-}
 
 enum HoldKind {
     home,
@@ -58,7 +58,7 @@ export component AppWindow inherits Window {
 
     public function hold-library() { lib.hold(); }
     public function run-library() { lib.run(); }
-    out property <bool> lava-on: Nav.page == PageId.home && root.home-view == HomeView.mark && Sys.lit;
+    out property <bool> lava-on: Nav.page == PageId.home && Home.view == HomeView.mark && Sys.lit;
 
 
     out property <bool> power-overlay: root.power-holding || root.power-latched;
@@ -95,7 +95,6 @@ export component AppWindow inherits Window {
     property <bool> home-down;
     property <bool> home-used;
     property <bool> home-rumbling;
-    property <HomeView> home-view: !Control.power-on ? HomeView.off : Playback.staged && Playback.title != "" ? HomeView.playing : Lib.mode != LibMode.off ? HomeView.wall : HomeView.mark;
 
     property <float> wake: Sys.lit ? 1 : 0;
     animate wake { duration: 650ms; easing: ease-in-out; }
@@ -284,7 +283,7 @@ export component AppWindow inherits Window {
 
                     // The input's UI slot, playing
                     Rectangle {
-                        opacity: root.home-view == HomeView.playing ? 1 : 0;
+                        opacity: Home.view == HomeView.playing ? 1 : 0;
                         visible: self.opacity > 0;
 
                         // The backdrop arrives already blurred and darkened; the scrim fades it into black
@@ -455,7 +454,7 @@ export component AppWindow inherits Window {
 
                     // The current input, shown as its mark. An input showing its library looks the same as any other.
                     Rectangle {
-                        opacity: root.home-view == HomeView.mark ? 1 : 0;
+                        opacity: Home.view == HomeView.mark ? 1 : 0;
                         visible: self.opacity > 0;
 
                         // The colour wash behind the mark, faded out at the top and bottom so the navbar
@@ -527,7 +526,7 @@ export component AppWindow inherits Window {
 
                     // Power off
                     Rectangle {
-                        opacity: root.home-view == HomeView.off ? 1 : 0;
+                        opacity: Home.view == HomeView.off ? 1 : 0;
                         visible: self.opacity > 0;
 
                         Glyph {
@@ -555,7 +554,7 @@ export component AppWindow inherits Window {
                         items: Lib.items;
                         at: Lib.focus;
                         wall-style: Lib.wall-style;
-                        opacity: root.home-view == HomeView.wall ? 1 : 0;
+                        opacity: Home.view == HomeView.wall ? 1 : 0;
                         visible: self.opacity > 0 && Lib.mode != LibMode.off;
                     }
 
@@ -981,29 +980,7 @@ export component AppWindow inherits Window {
         }
 
         // Volume overlay, over everything.
-        Rectangle {
-            property <bool> shown: Control.volume-overlay && Control.power-on;
-            background: #000000A6;
-            opacity: self.shown ? 1 : 0;
-            visible: self.opacity > 0 && Fx.capturing == Capture.none;
-            animate opacity { duration: 180ms; easing: ease-out; }
-
-            Glyph {
-                y: 198px;
-                size: 52px;
-                commands: Icons.muted;
-                opacity: Control.muted ? 1 : 0;
-                animate opacity { duration: 160ms; }
-            }
-            VolumeReadout {
-                y: 0;
-                height: 800px;
-                top: 270px;
-                volume: Control.volume;
-                volume-db: Control.volume-db;
-                muted: Control.muted;
-            }
-        }
+        VolumeOverlay { }
     }
 
     // Holding power or Home: one overlay. A ring fills around a mark placed exactly where the home
@@ -1079,106 +1056,11 @@ export component AppWindow inherits Window {
     }
 
     // Charging: the battery, full screen, until the first touch or key.
-    Rectangle {
-        background: #000000C0;
-        opacity: Sys.charge-card && Sys.lit ? 1 : 0;
-        visible: self.opacity > 0 && Fx.capturing == Capture.none;
-        animate opacity { duration: 300ms; easing: ease-in-out; }
-        Rectangle {
-            x: 122px;
-            y: 300px;
-            width: 220px;
-            height: 104px;
-            border-radius: 26px;
-            border-width: 5px;
-            border-color: #FFFFFF59;
-            Rectangle {
-                x: 11px;
-                y: 11px;
-                width: (parent.width - 22px) * clamp(Sys.battery, 4, 100) / 100;
-                height: parent.height - 22px;
-                border-radius: 16px;
-                background: Theme.good;
-            }
-            Path {
-                width: 64px;
-                height: 84px;
-                viewbox-width: 24;
-                viewbox-height: 24;
-                commands: Marks.bolt;
-                fill: Theme.text;
-                stroke: Theme.bg;
-                stroke-width: 4px;
-            }
-        }
-        Rectangle {
-            x: 346px;
-            y: 334px;
-            width: 12px;
-            height: 36px;
-            border-radius: 6px;
-            background: #FFFFFF59;
-        }
-        Text {
-            y: 436px;
-            width: 480px;
-            horizontal-alignment: center;
-            text: Sys.battery + "%";
-            font-size: 64px;
-            font-weight: 200;
-            color: Theme.text;
-        }
-        Text {
-            y: 520px;
-            width: 480px;
-            horizontal-alignment: center;
-            text: Sys.battery >= 100 ? "Charged" : "Charging";
-            font-size: 22px;
-            color: Theme.t2;
-        }
-        TouchArea {
-            mouse-cursor: Theme.cursor;
-            clicked => {
-                Sys.charge-card = false;
-                Sys.activity();
-            }
-        }
-    }
+    ChargeCard { }
 
     // The navbar belongs to no layer: it stays put through every transition, fading only with
     // sleep, and is kept out of the snapshots so no blurred copy of it shows behind it.
-    navbar := Rectangle {
-        y: 0;
-        height: 64px;
-        opacity: root.reveal * (Nav.hides-navbar(Nav.page) ? 0 : 1);
-        visible: self.opacity > 0 && Fx.capturing == Capture.none;
-        animate opacity { duration: Theme.page-time; }
-        StatusBar {
-            clock: Sys.clock;
-            battery: Sys.battery;
-            charging: Sys.charging;
-            show-menu: Nav.shows-menu(Nav.page);
-            menu => { Nav.go(PageId.menu, 0); }
-        }
-        // The input's mark sits in the middle everywhere but the input's own screen (or the power-off one), so
-        // away from it you can always tell where you are; tapping it opens the list.
-        TouchArea {
-            property <bool> shown: Control.inputs.length > 0 && !(Nav.page == PageId.home && (root.home-view == HomeView.mark || root.home-view == HomeView.off));
-            mouse-cursor: Theme.cursor;
-            x: 190px;
-            width: 100px;
-            height: 64px;
-            enabled: self.shown && Nav.page != PageId.inputs;
-            clicked => { Nav.go(PageId.inputs, Control.input-index); }
-            Logo {
-                size: 32px;
-                commands: Control.input-icon;
-                tint: Theme.t2;
-                opacity: parent.shown ? 1 : 0;
-                animate opacity { duration: 620ms; easing: ease-in-out; }
-            }
-        }
-    }
+    NavBar { reveal: root.reveal; }
 
     if !Sys.awake: TouchArea { mouse-cursor: Theme.cursor; }
     // The first touch after resting only wakes the screen.
