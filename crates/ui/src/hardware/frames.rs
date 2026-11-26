@@ -5,6 +5,7 @@
 //! something is moving, a redraw is requested every few milliseconds and the backend's own vsync
 //! wait paces it; once things settle the timer stops, so a still screen costs nothing.
 
+use crate::Wifi;
 use crate::{AppWindow, JoinState};
 use slint::ComponentHandle;
 use std::cell::{Cell, RefCell};
@@ -44,7 +45,7 @@ pub fn kick() {
         pump.timer.start(slint::TimerMode::Repeated, TICK, move || {
             let Some(app) = app.upgrade() else { return };
             // The power-hold fill and the joining spinner run for as long as they are on screen.
-            if Instant::now() < until.get() || app.get_power_overlay() || app.get_join_state() == JoinState::Joining {
+            if Instant::now() < until.get() || app.get_power_overlay() || app.global::<Wifi>().get_join_state() == JoinState::Joining {
                 app.window().request_redraw();
             } else {
                 timer.stop();

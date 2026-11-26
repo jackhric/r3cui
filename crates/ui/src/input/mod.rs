@@ -3,6 +3,8 @@
 #[cfg(feature = "device")]
 pub(crate) mod evdev;
 pub(crate) mod slider;
+use crate::Wifi;
+use crate::Kb;
 use crate::{AppWindow, JoinState, KeyGlyph, KbPurpose, KeyCell};
 use crate::app::UiAction;
 use drivers::api::RemoteKey;
@@ -207,45 +209,45 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
                     style: c.style,
                 })
                 .collect();
-            app.set_kb_keys(ModelRc::new(VecModel::from(cells)));
-            app.set_kb_text(kb.borrow().text().into());
+            app.global::<Kb>().set_keys(ModelRc::new(VecModel::from(cells)));
+            app.global::<Kb>().set_text(kb.borrow().text().into());
             match outcome {
                 keyboard::Outcome::Stay => {}
                 keyboard::Outcome::Leave => app.invoke_back(),
-                keyboard::Outcome::Done(text) if app.get_kb_purpose() == KbPurpose::Text => {
+                keyboard::Outcome::Done(text) if app.global::<Kb>().get_purpose() == KbPurpose::Text => {
                     let _ = tx.send(UiAction::Integrations(crate::app::Settings::Text(text)));
                 }
                 keyboard::Outcome::Done(password) => {
-                    let target = app.get_wifi_target();
-                    app.set_join_state(JoinState::Joining);
+                    let target = app.global::<Wifi>().get_target();
+                    app.global::<Wifi>().set_join_state(JoinState::Joining);
                     let _ = tx.send(UiAction::WifiJoin { ssid: target.ssid.into(), hex: target.ssid_hex.into(), password });
                 }
             }
         }
     });
     after(keyboard::Outcome::Stay);
-    app.on_kb_reset({
+    app.global::<Kb>().on_reset({
         let (kb, after) = (kb.clone(), after.clone());
         move || {
             kb.borrow_mut().reset();
             after(keyboard::Outcome::Stay);
         }
     });
-    app.on_kb_start({
+    app.global::<Kb>().on_start({
         let (kb, after) = (kb.clone(), after.clone());
         move |text| {
             kb.borrow_mut().start(0, "Done", &text);
             after(keyboard::Outcome::Stay);
         }
     });
-    app.on_kb_nav({
+    app.global::<Kb>().on_nav({
         let (kb, after) = (kb.clone(), after.clone());
         move |name| {
             let outcome = kb.borrow_mut().key(name);
             after(outcome);
         }
     });
-    app.on_kb_tap(move |index| {
+    app.global::<Kb>().on_tap(move |index| {
         let outcome = kb.borrow_mut().tap(index.max(0) as usize);
         after(outcome);
     });

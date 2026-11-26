@@ -8,6 +8,9 @@ pub(crate) mod library;
 pub(crate) mod screen;
 pub(crate) mod stage;
 
+use crate::Tracks;
+use crate::Cfg;
+use crate::Wifi;
 use crate::view::screen::Screen;
 use crate::PageId;
 use crate::{AppWindow, Capture, Choice, JoinState, Logos, InputRow, Theme, WifiRow};
@@ -66,7 +69,7 @@ pub(crate) fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, Stri
             .map(|(i, (label, detail))| Choice { label: label.into(), detail: detail.into(), checked: i == current, ..Default::default() })
             .collect();
         let focus = rows.iter().position(|r| r.checked).unwrap_or(0) as i32;
-        app.set_tracks(ModelRc::new(VecModel::from(rows)));
+        app.global::<Tracks>().set_rows(ModelRc::new(VecModel::from(rows)));
         if app.on_page(PageId::Tracks) {
             app.set_focus_index(focus);
         }
@@ -89,13 +92,13 @@ pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::int
                 ..Default::default()
             })
             .collect();
-        let changed = app.get_cfg_title() != page.title.as_str() || app.get_cfg_rows().iter().ne(rows.iter().cloned());
+        let changed = app.global::<Cfg>().get_title() != page.title.as_str() || app.global::<Cfg>().get_rows().iter().ne(rows.iter().cloned());
         if !changed {
             return;
         }
-        let new_screen = app.get_cfg_title() != page.title.as_str();
-        app.set_cfg_title(page.title.as_str().into());
-        app.set_cfg_rows(ModelRc::new(VecModel::from(rows)));
+        let new_screen = app.global::<Cfg>().get_title() != page.title.as_str();
+        app.global::<Cfg>().set_title(page.title.as_str().into());
+        app.global::<Cfg>().set_rows(ModelRc::new(VecModel::from(rows)));
         if new_screen && app.on_page(PageId::Integrations) {
             app.set_focus_index(page.focus as i32);
         }
@@ -107,7 +110,7 @@ pub(crate) fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
         if !app.on_page(PageId::Keyboard) {
             return;
         }
-        app.set_join_state(if ok { JoinState::Idle } else { JoinState::Failed });
+        app.global::<Wifi>().set_join_state(if ok { JoinState::Idle } else { JoinState::Failed });
         app.go_to(if ok { PageId::Wifi } else { PageId::JoinFailed }, 0);
     });
 }
@@ -225,14 +228,14 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
         app.set_input_choices(ModelRc::new(VecModel::from(inputs)));
     }
 
-    app.set_wifi_name(m.wifi_ssid.as_str().into());
+    app.global::<Wifi>().set_name(m.wifi_ssid.as_str().into());
     let wifi: Vec<WifiRow> = m
         .wifi
         .iter()
         .map(|n| WifiRow { ssid: (&n.ssid).into(), ssid_hex: (&n.hex).into(), secured: n.secured, bars: n.bars, connected: n.connected })
         .collect();
-    if app.get_wifi_rows().iter().ne(wifi.iter().cloned()) {
-        app.set_wifi_rows(ModelRc::new(VecModel::from(wifi)));
+    if app.global::<Wifi>().get_rows().iter().ne(wifi.iter().cloned()) {
+        app.global::<Wifi>().set_rows(ModelRc::new(VecModel::from(wifi)));
     }
     let mut networks: Vec<Choice> = m
         .wifi
@@ -249,9 +252,9 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     if let Some(band) = band_label(&m.wifi_band) {
         networks.push(Choice { label: "Band".into(), value: band.into(), ..Default::default() });
     }
-    app.set_wifi_band_known(band_label(&m.wifi_band).is_some());
-    if app.get_wifi_choices().iter().ne(networks.iter().cloned()) {
-        app.set_wifi_choices(ModelRc::new(VecModel::from(networks)));
+    app.global::<Wifi>().set_band_known(band_label(&m.wifi_band).is_some());
+    if app.global::<Wifi>().get_choices().iter().ne(networks.iter().cloned()) {
+        app.global::<Wifi>().set_choices(ModelRc::new(VecModel::from(networks)));
     }
     let status_rows: Vec<Choice> =
         m.status.iter().map(|s| Choice { label: (&s.label).into(), value: (&s.value).into(), dot: s.dot, ..Default::default() }).collect();

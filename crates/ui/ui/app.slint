@@ -8,10 +8,15 @@ import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
 import { Capture, PageId, FormatMark, PowerAction, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
+import { Tracks } from "globals/tracks.slint";
+import { Lab } from "globals/lab.slint";
+import { Cfg } from "globals/cfg.slint";
+import { Wifi } from "globals/wifi.slint";
+import { Kb } from "globals/kb.slint";
 import { Prefs } from "globals/prefs.slint";
 
 export * from "types.slint";
-export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs }
+export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs, Kb, Wifi, Cfg, Lab, Tracks }
 
 enum HomeView {
     playing,
@@ -302,10 +307,7 @@ export component AppWindow inherits Window {
     in property <string> elapsed;
     in property <FormatMark> media-format-mark;
     in property <string> media-format-label;
-    in-out property <Picker> picker;
-    in-out property <[Choice]> tracks;
     in property <[Choice]> input-choices;
-    in property <[Choice]> wifi-choices;
     in property <[Choice]> status-choices;
     // The idle home screen's animated background.
     in property <image> lava;
@@ -325,36 +327,11 @@ export component AppWindow inherits Window {
     in-out property <bool> charge-card;
     out property <bool> lit: root.awake && !root.resting;
 
-    in property <string> wifi-name;
-
-    in property <[WifiRow]> wifi-rows;
-    in-out property <WifiRow> wifi-target;
-    in-out property <JoinState> join-state;
     // Non-empty when something the home screen depends on is unreachable.
     in property <string> home-warning;
-    in property <[KeyCell]> kb-keys;
-    in property <string> kb-text;
 
     in-out property <PageId> page: PageId.home;
-    in property <[Choice]> lab-rows;
-    in property <string> lab-title: "Feedback lab";
-    // True when the pick opened another lab screen.
-    callback lab-pick(int) -> bool;
-    // The row to focus after going back within the lab, or -1 to leave the lab.
-    callback lab-back() -> int;
     in-out property <int> focus-index: 0;
-    // Integrations: Rust draws each of its screens into one list, and decides where a pick or back leads.
-    in property <string> cfg-title: "Integrations";
-    in property <[Choice]> cfg-rows;
-    // The row to come back to from the keyboard.
-    in property <int> cfg-focus;
-    callback cfg-open();
-    callback cfg-pick(int);
-    callback cfg-back();
-    // The keyboard is for a Wi-Fi password or for other text (an integration's setting, an input's name).
-    in-out property <KbPurpose> kb-purpose;
-    in property <string> kb-title;
-    in property <string> kb-caption;
 
     // The play/pause control on the stage.
     callback play-pause();
@@ -362,25 +339,11 @@ export component AppWindow inherits Window {
     callback key(string);
     callback select-input(string);
     callback power-action(PowerAction);
-    callback wifi-scan();
-    // Switch the remote's preferred Wi-Fi band between 2.4 and 5 GHz.
-    callback wifi-band();
-    in property <bool> wifi-band-known;
-    // ssid, ssid-hex, password ("" for an open network)
-    callback wifi-join(string, string, string);
-    callback kb-reset();
-    // Ready the keyboard for other text, starting from this.
-    callback kb-start(string);
-    // "up", "down", "left", "right", "ok" or "back"
-    callback kb-nav(NavKey);
-    callback kb-tap(int);
     // The physical power key, held: switch what global control drives on or off. A short press does nothing.
     callback power-held();
     callback haptic(Haptic);
     // Seconds to jump, back (negative) or forward.
     callback seek(int);
-    callback open-picker(Picker);
-    callback pick-track(Picker, int);
     // Any key or touch: restarts the charger's countdown to dark.
     callback activity();
 
@@ -449,16 +412,16 @@ export component AppWindow inherits Window {
     }
     public function back() {
         if (root.page == PageId.feedback-lab) {
-            let focus = root.lab-back();
+            let focus = Lab.back();
             if (focus < 0) {
                 root.go(PageId.menu, 6);
             } else {
                 root.focus-index = focus;
             }
         } else if (root.page == PageId.integrations) {
-            root.cfg-back();
-        } else if (root.page == PageId.keyboard && root.kb-purpose == KbPurpose.text) {
-            root.go(PageId.integrations, root.cfg-focus);
+            Cfg.back();
+        } else if (root.page == PageId.keyboard && Kb.purpose == KbPurpose.text) {
+            root.go(PageId.integrations, Cfg.focus);
         } else if (root.page == PageId.display) {
             root.go(PageId.menu, 2);
         } else if (root.page == PageId.power) {
@@ -470,14 +433,14 @@ export component AppWindow inherits Window {
         } else if (root.page == PageId.tracks) {
             root.go(PageId.home, 0);
         } else if (root.page == PageId.keyboard || root.page == PageId.join-failed) {
-            root.join-state = JoinState.idle;
+            Wifi.join-state = JoinState.idle;
             root.go(PageId.wifi, 0);
         } else {
             root.go(PageId.home, 0);
         }
     }
     function row-count() -> int {
-        root.page == PageId.inputs ? root.inputs.length : root.page == PageId.integrations ? root.cfg-rows.length : root.page == PageId.menu ? 7 : root.page == PageId.display ? 3 : root.page == PageId.power ? 4 : root.page == PageId.wifi ? root.wifi-rows.length + (root.wifi-band-known ? 2 : 1) : root.page == PageId.join-failed ? 2 : root.page == PageId.tracks ? root.tracks.length : root.page == PageId.feedback-lab ? root.lab-rows.length : 1
+        root.page == PageId.inputs ? root.inputs.length : root.page == PageId.integrations ? Cfg.rows.length : root.page == PageId.menu ? 7 : root.page == PageId.display ? 3 : root.page == PageId.power ? 4 : root.page == PageId.wifi ? Wifi.rows.length + (Wifi.band-known ? 2 : 1) : root.page == PageId.join-failed ? 2 : root.page == PageId.tracks ? Tracks.rows.length : root.page == PageId.feedback-lab ? Lab.rows.length : 1
     }
     public function move(d: int) {
         root.focus-index = max(0, min(root.row-count() - 1, root.focus-index + d));
@@ -490,9 +453,9 @@ export component AppWindow inherits Window {
         }
         if (root.page == PageId.integrations) {
             root.haptic(Haptic.select);
-            root.cfg-pick(i);
+            Cfg.pick(i);
         } else if (root.page == PageId.feedback-lab) {
-            if (root.lab-pick(i)) {
+            if (Lab.pick(i)) {
                 root.haptic(Haptic.select);
                 root.focus-index = 0;
             }
@@ -501,10 +464,10 @@ export component AppWindow inherits Window {
             root.go(PageId.home, 0);
         } else if (root.page == PageId.menu) {
             if (i == 0) {
-                root.wifi-scan();
+                Wifi.scan();
                 root.go(PageId.wifi, 0);
             } else if (i == 1) {
-                root.cfg-open();
+                Cfg.open();
                 root.go(PageId.integrations, 0);
             } else if (i == 2) {
                 root.go(PageId.display, 0);
@@ -521,29 +484,29 @@ export component AppWindow inherits Window {
                 Prefs.changed();
             }
         } else if (root.page == PageId.wifi) {
-            if (i == root.wifi-rows.length + 1) {
-                root.wifi-band();
-            } else if (i >= root.wifi-rows.length) {
-                root.wifi-scan();
-            } else if (!root.wifi-rows[i].connected) {
-                root.wifi-target = root.wifi-rows[i];
-                if (root.wifi-rows[i].secured) {
-                    root.kb-purpose = KbPurpose.wifi-password;
-                    root.kb-reset();
+            if (i == Wifi.rows.length + 1) {
+                Wifi.band();
+            } else if (i >= Wifi.rows.length) {
+                Wifi.scan();
+            } else if (!Wifi.rows[i].connected) {
+                Wifi.target = Wifi.rows[i];
+                if (Wifi.rows[i].secured) {
+                    Kb.purpose = KbPurpose.wifi-password;
+                    Kb.reset();
                     root.go(PageId.keyboard, 0);
                 } else {
-                    root.join-state = JoinState.joining;
+                    Wifi.join-state = JoinState.joining;
                     root.go(PageId.keyboard, 0);
-                    root.wifi-join(root.wifi-target.ssid, root.wifi-target.ssid-hex, "");
+                    Wifi.join(Wifi.target.ssid, Wifi.target.ssid-hex, "");
                 }
             }
         } else if (root.page == PageId.tracks) {
-            if (i < root.tracks.length) {
-                root.pick-track(root.picker, i);
+            if (i < Tracks.rows.length) {
+                Tracks.pick(Tracks.picker, i);
             }
             root.go(PageId.home, 0);
         } else if (root.page == PageId.join-failed) {
-            root.join-state = JoinState.idle;
+            Wifi.join-state = JoinState.idle;
             root.go(i == 0 ? PageId.keyboard : PageId.wifi, 0);
         } else if (root.page == PageId.power) {
             if (i == 0) {
@@ -600,19 +563,19 @@ export component AppWindow inherits Window {
                 return accept;
             }
             if (root.page == PageId.keyboard) {
-                if (root.join-state != JoinState.joining) {
+                if (Wifi.join-state != JoinState.joining) {
                     if (event.text == Key.UpArrow) {
-                        root.kb-nav(NavKey.up);
+                        Kb.nav(NavKey.up);
                     } else if (event.text == Key.DownArrow) {
-                        root.kb-nav(NavKey.down);
+                        Kb.nav(NavKey.down);
                     } else if (event.text == Key.LeftArrow) {
-                        root.kb-nav(NavKey.left);
+                        Kb.nav(NavKey.left);
                     } else if (event.text == Key.RightArrow) {
-                        root.kb-nav(NavKey.right);
+                        Kb.nav(NavKey.right);
                     } else if (event.text == Key.Return) {
-                        root.kb-nav(NavKey.ok);
+                        Kb.nav(NavKey.ok);
                     } else if (event.text == Key.Backspace || event.text == Key.Escape) {
-                        root.kb-nav(NavKey.back);
+                        Kb.nav(NavKey.back);
                     }
                 }
                 return accept;
@@ -901,14 +864,14 @@ export component AppWindow inherits Window {
                             y: 716px;
                             icon: Icons.subtitles;
                             label: "Subtitles";
-                            tapped => { root.tracks = []; root.picker = Picker.subtitles; root.go(PageId.tracks, 0); root.open-picker(Picker.subtitles); }
+                            tapped => { Tracks.rows = []; Tracks.picker = Picker.subtitles; root.go(PageId.tracks, 0); Tracks.open(Picker.subtitles); }
                         }
                         TrackButton {
                             x: 248px;
                             y: 716px;
                             icon: Icons.audio;
                             label: "Audio";
-                            tapped => { root.tracks = []; root.picker = Picker.audio; root.go(PageId.tracks, 0); root.open-picker(Picker.audio); }
+                            tapped => { Tracks.rows = []; Tracks.picker = Picker.audio; root.go(PageId.tracks, 0); Tracks.open(Picker.audio); }
                         }
                     }
 
@@ -1102,7 +1065,7 @@ export component AppWindow inherits Window {
                 ChoiceList {
                     title: "Menu";
                     rows: [
-                        { label: "Wi-Fi", value: root.wifi-name, chevron: true },
+                        { label: "Wi-Fi", value: Wifi.name, chevron: true },
                         { label: "Integrations", chevron: true },
                         { label: "Display", value: Prefs.auto-brightness ? "Auto" : Prefs.brightness + "%", chevron: true },
                         { label: "Sound & haptics", value: Prefs.haptics, chevron: true },
@@ -1247,7 +1210,7 @@ export component AppWindow inherits Window {
                 active: root.page == PageId.wifi;
                 ChoiceList {
                     title: "Wi-Fi";
-                    rows: root.wifi-choices;
+                    rows: Wifi.choices;
                     focused-row: root.focus-index;
                     pick(i) => { root.activate(i); }
                     back => { root.back(); }
@@ -1262,13 +1225,13 @@ export component AppWindow inherits Window {
 
                 PageHeader {
                     y: 0;
-                    title: root.kb-purpose == KbPurpose.text ? root.kb-title : root.wifi-target.ssid;
+                    title: Kb.purpose == KbPurpose.text ? Kb.title : Wifi.target.ssid;
                     back => { root.back(); }
                 }
                 Text {
                     x: 40px;
                     y: 128px;
-                    text: root.kb-purpose == KbPurpose.text ? root.kb-caption : "PASSWORD";
+                    text: Kb.purpose == KbPurpose.text ? Kb.caption : "PASSWORD";
                     font-size: 13px;
                     font-weight: 500;
                     letter-spacing: 1.8px;
@@ -1284,7 +1247,7 @@ export component AppWindow inherits Window {
                         alignment: end;
                         spacing: 3px;
                         Text {
-                            text: root.kb-text;
+                            text: Kb.text;
                             font-size: 40px;
                             font-weight: 300;
                             letter-spacing: 0.8px;
@@ -1298,7 +1261,7 @@ export component AppWindow inherits Window {
                                 height: 40px;
                                 border-radius: 2px;
                                 background: Theme.accent;
-                                opacity: root.caret-on && root.join-state != JoinState.joining ? 1 : 0;
+                                opacity: root.caret-on && Wifi.join-state != JoinState.joining ? 1 : 0;
                             }
                         }
                     }
@@ -1311,8 +1274,8 @@ export component AppWindow inherits Window {
                     background: Theme.hair;
                 }
 
-                if root.join-state != JoinState.joining: Rectangle {
-                    for key[i] in root.kb-keys: Rectangle {
+                if Wifi.join-state != JoinState.joining: Rectangle {
+                    for key[i] in Kb.keys: Rectangle {
                         x: key.x;
                         y: key.y;
                         width: key.w;
@@ -1334,11 +1297,11 @@ export component AppWindow inherits Window {
                         }
                         TouchArea {
                             mouse-cursor: Theme.cursor;
-                            clicked => { root.kb-tap(i); }
+                            clicked => { Kb.tap(i); }
                         }
                     }
                 }
-                if root.join-state == JoinState.joining: Rectangle {
+                if Wifi.join-state == JoinState.joining: Rectangle {
                     Text {
                         y: 440px;
                         width: 480px;
@@ -1384,8 +1347,8 @@ export component AppWindow inherits Window {
                 current-depth: root.depth;
                 active: root.page == PageId.integrations;
                 ChoiceList {
-                    title: root.cfg-title;
-                    rows: root.cfg-rows;
+                    title: Cfg.title;
+                    rows: Cfg.rows;
                     focused-row: root.focus-index;
                     pick(i) => { root.activate(i); }
                     back => { root.back(); }
@@ -1398,8 +1361,8 @@ export component AppWindow inherits Window {
                 current-depth: root.depth;
                 active: root.page == PageId.feedback-lab;
                 ChoiceList {
-                    title: root.lab-title;
-                    rows: root.lab-rows;
+                    title: Lab.title;
+                    rows: Lab.rows;
                     focused-row: root.focus-index;
                     pick(i) => { root.activate(i); }
                     back => { root.back(); }
@@ -1414,7 +1377,7 @@ export component AppWindow inherits Window {
 
                 PageHeader {
                     y: 0;
-                    title: root.wifi-target.ssid;
+                    title: Wifi.target.ssid;
                     back => { root.back(); }
                 }
                 Text {
@@ -1442,7 +1405,7 @@ export component AppWindow inherits Window {
                 }
                 Pill {
                     y: 580px;
-                    label: root.wifi-name == "" ? "Cancel" : "Stay on " + root.wifi-name;
+                    label: Wifi.name == "" ? "Cancel" : "Stay on " + Wifi.name;
                     focused: root.focus-index == 1;
                     tapped => { root.activate(1); }
                 }
@@ -1454,8 +1417,8 @@ export component AppWindow inherits Window {
                 current-depth: root.depth;
                 active: root.page == PageId.tracks;
                 ChoiceList {
-                    title: root.picker == Picker.audio ? "Audio" : "Subtitles";
-                    rows: root.tracks;
+                    title: Tracks.picker == Picker.audio ? "Audio" : "Subtitles";
+                    rows: Tracks.rows;
                     empty: "Loading…";
                     focused-row: root.focus-index;
                     pick(i) => { root.activate(i); }

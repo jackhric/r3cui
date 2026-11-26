@@ -2,6 +2,9 @@
 //! plays a scripted session and pipes frames to ffmpeg. With `--frame <photo>` both show the UI
 //! inside the remote with its keys lit.
 
+use crate::Tracks;
+use crate::Wifi;
+use crate::Kb;
 use crate::Prefs;
 use crate::hardware::backlight;
 use crate::input::{keys, Button};
@@ -40,13 +43,13 @@ const STEPS: &[Step] = &[
         m.input = "KODI".into();
     }),
     ("03b-audio", |app, m| {
-        app.set_picker(Picker::Audio);
+        app.global::<Tracks>().set_picker(Picker::Audio);
         app.go_to(PageId::Tracks, 0);
         let (rows, current) = crate::app::demo::demo_tracks(m, Picker::Audio, 1);
         crate::view::show_tracks(&app.as_weak(), rows, current);
     }),
     ("03c-subtitles", |app, m| {
-        app.set_picker(Picker::Subtitles);
+        app.global::<Tracks>().set_picker(Picker::Subtitles);
         app.go_to(PageId::Tracks, 0);
         let (rows, current) = crate::app::demo::demo_tracks(m, Picker::Subtitles, 1);
         crate::view::show_tracks(&app.as_weak(), rows, current);
@@ -95,20 +98,20 @@ const STEPS: &[Step] = &[
         app.go_to(PageId::Wifi, 1);
     }),
     ("15-keyboard", |app, _| {
-        app.set_wifi_target(app.get_wifi_rows().row_data(1).unwrap_or_default());
-        app.invoke_kb_reset();
+        app.global::<Wifi>().set_target(app.global::<Wifi>().get_rows().row_data(1).unwrap_or_default());
+        app.global::<Kb>().invoke_reset();
         app.go_to(PageId::Keyboard, 0);
         for k in TYPING {
-            app.invoke_kb_nav(*k);
+            app.global::<Kb>().invoke_nav(*k);
         }
     }),
-    ("16-joining", |app, _| app.set_join_state(JoinState::Joining)),
+    ("16-joining", |app, _| app.global::<Wifi>().set_join_state(JoinState::Joining)),
     ("17-join-failed", |app, _| {
-        app.set_join_state(JoinState::Failed);
+        app.global::<Wifi>().set_join_state(JoinState::Failed);
         app.go_to(PageId::JoinFailed, 0);
     }),
     ("18-status", |app, _| {
-        app.set_join_state(JoinState::Idle);
+        app.global::<Wifi>().set_join_state(JoinState::Idle);
         app.go_to(PageId::Status, 0);
     }),
     ("19-status-ha-down", |_, m| m.demo_ha_down = true),
@@ -406,12 +409,12 @@ fn wifi_script() -> Vec<(u64, Act)> {
         (900, ui(|_| {})),
     ];
     for k in TYPING {
-        steps.push((260, Box::new(move |a: &AppWindow, _: &Tx| a.invoke_kb_nav(*k))));
+        steps.push((260, Box::new(move |a: &AppWindow, _: &Tx| a.global::<Kb>().invoke_nav(*k))));
     }
     steps.extend([
-        (700, ui(|a| a.invoke_kb_tap(30))),
+        (700, ui(|a| a.global::<Kb>().invoke_tap(30))),
         (3400, ui(|a| a.invoke_activate(0))),
-        (1100, ui(|a| a.invoke_kb_tap(30))),
+        (1100, ui(|a| a.global::<Kb>().invoke_tap(30))),
         (3600, ui(|a| a.invoke_back())),
         (700, ui(|a| a.invoke_activate(4))),
         (1800, key("x")),
@@ -749,7 +752,7 @@ fn walls_script() -> Vec<(u64, Act)> {
 /// The subtitle picker with a long list: walk down past the screen and back.
 fn picker_script() -> Vec<(u64, Act)> {
     let open: Act = Box::new(|app, _| {
-        app.set_picker(Picker::Subtitles);
+        app.global::<Tracks>().set_picker(Picker::Subtitles);
         app.go_to(PageId::Tracks, 0);
         let (rows, current) = crate::app::demo::demo_tracks(&crate::app::model::Model::default(), Picker::Subtitles, 1);
         crate::view::show_tracks(&app.as_weak(), rows, current);

@@ -1,0 +1,8 @@
+import { Choice, Picker } from "../types.slint";
+
+export global Tracks {
+    in-out property <Picker> picker;
+    in-out property <[Choice]> rows;
+    callback open(Picker);
+    callback pick(Picker, int);
+}

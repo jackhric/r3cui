@@ -1,0 +1,10 @@
+import { Choice } from "../types.slint";
+
+export global Lab {
+    in property <[Choice]> rows;
+    in property <string> title: "Feedback lab";
+    // True when the pick opened another lab screen.
+    callback pick(int) -> bool;
+    // The row to focus after going back within the lab, or -1 to leave the lab.
+    callback back() -> int;
+}

@@ -1,0 +1,15 @@
+import { Choice, JoinState, WifiRow } from "../types.slint";
+
+export global Wifi {
+    in property <string> name;
+    in property <[WifiRow]> rows;
+    in property <[Choice]> choices;
+    in property <bool> band-known;
+    in-out property <WifiRow> target;
+    in-out property <JoinState> join-state;
+    callback scan();
+    // Switch the remote's preferred Wi-Fi band between 2.4 and 5 GHz.
+    callback band();
+    // ssid, ssid-hex, password ("" for an open network)
+    callback join(string, string, string);
+}

@@ -1,0 +1,12 @@
+import { Choice } from "../types.slint";
+
+export global Cfg {
+    // Integrations: Rust draws each of its screens into one list, and decides where a pick or back leads.
+    in property <string> title: "Integrations";
+    in property <[Choice]> rows;
+    // The row to come back to from the keyboard.
+    in property <int> focus;
+    callback open();
+    callback pick(int);
+    callback back();
+}

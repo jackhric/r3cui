@@ -2,6 +2,9 @@
 //! backlight), the drivers for everything else, and the event loop that joins them to the screen. The frontend
 //! talks to the host's ports and inputs; it never names a driver.
 
+use crate::Cfg;
+use slint::ComponentHandle;
+use crate::Kb;
 use crate::AppWindow;
 use crate::app::global::{slide, Global};
 use crate::app::integrations::{Effect, Integrations};
@@ -145,11 +148,11 @@ impl Session<'_> {
             Effect::Text { title, caption, text } => {
                 let focus = front.settings.page(&front.host).focus as i32;
                 ui(weak, move |app| {
-                    app.set_kb_purpose(KbPurpose::Text);
-                    app.set_kb_title(title.into());
-                    app.set_kb_caption(caption.into());
-                    app.set_cfg_focus(focus);
-                    app.invoke_kb_start(text.into());
+                    app.global::<Kb>().set_purpose(KbPurpose::Text);
+                    app.global::<Kb>().set_title(title.into());
+                    app.global::<Kb>().set_caption(caption.into());
+                    app.global::<Cfg>().set_focus(focus);
+                    app.global::<Kb>().invoke_start(text.into());
                     app.go_to(PageId::Keyboard, 0);
                 });
             }

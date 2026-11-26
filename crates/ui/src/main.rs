@@ -125,11 +125,11 @@ fn main() -> anyhow::Result<()> {
     {
         use crate::app::Settings;
         let tx = act_tx.clone();
-        app.on_cfg_open(move || drop(tx.send(UiAction::Integrations(Settings::Open))));
+        app.global::<Cfg>().on_open(move || drop(tx.send(UiAction::Integrations(Settings::Open))));
         let tx = act_tx.clone();
-        app.on_cfg_pick(move |i| drop(tx.send(UiAction::Integrations(Settings::Pick(i.max(0) as usize)))));
+        app.global::<Cfg>().on_pick(move |i| drop(tx.send(UiAction::Integrations(Settings::Pick(i.max(0) as usize)))));
         let tx = act_tx.clone();
-        app.on_cfg_back(move || drop(tx.send(UiAction::Integrations(Settings::Back))));
+        app.global::<Cfg>().on_back(move || drop(tx.send(UiAction::Integrations(Settings::Back))));
     }
     app.on_power_action({
         let tx = act_tx.clone();
@@ -148,12 +148,12 @@ fn main() -> anyhow::Result<()> {
                 .into_iter()
                 .map(|r| Choice { label: r.label.into(), detail: r.detail.into(), value: r.value.into(), chevron: r.opens, ..Default::default() })
                 .collect();
-            app.set_lab_title(lab.title().into());
-            app.set_lab_rows(ModelRc::new(VecModel::from(rows)));
+            app.global::<Lab>().set_title(lab.title().into());
+            app.global::<Lab>().set_rows(ModelRc::new(VecModel::from(rows)));
         }
     };
     show_lab();
-    app.on_lab_pick({
+    app.global::<Lab>().on_pick({
         let (lab, show_lab) = (lab.clone(), show_lab.clone());
         move |i| {
             let moved = lab.borrow_mut().pick(i as usize);
@@ -161,24 +161,24 @@ fn main() -> anyhow::Result<()> {
             moved
         }
     });
-    app.on_lab_back(move || {
+    app.global::<Lab>().on_back(move || {
         let focus = lab.borrow_mut().back();
         show_lab();
         focus.map_or(-1, |f| f as i32)
     });
-    app.on_wifi_scan({
+    app.global::<Wifi>().on_scan({
         let tx = act_tx.clone();
         move || {
             let _ = tx.send(UiAction::WifiScan);
         }
     });
-    app.on_wifi_band({
+    app.global::<Wifi>().on_band({
         let tx = act_tx.clone();
         move || {
             let _ = tx.send(UiAction::WifiBand);
         }
     });
-    app.on_wifi_join({
+    app.global::<Wifi>().on_join({
         let tx = act_tx.clone();
         move |ssid, hex, password| {
             let _ = tx.send(UiAction::WifiJoin { ssid: ssid.into(), hex: hex.into(), password: password.into() });
@@ -190,13 +190,13 @@ fn main() -> anyhow::Result<()> {
             let _ = tx.send(UiAction::Seek(by));
         }
     });
-    app.on_open_picker({
+    app.global::<Tracks>().on_open({
         let tx = act_tx.clone();
         move |kind| {
             let _ = tx.send(UiAction::OpenPicker(kind));
         }
     });
-    app.on_pick_track({
+    app.global::<Tracks>().on_pick({
         let tx = act_tx.clone();
         move |kind, i| {
             let _ = tx.send(UiAction::PickTrack(kind, i.max(0) as usize));

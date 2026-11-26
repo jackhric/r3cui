@@ -14,6 +14,7 @@
 //! quit
 //! ```
 
+use crate::Kb;
 use crate::view::screen::{Screen, page_by_name};
 use crate::{AppWindow, PageId};
 use crate::input::keys;
@@ -102,7 +103,7 @@ pub(crate) fn load(script: &Path) -> anyhow::Result<Vec<(Duration, Do)>> {
 
 /// Where a keyboard key with this label is on screen, if it is.
 fn key_at(app: &AppWindow, label: &str) -> Option<LogicalPosition> {
-    let keys = app.get_kb_keys();
+    let keys = app.global::<Kb>().get_keys();
     let found = keys.iter().find(|k| k.label == label || (label.len() == 1 && k.label.eq_ignore_ascii_case(label)))?;
     Some(LogicalPosition::new(found.x + found.w / 2.0, found.y + found.h / 2.0))
 }

@@ -1,0 +1,16 @@
+import { KbPurpose, KeyCell, NavKey } from "../types.slint";
+
+export global Kb {
+    in property <[KeyCell]> keys;
+    in property <string> text;
+    // The keyboard is for a Wi-Fi password or for other text (an integration's setting, an input's name).
+    in-out property <KbPurpose> purpose;
+    in property <string> title;
+    in property <string> caption;
+    callback reset();
+    // Ready the keyboard for other text, starting from this.
+    callback start(string);
+    // "up", "down", "left", "right", "ok" or "back"
+    callback nav(NavKey);
+    callback tap(int);
+}
