@@ -507,7 +507,7 @@ pub(crate) async fn serve(
                         software::run(commands, &link, &later_tx, weak);
                         session.show(weak);
                     }
-                    CoreEvent::Other => {}
+                    CoreEvent::Assistant(_) | CoreEvent::Other => {}
                 }
             }
             Some(action) = actions.recv() => {

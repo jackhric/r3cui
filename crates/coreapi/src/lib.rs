@@ -5,11 +5,13 @@
 mod events;
 pub mod messages;
 mod system;
+mod voice;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
 pub use events::*;
 pub use system::*;
+pub use voice::*;
 
 use anyhow::{anyhow, Context, Result};
 use base64::Engine as _;
@@ -222,11 +224,11 @@ mod tests {
     use crate::testing::{FakeCore, Shared};
     use wsclient::testing::FakeServer;
 
-    async fn fake_core() -> (FakeServer<()>, Shared) {
+    async fn fake_core() -> (FakeServer<Value>, Shared) {
         FakeCore::start("t").await
     }
 
-    fn config(server: &FakeServer<()>, token: &str) -> Config {
+    fn config(server: &FakeServer<Value>, token: &str) -> Config {
         Config { url: format!("ws://{}", server.addr()), token: token.into(), basic_auth: None }
     }
 
@@ -307,5 +309,32 @@ mod tests {
         assert_eq!(state.lock().unwrap().web_pin.as_deref(), Some("4827"));
         core.disable_web_configurator().await.unwrap();
         assert!(!core.api_access().await.unwrap().web_configurator.enabled);
+    }
+
+    #[tokio::test]
+    async fn a_voice_session_round_trips() {
+        let (server, state) = fake_core().await;
+        let (core, mut events) = connect(config(&server, "t")).await.unwrap();
+
+        let cfg = core.get_voice_control_cfg().await.unwrap();
+        assert!(cfg.microphone);
+        let assistants = core.get_voice_assistants().await.unwrap();
+        assert_eq!((assistants.len(), assistants[0].entity_id.0.as_str()), (1, "r3cui.voice"));
+
+        let off = VoiceControlUpdate { microphone: Some(false), voice_assistant: None };
+        assert!(!core.set_voice_control_cfg(&off).await.unwrap().microphone);
+
+        let entity = assistants[0].entity_id.clone();
+        core.voice_start(&entity, &VoiceStart::new(7)).await.unwrap();
+        server.broadcast(json!({"type": "ready", "entity_id": "r3cui.voice", "session_id": 7}));
+        let CoreEvent::Assistant(ready) = events.recv().await.unwrap().typed() else { panic!("not an assistant event") };
+        assert_eq!((ready.session_id, ready.kind), (7, AssistantEventKind::Ready));
+
+        core.voice_end(&entity, None).await.unwrap();
+        let sent = state.lock().unwrap().entity_commands.clone();
+        let commands: Vec<_> = sent.iter().map(|c| (c.entity_id.as_str(), c.cmd_id.as_str())).collect();
+        assert_eq!(commands, [("r3cui.voice", messages::VOICE_START), ("r3cui.voice", messages::VOICE_END)]);
+        assert_eq!(sent[0].params, Some(json!({"session_id": 7, "timeout": 15, "speech_response": false})));
+        assert_eq!(sent[1].params, None);
     }
 }

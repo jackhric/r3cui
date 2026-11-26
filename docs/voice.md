@@ -1,6 +1,6 @@
 # Voice: hold to talk, sent where r3cui says
 
-Status: design (2026-11-26). Nothing built yet.
+Status: design (2026-11-26). The Core-API calls and the `assistant_event` are built in `crates/coreapi`; the rest is not.
 
 Hold the voice key, talk, let go. r3cui shows that it is listening the moment the key goes down, sends the audio
 to wherever Global control → Voice points (Home Assistant Assist first), and shows what was heard and the answer.

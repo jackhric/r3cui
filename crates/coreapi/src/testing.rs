@@ -21,6 +21,17 @@ pub struct FakeState {
     /// Whether the last `check_system_update` forced a look.
     pub forced: Option<bool>,
     pub update_requests: u32,
+    pub voice_cfg: Value,
+    pub voice_assistants: Vec<Value>,
+    /// Each `execute_entity_command` received, in order.
+    pub entity_commands: Vec<EntityCommand>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntityCommand {
+    pub entity_id: String,
+    pub cmd_id: String,
+    pub params: Option<Value>,
 }
 
 pub type Shared = Arc<Mutex<FakeState>>;
@@ -42,6 +53,9 @@ impl FakeState {
             ui_info: None,
             forced: None,
             update_requests: 0,
+            voice_cfg: json!({"microphone": true, "voice_assistant": {"active": voice_assistant(), "profile_id": "p1", "speech_response": false}}),
+            voice_assistants: vec![voice_assistant()],
+            entity_commands: Vec::new(),
         }
     }
 
@@ -59,6 +73,13 @@ impl FakeState {
     }
 }
 
+fn voice_assistant() -> Value {
+    json!({
+        "entity_id": "r3cui.voice", "name": {"en": "r3cui voice"}, "state": "ON", "features": ["transcription", "response_text"],
+        "profiles": [{"id": "p1", "name": "English", "language": "en"}], "preferred_profile": "p1",
+    })
+}
+
 pub struct FakeCore {
     shared: Shared,
     signed_in: bool,
@@ -70,7 +91,7 @@ impl FakeCore {
     }
 
     /// A listening fake core and its state.
-    pub async fn start(token: &str) -> (FakeServer<()>, Shared) {
+    pub async fn start(token: &str) -> (FakeServer<Value>, Shared) {
         let shared: Shared = Arc::new(Mutex::new(FakeState::new(token)));
         let server = FakeServer::start("127.0.0.1:0", {
             let shared = shared.clone();
@@ -81,9 +102,14 @@ impl FakeCore {
     }
 }
 
-impl Peer<()> for FakeCore {
+impl Peer<Value> for FakeCore {
     fn opened(&mut self) -> Reply {
         Reply::say(json!({"kind": "event", "msg": messages::AUTH_REQUIRED}).to_string())
+    }
+
+    /// A test's `FakeServer::broadcast(msg_data)` reaches the client as an `assistant_event`.
+    fn broadcast(&mut self, data: &Value) -> Reply {
+        Reply::say(json!({"kind": "event", "msg": messages::ASSISTANT_EVENT, "cat": "ENTITY", "msg_data": data}).to_string())
     }
 
     fn frame(&mut self, text: &str) -> Reply {
@@ -129,6 +155,33 @@ impl Peer<()> for FakeCore {
                     state.web_pin = web["pin"].as_str().map(String::from);
                 }
                 Reply::say(answer(200, json!({"web_configurator": {"enabled": state.web_enabled}})))
+            }
+            Some(messages::GET_VOICE_CONTROL_CFG) => Reply::say(answer(200, state.voice_cfg.clone())),
+            Some(messages::SET_VOICE_CONTROL_CFG) => {
+                if let Some(mic) = data["microphone"].as_bool() {
+                    state.voice_cfg["microphone"] = json!(mic);
+                }
+                let wanted = &data["voice_assistant"];
+                if wanted.is_object() {
+                    let active = state.voice_assistants.iter().find(|a| a["entity_id"] == wanted["entity_id"]).cloned();
+                    let target = &mut state.voice_cfg["voice_assistant"];
+                    target["active"] = active.unwrap_or(Value::Null);
+                    for key in ["profile_id", "speech_response"] {
+                        if !wanted[key].is_null() {
+                            target[key] = wanted[key].clone();
+                        }
+                    }
+                }
+                Reply::say(answer(200, state.voice_cfg.clone()))
+            }
+            Some(messages::GET_VOICE_ASSISTANTS) => Reply::say(answer(200, json!({"entities": state.voice_assistants}))),
+            Some(messages::EXECUTE_ENTITY_COMMAND) => {
+                state.entity_commands.push(EntityCommand {
+                    entity_id: data["entity_id"].as_str().unwrap_or_default().to_string(),
+                    cmd_id: data["cmd_id"].as_str().unwrap_or_default().to_string(),
+                    params: data.get("params").cloned(),
+                });
+                Reply::say(answer(200, json!({})))
             }
             _ => Reply::say(answer(404, json!({"message": "nope"}))),
         }

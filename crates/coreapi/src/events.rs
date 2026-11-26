@@ -5,6 +5,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::system::SoftwareUpdate;
+use crate::voice::EntityId;
 use crate::{messages, Event};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -13,6 +14,7 @@ pub enum CoreEvent {
     BatteryStatus(BatteryStatus),
     WifiChange(WifiChange),
     SoftwareUpdate(SoftwareUpdate),
+    Assistant(AssistantEvent),
     /// Any other event, or one whose payload didn't match.
     Other,
 }
@@ -94,6 +96,41 @@ pub struct WifiChange {
     pub id: Option<i64>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AssistantErrorCode {
+    ServiceUnavailable,
+    InvalidAudio,
+    NoTextRecognized,
+    IntentFailed,
+    TtsFailed,
+    Timeout,
+    UnexpectedError,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
+pub enum AssistantEventKind {
+    /// The assistant waits for the audio.
+    Ready,
+    SttResponse { text: String },
+    TextResponse { success: bool, text: String },
+    SpeechResponse { url: String, mime_type: String },
+    Finished,
+    Error { code: AssistantErrorCode, message: String },
+}
+
+/// The event `assistant_event`: how a voice session is going.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct AssistantEvent {
+    pub entity_id: EntityId,
+    pub session_id: u32,
+    #[serde(flatten)]
+    pub kind: AssistantEventKind,
+}
+
 impl Event {
     /// The event as the UI understands it.
     pub fn typed(&self) -> CoreEvent {
@@ -111,6 +148,7 @@ impl Event {
             messages::BATTERY_STATUS => parse(&self.data, CoreEvent::BatteryStatus),
             messages::WIFI_CHANGE => parse(&self.data, CoreEvent::WifiChange),
             messages::SOFTWARE_UPDATE => parse(&self.data, CoreEvent::SoftwareUpdate),
+            messages::ASSISTANT_EVENT => parse(&self.data, CoreEvent::Assistant),
             _ => CoreEvent::Other,
         }
     }
@@ -141,6 +179,44 @@ mod tests {
         let e = event("wifi_change", json!({ "event": "NETWORK_NOT_FOUND", "id": 3 }));
         assert_eq!(e.typed(), CoreEvent::WifiChange(WifiChange { event: WifiEvent::NetworkNotFound, id: Some(3) }));
         assert_eq!(event("wifi_change", json!({ "event": "SCAN_COMPLETED" })).typed(), CoreEvent::WifiChange(WifiChange { event: WifiEvent::ScanCompleted, id: None }));
+    }
+
+    #[test]
+    fn assistant_events_of_every_type() {
+        let parsed = |data: Value| {
+            let CoreEvent::Assistant(a) = event("assistant_event", data).typed() else { panic!("not an assistant event") };
+            assert_eq!((a.entity_id.0.as_str(), a.session_id), ("r3cui.voice", 7));
+            a.kind
+        };
+        let base = |kind: &str| json!({ "type": kind, "entity_id": "r3cui.voice", "session_id": 7 });
+        let with = |kind: &str, data: Value| {
+            let mut v = base(kind);
+            v["data"] = data;
+            v
+        };
+        assert_eq!(parsed(base("ready")), AssistantEventKind::Ready);
+        assert_eq!(parsed(with("stt_response", json!({ "text": "lights on" }))), AssistantEventKind::SttResponse { text: "lights on".into() });
+        assert_eq!(
+            parsed(with("text_response", json!({ "success": true, "text": "Done" }))),
+            AssistantEventKind::TextResponse { success: true, text: "Done".into() }
+        );
+        assert_eq!(
+            parsed(with("speech_response", json!({ "url": "http://x/a.mp3", "mime_type": "audio/mpeg" }))),
+            AssistantEventKind::SpeechResponse { url: "http://x/a.mp3".into(), mime_type: "audio/mpeg".into() }
+        );
+        assert_eq!(parsed(base("finished")), AssistantEventKind::Finished);
+        assert_eq!(
+            parsed(with("error", json!({ "code": "NO_TEXT_RECOGNIZED", "message": "nothing heard" }))),
+            AssistantEventKind::Error { code: AssistantErrorCode::NoTextRecognized, message: "nothing heard".into() }
+        );
+        let AssistantEventKind::Error { code, .. } = parsed(with("error", json!({ "code": "NEW_ONE", "message": "" }))) else { panic!() };
+        assert_eq!(code, AssistantErrorCode::Unknown);
+    }
+
+    #[test]
+    fn a_malformed_or_unknown_assistant_event_is_other() {
+        assert_eq!(event("assistant_event", json!({ "type": "stt_response", "entity_id": "a.b", "session_id": 1 })).typed(), CoreEvent::Other);
+        assert_eq!(event("assistant_event", json!({ "type": "dance", "entity_id": "a.b", "session_id": 1 })).typed(), CoreEvent::Other);
     }
 
     #[test]

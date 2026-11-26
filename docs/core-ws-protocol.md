@@ -9,8 +9,8 @@ Requests the UI sends today (`crates/ui/src/remote/`, `hardware/backlight.rs`): 
 `get_battery_charger`, `get_display_cfg` / `set_display_cfg`, `get_haptic_cfg`, `get_sound_cfg`,
 `get_power_saving_cfg`, `get_network_cfg` / `set_network_cfg`, `get_wifi_status`, `get_wifi_scan_status`,
 `wifi_scan_start`, `add_wifi_network`, `set_button_cfg`, and for the System page `version`, `set_ui_info` (after every sign-in, as
-the stock UI does), `check_system_update`, `update_system`, `get_api_access`, `set_api_access`. Events it acts on
-(`coreapi::events`): `power_mode_change`, `battery_status`, `wifi_change`, `software_update`. Message names are the
+the stock UI does), `check_system_update`, `update_system`, `get_api_access`, `set_api_access`, and for voice the requests under Voice below. Events it acts on
+(`coreapi::events`): `power_mode_change`, `battery_status`, `wifi_change`, `software_update`, `assistant_event`. Message names are the
 constants in `crates/coreapi/src/messages.rs`; the System page's requests are typed in `crates/coreapi/src/system.rs`. The connection runs on `crates/wsclient`.
 
 Authoritative spec: `unfoldedcircle/core-api`, `core-api/websocket/UCR-core-asyncapi.yaml`
@@ -64,7 +64,7 @@ Server pings every 10 s, closes after ~30 s silence. There's also an app-level `
 | WiFi/net | `get_network_state`; events `wifi_change`, `network_change` |
 | Power | `get_power_mode`, `set_power_mode`; event `power_mode_change` (incl. `SUSPEND`) |
 | System | `version`, `system`, `get_configuration`, `get_*_cfg` (display/haptic/button/device/sound/localization); event `warning` |
-| Voice | `get_voice_assistants`; event `assistant_event` |
+| Voice | `get_voice_control_cfg`, `set_voice_control_cfg`, `get_voice_assistants`; event `assistant_event` (see Voice below) |
 
 ## Gotcha: physical buttons are not on the WS
 
@@ -97,3 +97,21 @@ port 80 if that does not answer. Uninstalling empties `UC_CONFIG_HOME` and `UC_D
 `DELETE /api/system/install/ui`, or `PUT ...?enable=false` if that is refused. Both turn the web configurator on with a PIN
 of r3cui's own first and off again after if it was off (`UC_DATA_HOME/web-configurator-was-off` tells a restarted UI to
 finish that). The REST calls are tested against a local fake server (`crates/ui/src/remote/selfupdate/`), not a remote.
+
+## Voice: control settings, sessions, assistant events
+
+`crates/coreapi/src/voice.rs` types the requests, `events.rs` the event. `FakeCore` answers all of them and records
+the entity commands. The session design is in `docs/voice.md`.
+
+| Message | Notes |
+|---|---|
+| `get_voice_control_cfg` | answered with `voice_control_cfg`: `microphone`, `voice_assistant {active, profile_id, speech_response}`. No `active` means no assistant is set |
+| `set_voice_control_cfg` | `microphone`, `voice_assistant {entity_id, profile_id, speech_response}`; a field left out keeps its value, an empty `entity_id` removes the assistant. r3cui sends it only when the user turns voice on in Settings |
+| `get_voice_assistants` | `voice_assistants`: `entities[]` with `entity_id`, `name` (by language), `state`, `features` (`transcription`, `response_text`, `response_speech`), `profiles[]`, `preferred_profile` |
+| `execute_entity_command` `voice_start` | `entity_id`, `cmd_id: "voice_start"`, `params {session_id, timeout, speech_response, profile_id?, audio_cfg?}`. The UI picks `session_id`. The stock UI sends `timeout` 15 and `speech_response` always, `audio_cfg` only from the entity's options. The reply comes once the integration accepted; `ready` follows |
+| `execute_entity_command` `voice_end` | `entity_id`, `cmd_id: "voice_end"`, no `params`, as the stock UI sends it. The core ends the session it has running for that entity |
+| event `assistant_event` (`cat: ENTITY`) | `msg_data {type, entity_id, session_id, data?}`. `type`: `ready`, `stt_response` (`data.text`), `text_response` (`data.success`, `data.text`), `speech_response` (`data.url`, `data.mime_type`), `finished`, `error` (`data.code`, `data.message`). Codes: `SERVICE_UNAVAILABLE`, `INVALID_AUDIO`, `NO_TEXT_RECOGNIZED`, `INTENT_FAILED`, `TTS_FAILED`, `TIMEOUT`, `UNEXPECTED_ERROR` |
+
+`entity_id` is the core's id over all integrations (`<integration_id>.<entity_id>`), as `get_voice_assistants`
+returns it. A new session is subscribed to every channel, so `assistant_event` arrives without a `subscribe_events`
+naming the `assistant` channel; the client's `subscribe_events` sends no `channels` (the spec marks it required).
