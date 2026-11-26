@@ -1,0 +1,20 @@
+[package]
+name = "wsclient"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The WebSocket plumbing r3cui's driver crates share: a pinged connection, reconnect with backoff, pending calls."
+
+[dependencies]
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
+tracing.workspace = true
+thiserror = "2"
+
+[features]
+# A reusable in-process WebSocket server for faking a device in tests, and test helpers.
+testing = []
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
