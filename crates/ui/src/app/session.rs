@@ -10,6 +10,7 @@ use crate::AppWindow;
 use crate::app::global::{slide, Global};
 use crate::app::integrations::{Effect, Integrations};
 use crate::app::model::{InputEntry, Model};
+use crate::app::software::{self, Software};
 use crate::app::{Later, Settings, UiAction, settings};
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
 use crate::hardware::feedback;
@@ -22,6 +23,7 @@ use crate::view::library::Wall;
 use crate::view::screen::Screen;
 use crate::{Menu, MenuItem, PageId};
 use crate::{KbPurpose, Picker};
+use crate::view::software::show as show_software;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
 use drivers::api::{Health, Media, PairError, Pairer, Stage, Status, UiIntent, VolumeIntent};
@@ -53,6 +55,8 @@ pub(crate) struct Frontend {
     pairer: Option<Box<dyn Pairer>>,
     /// The artwork on show, so it is fetched once per item.
     poster_url: String,
+    /// r3cui's and the firmware's updates, and the web configurator.
+    software: Software,
 }
 
 impl Frontend {
@@ -74,14 +78,14 @@ impl Frontend {
             }
         };
         tracing::info!(drivers = ?modules.drivers.keys().collect::<Vec<_>>(), "modules from {}", store.path.display());
-        Self { host: Host::new(Registry::builtin(), modules), store: Some(store), global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new() }
+        Self { host: Host::new(Registry::builtin(), modules), store: Some(store), global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new(), software: Software::new(crate::remote::selfupdate::current_version(), software::random_pin) }
     }
 
     /// The demo's drivers, set up in memory. Within a tokio runtime.
     #[cfg(feature = "demo")]
     pub(crate) fn demo(weak: slint::Weak<AppWindow>) -> Self {
         let modules = drivers::demo::modules();
-        Self { host: Host::new(Registry::builtin(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new() }
+        Self { host: Host::new(Registry::builtin(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new(), software: Software::new(semver::Version::parse(drivers::demo::data::R3_RUNNING).expect("the demo's version is semver"), demo_pins()) }
     }
 
     /// Changes from the Integrations pages: saved, then applied.
@@ -101,6 +105,13 @@ impl Frontend {
     fn stage(&self) -> Stage {
         self.host.stage(self.current().as_ref())
     }
+}
+
+/// The made-up core's PINs, in turn.
+#[cfg(feature = "demo")]
+fn demo_pins() -> impl FnMut() -> String + Send + 'static {
+    let mut next = drivers::demo::data::WEB_PINS.iter().cycle();
+    move || next.next().map(|p| p.to_string()).unwrap_or_default()
 }
 
 /// `UC_DATA_HOME` on the remote (the only place it may write), seeded from the archive's `config/`; `./config` on
@@ -131,6 +142,7 @@ impl Session<'_> {
         self.front.wall.show(stage.library.as_ref());
         self.sync_poster(weak, stage.media.as_ref());
         show_settings(weak, self.front.settings.page(&self.front.host));
+        show_software(weak, self.front.software.view(Instant::now(), self.system.battery));
         render(weak, &m);
     }
 
@@ -308,6 +320,10 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
     let (core, events) = coreapi::connect(cfg).await?;
     let (system, wifi) = tokio::join!(System::load(&core), Wifi::load(&core));
     load_settings(weak, &core).await;
+    if let Err(e) = core.announce_ui(&crate::remote::selfupdate::current_version().to_string()).await {
+        tracing::warn!("telling the core which UI this is: {e}");
+    }
+    crate::remote::software::finish_pending_revoke(&core).await;
     // Presses made while offline would otherwise fire in a burst on reconnect.
     while actions.try_recv().is_ok() {}
     serve(weak, actions, front, Link::Core(core), events, system, wifi).await
@@ -329,6 +345,7 @@ pub(crate) async fn serve(
 
     let overlay = Arc::new(AtomicU64::new(0));
     let (later_tx, mut later_rx) = mpsc::unbounded_channel::<Later>();
+    software::run(session.front.software.on_connect(Instant::now()), &link, &later_tx, weak);
     let keys = link.backlight();
     let refresh_wifi = |delay: Duration| {
         let (link, tx) = (link.clone(), later_tx.clone());
@@ -363,6 +380,7 @@ pub(crate) async fn serve(
                 if session.wifi.join_timed_out() {
                     let _ = later_tx.send(Later::JoinDone(false));
                 }
+                software::run(session.front.software.tick(Instant::now()), &link, &later_tx, weak);
                 session.show(weak);
             }
             Ok(()) = changes.changed() => {
@@ -399,6 +417,7 @@ pub(crate) async fn serve(
                         let effect = front.settings.pair_checked(checked, &front.host);
                         session.run(weak, effect, &later_tx);
                     }
+                    Later::Software(event) => software::run(session.front.software.on_event(event, Instant::now()), &link, &later_tx, weak),
                     Later::SendVolume => {
                         let send = volume_gate.due(Instant::now());
                         pace(&mut volume_gate, send, &session.front.host);
@@ -439,6 +458,11 @@ pub(crate) async fn serve(
                         if response.refresh {
                             refresh_wifi(Duration::ZERO);
                         }
+                    }
+                    CoreEvent::SoftwareUpdate(update) => {
+                        let commands = session.front.software.on_event(software::Event::FirmwareUpdate(update), Instant::now());
+                        software::run(commands, &link, &later_tx, weak);
+                        session.show(weak);
                     }
                     CoreEvent::Other => {}
                 }
@@ -526,6 +550,7 @@ pub(crate) async fn serve(
                         }
                     }
                     UiAction::Integrations(action) => session.settings(weak, action, &later_tx),
+                    UiAction::Software(action) => software::run(front.software.act(action, Instant::now()), &link, &later_tx, weak),
                     #[cfg(feature = "demo")]
                     UiAction::DemoKey(key) => crate::app::demo::toggle(key, &mut session.system, &mut session.links_down),
                     #[cfg(not(feature = "demo"))]

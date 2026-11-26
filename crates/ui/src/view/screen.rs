@@ -33,10 +33,17 @@ pub(crate) fn page_name(page: PageId) -> &'static str {
         PageId::Tracks => "tracks",
         PageId::FeedbackLab => "feedback-lab",
         PageId::Integrations => "integrations",
+        PageId::System => "system",
+        PageId::R3Update => "r3-update",
+        PageId::R3Installing => "r3-installing",
+        PageId::Uninstall => "uninstall",
+        PageId::FwUpdate => "fw-update",
+        PageId::FwInstalling => "fw-installing",
+        PageId::WebConfig => "web-config",
     }
 }
 
-const PAGES: [PageId; 12] = [
+const PAGES: [PageId; 19] = [
     PageId::Home,
     PageId::Inputs,
     PageId::Menu,
@@ -49,6 +56,13 @@ const PAGES: [PageId; 12] = [
     PageId::Tracks,
     PageId::FeedbackLab,
     PageId::Integrations,
+    PageId::System,
+    PageId::R3Update,
+    PageId::R3Installing,
+    PageId::Uninstall,
+    PageId::FwUpdate,
+    PageId::FwInstalling,
+    PageId::WebConfig,
 ];
 
 pub(crate) fn page_by_name(name: &str) -> Option<PageId> {

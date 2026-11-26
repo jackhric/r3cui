@@ -5,7 +5,9 @@ pub(crate) mod idle;
 pub(crate) mod keyboard;
 pub(crate) mod lava;
 pub(crate) mod library;
+pub(crate) mod qr;
 pub(crate) mod screen;
+pub(crate) mod software;
 pub(crate) mod stage;
 
 use crate::Nav;

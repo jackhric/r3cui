@@ -21,7 +21,12 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
-ureq = { version = "2", default-features = false }
+# `tls`: the release check and download go to GitHub over https.
+ureq = { version = "2", default-features = false, features = ["tls"] }
+base64 = "0.22"
+qrcode = { version = "0.14", default-features = false }
+semver = "1"
+sha2 = "0.10"
 
 # `desktop` (default) runs in a window on the workstation. `device` renders straight to the
 # remote's display through KMS; libinput is left out because the device has none, and

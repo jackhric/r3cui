@@ -38,6 +38,8 @@ export global Icons {
     out property <string> delete: "M9 6h11v12H9l-5-6zM12.5 9.5l4 5M16.5 9.5l-4 5";
     out property <string> lock: "M7 11h10a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2zM8 11V8a4 4 0 0 1 8 0v3";
     out property <string> power: "M12 3v9M6.3 6.6a8 8 0 1 0 11.4 0";
+    out property <string> trash: "M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3";
+    out property <string> arrow: "M5 12h14M13 6l6 6-6 6";
     out property <string> muted: "M4 9.5h3.5L12 6v12l-4.5-3.5H4zM16 9.5l5 5M21 9.5l-5 5";
     // Circular arrows for the 10-second skips; the number is drawn inside separately.
     out property <string> skip-back: "M12 3.5a8.5 8.5 0 1 1-8.5 8.5M12 3.5l3-2.6M12 3.5l3 2.6";
@@ -383,7 +385,24 @@ export component ChoiceList inherits Rectangle {
                 border-color: Theme.bg;
                 background: row.dot == Dot.up ? Theme.good : row.dot == Dot.down ? Theme.off : row.dot == Dot.changed ? Theme.accent : Theme.t3;
             }
-            Text {
+            if row.tag != "": Rectangle {
+                x: parent.lead + min(label-text.preferred-width, label-text.width) * parent.lift + 14px;
+                y: (parent.height - self.height) / 2;
+                height: 26px;
+                width: tag-text.preferred-width + 16px;
+                border-radius: 13px;
+                border-width: 1px;
+                border-color: Theme.accent;
+                tag-text := Text {
+                    text: row.tag;
+                    font-size: 13px;
+                    letter-spacing: 0.8px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    color: Theme.accent;
+                }
+            }
+            label-text := Text {
                 x: parent.lead;
                 y: row.detail == "" ? (parent.height - self.height) / 2 : parent.height / 2 - 30px;
                 width: parent.edge - parent.lead - (row.value == "" ? 0px : value-text.width + 20px);

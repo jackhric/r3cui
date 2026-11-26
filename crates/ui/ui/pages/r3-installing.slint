@@ -1,0 +1,67 @@
+import { Layer, Theme } from "../theme.slint";
+import { Software } from "../globals/software.slint";
+import { InstallPhase, PageId } from "../types.slint";
+import { R3Wordmark } from "../widgets/brand.slint";
+import { Ring } from "../widgets/ring.slint";
+import { StepsLine } from "../widgets/steps-line.slint";
+
+export component R3InstallingPage inherits Layer {
+    page: PageId.r3-installing;
+    // Nothing behind this page may be touched while it works.
+    TouchArea { mouse-cursor: Theme.cursor; }
+
+    Ring {
+        x: 130px;
+        y: 172px;
+        width: 220px;
+        height: 220px;
+        inset: 8px;
+        stroke: 6px;
+        tint: Theme.text;
+        progress: Software.r3-percent / 100;
+    }
+    R3Wordmark {
+        x: (480px - self.width) / 2;
+        y: 282px - self.height / 2;
+        wide: 136px;
+    }
+    Text {
+        y: 432px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Software.r3-phase == InstallPhase.download ? "DOWNLOADING" : Software.r3-phase == InstallPhase.restart ? "RESTARTING" : "INSTALLING";
+        font-size: 16px;
+        letter-spacing: 2px;
+        color: Theme.t2;
+    }
+    Text {
+        y: 458px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Software.r3-new-version;
+        font-size: 56px;
+        font-weight: 200;
+        color: Theme.text;
+    }
+    Text {
+        y: 528px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Software.r3-percent + "%";
+        font-size: 20px;
+        color: Theme.t2;
+    }
+    StepsLine {
+        y: 590px;
+        names: ["Download", "Install", "Restart r3cui"];
+        current: Software.r3-phase == InstallPhase.download ? 0 : Software.r3-phase == InstallPhase.install ? 1 : 2;
+    }
+    Text {
+        y: 722px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: "The screen goes dark for a moment.";
+        font-size: 18px;
+        color: Theme.t2;
+    }
+}

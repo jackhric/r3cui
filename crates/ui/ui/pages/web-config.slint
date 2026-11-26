@@ -1,0 +1,89 @@
+import { Layer, PageHeader, Theme } from "../theme.slint";
+import { Nav } from "../globals/nav.slint";
+import { Software } from "../globals/software.slint";
+import { PageId } from "../types.slint";
+import { UcMark } from "../widgets/brand.slint";
+import { SysRow } from "../widgets/sys-row.slint";
+
+export component WebConfigPage inherits Layer {
+    page: PageId.web-config;
+
+    PageHeader {
+        title: "Web configurator";
+        back => { Nav.back(); }
+    }
+    UcMark {
+        x: 480px - 40px - self.width;
+        y: 64px + (104px - self.height) / 2;
+        wide: 36px;
+    }
+    Text {
+        y: 190px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: "PIN";
+        font-size: 14px;
+        letter-spacing: 2px;
+        color: Theme.t2;
+    }
+    HorizontalLayout {
+        x: 78px;
+        y: 214px;
+        width: 324px;
+        height: 88px;
+        spacing: 12px;
+        for n in 4: Rectangle {
+            width: 72px;
+            border-radius: 14px;
+            border-width: 1px;
+            border-color: Theme.track;
+            Text {
+                text: Software.web-pin.length > n ? Software.web-pin[n] : "";
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                font-size: 52px;
+                font-weight: 300;
+                color: Theme.text;
+            }
+        }
+    }
+    Image {
+        x: (480px - self.width) / 2;
+        y: 332px + (176px - self.height) / 2;
+        width: self.source.width * 1px;
+        height: self.source.height * 1px;
+        source: Software.web-qr;
+        image-rendering: pixelated;
+    }
+    Text {
+        y: 524px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Software.web-address;
+        font-size: 20px;
+        color: Theme.text-dim;
+    }
+    Text {
+        y: 556px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: "Same Wi-Fi as the remote · user web-configurator";
+        font-size: 16px;
+        color: Theme.t3;
+    }
+    SysRow {
+        y: 616px;
+        height: 72px;
+        top-line: true;
+        label: "New PIN";
+        focused: Nav.focus == 0;
+        tapped => { Nav.activate(0); }
+    }
+    SysRow {
+        y: 688px;
+        height: 72px;
+        label: "Turn off";
+        focused: Nav.focus == 1;
+        tapped => { Nav.activate(1); }
+    }
+}

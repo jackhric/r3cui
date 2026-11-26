@@ -3,5 +3,7 @@
 
 pub(crate) mod health;
 pub(crate) mod link;
+pub(crate) mod selfupdate;
+pub(crate) mod software;
 pub(crate) mod system;
 pub(crate) mod wifi;

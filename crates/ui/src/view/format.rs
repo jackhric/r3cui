@@ -10,6 +10,31 @@ pub(crate) fn band_label(band: &str) -> Option<&'static str> {
         _ => None,
     }
 }
+/// 90 s → "1 min ago": how long since something happened, as coarsely as a glance needs.
+pub(crate) fn ago(since: std::time::Duration) -> String {
+    let secs = since.as_secs();
+    match secs {
+        0..=59 => "just now".into(),
+        60..=3599 => format!("{} min ago", secs / 60),
+        3600..=86399 => format!("{} h ago", secs / 3600),
+        _ => format!("{} d ago", secs / 86400),
+    }
+}
+/// "2026-11-20T09:00:00Z" → "Nov 20, 2026"; nothing for a date it cannot read.
+pub(crate) fn release_date(stamp: &str) -> Option<String> {
+    let day = chrono::NaiveDate::parse_from_str(stamp.get(..10)?, "%Y-%m-%d").ok()?;
+    Some(day.format("%b %-d, %Y").to_string())
+}
+/// 6_800_000 → "6.8 MB", 118_000_000 → "118 MB": decimal units, as the download page counts.
+pub(crate) fn size_label(bytes: u64) -> String {
+    let mb = bytes as f64 / 1e6;
+    match bytes {
+        0..=999_999 => format!("{} kB", bytes / 1000),
+        1_000_000..=99_999_999 => format!("{mb:.1} MB"),
+        100_000_000..=999_999_999 => format!("{mb:.0} MB"),
+        _ => format!("{:.1} GB", mb / 1000.0),
+    }
+}
 pub(crate) fn duration_label(secs: i64) -> String {
     if secs >= 60 && secs % 60 == 0 {
         format!("{} min", secs / 60)
@@ -139,6 +164,19 @@ pub(crate) fn input_logo(logos: &Logos, name: &str) -> SharedString {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_facts() {
+        use std::time::Duration;
+        assert_eq!(ago(Duration::from_secs(20)), "just now");
+        assert_eq!(ago(Duration::from_secs(150)), "2 min ago");
+        assert_eq!(ago(Duration::from_secs(7300)), "2 h ago");
+        assert_eq!(ago(Duration::from_secs(3 * 86400)), "3 d ago");
+        assert_eq!(release_date("2026-11-20T09:00:00Z").as_deref(), Some("Nov 20, 2026"));
+        assert_eq!(release_date("2026-11-05").as_deref(), Some("Nov 5, 2026"));
+        assert_eq!(release_date("soon"), None);
+        assert_eq!([size_label(900_000), size_label(6_800_000), size_label(118_000_000), size_label(1_500_000_000)], ["900 kB", "6.8 MB", "118 MB", "1.5 GB"]);
+    }
 
     #[test]
     fn formats() {

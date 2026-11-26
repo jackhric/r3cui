@@ -4,6 +4,7 @@ import { Fx } from "../globals/fx.slint";
 import { Nav } from "../globals/nav.slint";
 import { KeyChars } from "../keys.slint";
 import { Glyph, Icons, Logo, Theme } from "../theme.slint";
+import { Ring } from "../widgets/ring.slint";
 
 enum HoldKind {
     home,
@@ -36,7 +37,6 @@ export component HoldOverlay inherits Rectangle {
         : root.home-holding ? clamp((animation-tick() - root.home-hold-start) / 490ms, 0, 1)
         : 0;
     property <float> hold-progress: root.hold-linear * root.hold-linear * (3 - 2 * root.hold-linear);
-    property <float> ring: min(root.hold-progress, 0.9999);
     property <color> ring-tint: root.hold-look == HoldKind.power ? root.power-tint : Theme.accent;
 
     public function press-power() {
@@ -121,31 +121,14 @@ export component HoldOverlay inherits Rectangle {
         triggered => { root.power-latched = false; }
     }
 
-    Path {
+    Ring {
         x: 120px;
         y: 280px;
         width: 240px;
         height: 240px;
-        viewbox-width: 24;
-        viewbox-height: 24;
-        commands: "M12 1.5A10.5 10.5 0 1 1 11.999 1.5";
-        fill: transparent;
-        stroke: Theme.track;
-        stroke-width: 10px;
-    }
-    Path {
-        x: 120px;
-        y: 280px;
-        width: 240px;
-        height: 240px;
-        viewbox-width: 24;
-        viewbox-height: 24;
-        commands: "M12 1.5A10.5 10.5 0 " + (root.ring > 0.5 ? "1" : "0") + " 1 " + (12 + 10.5 * sin(root.ring * 360deg)) + " " + (12 - 10.5 * cos(root.ring * 360deg));
-        fill: transparent;
-        stroke: root.ring-tint;
-        stroke-width: 10px;
-        stroke-line-cap: round;
-        opacity: root.hold-progress > 0.001 ? 1 : 0;
+        inset: 15px;
+        progress: root.hold-progress;
+        tint: root.ring-tint;
     }
     if root.hold-look == HoldKind.home: Logo {
         y: 330px;

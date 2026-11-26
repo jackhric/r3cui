@@ -10,7 +10,8 @@
 //! tap Done          # one keyboard key, by its label
 //! type-file code.txt  # the file's text, read when this step comes: a code that exists only once the app is running
 //! page menu        # open a page by name (home inputs menu display power wifi keyboard status join-failed tracks
-//!                   # feedback-lab integrations), as a tap on its button would
+//!                   # feedback-lab integrations system r3-update r3-installing uninstall fw-update fw-installing
+//!                   # web-config), as a tap on its button would
 //! snap inputs       # <out>/inputs.png (not when filming)
 //! awake             # put away the charger card the simulator always shows
 //! quit

@@ -11,6 +11,7 @@ import { Home } from "globals/home.slint";
 import { Kb } from "globals/kb.slint";
 import { Nav } from "globals/nav.slint";
 import { Prefs } from "globals/prefs.slint";
+import { Software } from "globals/software.slint";
 import { Sys } from "globals/sys.slint";
 import { Wifi } from "globals/wifi.slint";
 import { ChargeCard } from "overlays/charge-card.slint";
@@ -18,6 +19,8 @@ import { HoldOverlay } from "overlays/hold.slint";
 import { NavBar } from "overlays/navbar.slint";
 import { VolumeOverlay } from "overlays/volume.slint";
 import { DisplayPage } from "pages/display.slint";
+import { FwInstallingPage } from "pages/fw-installing.slint";
+import { FwUpdatePage } from "pages/fw-update.slint";
 import { InputsPage } from "pages/inputs.slint";
 import { IntegrationsPage } from "pages/integrations.slint";
 import { JoinFailedPage } from "pages/join-failed.slint";
@@ -25,8 +28,13 @@ import { KeyboardPage } from "pages/keyboard.slint";
 import { LabPage } from "pages/lab.slint";
 import { MenuPage } from "pages/menu.slint";
 import { PowerPage } from "pages/power.slint";
+import { R3InstallingPage } from "pages/r3-installing.slint";
+import { R3UpdatePage } from "pages/r3-update.slint";
 import { StatusPage } from "pages/status.slint";
+import { SystemPage } from "pages/system.slint";
 import { TracksPage } from "pages/tracks.slint";
+import { UninstallPage } from "pages/uninstall.slint";
+import { WebConfigPage } from "pages/web-config.slint";
 import { WifiPage } from "pages/wifi.slint";
 import { Stage } from "stage/stage.slint";
 
@@ -48,6 +56,7 @@ export { Nav } from "globals/nav.slint";
 export { Playback } from "globals/playback.slint";
 export { Power } from "globals/power.slint";
 export { Prefs } from "globals/prefs.slint";
+export { Software } from "globals/software.slint";
 export { Sys } from "globals/sys.slint";
 export { Tracks } from "globals/tracks.slint";
 export { Wifi } from "globals/wifi.slint";
@@ -90,6 +99,10 @@ export component AppWindow inherits Window {
                 Sys.charge-card = false;
                 return accept;
             }
+            // While software installs, the remote has no buttons.
+            if (Software.blocking) {
+                return accept;
+            }
             if (event.text.to-lowercase() == KeyChars.power) {
                 if (!event.repeat) {
                     hold.press-power();
@@ -124,6 +137,12 @@ export component AppWindow inherits Window {
                     } else if (event.text == Key.Backspace || event.text == Key.Escape) {
                         Kb.nav(NavKey.back);
                     }
+                }
+                return accept;
+            }
+            if (Nav.page == PageId.uninstall && event.text == Key.Return) {
+                if (!event.repeat) {
+                    uninstall.press();
                 }
                 return accept;
             }
@@ -164,6 +183,9 @@ export component AppWindow inherits Window {
         }
 
         key-released(event) => {
+            if (event.text == Key.Return) {
+                uninstall.release();
+            }
             if (event.text.to-lowercase() == KeyChars.home) {
                 hold.release-home();
             }
@@ -206,6 +228,13 @@ export component AppWindow inherits Window {
                 KeyboardPage { }
                 StatusPage { }
                 IntegrationsPage { }
+                SystemPage { }
+                R3UpdatePage { }
+                R3InstallingPage { }
+                uninstall := UninstallPage { }
+                FwUpdatePage { }
+                FwInstallingPage { }
+                WebConfigPage { }
                 LabPage { }
                 JoinFailedPage { }
                 TracksPage { }

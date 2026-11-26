@@ -1,0 +1,28 @@
+import { Brand } from "../brand.slint";
+import { Theme } from "../theme.slint";
+
+export component R3Wordmark inherits Path {
+    in property <color> tint: Theme.text;
+    in property <length> wide: 136px;
+    width: self.wide;
+    height: self.wide * 11.46385 / 32.495018;
+    viewbox-x: 72.428951;
+    viewbox-y: 124.36614;
+    viewbox-width: 32.495018;
+    viewbox-height: 11.46385;
+    commands: Brand.r3cui;
+    fill: self.tint;
+    stroke: transparent;
+}
+
+export component UcMark inherits Path {
+    in property <color> tint: Theme.text;
+    in property <length> wide: 36px;
+    width: self.wide;
+    height: self.wide * 30 / 45;
+    viewbox-width: 45;
+    viewbox-height: 30;
+    commands: Brand.unfolded-circle;
+    fill: self.tint;
+    stroke: transparent;
+}

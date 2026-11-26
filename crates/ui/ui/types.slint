@@ -14,6 +14,7 @@ export enum MenuItem {
     sound,
     power,
     status,
+    system,
     lab,
 }
 
@@ -32,6 +33,37 @@ export enum PageId {
     tracks,
     feedback-lab,
     integrations,
+    // r3cui and the remote's software: the System page and what opens from it.
+    system,
+    r3-update,
+    r3-installing,
+    uninstall,
+    fw-update,
+    fw-installing,
+    web-config,
+}
+
+// What a check for a software update has found so far.
+export enum UpdateState {
+    unchecked,
+    checking,
+    current,
+    available,
+    failed,
+}
+
+// How far an update has got: fetching it, putting it on the remote, the remote restarting into it.
+export enum InstallPhase {
+    idle,
+    download,
+    install,
+    restart,
+}
+
+export enum UninstallState {
+    idle,
+    working,
+    failed,
 }
 
 // Where Back leads: a page and the row to focus there.
@@ -189,6 +221,8 @@ export struct Choice {
     chevron: bool,
     // A status dot before the label.
     dot: Dot,
+    // A small outlined label after the label, such as NEW.
+    tag: string,
     // Wi-Fi strength, 1 to 4; 0 for none.
     bars: int,
     locked: bool,

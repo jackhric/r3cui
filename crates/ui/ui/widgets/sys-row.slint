@@ -1,0 +1,104 @@
+import { Glyph, Icons, Theme } from "../theme.slint";
+import { UcMark } from "brand.slint";
+
+// A row of the System and update pages: a label, what it is now, and where it leads.
+export component SysRow inherits Rectangle {
+    in property <string> label;
+    in property <string> detail;
+    in property <string> value;
+    in property <bool> focused;
+    in property <bool> chevron;
+    // The Unfolded Circle mark before the label: this row is the remote's, not r3cui's.
+    in property <bool> remote-mark;
+    // A stroked glyph before the label.
+    in property <string> glyph;
+    in property <color> glyph-tint: Theme.t2;
+    in property <color> label-tint: Theme.text-dim;
+    in property <color> focused-tint: Theme.text;
+    in property <length> label-size: 24px;
+    in property <bool> top-line;
+    callback tapped();
+
+    x: 0;
+    width: 480px;
+    height: 76px;
+    property <length> lead: root.remote-mark ? 81px : root.glyph != "" ? 80px : 40px;
+    property <float> lift: root.focused || ta.has-hover ? 1.035 : 1;
+    animate lift { duration: 180ms; easing: ease-out; }
+
+    if root.top-line: Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.hair;
+    }
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.hair;
+    }
+    Rectangle {
+        x: 0;
+        y: (parent.height - self.height) / 2;
+        width: 4px;
+        height: 40px;
+        border-radius: 2px;
+        background: Theme.accent;
+        opacity: root.focused ? 1 : 0;
+        animate opacity { duration: 140ms; }
+    }
+    if root.remote-mark: UcMark {
+        x: 40px;
+        y: (parent.height - self.height) / 2;
+        wide: 27px;
+        tint: root.focused ? Theme.text : Theme.text-dim;
+    }
+    if root.glyph != "": Glyph {
+        x: 40px;
+        y: (parent.height - self.height) / 2;
+        commands: root.glyph;
+        tint: root.glyph-tint;
+    }
+    Text {
+        x: root.lead;
+        y: root.detail == "" ? (parent.height - self.height) / 2 : parent.height / 2 - 28px;
+        width: 360px - root.lead;
+        overflow: elide;
+        text: root.label;
+        transform-origin: { x: 0, y: self.height / 2 };
+        transform-scale: root.lift;
+        font-size: root.label-size;
+        font-weight: root.focused ? 500 : 400;
+        color: root.focused ? root.focused-tint : root.label-tint;
+        animate color { duration: 140ms; }
+    }
+    if root.detail != "": Text {
+        x: root.lead;
+        y: parent.height / 2 + 4px;
+        width: 410px - root.lead;
+        overflow: elide;
+        text: root.detail;
+        font-size: 16px;
+        color: Theme.t2;
+    }
+    Text {
+        x: 0;
+        y: (parent.height - self.height) / 2;
+        width: root.chevron ? 402px : 440px;
+        horizontal-alignment: right;
+        text: root.value;
+        font-size: 20px;
+        font-weight: 300;
+        color: Theme.t2;
+    }
+    if root.chevron: Glyph {
+        x: 416px;
+        y: (parent.height - self.height) / 2;
+        size: 20px;
+        commands: Icons.right;
+        tint: Theme.t3;
+    }
+    ta := TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { root.tapped(); }
+    }
+}

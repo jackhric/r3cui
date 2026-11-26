@@ -1,0 +1,34 @@
+import { Glyph, Icons, Theme } from "../theme.slint";
+
+// `from → to`, the new version large and light, the old one small beside it on the same baseline.
+export component Upgrade inherits Rectangle {
+    in property <string> from;
+    in property <string> to;
+
+    width: 480px;
+    height: 66px;
+    property <length> total: old.preferred-width + 54px + new.preferred-width;
+    property <length> left: (root.width - root.total) / 2;
+
+    old := Text {
+        x: root.left;
+        y: 0.8 * (new.preferred-height - self.preferred-height);
+        text: root.from;
+        font-size: 32px;
+        font-weight: 300;
+        color: Theme.t2;
+    }
+    Glyph {
+        x: root.left + old.preferred-width + 16px;
+        y: 0.8 * new.preferred-height - 25px;
+        size: 22px;
+        commands: Icons.arrow;
+    }
+    new := Text {
+        x: root.left + old.preferred-width + 54px;
+        text: root.to;
+        font-size: 56px;
+        font-weight: 200;
+        color: Theme.text;
+    }
+}

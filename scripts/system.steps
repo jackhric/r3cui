@@ -1,0 +1,68 @@
+# The System pages in the demo: Menu → System → Update r3cui → installing → back → Firmware → installing → Web
+# configurator → Uninstall. Waits are long enough to see each page change and the made-up installs advance.
+#   cargo run -p remote-ui -- --demo --steps scripts/system.steps --out <dir>
+#   cargo run -p remote-ui -- --record <dir>/system.mp4 --frame docs/design/device/remote3.png --script steps:scripts/system.steps
+awake
+wait 1500
+page menu
+wait 1200
+snap 00-menu
+key down
+key down
+key down
+key down
+key down
+key down
+wait 800
+snap 01-menu-system
+key ok
+wait 1500
+snap 02-system
+key ok
+wait 1200
+snap 03-r3-update
+wait 800
+key ok
+wait 3000
+snap 04-r3-downloading
+wait 3500
+snap 05-r3-installing
+wait 6000
+snap 06-r3-update-after
+key down
+key ok
+wait 900
+key down
+key ok
+wait 1200
+snap 07-fw-update
+key ok
+wait 3500
+snap 08-fw-downloading
+wait 5000
+snap 09-fw-installing
+wait 6500
+snap 10-fw-up-to-date
+key back
+wait 900
+key down
+key ok
+wait 1500
+snap 11-web-config
+key ok
+wait 1200
+snap 12-web-new-pin
+key back
+wait 900
+key down
+key down
+key ok
+wait 1200
+snap 13-uninstall
+press ok
+wait 1100
+snap 14-uninstall-hold
+release ok
+wait 900
+snap 15-uninstall-cancelled
+quit

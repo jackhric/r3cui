@@ -1,0 +1,78 @@
+import { Layer, Theme } from "../theme.slint";
+import { Software } from "../globals/software.slint";
+import { InstallPhase, PageId } from "../types.slint";
+import { UcMark } from "../widgets/brand.slint";
+import { StepsLine } from "../widgets/steps-line.slint";
+
+export component FwInstallingPage inherits Layer {
+    page: PageId.fw-installing;
+    TouchArea { mouse-cursor: Theme.cursor; }
+
+    UcMark {
+        x: (480px - self.width) / 2;
+        y: 176px;
+        wide: 150px;
+    }
+    Text {
+        y: 322px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Software.fw-phase == InstallPhase.download ? "DOWNLOADING" : Software.fw-phase == InstallPhase.restart ? "RESTARTING" : "INSTALLING";
+        font-size: 16px;
+        letter-spacing: 2px;
+        color: Theme.t2;
+    }
+    Text {
+        y: 348px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Software.fw-new-version;
+        font-size: 56px;
+        font-weight: 200;
+        color: Theme.text;
+    }
+    Rectangle {
+        x: 80px;
+        y: 438px;
+        width: 320px;
+        height: 10px;
+        border-radius: 5px;
+        background: Theme.track;
+        Rectangle {
+            x: 0;
+            width: max(10px, parent.width * Software.fw-percent / 100);
+            border-radius: 5px;
+            background: Theme.text;
+            animate width { duration: 300ms; easing: ease-out; }
+        }
+    }
+    Text {
+        y: 462px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Software.fw-step-line;
+        font-size: 20px;
+        color: Theme.t2;
+    }
+    StepsLine {
+        y: 520px;
+        names: ["Download", "Install", "Restart"];
+        current: Software.fw-phase == InstallPhase.download ? 0 : Software.fw-phase == InstallPhase.install ? 1 : 2;
+    }
+    Text {
+        y: 690px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: "Keep the remote docked until it restarts.";
+        font-size: 18px;
+        color: Theme.t2;
+    }
+    Text {
+        y: 722px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: "Buttons are off while it installs.";
+        font-size: 16px;
+        color: Theme.t3;
+    }
+}

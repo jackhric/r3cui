@@ -135,6 +135,23 @@ fn main() -> anyhow::Result<()> {
         let tx = act_tx.clone();
         app.global::<Cfg>().on_back(move || drop(tx.send(UiAction::Integrations(Settings::Back))));
     }
+    {
+        use crate::app::software::Action;
+        let software = app.global::<Software>();
+        let act = |action: fn() -> Action| {
+            let tx = act_tx.clone();
+            move || drop(tx.send(UiAction::Software(action())))
+        };
+        software.on_opened(act(|| Action::Opened));
+        software.on_check_r3(act(|| Action::CheckR3));
+        software.on_install_r3(act(|| Action::InstallR3));
+        software.on_check_fw(act(|| Action::CheckFirmware));
+        software.on_install_fw(act(|| Action::InstallFirmware));
+        software.on_open_web(act(|| Action::OpenWeb));
+        software.on_new_pin(act(|| Action::NewPin));
+        software.on_web_off(act(|| Action::WebOff));
+        software.on_uninstall(act(|| Action::Uninstall));
+    }
     app.global::<Control>().on_power_action({
         let tx = act_tx.clone();
         move |action| drop(tx.send(UiAction::Power(action)))

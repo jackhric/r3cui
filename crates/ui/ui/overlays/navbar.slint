@@ -4,6 +4,7 @@ import { Fx } from "../globals/fx.slint";
 import { Home } from "../globals/home.slint";
 import { Logo, StatusBar, Theme } from "../theme.slint";
 import { Nav } from "../globals/nav.slint";
+import { Software } from "../globals/software.slint";
 import { Sys } from "../globals/sys.slint";
 
 export component NavBar inherits Rectangle {
@@ -28,7 +29,7 @@ export component NavBar inherits Rectangle {
         x: 190px;
         width: 100px;
         height: 64px;
-        enabled: self.shown && Nav.page != PageId.inputs;
+        enabled: self.shown && Nav.page != PageId.inputs && !Software.blocking;
         clicked => { Nav.go(PageId.inputs, Control.input-index); }
         Logo {
             size: 32px;

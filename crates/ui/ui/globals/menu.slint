@@ -1,5 +1,6 @@
 import { Choice, MenuItem } from "../types.slint";
 import { Prefs } from "prefs.slint";
+import { Software } from "software.slint";
 import { Wifi } from "wifi.slint";
 
 export global Menu {
@@ -11,7 +12,8 @@ export global Menu {
             : item == MenuItem.sound ? 3
             : item == MenuItem.power ? 4
             : item == MenuItem.status ? 5
-            : 6
+            : item == MenuItem.system ? 6
+            : 7
     }
     out property <[Choice]> rows: [
         { label: "Wi-Fi", value: Wifi.name, chevron: true },
@@ -20,6 +22,7 @@ export global Menu {
         { label: "Sound & haptics", value: Prefs.haptics, chevron: true },
         { label: "Power", chevron: true },
         { label: "Status", chevron: true },
+        { label: "System", value: "r3cui " + Software.r3-version, chevron: true, tag: Software.any-update ? "NEW" : "" },
         { label: "Feedback lab", chevron: true },
     ];
 }

@@ -9,6 +9,7 @@ pub(crate) mod model;
 pub(crate) mod optimistic;
 pub(crate) mod session;
 pub(crate) mod settings;
+pub(crate) mod software;
 
 use crate::hardware::backlight;
 use crate::input::{slider, Button};
@@ -38,6 +39,7 @@ pub(crate) enum UiAction {
     /// Settings → Integrations.
     Integrations(Settings),
     Display { brightness: i32, auto: bool },
+    Software(software::Action),
 }
 #[derive(Debug)]
 pub(crate) enum Settings {
@@ -60,4 +62,6 @@ pub(crate) enum Later {
     PairStarted(Result<Box<dyn drivers::api::Pairer>, drivers::api::PairError>),
     /// The pairing's verdict on a code, with the pairing handed back for another try.
     PairChecked(Result<drivers::api::Paired, drivers::api::PairError>, Box<dyn drivers::api::Pairer>),
+    /// What the System pages asked the remote or the net for.
+    Software(software::Event),
 }

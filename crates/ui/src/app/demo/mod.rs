@@ -1,6 +1,8 @@
 //! The demo: the real session, with the Demo driver (`drivers::demo`) in every slot and a made-up remote in place of
 //! the core, so there is nothing to connect to. The made-up data itself is `drivers::demo::data`.
 
+pub(crate) mod software;
+
 use crate::app::session::{serve, Frontend};
 use crate::app::{Later, UiAction};
 use crate::art::{backdrop_pixels, poster_pixels, vibrant};
@@ -35,9 +37,9 @@ pub(crate) fn apply_demo_settings(app: &AppWindow) {
     app.global::<Prefs>().set_sleep_after("3 min".into());
 }
 
-/// The made-up Wi-Fi.
+/// The made-up remote: its Wi-Fi, and the software it has updates waiting for.
 #[derive(Clone)]
-pub(crate) struct Net(Arc<Mutex<NetState>>);
+pub(crate) struct Remote(Arc<Mutex<NetState>>, software::Updates);
 
 struct NetState {
     ssid: String,
@@ -47,9 +49,13 @@ struct NetState {
     tried: String,
 }
 
-impl Net {
+impl Remote {
     fn new() -> Self {
-        Self(Arc::new(Mutex::new(NetState { ssid: WIFI_HOME.into(), band: WIFI_BAND.into(), tried: String::new() })))
+        Self(Arc::new(Mutex::new(NetState { ssid: WIFI_HOME.into(), band: WIFI_BAND.into(), tried: String::new() })), software::Updates::default())
+    }
+
+    pub(crate) fn updates(&self) -> &software::Updates {
+        &self.1
     }
 
     pub(crate) fn scan(&self) -> (String, Vec<Network>) {
@@ -91,7 +97,7 @@ pub(crate) fn toggle(key: char, system: &mut System, links_down: &mut bool) {
 
 /// The real session over the demo drivers and a made-up remote.
 pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceiver<UiAction>, front: &mut Frontend) {
-    let net = Net::new();
+    let net = Remote::new();
     let (ssid, networks) = net.scan();
     let wifi = Wifi::new(ssid, networks, WIFI_BAND.into());
     // The sender stays so the link never reports the core gone.

@@ -1,0 +1,35 @@
+import { Theme } from "../theme.slint";
+
+// A ring that fills clockwise from the top, on a track. Square: set `width` and `height` alike.
+export component Ring inherits Rectangle {
+    in property <float> progress;
+    in property <color> tint: Theme.accent;
+    in property <length> stroke: 10px;
+    // From the edge of the box to the middle of the stroke.
+    in property <length> inset: 12px;
+    property <float> r: 12 - 24 * root.inset / root.width;
+    property <float> done: min(clamp(root.progress, 0, 1), 0.9999);
+
+    Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M12 " + (12 - root.r) + "A" + root.r + " " + root.r + " 0 1 1 11.999 " + (12 - root.r);
+        fill: transparent;
+        stroke: Theme.track;
+        stroke-width: root.stroke;
+    }
+    Path {
+        width: parent.width;
+        height: parent.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M12 " + (12 - root.r) + "A" + root.r + " " + root.r + " 0 " + (root.done > 0.5 ? "1" : "0") + " 1 " + (12 + root.r * sin(root.done * 360deg)) + " " + (12 - root.r * cos(root.done * 360deg));
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.stroke;
+        stroke-line-cap: round;
+        opacity: root.done > 0.001 ? 1 : 0;
+    }
+}

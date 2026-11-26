@@ -21,6 +21,8 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use wsclient::{Connection, Pending};
 
+const SOCKET_URL_ENV: &str = "UC_SOCKET_URL";
+const DEFAULT_SOCKET_URL: &str = "ws://127.0.0.1:8080/ws";
 const AUTH_REQUEST_ID: u64 = 1;
 const SUBSCRIBE_REQUEST_ID: u64 = 100;
 const FIRST_REQUEST_ID: u64 = 101;
@@ -37,11 +39,15 @@ pub struct Config {
 }
 
 impl Config {
+    /// The core's WebSocket address, from `UC_SOCKET_URL`.
+    pub fn url_from_env() -> String {
+        std::env::var(SOCKET_URL_ENV).unwrap_or_else(|_| DEFAULT_SOCKET_URL.to_string())
+    }
+
     /// Read the launch env the firmware sets. On the desktop/simulator, `UC_TOKEN` can stand in for
     /// a token file path.
     pub fn from_env() -> Result<Self> {
-        let url =
-            std::env::var("UC_SOCKET_URL").unwrap_or_else(|_| "ws://127.0.0.1:8080/ws".to_string());
+        let url = Self::url_from_env();
         let basic_auth = std::env::var("UC_BASIC_AUTH").ok();
         let token = match std::env::var("UC_TOKEN_PATH") {
             Ok(path) => std::fs::read_to_string(&path)

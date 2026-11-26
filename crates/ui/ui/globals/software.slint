@@ -1,0 +1,68 @@
+import { InstallPhase, UninstallState, UpdateState } from "../types.slint";
+
+// The software on the remote: r3cui itself and the firmware under it, and the web configurator. Rust fills every `in`
+// property; the callbacks are what the System pages ask of it.
+export global Software {
+    // The System page's rows.
+    out property <int> action-row: 0;
+    out property <int> firmware-row: 1;
+    out property <int> web-row: 2;
+    out property <int> uninstall-row: 3;
+    out property <int> system-rows: 4;
+
+    in property <string> r3-version;
+    // Where the releases are read about, without the scheme.
+    in property <string> r3-repo;
+    in property <UpdateState> r3-state: UpdateState.unchecked;
+    // "Up to date · checked 2 min ago", or what went wrong.
+    in property <string> r3-status;
+    in property <string> r3-new-version;
+    // "Nov 20 · 6.4 MB"
+    in property <string> r3-release-line;
+    in property <image> r3-qr;
+    in property <InstallPhase> r3-phase: InstallPhase.idle;
+    in property <int> r3-percent;
+    in property <string> r3-error;
+
+    in property <UninstallState> uninstall-state: UninstallState.idle;
+    in property <string> uninstall-error;
+
+    in property <string> fw-installed;
+    in property <UpdateState> fw-state: UpdateState.unchecked;
+    in property <string> fw-status;
+    in property <string> fw-new-version;
+    in property <string> fw-release-line;
+    in property <string> fw-notes;
+    in property <string> fw-battery-line;
+    in property <bool> fw-battery-ok: true;
+    in property <string> fw-error;
+    in property <InstallPhase> fw-phase: InstallPhase.idle;
+    in property <int> fw-percent;
+    // "Step 2 of 4 · 62%"
+    in property <string> fw-step-line;
+
+    in property <bool> web-on;
+    // The PIN a digit at a time; empty while there is none to show.
+    in property <[string]> web-pin;
+    // The address as it is read out, without the scheme.
+    in property <string> web-address;
+    in property <image> web-qr;
+
+    // Something is under way that the remote must not be interrupted in.
+    out property <bool> blocking: root.r3-phase != InstallPhase.idle || root.fw-phase != InstallPhase.idle || root.uninstall-state == UninstallState.working;
+    out property <bool> any-update: root.r3-state == UpdateState.available || root.fw-state == UpdateState.available;
+
+    // The System page opened: look for updates if it has been a while, and read the web configurator's state.
+    callback opened();
+    // Look for an r3cui update now.
+    callback check-r3();
+    callback install-r3();
+    // Look for a firmware update now.
+    callback check-fw();
+    callback install-fw();
+    // The web configurator page opened: make sure it is on and has a PIN to show.
+    callback open-web();
+    callback new-pin();
+    callback web-off();
+    callback uninstall();
+}

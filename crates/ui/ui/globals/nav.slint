@@ -1,4 +1,4 @@
-import { Capture, Dest, Haptic, JoinState, KbPurpose, MenuItem, PageId, PowerAction } from "../types.slint";
+import { Capture, Dest, Haptic, JoinState, KbPurpose, MenuItem, PageId, PowerAction, UpdateState } from "../types.slint";
 import { Cfg } from "cfg.slint";
 import { Control } from "control.slint";
 import { Fx } from "fx.slint";
@@ -7,6 +7,7 @@ import { Lab } from "lab.slint";
 import { Menu } from "menu.slint";
 import { Power } from "power.slint";
 import { Prefs } from "prefs.slint";
+import { Software } from "software.slint";
 import { Tracks } from "tracks.slint";
 import { Wifi } from "wifi.slint";
 
@@ -19,7 +20,8 @@ export global Nav {
     pure public function depth-of(p: PageId) -> int {
         p == PageId.home || p == PageId.inputs || p == PageId.menu || p == PageId.tracks ? 1
             : p == PageId.keyboard ? 3
-            : p == PageId.join-failed ? 4
+            : p == PageId.join-failed || p == PageId.r3-installing || p == PageId.fw-installing ? 4
+            : p == PageId.r3-update || p == PageId.fw-update || p == PageId.web-config || p == PageId.uninstall ? 3
             : 2
     }
     pure public function shows-menu(p: PageId) -> bool {
@@ -54,6 +56,21 @@ export global Nav {
         if (p == PageId.status) {
             return { page: PageId.menu, focus: Menu.row(MenuItem.status) };
         }
+        if (p == PageId.system) {
+            return { page: PageId.menu, focus: Menu.row(MenuItem.system) };
+        }
+        if (p == PageId.r3-update || p == PageId.r3-installing) {
+            return { page: PageId.system, focus: Software.action-row };
+        }
+        if (p == PageId.fw-update || p == PageId.fw-installing) {
+            return { page: PageId.system, focus: Software.firmware-row };
+        }
+        if (p == PageId.web-config) {
+            return { page: PageId.system, focus: Software.web-row };
+        }
+        if (p == PageId.uninstall) {
+            return { page: PageId.system, focus: Software.uninstall-row };
+        }
         return { page: PageId.home, focus: 0 };
     }
 
@@ -72,7 +89,7 @@ export global Nav {
         } else if (Nav.page == PageId.keyboard || Nav.page == PageId.join-failed) {
             Wifi.join-state = JoinState.idle;
             Nav.go(PageId.wifi, 0);
-        } else {
+        } else if (!Software.blocking) {
             let to = Nav.back-to(Nav.page);
             Nav.go(to.page, to.focus);
         }
@@ -88,6 +105,9 @@ export global Nav {
             : Nav.page == PageId.join-failed ? Wifi.stay-row + 1
             : Nav.page == PageId.tracks ? Tracks.rows.length
             : Nav.page == PageId.feedback-lab ? Lab.rows.length
+            : Nav.page == PageId.system ? Software.system-rows
+            : Nav.page == PageId.fw-update && Software.fw-state == UpdateState.available ? 2
+            : Nav.page == PageId.r3-update || Nav.page == PageId.web-config ? 2
             : 1
     }
 
@@ -108,8 +128,28 @@ export global Nav {
             Nav.go(PageId.power, 0);
         } else if (i == Menu.row(MenuItem.status)) {
             Nav.go(PageId.status, 0);
+        } else if (i == Menu.row(MenuItem.system)) {
+            Software.opened();
+            Nav.go(PageId.system, 0);
         } else if (i == Menu.row(MenuItem.lab)) {
             Nav.go(PageId.feedback-lab, 0);
+        }
+    }
+
+    function activate-system(i: int) {
+        if (i == Software.action-row) {
+            if (Software.r3-state == UpdateState.available) {
+                Nav.go(PageId.r3-update, 0);
+            } else {
+                Software.check-r3();
+            }
+        } else if (i == Software.firmware-row) {
+            Nav.go(PageId.fw-update, 0);
+        } else if (i == Software.web-row) {
+            Software.open-web();
+            Nav.go(PageId.web-config, 0);
+        } else if (i == Software.uninstall-row) {
+            Nav.go(PageId.uninstall, 0);
         }
     }
 
@@ -159,6 +199,29 @@ export global Nav {
                 if (i == Prefs.auto-row) {
                     Prefs.auto-brightness = !Prefs.auto-brightness;
                     Prefs.changed();
+                }
+            } else if (Nav.page == PageId.system) {
+                Nav.activate-system(i);
+            } else if (Nav.page == PageId.r3-update) {
+                if (i == 0) {
+                    Software.install-r3();
+                } else {
+                    Nav.back();
+                }
+            } else if (Nav.page == PageId.fw-update) {
+                if (Software.fw-state != UpdateState.available) {
+                    Software.check-fw();
+                } else if (i == 0) {
+                    Software.install-fw();
+                } else {
+                    Nav.back();
+                }
+            } else if (Nav.page == PageId.web-config) {
+                if (i == 0) {
+                    Software.new-pin();
+                } else {
+                    Software.web-off();
+                    Nav.back();
                 }
             } else if (Nav.page == PageId.wifi) {
                 Nav.activate-wifi(i);

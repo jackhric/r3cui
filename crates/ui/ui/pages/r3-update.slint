@@ -1,0 +1,90 @@
+import { Layer, PageHeader, Theme } from "../theme.slint";
+import { Nav } from "../globals/nav.slint";
+import { Software } from "../globals/software.slint";
+import { PageId } from "../types.slint";
+import { R3Wordmark } from "../widgets/brand.slint";
+import { SysRow } from "../widgets/sys-row.slint";
+import { Upgrade } from "../widgets/upgrade.slint";
+
+export component R3UpdatePage inherits Layer {
+    page: PageId.r3-update;
+
+    PageHeader {
+        title: "Update r3cui";
+        back => { Nav.back(); }
+    }
+    R3Wordmark {
+        x: (480px - self.width) / 2;
+        y: 192px;
+        wide: 136px;
+    }
+    Upgrade {
+        y: 252px;
+        from: Software.r3-version;
+        to: Software.r3-new-version;
+    }
+    Text {
+        y: 322px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Software.r3-release-line;
+        font-size: 18px;
+        color: Theme.t2;
+    }
+    Image {
+        x: 40px + (168px - self.width) / 2;
+        y: 372px + (168px - self.height) / 2;
+        width: self.source.width * 1px;
+        height: self.source.height * 1px;
+        source: Software.r3-qr;
+        image-rendering: pixelated;
+    }
+    VerticalLayout {
+        x: 232px;
+        y: 372px;
+        width: 208px;
+        height: 168px;
+        alignment: center;
+        spacing: 8px;
+        Text {
+            text: "WHAT’S NEW";
+            font-size: 14px;
+            letter-spacing: 2px;
+            color: Theme.t2;
+        }
+        Text {
+            text: "Scan for the release notes";
+            wrap: word-wrap;
+            font-size: 20px;
+            color: Theme.text-dim;
+        }
+        Text {
+            text: Software.r3-repo;
+            font-size: 16px;
+            color: Theme.t3;
+            overflow: elide;
+        }
+    }
+    if Software.r3-error != "": Text {
+        x: 40px;
+        y: 550px;
+        width: 400px;
+        wrap: word-wrap;
+        text: Software.r3-error;
+        font-size: 17px;
+        color: Theme.off;
+    }
+    SysRow {
+        y: 608px;
+        top-line: true;
+        label: "Install update";
+        focused: Nav.focus == 0;
+        tapped => { Nav.activate(0); }
+    }
+    SysRow {
+        y: 684px;
+        label: "Not now";
+        focused: Nav.focus == 1;
+        tapped => { Nav.activate(1); }
+    }
+}

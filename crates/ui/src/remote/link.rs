@@ -1,7 +1,10 @@
 //! What answers for the remote itself: the core, or in the demo a made-up remote with a Wi-Fi to join.
 
+use crate::app::software::Access;
 use crate::app::Later;
 use crate::hardware::backlight::Backlight;
+use crate::remote::selfupdate::Release;
+use crate::remote::software::{self, Progress};
 use crate::remote::system;
 use crate::remote::wifi::{self, Network, Wifi};
 use std::time::Duration;
@@ -11,7 +14,7 @@ use tokio::sync::mpsc::UnboundedSender;
 pub(crate) enum Link {
     Core(coreapi::Core),
     #[cfg(feature = "demo")]
-    Demo(crate::app::demo::Net),
+    Demo(crate::app::demo::Remote),
 }
 
 impl Link {
@@ -76,6 +79,76 @@ impl Link {
             Self::Core(core) => system::set_display(core, brightness, auto),
             #[cfg(feature = "demo")]
             Self::Demo(_) => {}
+        }
+    }
+
+    pub(crate) async fn firmware_info(&self, force: bool) -> Result<coreapi::SystemUpdateInfo, String> {
+        match self {
+            Self::Core(core) => software::firmware_info(core, force).await,
+            #[cfg(feature = "demo")]
+            Self::Demo(remote) => Ok(remote.updates().firmware_info()),
+        }
+    }
+
+    #[cfg_attr(not(feature = "demo"), allow(unused_variables))]
+    pub(crate) async fn start_firmware(&self, id: &str, later: &UnboundedSender<Later>) -> Result<coreapi::UpdateStart, coreapi::UpdateRefusal> {
+        match self {
+            Self::Core(core) => software::start_firmware(core, id).await,
+            #[cfg(feature = "demo")]
+            Self::Demo(remote) => remote.updates().start_firmware(later),
+        }
+    }
+
+    pub(crate) async fn web_enabled(&self) -> Result<bool, String> {
+        match self {
+            Self::Core(core) => software::web_enabled(core).await,
+            #[cfg(feature = "demo")]
+            Self::Demo(remote) => Ok(remote.updates().web_enabled()),
+        }
+    }
+
+    /// Turns the web configurator on with this PIN, or off.
+    pub(crate) async fn set_web(&self, pin: Option<&str>) -> Result<(), String> {
+        match self {
+            Self::Core(core) => software::set_web(core, pin).await,
+            #[cfg(feature = "demo")]
+            Self::Demo(remote) => {
+                remote.updates().set_web(pin.is_some());
+                Ok(())
+            }
+        }
+    }
+
+    pub(crate) async fn address(&self) -> String {
+        match self {
+            Self::Core(core) => software::address(core).await,
+            #[cfg(feature = "demo")]
+            Self::Demo(_) => drivers::demo::data::REMOTE_ADDRESS.into(),
+        }
+    }
+
+    /// The newest r3cui release, if it is newer than the one running.
+    pub(crate) async fn latest_release(&self) -> Result<Option<Release>, String> {
+        match self {
+            Self::Core(_) => software::latest_release().await,
+            #[cfg(feature = "demo")]
+            Self::Demo(_) => Ok(Some(crate::app::demo::software::release())),
+        }
+    }
+
+    pub(crate) async fn install_r3(&self, release: Release, access: Access, progress: Progress) -> Result<(), String> {
+        match self {
+            Self::Core(core) => software::install_r3(core, release, access, progress).await,
+            #[cfg(feature = "demo")]
+            Self::Demo(_) => crate::app::demo::software::install_r3(progress).await,
+        }
+    }
+
+    pub(crate) async fn uninstall(&self, access: Access) -> Result<(), String> {
+        match self {
+            Self::Core(core) => software::uninstall(core, access).await,
+            #[cfg(feature = "demo")]
+            Self::Demo(_) => crate::app::demo::software::uninstall().await,
         }
     }
 }
