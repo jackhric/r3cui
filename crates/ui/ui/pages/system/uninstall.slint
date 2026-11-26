@@ -5,6 +5,7 @@ import { Glyph, Icons } from "../../marks/icons.slint";
 import { Theme, Layout, Type } from "../../theme.slint";
 import { Haptic, PageId, UninstallState } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
+import { PageBody, Gap, Spring, Inset } from "../../widgets/page-body.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
 import { Ring } from "../../widgets/ring.slint";
 
@@ -44,83 +45,91 @@ export component UninstallPage inherits Layer {
         title: "Uninstall r3cui";
         back => { Nav.back(); }
     }
-    Ring {
-        x: 140px;
-        y: 188px;
-        width: 200px;
-        height: 200px;
-        inset: 12px;
-        tint: Theme.off;
-        progress: root.linear * root.linear * (3 - 2 * root.linear);
-        Glyph {
-            size: 56px;
-            x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            commands: Icons.trash;
-            tint: Theme.off;
-        }
-        TouchArea {
-            mouse-cursor: Theme.cursor;
-            pointer-event(e) => {
-                if (e.kind == PointerEventKind.down) {
-                    root.press();
-                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
-                    root.release();
+    PageBody {
+        Gap { size: Layout.gap-l; }
+        HorizontalLayout {
+            alignment: center;
+            Ring {
+                width: 200px;
+                height: 200px;
+                inset: 12px;
+                tint: Theme.off;
+                progress: root.linear * root.linear * (3 - 2 * root.linear);
+                HorizontalLayout {
+                    alignment: center;
+                    VerticalLayout {
+                        alignment: center;
+                        Glyph {
+                            size: 56px;
+                            commands: Icons.trash;
+                            tint: Theme.off;
+                        }
+                    }
                 }
-            }
-        }
-    }
-    Text {
-        y: 410px;
-        width: Layout.screen-w;
-        horizontal-alignment: center;
-        text: root.working ? "Uninstalling…" : "Hold OK to uninstall";
-        font-size: 30px;
-        font-weight: 300;
-        color: Theme.text;
-    }
-    Text {
-        x: Layout.margin;
-        y: 456px;
-        width: Layout.content-w;
-        horizontal-alignment: center;
-        wrap: word-wrap;
-        text: Software.uninstall-error != "" ? Software.uninstall-error : root.working ? "Keep the remote powered." : "Back cancels";
-        font-size: Type.body;
-        color: Software.uninstall-error != "" ? Theme.off : Theme.t2;
-    }
-    VerticalLayout {
-        x: Layout.margin;
-        y: 504px;
-        width: Layout.content-w;
-        spacing: 14px;
-        alignment: start;
-        for line in [
-            "r3cui and its settings are erased, integration tokens included.",
-            "The remote restarts into its stock interface.",
-            "Your activities, Wi-Fi and core settings stay as they are.",
-            "The warranty flag set when r3cui was installed stays set.",
-        ]: HorizontalLayout {
-            spacing: 14px;
-            Rectangle {
-                width: 6px;
-                VerticalLayout {
-                    padding-top: 9px;
-                    alignment: start;
-                    Rectangle {
-                        width: 6px;
-                        height: 6px;
-                        border-radius: 3px;
-                        background: Theme.t2;
+                TouchArea {
+                    mouse-cursor: Theme.cursor;
+                    pointer-event(e) => {
+                        if (e.kind == PointerEventKind.down) {
+                            root.press();
+                        } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                            root.release();
+                        }
                     }
                 }
             }
+        }
+        Gap { size: Layout.gap-l; }
+        Text {
+            horizontal-alignment: center;
+            text: root.working ? "Uninstalling…" : "Hold OK to uninstall";
+            font-size: Type.headline;
+            font-weight: Type.value-weight;
+            color: Theme.text;
+        }
+        Gap { size: Layout.gap-s; }
+        Inset {
             Text {
-                text: line;
+                horizontal-alignment: center;
                 wrap: word-wrap;
+                text: Software.uninstall-error != "" ? Software.uninstall-error : root.working ? "Keep the remote powered." : "Back cancels";
                 font-size: Type.body;
-                color: Theme.text-dim;
+                color: Software.uninstall-error != "" ? Theme.off : Theme.t2;
             }
         }
+        Gap { size: Layout.gap-l; }
+        Inset {
+            VerticalLayout {
+                spacing: Layout.gap-m;
+                alignment: start;
+                for line in [
+                    "r3cui and its settings are erased, integration tokens included.",
+                    "The remote restarts into its stock interface.",
+                    "Your activities, Wi-Fi and core settings stay as they are.",
+                    "The warranty flag set when r3cui was installed stays set.",
+                ]: HorizontalLayout {
+                    spacing: Layout.gap-m;
+                    Rectangle {
+                        width: 6px;
+                        VerticalLayout {
+                            padding-top: 9px;
+                            alignment: start;
+                            Rectangle {
+                                width: 6px;
+                                height: 6px;
+                                border-radius: 3px;
+                                background: Theme.t2;
+                            }
+                        }
+                    }
+                    Text {
+                        text: line;
+                        wrap: word-wrap;
+                        font-size: Type.body;
+                        color: Theme.text-dim;
+                    }
+                }
+            }
+        }
+        Spring { }
     }
 }

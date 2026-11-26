@@ -1,9 +1,10 @@
 import { Nav } from "../../globals/nav.slint";
 import { Software } from "../../globals/software.slint";
-import { UcMark } from "../../marks/brand.slint";
 import { Theme, Layout, Type } from "../../theme.slint";
 import { PageId } from "../../types.slint";
+import { Caption } from "../../widgets/caption.slint";
 import { Layer } from "../../widgets/layer.slint";
+import { PageBody, Gap, Spring } from "../../widgets/page-body.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
 import { Row } from "../../widgets/row.slint";
 
@@ -12,80 +13,78 @@ export component WebConfigPage inherits Layer {
 
     PageHeader {
         title: "Web configurator";
+        uc-mark: true;
         back => { Nav.back(); }
     }
-    UcMark {
-        x: Layout.screen-w - Layout.margin - self.width;
-        y: 64px + (104px - self.height) / 2;
-        wide: 36px;
-    }
-    Text {
-        y: 190px;
-        width: Layout.screen-w;
-        horizontal-alignment: center;
-        text: "PIN";
-        font-size: Type.caption;
-        letter-spacing: 2px;
-        color: Theme.t2;
-    }
-    HorizontalLayout {
-        x: 78px;
-        y: 214px;
-        width: 324px;
-        height: 88px;
-        spacing: 12px;
-        for n in 4: Rectangle {
-            width: 72px;
-            border-radius: 14px;
-            border-width: 1px;
-            border-color: Theme.track;
-            Text {
-                text: Software.web-pin.length > n ? Software.web-pin[n] : "";
-                horizontal-alignment: center;
-                vertical-alignment: center;
-                font-size: 52px;
-                font-weight: 300;
-                color: Theme.text;
+    PageBody {
+        Gap { size: Layout.gap-l; }
+        Caption {
+            horizontal-alignment: center;
+            text: "PIN";
+        }
+        Gap { size: Layout.gap-s; }
+        HorizontalLayout {
+            alignment: center;
+            spacing: Layout.gap-m;
+            for n in 4: Rectangle {
+                width: 72px;
+                height: 88px;
+                border-radius: Layout.card-radius;
+                border-width: Layout.hairline;
+                border-color: Theme.track;
+                Text {
+                    text: Software.web-pin.length > n ? Software.web-pin[n] : "";
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    font-size: Type.display;
+                    font-weight: Type.value-weight;
+                    color: Theme.text;
+                }
             }
         }
-    }
-    Image {
-        x: (Layout.screen-w - self.width) / 2;
-        y: 332px + (176px - self.height) / 2;
-        width: self.source.width * 1px;
-        height: self.source.height * 1px;
-        source: Software.web-qr;
-        image-rendering: pixelated;
-    }
-    Text {
-        y: 524px;
-        width: Layout.screen-w;
-        horizontal-alignment: center;
-        text: Software.web-address;
-        font-size: 20px;
-        color: Theme.text-dim;
-    }
-    Text {
-        y: 556px;
-        width: Layout.screen-w;
-        horizontal-alignment: center;
-        text: "Same Wi-Fi as the remote · user web-configurator";
-        font-size: Type.small;
-        color: Theme.t3;
-    }
-    Row {
-        y: 616px;
-        top-line: true;
-        bottom-line: true;
-        choice: { label: "New PIN" };
-        focused: Nav.focus == 0;
-        tapped => { Nav.activate(0); }
-    }
-    Row {
-        y: 688px;
-        bottom-line: true;
-        choice: { label: "Turn off" };
-        focused: Nav.focus == 1;
-        tapped => { Nav.activate(1); }
+        Gap { size: Layout.gap-xl; }
+        Rectangle {
+            height: 176px;
+            HorizontalLayout {
+                alignment: center;
+                VerticalLayout {
+                    alignment: center;
+                    Image {
+                        width: self.source.width * 1px;
+                        height: self.source.height * 1px;
+                        source: Software.web-qr;
+                        image-rendering: pixelated;
+                    }
+                }
+            }
+        }
+        Gap { size: Layout.gap-m; }
+        Text {
+            horizontal-alignment: center;
+            text: Software.web-address;
+            font-size: Type.body;
+            color: Theme.text-dim;
+        }
+        Gap { size: Layout.gap-s; }
+        Text {
+            horizontal-alignment: center;
+            text: "Same Wi-Fi as the remote · user web-configurator";
+            font-size: Type.small;
+            color: Theme.t3;
+        }
+        Spring { }
+        Row {
+            top-line: true;
+            bottom-line: true;
+            choice: { label: "New PIN" };
+            focused: Nav.focus == 0;
+            tapped => { Nav.activate(0); }
+        }
+        Row {
+            bottom-line: true;
+            choice: { label: "Turn off" };
+            focused: Nav.focus == 1;
+            tapped => { Nav.activate(1); }
+        }
     }
 }

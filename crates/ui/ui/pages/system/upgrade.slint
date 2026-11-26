@@ -2,33 +2,34 @@ import { Glyph, Icons } from "../../marks/icons.slint";
 import { Theme, Layout, Type } from "../../theme.slint";
 
 // `from → to`, the new version large and light, the old one small beside it on the same baseline.
-export component Upgrade inherits Rectangle {
+export component Upgrade inherits HorizontalLayout {
     in property <string> from;
     in property <string> to;
 
-    width: Layout.screen-w;
-    height: 66px;
-    property <length> total: old.preferred-width + 54px + new.preferred-width;
-    property <length> left: (root.width - root.total) / 2;
+    alignment: center;
+    spacing: Layout.gap-m;
 
-    old := Text {
-        x: root.left;
-        y: 0.8 * (new.preferred-height - self.preferred-height);
-        text: root.from;
-        font-size: 32px;
-        font-weight: 300;
-        color: Theme.t2;
+    VerticalLayout {
+        alignment: end;
+        padding-bottom: 0.2 * (new.preferred-height - old.preferred-height);
+        old := Text {
+            text: root.from;
+            font-size: Type.headline;
+            font-weight: Type.value-weight;
+            color: Theme.t2;
+        }
     }
-    Glyph {
-        x: root.left + old.preferred-width + 16px;
-        y: 0.8 * new.preferred-height - 25px;
-        size: 22px;
-        commands: Icons.arrow;
+    VerticalLayout {
+        alignment: end;
+        padding-bottom: 0.2 * new.preferred-height + Layout.gap-xs;
+        Glyph {
+            size: 22px;
+            commands: Icons.arrow;
+        }
     }
     new := Text {
-        x: root.left + old.preferred-width + 54px;
         text: root.to;
-        font-size: 56px;
+        font-size: Type.display;
         font-weight: Type.display-weight;
         color: Theme.text;
     }

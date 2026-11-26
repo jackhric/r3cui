@@ -61,6 +61,8 @@ export global Layout {
     out property <length> gap-l: 24px;
     out property <length> gap-xl: 32px;
     out property <length> dot-size: 14px;
+    // The corner of a block that holds text or a digit: the release notes, a PIN box.
+    out property <length> card-radius: 14px;
 }
 
 // Font sizes and weights shared across pages.
@@ -74,6 +76,8 @@ export global Type {
     out property <length> small: 16px;
     // A row's second line.
     out property <length> detail: 16px;
+    // The one line a page is about when it has nothing else to show: No inputs found, Hold OK to uninstall.
+    out property <length> headline: 30px;
     out property <length> label-compact: 22px;
     out property <length> value-compact: 20px;
     out property <length> caption: 14px;

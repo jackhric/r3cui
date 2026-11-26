@@ -1,9 +1,12 @@
+import { UcMark } from "../marks/brand.slint";
 import { Glyph, Icons } from "../marks/icons.slint";
 
 import { Theme, Layout, Type } from "../theme.slint";
 
 export component PageHeader inherits Rectangle {
     in property <string> title;
+    // The Unfolded Circle mark at the right: the page is about the remote itself.
+    in property <bool> uc-mark;
     callback back();
 
     x: 0;
@@ -23,6 +26,11 @@ export component PageHeader inherits Rectangle {
         font-size: Type.label;
         font-weight: 500;
         color: Theme.text;
+    }
+    if root.uc-mark: UcMark {
+        x: root.width - Layout.margin - self.width;
+        y: (root.height - self.height) / 2;
+        wide: 36px;
     }
     TouchArea {
         mouse-cursor: Theme.cursor;

@@ -2,78 +2,69 @@ import { Software } from "../../globals/software.slint";
 import { UcMark } from "../../marks/brand.slint";
 import { Theme, Layout, Type } from "../../theme.slint";
 import { InstallPhase, PageId } from "../../types.slint";
+import { Bar } from "../../widgets/bar.slint";
+import { Caption } from "../../widgets/caption.slint";
 import { Layer } from "../../widgets/layer.slint";
+import { PageBody, Gap, Spring } from "../../widgets/page-body.slint";
 import { StepsLine } from "steps-line.slint";
 
 export component FwInstallingPage inherits Layer {
     page: PageId.fw-installing;
     TouchArea { mouse-cursor: Theme.cursor; }
 
-    UcMark {
-        x: (Layout.screen-w - self.width) / 2;
-        y: 176px;
-        wide: 150px;
-    }
-    Text {
-        y: 322px;
-        width: Layout.screen-w;
-        horizontal-alignment: center;
-        text: Software.fw-phase == InstallPhase.download ? "DOWNLOADING" : Software.fw-phase == InstallPhase.restart ? "RESTARTING" : "INSTALLING";
-        font-size: Type.small;
-        letter-spacing: 2px;
-        color: Theme.t2;
-    }
-    Text {
-        y: 348px;
-        width: Layout.screen-w;
-        horizontal-alignment: center;
-        text: Software.fw-new-version;
-        font-size: 56px;
-        font-weight: Type.display-weight;
-        color: Theme.text;
-    }
-    Rectangle {
-        x: 80px;
-        y: 438px;
-        width: 320px;
-        height: 10px;
-        border-radius: 5px;
-        background: Theme.track;
-        Rectangle {
-            x: 0;
-            width: max(10px, parent.width * Software.fw-percent / 100);
-            border-radius: 5px;
-            background: Theme.text;
-            animate width { duration: 300ms; easing: ease-out; }
+    PageBody {
+        under-header: false;
+        Spring { }
+        HorizontalLayout {
+            alignment: center;
+            UcMark { wide: 150px; }
         }
-    }
-    Text {
-        y: 462px;
-        width: Layout.screen-w;
-        horizontal-alignment: center;
-        text: Software.fw-step-line;
-        font-size: 20px;
-        color: Theme.t2;
-    }
-    StepsLine {
-        y: 520px;
-        names: ["Download", "Install", "Restart"];
-        current: Software.fw-phase == InstallPhase.download ? 0 : Software.fw-phase == InstallPhase.install ? 1 : 2;
-    }
-    Text {
-        y: 690px;
-        width: Layout.screen-w;
-        horizontal-alignment: center;
-        text: "Keep the remote docked until it restarts.";
-        font-size: Type.body;
-        color: Theme.t2;
-    }
-    Text {
-        y: 722px;
-        width: Layout.screen-w;
-        horizontal-alignment: center;
-        text: "Buttons are off while it installs.";
-        font-size: Type.small;
-        color: Theme.t3;
+        Gap { size: Layout.gap-xl; }
+        Caption {
+            horizontal-alignment: center;
+            text: Software.fw-phase == InstallPhase.download ? "DOWNLOADING" : Software.fw-phase == InstallPhase.restart ? "RESTARTING" : "INSTALLING";
+        }
+        Gap { size: Layout.gap-xs; }
+        Text {
+            horizontal-alignment: center;
+            text: Software.fw-new-version;
+            font-size: Type.display;
+            font-weight: Type.display-weight;
+            color: Theme.text;
+        }
+        Gap { size: Layout.gap-l; }
+        HorizontalLayout {
+            alignment: center;
+            Bar {
+                value: Software.fw-percent / 100;
+                tint: Theme.text;
+            }
+        }
+        Gap { size: Layout.gap-s; }
+        Text {
+            horizontal-alignment: center;
+            text: Software.fw-step-line;
+            font-size: Type.body;
+            color: Theme.t2;
+        }
+        Gap { size: Layout.gap-xl; }
+        StepsLine {
+            names: ["Download", "Install", "Restart"];
+            current: Software.fw-phase == InstallPhase.download ? 0 : Software.fw-phase == InstallPhase.install ? 1 : 2;
+        }
+        Spring { }
+        Text {
+            horizontal-alignment: center;
+            text: "Keep the remote docked until it restarts.";
+            font-size: Type.body;
+            color: Theme.t2;
+        }
+        Gap { size: Layout.gap-xs; }
+        Text {
+            horizontal-alignment: center;
+            text: "Buttons are off while it installs.";
+            font-size: Type.small;
+            color: Theme.t3;
+        }
     }
 }
