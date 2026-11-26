@@ -1,0 +1,76 @@
+import { Control } from "../globals/control.slint";
+import { Fx } from "../globals/fx.slint";
+import { Health } from "../globals/health.slint";
+import { HomeView, PageId } from "../types.slint";
+import { Nav } from "../globals/nav.slint";
+import { Theme } from "../theme.slint";
+import { VolumeChip } from "../widgets/volume-chip.slint";
+import { WarningRow } from "../widgets/warning-row.slint";
+
+export component MarkView inherits Rectangle {
+    // The colour wash behind the mark, faded out at the top and bottom so the navbar
+    // and the volume line sit on plain black.
+    Image {
+        width: 480px;
+        height: 800px;
+        source: Fx.lava;
+        image-fit: fill;
+        image-rendering: pixelated;
+    }
+    Rectangle {
+        height: 150px;
+        y: 0;
+        background: @linear-gradient(180deg, #000000 0%, #000000 30%, #00000000 100%);
+    }
+    Rectangle {
+        y: 630px;
+        height: 170px;
+        background: @linear-gradient(180deg, #00000000 0%, #000000 55%, #000000 100%);
+    }
+
+    // While the input is still switching, a faint sheen sweeps across the mark.
+    property <float> sheen: mod(animation-tick() / 1400ms, 1.0) * 1.6 - 0.3;
+    Path {
+        y: 330px;
+        width: 140px;
+        height: 140px;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: Control.input-icon;
+        fill: !Control.switching ? Theme.t2-muted : @linear-gradient(110deg,
+            Theme.t2-muted 0%,
+            Theme.t2-muted clamp(parent.sheen - 0.18, 0, 1) * 100%,
+            #9DA3A6 clamp(parent.sheen, 0, 1) * 100%,
+            Theme.t2-muted clamp(parent.sheen + 0.18, 0, 1) * 100%,
+            Theme.t2-muted 100%);
+    }
+    // An input with no mark of its own needs its name to be told apart.
+    if Control.input != "" && Control.input-generic: Text {
+        y: 490px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Control.input;
+        font-size: 26px;
+        color: Theme.t2;
+    }
+    if Control.inputs.length > 0: TouchArea {
+        mouse-cursor: Theme.cursor;
+        x: 140px;
+        y: 300px;
+        width: 200px;
+        height: 200px;
+        clicked => { Nav.go(PageId.inputs, Control.input-index); }
+    }
+    if Health.warning != "": WarningRow {
+        y: 540px;
+        message: Health.warning;
+        tapped => { Nav.go(PageId.status, 0); }
+    }
+    if Control.has-volume: VolumeChip {
+        y: 700px;
+        height: 40px;
+        size: 32px;
+        volume: Control.volume;
+        muted: Control.muted;
+    }
+}

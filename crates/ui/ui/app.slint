@@ -43,6 +43,14 @@ import { NavBar } from "overlays/navbar.slint";
 
 import { StageSwap } from "stage/swap.slint";
 
+import { OffView } from "stage/off.slint";
+
+import { MarkView } from "stage/mark.slint";
+
+import { PlayingView } from "stage/playing.slint";
+
+import { Stage } from "stage/stage.slint";
+
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs, Kb, Wifi, Cfg, Lab, Tracks, Lib, Fx, Sys, Control, Playback, Health, Nav, Menu, Power }
 
@@ -54,8 +62,8 @@ export component AppWindow inherits Window {
     default-font-family: "Hanken Grotesk";
     forward-focus: keys;
 
-    public function hold-library() { lib.hold(); }
-    public function run-library() { lib.run(); }
+    public function hold-library() { stage.hold-library(); }
+    public function run-library() { stage.run-library(); }
     out property <bool> lava-on: Nav.page == PageId.home && Home.view == HomeView.mark && Sys.lit;
 
 
@@ -67,8 +75,8 @@ export component AppWindow inherits Window {
     property <bool> overlay-open: (Control.volume-overlay && Control.power-on) || hold.power-overlay || hold.home-holding || (Sys.charge-card && Sys.lit);
     property <float> under: root.overlay-open ? 1 : 0;
     animate under { duration: 380ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
-    public function hold-swap() { dissolve.hold(); }
-    public function run-swap() { dissolve.run(); }
+    public function hold-swap() { stage.hold-swap(); }
+    public function run-swap() { stage.run-swap(); }
     property <bool> caret-on: true;
 
     property <float> wake: Sys.lit ? 1 : 0;
@@ -189,311 +197,7 @@ export component AppWindow inherits Window {
             transform-origin: { x: self.width / 2, y: self.height / 2 };
             transform-scale: Fx.capturing != Capture.none ? 1 : 1 - 0.05 * root.under;
 
-            stage := Rectangle {
-                transform-origin: { x: self.width / 2, y: self.height / 2 };
-                transform-scale: Fx.capturing == Capture.stage ? 1 : (1 - 0.08 * root.recede) * (Fx.swapping && !Fx.swap-plain ? 0.97 + 0.03 * dissolve.progress : 1);
-                opacity: Fx.capturing == Capture.stage ? 1 : 1 - 0.55 * root.recede;
-
-                    // The input's UI slot, playing
-                    Rectangle {
-                        opacity: Home.view == HomeView.playing ? 1 : 0;
-                        visible: self.opacity > 0;
-
-                        // The backdrop arrives already blurred and darkened; the scrim fades it into black
-                        // where the controls sit.
-                        Image {
-                            width: 480px;
-                            height: 800px;
-                            source: Playback.backdrop;
-                            image-fit: cover;
-                            opacity: 0.55;
-                        }
-                        Image {
-                            width: 480px;
-                            height: 800px;
-                            source: Fx.grain;
-                            image-fit: fill;
-                            image-rendering: pixelated;
-                            opacity: Playback.backdrop.width > 0 ? 1 : 0;
-                        }
-                        Rectangle {
-                            background: @linear-gradient(180deg, #00000066 0%, #00000022 26%, #000000B0 52%, #000000 74%);
-                        }
-
-                        Rectangle {
-                            x: 144px;
-                            y: 84px;
-                            width: 192px;
-                            height: 288px;
-                            border-radius: 0;
-                            drop-shadow-blur: 28px;
-                            drop-shadow-color: #000000CC;
-                            drop-shadow-offset-y: 10px;
-                            background: #111;
-                            Rectangle {
-                                border-radius: 0;
-                                clip: true;
-                                if Playback.poster.width == 0: PosterStandIn {
-                                    title: Playback.title;
-                                }
-                                if Playback.poster.width > 0: Image {
-                                    source: Playback.poster;
-                                    width: 100%;
-                                    height: 100%;
-                                    image-fit: cover;
-                                }
-                            }
-                        }
-                        Text {
-                            y: 392px;
-                            x: 24px;
-                            width: 432px;
-                            height: 36px;
-                            horizontal-alignment: center;
-                            overflow: elide;
-                            text: Playback.title;
-                            font-size: 28px;
-                            font-weight: 500;
-                            color: Theme.text;
-                        }
-                        Text {
-                            y: 430px;
-                            width: 480px;
-                            horizontal-alignment: center;
-                            text: Playback.sub;
-                            font-size: 18px;
-                            color: Theme.t2;
-                        }
-                        Bar {
-                            x: 40px;
-                            y: 470px;
-                            value: Playback.progress;
-                        }
-                        Text {
-                            x: 40px;
-                            y: 494px;
-                            text: Playback.elapsed;
-                            font-size: 18px;
-                            font-weight: 400;
-                            color: Theme.t2;
-                        }
-                        Text {
-                            x: 40px;
-                            y: 494px;
-                            width: 400px;
-                            horizontal-alignment: right;
-                            text: Playback.paused ? Playback.time-left + "  ·  paused" : Playback.time-left + "  ·  " + Playback.ends-at;
-                            font-size: 18px;
-                            color: Theme.t2;
-                        }
-
-                        SkipButton {
-                            x: 84px;
-                            y: 548px;
-                            back: true;
-                            tapped => { Control.seek(-10); }
-                        }
-                        Rectangle {
-                            x: 198px;
-                            y: 542px;
-                            width: 84px;
-                            height: 84px;
-                            border-radius: 42px;
-                            background: #FFFFFF;
-                            opacity: play-touch.pressed ? 0.7 : 1;
-                            // The play mark's geometry already sits it right of centre by its
-                            // visual weight, so both marks fill the same centred box.
-                            Path {
-                                width: 42px;
-                                height: 42px;
-                                viewbox-width: 24;
-                                viewbox-height: 24;
-                                commands: Playback.paused ? Marks.play : Marks.pause;
-                                fill: #000000;
-                            }
-                            play-touch := TouchArea {
-                                mouse-cursor: Theme.cursor;
-                                clicked => { Control.play-pause(); }
-                            }
-                        }
-                        SkipButton {
-                            x: 332px;
-                            y: 548px;
-                            back: false;
-                            tapped => { Control.seek(10); }
-                        }
-
-                        if Health.warning == "": HorizontalLayout {
-                            y: 656px;
-                            height: 40px;
-                            alignment: center;
-                            spacing: 18px;
-                            FormatBadge {
-                                mark: Playback.format;
-                                label: Playback.format-label;
-                            }
-                            if Playback.format-label != "" || Playback.format.path != "": Text {
-                                text: "·";
-                                font-size: 22px;
-                                color: Theme.t3;
-                                vertical-alignment: center;
-                            }
-                            if Control.has-volume: VolumeChip {
-                                volume: Control.volume;
-                                muted: Control.muted;
-                                size: 22px;
-                            }
-                        }
-                        if Health.warning != "": WarningRow {
-                            y: 648px;
-                            message: Health.warning;
-                            tapped => { Nav.go(PageId.status, 0); }
-                        }
-                        TrackButton {
-                            x: 32px;
-                            y: 716px;
-                            icon: Icons.subtitles;
-                            label: "Subtitles";
-                            tapped => { Tracks.rows = []; Tracks.picker = Picker.subtitles; Nav.go(PageId.tracks, 0); Tracks.open(Picker.subtitles); }
-                        }
-                        TrackButton {
-                            x: 248px;
-                            y: 716px;
-                            icon: Icons.audio;
-                            label: "Audio";
-                            tapped => { Tracks.rows = []; Tracks.picker = Picker.audio; Nav.go(PageId.tracks, 0); Tracks.open(Picker.audio); }
-                        }
-                    }
-
-                    // The current input, shown as its mark. An input showing its library looks the same as any other.
-                    Rectangle {
-                        opacity: Home.view == HomeView.mark ? 1 : 0;
-                        visible: self.opacity > 0;
-
-                        // The colour wash behind the mark, faded out at the top and bottom so the navbar
-                        // and the volume line sit on plain black.
-                        Image {
-                            width: 480px;
-                            height: 800px;
-                            source: Fx.lava;
-                            image-fit: fill;
-                            image-rendering: pixelated;
-                        }
-                        Rectangle {
-                            height: 150px;
-                            y: 0;
-                            background: @linear-gradient(180deg, #000000 0%, #000000 30%, #00000000 100%);
-                        }
-                        Rectangle {
-                            y: 630px;
-                            height: 170px;
-                            background: @linear-gradient(180deg, #00000000 0%, #000000 55%, #000000 100%);
-                        }
-
-                        // While the input is still switching, a faint sheen sweeps across the mark.
-                        property <float> sheen: mod(animation-tick() / 1400ms, 1.0) * 1.6 - 0.3;
-                        Path {
-                            y: 330px;
-                            width: 140px;
-                            height: 140px;
-                            viewbox-width: 24;
-                            viewbox-height: 24;
-                            commands: Control.input-icon;
-                            fill: !Control.switching ? Theme.t2-muted : @linear-gradient(110deg,
-                                Theme.t2-muted 0%,
-                                Theme.t2-muted clamp(parent.sheen - 0.18, 0, 1) * 100%,
-                                #9DA3A6 clamp(parent.sheen, 0, 1) * 100%,
-                                Theme.t2-muted clamp(parent.sheen + 0.18, 0, 1) * 100%,
-                                Theme.t2-muted 100%);
-                        }
-                        // An input with no mark of its own needs its name to be told apart.
-                        if Control.input != "" && Control.input-generic: Text {
-                            y: 490px;
-                            width: 480px;
-                            horizontal-alignment: center;
-                            text: Control.input;
-                            font-size: 26px;
-                            color: Theme.t2;
-                        }
-                        if Control.inputs.length > 0: TouchArea {
-                            mouse-cursor: Theme.cursor;
-                            x: 140px;
-                            y: 300px;
-                            width: 200px;
-                            height: 200px;
-                            clicked => { Nav.go(PageId.inputs, Control.input-index); }
-                        }
-                        if Health.warning != "": WarningRow {
-                            y: 540px;
-                            message: Health.warning;
-                            tapped => { Nav.go(PageId.status, 0); }
-                        }
-                        if Control.has-volume: VolumeChip {
-                            y: 700px;
-                            height: 40px;
-                            size: 32px;
-                            volume: Control.volume;
-                            muted: Control.muted;
-                        }
-                    }
-
-                    // Power off
-                    Rectangle {
-                        opacity: Home.view == HomeView.off ? 1 : 0;
-                        visible: self.opacity > 0;
-
-                        Glyph {
-                            y: 340px;
-                            size: 72px;
-                            commands: Icons.power;
-                            tint: Theme.t3;
-                        }
-                        Text {
-                            y: 436px;
-                            width: 480px;
-                            horizontal-alignment: center;
-                            text: "Off";
-                            font-size: 26px;
-                            color: Theme.t2;
-                        }
-                    }
-
-                    // The input's library wall, mirrored; also the previews' library variations.
-                    lib := Library {
-                        mode: Lib.mode;
-                        heading: Lib.heading;
-                        count: Lib.count;
-                        posters: Lib.posters;
-                        items: Lib.items;
-                        at: Lib.focus;
-                        wall-style: Lib.wall-style;
-                        opacity: Home.view == HomeView.wall ? 1 : 0;
-                        visible: self.opacity > 0 && Lib.mode != LibMode.off;
-                    }
-
-                    if !Sys.connected: Text {
-                        y: 772px;
-                        width: 480px;
-                        horizontal-alignment: center;
-                        text: Sys.status;
-                        font-size: 14px;
-                        color: Theme.t3;
-                        overflow: elide;
-                    }
-
-                // One stage giving way to another: the old one, sharp then blurred, dissolves into
-                // the new one blurred, which sharpens into the live stage beneath.
-                dissolve := StageSwap { }
-
-                Image {
-                    width: 480px;
-                    height: 800px;
-                    source: Fx.stage-blur;
-                    image-fit: fill;
-                    opacity: root.recede;
-                    visible: self.opacity > 0 && Fx.capturing != Capture.stage;
-                }
-            }
+            stage := Stage { recede: root.recede; }
 
             options := Rectangle {
                 visible: root.recede > 0 && Fx.capturing != Capture.stage;

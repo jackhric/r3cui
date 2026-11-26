@@ -1,0 +1,181 @@
+import { Bar, Icons, Marks, Theme } from "../theme.slint";
+import { Control } from "../globals/control.slint";
+import { FormatBadge } from "../widgets/format-badge.slint";
+import { Fx } from "../globals/fx.slint";
+import { Health } from "../globals/health.slint";
+import { HomeView, PageId, Picker } from "../types.slint";
+import { Nav } from "../globals/nav.slint";
+import { Playback } from "../globals/playback.slint";
+import { PosterStandIn } from "../widgets/poster-stand-in.slint";
+import { SkipButton } from "../widgets/skip-button.slint";
+import { TrackButton } from "../widgets/track-button.slint";
+import { Tracks } from "../globals/tracks.slint";
+import { VolumeChip } from "../widgets/volume-chip.slint";
+import { WarningRow } from "../widgets/warning-row.slint";
+
+export component PlayingView inherits Rectangle {
+    // The backdrop arrives already blurred and darkened; the scrim fades it into black
+    // where the controls sit.
+    Image {
+        width: 480px;
+        height: 800px;
+        source: Playback.backdrop;
+        image-fit: cover;
+        opacity: 0.55;
+    }
+    Image {
+        width: 480px;
+        height: 800px;
+        source: Fx.grain;
+        image-fit: fill;
+        image-rendering: pixelated;
+        opacity: Playback.backdrop.width > 0 ? 1 : 0;
+    }
+    Rectangle {
+        background: @linear-gradient(180deg, #00000066 0%, #00000022 26%, #000000B0 52%, #000000 74%);
+    }
+
+    Rectangle {
+        x: 144px;
+        y: 84px;
+        width: 192px;
+        height: 288px;
+        border-radius: 0;
+        drop-shadow-blur: 28px;
+        drop-shadow-color: #000000CC;
+        drop-shadow-offset-y: 10px;
+        background: #111;
+        Rectangle {
+            border-radius: 0;
+            clip: true;
+            if Playback.poster.width == 0: PosterStandIn {
+                title: Playback.title;
+            }
+            if Playback.poster.width > 0: Image {
+                source: Playback.poster;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+        }
+    }
+    Text {
+        y: 392px;
+        x: 24px;
+        width: 432px;
+        height: 36px;
+        horizontal-alignment: center;
+        overflow: elide;
+        text: Playback.title;
+        font-size: 28px;
+        font-weight: 500;
+        color: Theme.text;
+    }
+    Text {
+        y: 430px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Playback.sub;
+        font-size: 18px;
+        color: Theme.t2;
+    }
+    Bar {
+        x: 40px;
+        y: 470px;
+        value: Playback.progress;
+    }
+    Text {
+        x: 40px;
+        y: 494px;
+        text: Playback.elapsed;
+        font-size: 18px;
+        font-weight: 400;
+        color: Theme.t2;
+    }
+    Text {
+        x: 40px;
+        y: 494px;
+        width: 400px;
+        horizontal-alignment: right;
+        text: Playback.paused ? Playback.time-left + "  ·  paused" : Playback.time-left + "  ·  " + Playback.ends-at;
+        font-size: 18px;
+        color: Theme.t2;
+    }
+
+    SkipButton {
+        x: 84px;
+        y: 548px;
+        back: true;
+        tapped => { Control.seek(-10); }
+    }
+    Rectangle {
+        x: 198px;
+        y: 542px;
+        width: 84px;
+        height: 84px;
+        border-radius: 42px;
+        background: #FFFFFF;
+        opacity: play-touch.pressed ? 0.7 : 1;
+        // The play mark's geometry already sits it right of centre by its
+        // visual weight, so both marks fill the same centred box.
+        Path {
+            width: 42px;
+            height: 42px;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: Playback.paused ? Marks.play : Marks.pause;
+            fill: #000000;
+        }
+        play-touch := TouchArea {
+            mouse-cursor: Theme.cursor;
+            clicked => { Control.play-pause(); }
+        }
+    }
+    SkipButton {
+        x: 332px;
+        y: 548px;
+        back: false;
+        tapped => { Control.seek(10); }
+    }
+
+    if Health.warning == "": HorizontalLayout {
+        y: 656px;
+        height: 40px;
+        alignment: center;
+        spacing: 18px;
+        FormatBadge {
+            mark: Playback.format;
+            label: Playback.format-label;
+        }
+        if Playback.format-label != "" || Playback.format.path != "": Text {
+            text: "·";
+            font-size: 22px;
+            color: Theme.t3;
+            vertical-alignment: center;
+        }
+        if Control.has-volume: VolumeChip {
+            volume: Control.volume;
+            muted: Control.muted;
+            size: 22px;
+        }
+    }
+    if Health.warning != "": WarningRow {
+        y: 648px;
+        message: Health.warning;
+        tapped => { Nav.go(PageId.status, 0); }
+    }
+    TrackButton {
+        x: 32px;
+        y: 716px;
+        icon: Icons.subtitles;
+        label: "Subtitles";
+        tapped => { Tracks.rows = []; Tracks.picker = Picker.subtitles; Nav.go(PageId.tracks, 0); Tracks.open(Picker.subtitles); }
+    }
+    TrackButton {
+        x: 248px;
+        y: 716px;
+        icon: Icons.audio;
+        label: "Audio";
+        tapped => { Tracks.rows = []; Tracks.picker = Picker.audio; Nav.go(PageId.tracks, 0); Tracks.open(Picker.audio); }
+    }
+}

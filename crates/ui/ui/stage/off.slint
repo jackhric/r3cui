@@ -1,0 +1,19 @@
+import { Glyph, Icons, Theme } from "../theme.slint";
+import { HomeView } from "../types.slint";
+
+export component OffView inherits Rectangle {
+    Glyph {
+        y: 340px;
+        size: 72px;
+        commands: Icons.power;
+        tint: Theme.t3;
+    }
+    Text {
+        y: 436px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: "Off";
+        font-size: 26px;
+        color: Theme.t2;
+    }
+}
