@@ -41,6 +41,8 @@ import { ChargeCard } from "overlays/charge-card.slint";
 
 import { NavBar } from "overlays/navbar.slint";
 
+import { StageSwap } from "stage/swap.slint";
+
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs, Kb, Wifi, Cfg, Lab, Tracks, Lib, Fx, Sys, Control, Playback, Health, Nav, Menu, Power }
 
@@ -65,22 +67,8 @@ export component AppWindow inherits Window {
     property <bool> overlay-open: (Control.volume-overlay && Control.power-on) || hold.power-overlay || hold.home-holding || (Sys.charge-card && Sys.lit);
     property <float> under: root.overlay-open ? 1 : 0;
     animate under { duration: 380ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
-    // Timed from the animation clock: a declared animation on a property nothing reads while
-    // hidden jumps straight to its end.
-    property <duration> swap-start;
-    // The pictures are taken before the clock can move on, so the swap holds the old stage until
-    // `run-swap` starts the clock on a fresh tick.
-    property <bool> swap-held;
-    property <float> swap-linear: !Fx.swapping || root.swap-held ? 0 : clamp((animation-tick() - root.swap-start) / 620ms, 0, 1);
-    property <float> swap: root.swap-linear * root.swap-linear * (3 - 2 * root.swap-linear);
-    public function hold-swap() {
-        root.swap-held = true;
-        Fx.swapping = true;
-    }
-    public function run-swap() {
-        root.swap-start = animation-tick();
-        root.swap-held = false;
-    }
+    public function hold-swap() { dissolve.hold(); }
+    public function run-swap() { dissolve.run(); }
     property <bool> caret-on: true;
 
     property <float> wake: Sys.lit ? 1 : 0;
@@ -182,11 +170,6 @@ export component AppWindow inherits Window {
             return accept;
         }
         Timer {
-            interval: 660ms;
-            running: Fx.swapping && !root.swap-held;
-            triggered => { Fx.swapping = false; }
-        }
-        Timer {
             interval: 550ms;
             running: Nav.page == PageId.keyboard;
             triggered => { root.caret-on = !root.caret-on; }
@@ -208,7 +191,7 @@ export component AppWindow inherits Window {
 
             stage := Rectangle {
                 transform-origin: { x: self.width / 2, y: self.height / 2 };
-                transform-scale: Fx.capturing == Capture.stage ? 1 : (1 - 0.08 * root.recede) * (Fx.swapping && !Fx.swap-plain ? 0.97 + 0.03 * root.swap : 1);
+                transform-scale: Fx.capturing == Capture.stage ? 1 : (1 - 0.08 * root.recede) * (Fx.swapping && !Fx.swap-plain ? 0.97 + 0.03 * dissolve.progress : 1);
                 opacity: Fx.capturing == Capture.stage ? 1 : 1 - 0.55 * root.recede;
 
                     // The input's UI slot, playing
@@ -500,34 +483,7 @@ export component AppWindow inherits Window {
 
                 // One stage giving way to another: the old one, sharp then blurred, dissolves into
                 // the new one blurred, which sharpens into the live stage beneath.
-                Rectangle {
-                    visible: Fx.swapping && Fx.capturing == Capture.none;
-                    Image {
-                        width: 480px;
-                        height: 800px;
-                        source: Fx.swap-in-blur;
-                        image-fit: fill;
-                        opacity: 1 - clamp((root.swap - 0.55) / 0.45, 0, 1);
-                    }
-                    Image {
-                        width: 480px;
-                        height: 800px;
-                        transform-origin: { x: self.width / 2, y: self.height / 2 };
-                        transform-scale: Fx.swap-plain ? 1 : 1 + 0.05 * root.swap;
-                        source: Fx.swap-out-blur;
-                        image-fit: fill;
-                        opacity: 1 - clamp((root.swap - 0.25) / 0.35, 0, 1);
-                    }
-                    Image {
-                        width: 480px;
-                        height: 800px;
-                        transform-origin: { x: self.width / 2, y: self.height / 2 };
-                        transform-scale: Fx.swap-plain ? 1 : 1 + 0.05 * root.swap;
-                        source: Fx.swap-out;
-                        image-fit: fill;
-                        opacity: 1 - clamp(root.swap / 0.3, 0, 1);
-                    }
-                }
+                dissolve := StageSwap { }
 
                 Image {
                     width: 480px;
