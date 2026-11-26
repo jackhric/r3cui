@@ -1,15 +1,51 @@
 import { Cfg } from "../globals/cfg.slint";
-import { ChoiceList, Layer } from "../theme.slint";
+import { ChoiceList, Layer, Theme } from "../theme.slint";
 import { Nav } from "../globals/nav.slint";
 import { PageId } from "../types.slint";
 
+// Every Integrations screen is this one page with new rows, so it slides by Cfg.depth the way Layer slides by page.
 export component IntegrationsPage inherits Layer {
     page: PageId.integrations;
-    ChoiceList {
-        title: Cfg.title;
-        rows: Cfg.rows;
-        focused-row: Nav.focus;
-        pick(i) => { Nav.activate(i); }
-        back => { Nav.back(); }
+    property <int> depth: Cfg.depth;
+    property <int> last-depth: 1;
+    property <length> shift: 0px;
+    property <bool> sliding;
+    animate shift { duration: root.sliding ? Theme.page-time : 0ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+    changed depth => {
+        let deeper = root.depth > root.last-depth;
+        root.last-depth = root.depth;
+        // Opening Integrations from the menu is the Layer's own slide.
+        if Nav.page != PageId.integrations {
+            return;
+        }
+        root.sliding = false;
+        root.shift = deeper ? 56px : -56px;
+        settle.running = true;
+    }
+    // The jump to the start takes effect first; the next frame slides from there.
+    settle := Timer {
+        interval: 16ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.sliding = true;
+            root.shift = 0px;
+        }
+    }
+
+    Rectangle {
+        x: root.shift;
+        width: 480px;
+        height: 800px;
+        // The old rows are gone at once, so the new ones never start from black.
+        opacity: 1 - 0.75 * abs(root.shift / 56px);
+        ChoiceList {
+            title: Cfg.title;
+            rows: Cfg.rows;
+            focused-row: Nav.focus;
+            pick(i) => { Nav.activate(i); }
+            back => { Nav.back(); }
+        }
     }
 }

@@ -4,6 +4,8 @@ export global Cfg {
     // Integrations: Rust draws each of its screens into one list, and decides where a pick or back leads.
     in property <string> title: "Integrations";
     in property <[Choice]> rows;
+    // How many screens deep; the list slides as it changes, as a page would.
+    in property <int> depth: 1;
     // The row to come back to from the keyboard.
     in property <int> focus;
     callback open();

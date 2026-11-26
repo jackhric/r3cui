@@ -100,11 +100,11 @@ pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::int
                 ..Default::default()
             })
             .collect();
-        let changed = app.global::<Cfg>().get_title() != page.title.as_str() || app.global::<Cfg>().get_rows().iter().ne(rows.iter().cloned());
-        if !changed {
+        let new_screen = app.global::<Cfg>().get_title() != page.title.as_str() || app.global::<Cfg>().get_depth() != page.depth as i32;
+        if !new_screen && app.global::<Cfg>().get_rows().iter().eq(rows.iter().cloned()) {
             return;
         }
-        let new_screen = app.global::<Cfg>().get_title() != page.title.as_str();
+        app.global::<Cfg>().set_depth(page.depth as i32);
         app.global::<Cfg>().set_title(page.title.as_str().into());
         app.global::<Cfg>().set_rows(ModelRc::new(VecModel::from(rows)));
         if new_screen && app.on_page(PageId::Integrations) {

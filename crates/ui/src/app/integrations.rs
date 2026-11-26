@@ -38,6 +38,8 @@ pub(crate) struct Page {
     pub title: String,
     pub rows: Vec<Row>,
     pub focus: usize,
+    /// How many screens deep: the page slides as this changes.
+    pub depth: usize,
 }
 
 /// Where a pairing has got to.
@@ -347,7 +349,7 @@ impl Integrations {
             }
         };
         let focus = focus.min(rows.len().saturating_sub(1));
-        Page { title, rows, focus }
+        Page { title, rows, focus, depth: self.stack.len() }
     }
 
     /// "None" (ticked when `none_checked`), then what the picker offers, the current one ticked.
