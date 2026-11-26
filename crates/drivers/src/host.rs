@@ -1,7 +1,7 @@
 //! Runs the drivers `modules.json` sets up and routes between them and the frontend: global control to its
 //! bindings, keys and the stage to the current input's slots. The frontend sees ports and inputs, never a driver.
 
-use crate::api::{Driver, KeyLight, Power, PowerIntent, PowerPort, RemoteKey, SourceIntent, SourcePort, Sources, Stage, Status, UiIntent, Volume, VolumeIntent, VolumePort};
+use crate::api::{Driver, KeyLight, Power, PowerIntent, PowerPort, RemoteKey, SourceIntent, SourcePort, Sources, Stage, Status, UiIntent, Voice, VoiceIntent, VoicePort, Volume, VolumeIntent, VolumePort};
 use crate::config::{Binding, DriverEntry, Modules};
 use crate::inputs::{self, Input};
 use crate::registry::Registry;
@@ -31,6 +31,7 @@ pub struct Host {
     volume: Option<Bound<VolumePort>>,
     source: Option<Bound<SourcePort>>,
     power: Option<Bound<PowerPort>>,
+    voice: Option<Bound<VoicePort>>,
     key_light: Option<watch::Receiver<Option<KeyLight>>>,
     /// Bumped whenever anything a driver shows changes.
     changed: watch::Sender<u64>,
@@ -50,6 +51,7 @@ impl Host {
             volume: None,
             source: None,
             power: None,
+            voice: None,
             key_light: None,
             changed: watch::channel(0).0,
             forwarders: Vec::new(),
@@ -101,6 +103,7 @@ impl Host {
         self.volume = rebind(self.volume.take(), &self.modules.global.volume, &self.running, |d, t| d.volume(t));
         self.source = rebind(self.source.take(), &self.modules.global.source, &self.running, |d, t| d.source(t));
         self.power = rebind(self.power.take(), &self.modules.power_binding().cloned(), &self.running, |d, t| d.power(t));
+        self.voice = rebind(self.voice.take(), &self.modules.global.voice, &self.running, |d, t| d.voice(t));
         self.key_light = self.running.values().find_map(|r| r.driver.key_light());
 
         let changed = self.changed.clone();
@@ -112,6 +115,9 @@ impl Host {
             watch_all.push(forward(b.port.view.clone(), changed.clone()));
         }
         if let Some(b) = &self.power {
+            watch_all.push(forward(b.port.view.clone(), changed.clone()));
+        }
+        if let Some(b) = &self.voice {
             watch_all.push(forward(b.port.view.clone(), changed.clone()));
         }
         if let Some(k) = &self.key_light {
@@ -162,6 +168,19 @@ impl Host {
 
     pub fn send_power(&self, intent: PowerIntent) -> bool {
         self.power.as_ref().map(|b| b.port.send(intent)).is_some()
+    }
+
+    /// Something is set up to take voice.
+    pub fn has_voice(&self) -> bool {
+        self.voice.is_some()
+    }
+
+    pub fn voice(&self) -> Option<Voice> {
+        self.voice.as_ref().and_then(|b| b.port.get())
+    }
+
+    pub fn send_voice(&self, intent: VoiceIntent) -> bool {
+        self.voice.as_ref().map(|b| b.port.send(intent)).is_some()
     }
 
     pub fn key_light(&self) -> Option<KeyLight> {
@@ -245,7 +264,7 @@ impl Host {
     /// Whether global control or `input` relies on the driver `id`.
     pub fn in_use(&self, id: &str, input: Option<&Input>) -> bool {
         let g = &self.modules.global;
-        let bound = [&g.volume, &g.source].into_iter().flatten().chain(self.modules.power_binding()).any(|b| b.driver == id);
+        let bound = [&g.volume, &g.source, &g.voice].into_iter().flatten().chain(self.modules.power_binding()).any(|b| b.driver == id);
         bound || input.is_some_and(|i| i.remote.as_deref() == Some(id) || i.ui.as_deref() == Some(id))
     }
 }

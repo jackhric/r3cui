@@ -13,6 +13,7 @@ Global control                        what the whole remote drives
 ├─ Volume  → driver + target          (Home Assistant: a media_player entity)
 ├─ Inputs  → driver + target          (may be a different entity from Volume; `global.source` in modules.json)
 ├─ Power   → driver + target          (own entity, or follows Inputs when unset)
+├─ Voice   → driver + target          (where the voice key's speech goes: a Home Assistant Assist pipeline)
 └─ Input list                         the Inputs target's input list, in the user's order
    ├─ KODI    remote slot: Kodi    UI slot: Kodi
    ├─ TV      remote slot: —       UI slot: —        → a blank screen
@@ -20,7 +21,9 @@ Global control                        what the whole remote drives
 ```
 
 - **Global control** gets volume, mute, power, the input switcher and Home, whatever input is on. Settings →
-  Integrations → Global control has one row each for Volume, Inputs and Power.
+  Integrations → Global control has one row each for Volume, Inputs, Power and Voice. Voice is the `VoicePort`
+  (`Driver::voice`, `Provides.voice`): start, audio, end or cancel a session; the view says what was heard and the
+  answer. See docs/voice.md.
 - **Remote slot**: where every other button goes while that input is on (d-pad, OK, back, menu,
   channel, transport). Empty: those buttons do nothing.
 - **UI slot**: what the stage shows while that input is on: Now Playing, a library wall, or

@@ -72,9 +72,48 @@ pub enum PowerIntent {
     Set(bool),
 }
 
+/// A voice session: what was heard and the answer, as the destination reports them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Voice {
+    pub session: u32,
+    pub phase: VoicePhase,
+    pub heard: String,
+    pub answer: String,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum VoicePhase {
+    #[default]
+    Listening,
+    /// The audio has ended; waiting for the answer.
+    Thinking,
+    Answered { success: bool },
+    Failed(VoiceFailure),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VoiceFailure {
+    Timeout,
+    NoTextRecognized,
+    InvalidAudio,
+    ServiceUnavailable,
+    Unexpected,
+}
+
+/// Audio is PCM as the remote records it: signed 16-bit, mono, at `sample_rate`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VoiceIntent {
+    Start { session: u32, sample_rate: u32 },
+    Audio { session: u32, pcm: Vec<u8> },
+    End { session: u32 },
+    /// Dropped before it said anything worth sending.
+    Cancel { session: u32 },
+}
+
 pub type VolumePort = Port<Option<Volume>, VolumeIntent>;
 pub type SourcePort = Port<Option<Sources>, SourceIntent>;
 pub type PowerPort = Port<Option<Power>, PowerIntent>;
+pub type VoicePort = Port<Option<Voice>, VoiceIntent>;
 pub type UiPort = Port<Stage, UiIntent>;
 
 /// The buttons that go to the current input's remote slot. Volume, mute, power, Home and the input key are the
@@ -253,6 +292,8 @@ pub enum TargetKind {
     Light,
     Select,
     Sensor,
+    /// A voice pipeline: where speech is understood and answered.
+    Pipeline,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -289,6 +330,8 @@ pub struct Provides {
     pub ui: bool,
     /// Can stand as global power without being global control.
     pub power: bool,
+    /// Takes voice: where the remote's microphone goes.
+    pub voice: bool,
 }
 
 /// A driver that has to be paired with its device: the device shows a code, the user types it in.
@@ -353,6 +396,9 @@ pub trait Driver: Send + Sync {
         None
     }
     fn power(&self, _target: &str) -> Option<PowerPort> {
+        None
+    }
+    fn voice(&self, _target: &str) -> Option<VoicePort> {
         None
     }
     fn remote(&self) -> Option<mpsc::UnboundedSender<RemoteKey>> {

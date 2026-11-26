@@ -4,7 +4,8 @@
 use crate::api::*;
 use crate::config::DriverEntry;
 use crate::run::{follow, in_order};
-use homeassistant::{EntityId, EntityState, HaConfig, HaHandle, HaService, HaState, Light, Link, MediaPlayer};
+use homeassistant::{AssistEvent, EndStage, EntityId, EntityState, HaConfig, HaHandle, HaService, HaState, Light, Link, MediaPlayer, VoiceError, VoiceRun};
+use std::time::Duration;
 use std::collections::BTreeSet;
 use std::sync::Mutex;
 use tokio::sync::watch;
@@ -29,13 +30,15 @@ pub static SPEC: Spec = Spec {
         Field { key: field::KEYS_LIGHT, label: "Key light", kind: FieldKind::Target(TargetKind::Light), required: false, default: None },
         Field { key: field::KEYS_MODE, label: "Key light mode", kind: FieldKind::Target(TargetKind::Select), required: false, default: None },
     ],
-    provides: Provides { global: true, remote: false, ui: false, power: false },
+    provides: Provides { global: true, remote: false, ui: false, power: false, voice: true },
     address: Some(field::URL),
     pairing: None,
 };
 
 /// Full scale when there is no volume-limit sensor.
 const FULL: i32 = 100;
+/// How long Home Assistant may take to hear and answer once the audio starts.
+const VOICE_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct HomeAssistant {
     ha: HaHandle,
@@ -80,6 +83,8 @@ fn domains(kind: TargetKind) -> &'static [&'static str] {
         TargetKind::Light => &[LIGHT],
         TargetKind::Select => &[SELECT, INPUT_SELECT],
         TargetKind::Sensor => &[SENSOR, INPUT_NUMBER],
+        // Pipelines are not entities: `targets` asks for them by name.
+        TargetKind::Pipeline => &[],
     }
 }
 
@@ -134,6 +139,85 @@ fn hsv(h: f64, s: f64, v: f64) -> (u8, u8, u8) {
         ((v - v * s * k.min(4.0 - k).clamp(0.0, 1.0)) * 255.0).round() as u8
     };
     (f(5.0), f(3.0), f(1.0))
+}
+
+fn current(session: u32, run: &Option<(u32, VoiceRun)>) -> Option<&VoiceRun> {
+    run.as_ref().filter(|(s, _)| *s == session).map(|(_, r)| r)
+}
+
+async fn voice_intent(ha: &HaHandle, pipeline: Option<&str>, view: &watch::Sender<Option<Voice>>, run: &mut Option<(u32, VoiceRun)>, intent: VoiceIntent) {
+    match intent {
+        VoiceIntent::Start { session, sample_rate } => {
+            // Dropping a run that is still going cancels it in Home Assistant.
+            *run = None;
+            view.send_replace(Some(Voice { session, ..Voice::default() }));
+            match ha.run_voice(pipeline, sample_rate, EndStage::Intent, VOICE_TIMEOUT).await {
+                Ok(r) => *run = Some((session, r)),
+                Err(e) => {
+                    tracing::warn!("home assistant voice: {e}");
+                    view.send_modify(|v| {
+                        if let Some(v) = v.as_mut().filter(|v| v.session == session) {
+                            v.phase = VoicePhase::Failed(VoiceFailure::ServiceUnavailable);
+                        }
+                    });
+                }
+            }
+        }
+        VoiceIntent::Audio { session, pcm } => {
+            if let Some(r) = current(session, run) {
+                let _ = r.send_audio(&pcm);
+            }
+        }
+        VoiceIntent::End { session } => {
+            if let Some(r) = current(session, run) {
+                let _ = r.end_audio();
+            }
+            view.send_modify(|v| {
+                if let Some(v) = v.as_mut().filter(|v| v.session == session && v.phase == VoicePhase::Listening) {
+                    v.phase = VoicePhase::Thinking;
+                }
+            });
+        }
+        VoiceIntent::Cancel { session } => {
+            if current(session, run).is_some() {
+                *run = None;
+            }
+            view.send_if_modified(|v| v.take_if(|v| v.session == session).is_some());
+        }
+    }
+}
+
+/// The next event of the run going on, `None` inside when it ended without one; never resolves without a run.
+async fn next_event(run: &mut Option<(u32, VoiceRun)>) -> Option<(u32, Option<AssistEvent>)> {
+    match run {
+        Some((session, r)) => Some((*session, r.next().await)),
+        None => std::future::pending().await,
+    }
+}
+
+fn answer(v: &mut Voice, event: Option<AssistEvent>) {
+    match event {
+        Some(AssistEvent::Heard { text }) => v.heard = text,
+        Some(AssistEvent::Answer { text, success }) => {
+            v.answer = text;
+            v.phase = VoicePhase::Answered { success };
+        }
+        Some(AssistEvent::Failed { code, .. }) => v.phase = VoicePhase::Failed(failure(code)),
+        Some(AssistEvent::Finished) | None if !matches!(v.phase, VoicePhase::Answered { .. } | VoicePhase::Failed(_)) => {
+            v.phase = VoicePhase::Failed(VoiceFailure::Unexpected);
+        }
+        _ => {}
+    }
+}
+
+fn failure(code: VoiceError) -> VoiceFailure {
+    match code {
+        VoiceError::Timeout => VoiceFailure::Timeout,
+        VoiceError::NoTextRecognized => VoiceFailure::NoTextRecognized,
+        VoiceError::InvalidAudio => VoiceFailure::InvalidAudio,
+        VoiceError::ServiceUnavailable => VoiceFailure::ServiceUnavailable,
+        VoiceError::Unexpected => VoiceFailure::Unexpected,
+    }
 }
 
 impl Driver for HomeAssistant {
@@ -218,8 +302,42 @@ impl Driver for HomeAssistant {
         self.key_light.clone()
     }
 
+    /// `target` is an Assist pipeline's id; empty is Home Assistant's preferred one.
+    fn voice(&self, target: &str) -> Option<VoicePort> {
+        let pipeline = (!target.is_empty()).then(|| target.to_string());
+        let (view, mut intents, port) = port(None);
+        let ha = self.ha.clone();
+        tokio::spawn(async move {
+            let mut run: Option<(u32, VoiceRun)> = None;
+            loop {
+                tokio::select! {
+                    intent = intents.recv() => {
+                        let Some(intent) = intent else { break };
+                        voice_intent(&ha, pipeline.as_deref(), &view, &mut run, intent).await;
+                    }
+                    Some((session, event)) = next_event(&mut run) => {
+                        let ended = event.as_ref().is_none_or(|e| matches!(e, AssistEvent::Finished | AssistEvent::Failed { .. }));
+                        view.send_modify(|v| {
+                            if let Some(v) = v.as_mut().filter(|v| v.session == session) {
+                                answer(v, event);
+                            }
+                        });
+                        if ended {
+                            run = None;
+                        }
+                    }
+                }
+            }
+        });
+        Some(port)
+    }
+
     fn targets(&self, kind: TargetKind) -> Targets<'_> {
         Box::pin(async move {
+            if kind == TargetKind::Pipeline {
+                let pipelines = self.ha.pipelines().await.map_err(|e| tracing::warn!("home assistant pipelines: {e}")).unwrap_or_default();
+                return pipelines.list.into_iter().map(|p| Target { id: p.id, name: p.name }).collect();
+            }
             let domains = domains(kind);
             let states = self.ha.states().await.map_err(|e| tracing::warn!("home assistant entities: {e}")).unwrap_or_default();
             let mut found: Vec<Target> = states
@@ -278,6 +396,44 @@ mod tests {
         until(&mut power.view.clone(), |p| *p == Some(Power { on: false })).await;
         let services: Vec<String> = fake.calls().into_iter().map(|(d, s, _)| format!("{d}.{s}")).collect();
         assert_eq!(services, ["media_player.volume_set", "media_player.volume_mute", "media_player.select_source", "media_player.turn_off"]);
+    }
+
+    #[tokio::test]
+    async fn voice_goes_to_the_assist_pipeline_and_the_answer_comes_back() {
+        use homeassistant::protocol::assist::EventType;
+        let fake = FakeHa::start("token").await;
+        fake.set_pipelines(&[("p1", "Home", "en")], Some("p1"));
+        let ha = driver(&fake).await;
+        until(&mut ha.status(), |s| s.health == Health::Up).await;
+        let targets = ha.targets(TargetKind::Pipeline).await;
+        assert_eq!(targets, [Target { id: "p1".into(), name: "Home".into() }]);
+
+        let voice = ha.voice("p1").unwrap();
+        voice.send(VoiceIntent::Start { session: 3, sample_rate: 16000 });
+        voice.send(VoiceIntent::Audio { session: 3, pcm: vec![1, 2] });
+        voice.send(VoiceIntent::Audio { session: 9, pcm: vec![9] });
+        voice.send(VoiceIntent::End { session: 3 });
+        let v = until(&mut voice.view.clone(), |v| v.as_ref().is_some_and(|v| v.phase == VoicePhase::Thinking)).await.unwrap();
+        assert_eq!(v.session, 3);
+        let id = FakeHa::stt_binary_handler_id();
+        for _ in 0..200 {
+            if fake.audio_frames().len() >= 2 {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert_eq!(fake.audio_frames(), [vec![id, 1, 2], vec![id]], "another session's audio is not sent");
+        assert_eq!(fake.voice_runs()[0]["pipeline"], "p1");
+
+        fake.run_event(EventType::SttEnd, json!({ "stt_output": { "text": "lights on" } }));
+        fake.run_event(EventType::IntentEnd, json!({ "intent_output": { "response": { "response_type": "action_done", "speech": { "plain": { "speech": "Turned on the lights" } } } } }));
+        fake.run_event(EventType::RunEnd, json!({}));
+        let v = until(&mut voice.view.clone(), |v| v.as_ref().is_some_and(|v| matches!(v.phase, VoicePhase::Answered { .. }))).await.unwrap();
+        assert_eq!((v.heard.as_str(), v.answer.as_str(), v.phase), ("lights on", "Turned on the lights", VoicePhase::Answered { success: true }));
+
+        voice.send(VoiceIntent::Start { session: 4, sample_rate: 16000 });
+        voice.send(VoiceIntent::Cancel { session: 4 });
+        until(&mut voice.view.clone(), Option::is_none).await;
     }
 
     #[tokio::test]

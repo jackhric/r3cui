@@ -34,7 +34,7 @@ pub static SPEC: Spec = Spec {
         Field { key: field::WS_PORT, label: "WebSocket port", kind: FieldKind::Port, required: false, default: Some("9090") },
         Field { key: field::HTTP_PORT, label: "Web server port", kind: FieldKind::Port, required: false, default: Some("8080") },
     ],
-    provides: Provides { global: false, remote: true, ui: true, power: false },
+    provides: Provides { global: false, remote: true, ui: true, power: false, voice: false },
     address: Some(field::HOST),
     pairing: None,
 };

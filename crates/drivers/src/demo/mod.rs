@@ -16,7 +16,7 @@ pub static SPEC: Spec = Spec {
     // A play mark in a rounded square.
     icon: "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm5 5v8l6-4z",
     fields: &[],
-    provides: Provides { global: true, remote: true, ui: true, power: false },
+    provides: Provides { global: true, remote: true, ui: true, power: false, voice: true },
     address: None,
     pairing: None,
 };
@@ -36,6 +36,7 @@ pub struct Demo {
     power: PowerPort,
     ui: UiPort,
     remote: mpsc::UnboundedSender<RemoteKey>,
+    voice: VoicePort,
     status: watch::Receiver<Status>,
 }
 
@@ -48,6 +49,7 @@ pub fn modules() -> Modules {
     m.bind(Role::Volume, binding());
     m.bind(Role::Source, binding());
     m.bind(Role::Power, binding());
+    m.bind(Role::Voice, Some(Binding { driver: id.clone(), target: data::PIPELINE.0.into() }));
     for input in INPUTS {
         m.set_slot(input, Slot::Remote, Some(id.clone()));
     }
@@ -128,8 +130,40 @@ impl Demo {
                 }
             }
         });
-        Self { volume, source, power, ui, remote, status: watch::channel(Status::new(Health::Up)).1 }
+        Self { volume, source, power, ui, remote, voice: voice(), status: watch::channel(Status::new(Health::Up)).1 }
     }
+}
+
+/// Hears the same thing whatever is said, and answers it a moment after the audio ends.
+fn voice() -> VoicePort {
+    let (view, mut intents, port) = port(None);
+    tokio::spawn(async move {
+        while let Some(intent) = intents.recv().await {
+            match intent {
+                VoiceIntent::Start { session, .. } => drop(view.send_replace(Some(Voice { session, ..Voice::default() }))),
+                VoiceIntent::Audio { .. } => {}
+                VoiceIntent::End { session } => {
+                    view.send_modify(|v| {
+                        if let Some(v) = v.as_mut().filter(|v| v.session == session) {
+                            v.phase = VoicePhase::Thinking;
+                        }
+                    });
+                    let view = view.clone();
+                    tokio::spawn(async move {
+                        tokio::time::sleep(data::VOICE_THINKING).await;
+                        view.send_modify(|v| {
+                            if let Some(v) = v.as_mut().filter(|v| v.session == session) {
+                                (v.heard, v.answer) = (data::VOICE_HEARD.into(), data::VOICE_ANSWER.into());
+                                v.phase = VoicePhase::Answered { success: true };
+                            }
+                        });
+                    });
+                }
+                VoiceIntent::Cancel { session } => drop(view.send_if_modified(|v| v.take_if(|v| v.session == session).is_some())),
+            }
+        }
+    });
+    port
 }
 
 fn pause(s: &mut State) {
@@ -215,8 +249,17 @@ impl Driver for Demo {
         }
     }
 
-    fn targets(&self, _: TargetKind) -> Targets<'_> {
-        Box::pin(async { vec![Target { id: RECEIVER.into(), name: "Demo receiver".into() }] })
+    fn voice(&self, _: &str) -> Option<VoicePort> {
+        Some(self.voice.clone())
+    }
+
+    fn targets(&self, kind: TargetKind) -> Targets<'_> {
+        Box::pin(async move {
+            match kind {
+                TargetKind::Pipeline => vec![Target { id: data::PIPELINE.0.into(), name: data::PIPELINE.1.into() }],
+                _ => vec![Target { id: RECEIVER.into(), name: "Demo receiver".into() }],
+            }
+        })
     }
 }
 

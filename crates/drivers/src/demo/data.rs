@@ -13,6 +13,11 @@ pub const XBOX: &str = "XBOX 360";
 pub const INPUTS: [&str; 4] = [ANDROID_TV, KODI, PLAYSTATION, XBOX];
 pub const START_INPUT: &str = PLAYSTATION;
 pub const RECEIVER: &str = "demo.receiver";
+pub const PIPELINE: (&str, &str) = ("demo.assist", "Demo Assist");
+/// What the made-up assistant hears and answers, a moment after the user lets go.
+pub const VOICE_HEARD: &str = "Turn on the theater lights";
+pub const VOICE_ANSWER: &str = "Turned on the theater lights";
+pub const VOICE_THINKING: Duration = Duration::from_millis(900);
 
 pub const START_LEVEL: i32 = 62;
 pub const LEVEL_LIMIT: i32 = 72;

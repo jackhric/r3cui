@@ -48,6 +48,8 @@ pub struct Global {
     /// Unset, power follows the source: `Modules::power_binding`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub power: Option<Binding>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice: Option<Binding>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,6 +93,7 @@ pub enum Role {
     Volume,
     Source,
     Power,
+    Voice,
 }
 
 /// The old hardwired input Kodi was tied to, before inputs were configurable.
@@ -205,6 +208,7 @@ impl Modules {
             Role::Volume => self.global.volume = binding,
             Role::Source => self.global.source = binding,
             Role::Power => self.global.power = binding,
+            Role::Voice => self.global.voice = binding,
         }
     }
 
