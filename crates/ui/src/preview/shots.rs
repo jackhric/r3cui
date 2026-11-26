@@ -5,6 +5,7 @@
 use crate::hardware::backlight;
 use crate::input::{keys, Button};
 use crate::view::screen::{Page, Screen};
+use crate::NavKey as N;
 use crate::{Capture, LibMode, WallStyle, JoinState, Picker};
 use crate::preview::device::{self, Device};
 use crate::{view::apply, app::demo::apply_demo_settings, AppWindow, app::model::Model, app::UiAction};
@@ -27,7 +28,7 @@ fn keys(app: &AppWindow) -> backlight::Keys {
 type Step = (&'static str, fn(&AppWindow, &mut Model));
 
 /// D-pad presses that type a plausible password, wandering over all four rows.
-const TYPING: &[&str] = &["ok", "right", "ok", "up", "ok", "left", "left", "ok", "down", "down", "ok", "right", "right", "ok", "up", "ok", "up", "right", "ok", "ok"];
+const TYPING: &[N] = &[N::Ok, N::Right, N::Ok, N::Up, N::Ok, N::Left, N::Left, N::Ok, N::Down, N::Down, N::Ok, N::Right, N::Right, N::Ok, N::Up, N::Ok, N::Up, N::Right, N::Ok, N::Ok];
 
 const STEPS: &[Step] = &[
     ("01-receiver", |_, _| {}),
@@ -96,7 +97,7 @@ const STEPS: &[Step] = &[
         app.invoke_kb_reset();
         app.go_to(Page::Password, 0);
         for k in TYPING {
-            app.invoke_kb_nav((*k).into());
+            app.invoke_kb_nav(*k);
         }
     }),
     ("16-joining", |app, _| app.set_join_state(JoinState::Joining)),
@@ -403,7 +404,7 @@ fn wifi_script() -> Vec<(u64, Act)> {
         (900, ui(|_| {})),
     ];
     for k in TYPING {
-        steps.push((260, Box::new(move |a: &AppWindow, _: &Tx| a.invoke_kb_nav((*k).into()))));
+        steps.push((260, Box::new(move |a: &AppWindow, _: &Tx| a.invoke_kb_nav(*k))));
     }
     steps.extend([
         (700, ui(|a| a.invoke_kb_tap(30))),

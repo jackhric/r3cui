@@ -1,6 +1,8 @@
 //! The on-screen QWERTY keyboard, driven by the d-pad (and touch). Pure state and geometry; the
 //! window only draws the cells this produces.
 
+use crate::{KeyStyle, NavKey};
+
 const LETTERS: [&str; 3] = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
 const SYMBOLS: [&str; 3] = ["1234567890", "@#$%&*-_/", "!?.,:'+="];
 const KEY_W: f32 = 44.0;
@@ -26,20 +28,10 @@ pub enum Kind {
     Join,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Style {
-    Char,
-    Action,
-    /// Shift while it is armed.
-    ActionOn,
-    JoinDim,
-    JoinReady,
-}
-
 pub struct Cell {
     pub label: String,
     pub kind: Kind,
-    pub style: Style,
+    pub style: KeyStyle,
     pub focused: bool,
     pub x: f32,
     pub y: f32,
@@ -150,12 +142,12 @@ impl Keyboard {
         for (r, row) in self.rows.iter().enumerate() {
             for (c, key) in row.iter().enumerate() {
                 let (label, style) = match key.kind {
-                    Kind::Char => (self.char_at(r, c).to_string(), Style::Char),
-                    Kind::Shift => (String::new(), if self.shift && !self.symbols { Style::ActionOn } else { Style::Action }),
-                    Kind::Mode => (if self.symbols { "abc" } else { "123" }.to_string(), Style::Action),
-                    Kind::Space => ("space".to_string(), Style::Action),
-                    Kind::Delete => (String::new(), Style::Action),
-                    Kind::Join => (self.action.to_string(), if self.ready() { Style::JoinReady } else { Style::JoinDim }),
+                    Kind::Char => (self.char_at(r, c).to_string(), KeyStyle::Char),
+                    Kind::Shift => (String::new(), if self.shift && !self.symbols { KeyStyle::ActionOn } else { KeyStyle::Action }),
+                    Kind::Mode => (if self.symbols { "abc" } else { "123" }.to_string(), KeyStyle::Action),
+                    Kind::Space => ("space".to_string(), KeyStyle::Action),
+                    Kind::Delete => (String::new(), KeyStyle::Action),
+                    Kind::Join => (self.action.to_string(), if self.ready() { KeyStyle::JoinReady } else { KeyStyle::JoinDim }),
                 };
                 out.push(Cell { label, kind: key.kind, style, focused: self.focus == (r, c), x: key.x, y: key.y, w: key.w, h: key.h });
             }
@@ -163,18 +155,20 @@ impl Keyboard {
         out
     }
 
-    /// `name` is one of up, down, left, right, ok, back.
-    pub fn key(&mut self, name: &str) -> Outcome {
+    pub fn key(&mut self, key: NavKey) -> Outcome {
         let (r, c) = self.focus;
-        match name {
-            "left" => self.focus.1 = (c + self.rows[r].len() - 1) % self.rows[r].len(),
-            "right" => self.focus.1 = (c + 1) % self.rows[r].len(),
-            "up" => self.move_row((r + self.rows.len() - 1) % self.rows.len()),
-            "down" => self.move_row((r + 1) % self.rows.len()),
-            "ok" => return self.press(r, c),
-            "back" if !self.password => return Outcome::Leave,
-            "back" if self.text.pop().is_none() => return Outcome::Leave,
-            _ => {}
+        match key {
+            NavKey::Left => self.focus.1 = (c + self.rows[r].len() - 1) % self.rows[r].len(),
+            NavKey::Right => self.focus.1 = (c + 1) % self.rows[r].len(),
+            NavKey::Up => self.move_row((r + self.rows.len() - 1) % self.rows.len()),
+            NavKey::Down => self.move_row((r + 1) % self.rows.len()),
+            NavKey::Ok => return self.press(r, c),
+            NavKey::Back if !self.password => return Outcome::Leave,
+            NavKey::Back => {
+                if self.text.pop().is_none() {
+                    return Outcome::Leave;
+                }
+            }
         }
         Outcome::Stay
     }
@@ -240,21 +234,21 @@ impl Keyboard {
 mod tests {
     use super::*;
 
-    fn run(kb: &mut Keyboard, keys: &[&str]) -> Outcome {
-        keys.iter().map(|k| kb.key(k)).last().unwrap_or(Outcome::Stay)
+    fn run(kb: &mut Keyboard, keys: &[NavKey]) -> Outcome {
+        keys.iter().map(|k| kb.key(*k)).last().unwrap_or(Outcome::Stay)
     }
 
     #[test]
     fn starts_on_g_and_types() {
         let mut kb = Keyboard::new();
-        run(&mut kb, &["ok", "right", "ok"]);
+        run(&mut kb, &[NavKey::Ok, NavKey::Right, NavKey::Ok]);
         assert_eq!(kb.text(), "gh");
     }
 
     #[test]
     fn rows_wrap_sideways() {
         let mut kb = Keyboard::new();
-        run(&mut kb, &["up", "left", "left", "left", "left", "left", "ok"]);
+        run(&mut kb, &[NavKey::Up, NavKey::Left, NavKey::Left, NavKey::Left, NavKey::Left, NavKey::Left, NavKey::Ok]);
         assert_eq!(kb.text(), "p", "left of q wraps to p");
     }
 
@@ -262,10 +256,10 @@ mod tests {
     fn vertical_moves_pick_the_nearest_key() {
         let mut kb = Keyboard::new();
         // g sits between t and y on the row above, and above v/b below.
-        run(&mut kb, &["down", "ok"]);
+        run(&mut kb, &[NavKey::Down, NavKey::Ok]);
         assert_eq!(kb.text(), "v");
         let mut kb = Keyboard::new();
-        run(&mut kb, &["up", "up", "ok"]);
+        run(&mut kb, &[NavKey::Up, NavKey::Up, NavKey::Ok]);
         assert_eq!(kb.text(), " ", "above the top row is the action row; g lines up with space");
     }
 
@@ -273,7 +267,7 @@ mod tests {
     fn shift_applies_to_one_letter() {
         let mut kb = Keyboard::new();
         kb.tap(26);
-        run(&mut kb, &["up", "ok", "ok"]);
+        run(&mut kb, &[NavKey::Up, NavKey::Ok, NavKey::Ok]);
         assert_eq!(kb.text(), "Zz");
     }
 
@@ -281,7 +275,7 @@ mod tests {
     fn join_needs_eight_characters() {
         let mut kb = Keyboard::new();
         for _ in 0..7 {
-            kb.key("ok");
+            kb.key(NavKey::Ok);
         }
         assert_eq!(kb.tap(30), Outcome::Stay);
         kb.tap(14);
@@ -291,9 +285,9 @@ mod tests {
     #[test]
     fn back_deletes_then_leaves() {
         let mut kb = Keyboard::new();
-        kb.key("ok");
-        assert_eq!(kb.key("back"), Outcome::Stay);
-        assert_eq!(kb.key("back"), Outcome::Leave);
+        kb.key(NavKey::Ok);
+        assert_eq!(kb.key(NavKey::Back), Outcome::Stay);
+        assert_eq!(kb.key(NavKey::Back), Outcome::Leave);
     }
 
     #[test]
@@ -312,7 +306,7 @@ mod tests {
         assert!(kb.ready());
         let done = kb.cells().iter().position(|c| c.kind == Kind::Join).unwrap();
         assert_eq!(kb.cells()[done].label, "Done");
-        assert_eq!(kb.key("back"), Outcome::Leave, "cancels rather than rubbing out");
+        assert_eq!(kb.key(NavKey::Back), Outcome::Leave, "cancels rather than rubbing out");
         kb.start(0, "Done", "");
         assert_eq!(kb.tap(done), Outcome::Done(String::new()));
     }

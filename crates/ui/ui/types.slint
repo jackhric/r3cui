@@ -1,3 +1,29 @@
+// The d-pad as the on-screen keyboard sees it.
+export enum NavKey {
+    up,
+    down,
+    left,
+    right,
+    ok,
+    back,
+}
+
+export enum KeyStyle {
+    char,
+    action,
+    // Shift while it is armed.
+    action-on,
+    // The join or done key while there is not enough text for it.
+    join-dim,
+    join-ready,
+}
+
+export enum KeyGlyph {
+    none,
+    shift,
+    delete,
+}
+
 // What the screen asks the haptic motor and speaker for; `cue_for` in feedback.rs says what each plays.
 export enum Haptic {
     page,
@@ -76,14 +102,13 @@ export struct StatusRow {
 
 export struct KeyCell {
     label: string,
-    icon: string,
+    glyph: KeyGlyph,
     x: length,
     y: length,
     w: length,
     h: length,
     focused: bool,
-    // 0 character, 1 action, 2 action armed, 3 join (not ready), 4 join (ready)
-    style: int,
+    style: KeyStyle,
 }
 
 // One row of a choice list. Every field but `label` is optional.

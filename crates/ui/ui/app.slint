@@ -7,7 +7,7 @@ import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
-import { Capture, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, StatusRow, KeyCell, LibItem } from "types.slint";
+import { Capture, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, StatusRow, KeyCell, LibItem } from "types.slint";
 
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars }
@@ -377,7 +377,7 @@ export component AppWindow inherits Window {
     // Ready the keyboard for other text, starting from this.
     callback kb-start(string);
     // "up", "down", "left", "right", "ok" or "back"
-    callback kb-nav(string);
+    callback kb-nav(NavKey);
     callback kb-tap(int);
     // The physical power key, held: switch what global control drives on or off. A short press does nothing.
     callback power-held();
@@ -609,7 +609,19 @@ export component AppWindow inherits Window {
             }
             if (root.page == 6) {
                 if (root.join-state != JoinState.joining) {
-                    root.kb-nav(event.text == Key.UpArrow ? "up" : event.text == Key.DownArrow ? "down" : event.text == Key.LeftArrow ? "left" : event.text == Key.RightArrow ? "right" : event.text == Key.Return ? "ok" : event.text == Key.Backspace || event.text == Key.Escape ? "back" : "");
+                    if (event.text == Key.UpArrow) {
+                        root.kb-nav(NavKey.up);
+                    } else if (event.text == Key.DownArrow) {
+                        root.kb-nav(NavKey.down);
+                    } else if (event.text == Key.LeftArrow) {
+                        root.kb-nav(NavKey.left);
+                    } else if (event.text == Key.RightArrow) {
+                        root.kb-nav(NavKey.right);
+                    } else if (event.text == Key.Return) {
+                        root.kb-nav(NavKey.ok);
+                    } else if (event.text == Key.Backspace || event.text == Key.Escape) {
+                        root.kb-nav(NavKey.back);
+                    }
                 }
                 return accept;
             }
@@ -1319,19 +1331,19 @@ export component AppWindow inherits Window {
                         y: key.y;
                         width: key.w;
                         height: key.h;
-                        border-radius: key.style == 0 ? 12px : 16px;
-                        background: key.focused ? Theme.accent : key.style == 2 ? #2A2A2C : key.style == 0 ? #121213 : #161617;
-                        opacity: key.focused && key.style == 3 ? 0.45 : 1;
-                        transform-scale: key.focused ? (key.style == 0 ? 1.12 : 1.06) : 1;
+                        border-radius: key.style == KeyStyle.char ? 12px : 16px;
+                        background: key.focused ? Theme.accent : key.style == KeyStyle.action-on ? #2A2A2C : key.style == KeyStyle.char ? #121213 : #161617;
+                        opacity: key.focused && key.style == KeyStyle.join-dim ? 0.45 : 1;
+                        transform-scale: key.focused ? (key.style == KeyStyle.char ? 1.12 : 1.06) : 1;
                         animate transform-scale, background { duration: 80ms; }
-                        if key.icon == "": Text {
+                        if key.glyph == KeyGlyph.none: Text {
                             text: key.label;
-                            font-size: key.style == 0 ? 26px : 20px;
-                            font-weight: key.focused || key.style == 4 ? 600 : key.style == 0 ? 400 : 500;
-                            color: key.focused ? #000000 : key.style == 3 ? Theme.t3 : key.style == 4 ? Theme.accent : Theme.text;
+                            font-size: key.style == KeyStyle.char ? 26px : 20px;
+                            font-weight: key.focused || key.style == KeyStyle.join-ready ? 600 : key.style == KeyStyle.char ? 400 : 500;
+                            color: key.focused ? #000000 : key.style == KeyStyle.join-dim ? Theme.t3 : key.style == KeyStyle.join-ready ? Theme.accent : Theme.text;
                         }
-                        if key.icon != "": Glyph {
-                            commands: key.icon;
+                        if key.glyph != KeyGlyph.none: Glyph {
+                            commands: key.glyph == KeyGlyph.shift ? Icons.shift : Icons.delete;
                             tint: key.focused ? #000000 : Theme.text;
                         }
                         TouchArea {

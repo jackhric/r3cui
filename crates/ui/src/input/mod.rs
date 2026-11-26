@@ -3,7 +3,7 @@
 #[cfg(feature = "device")]
 pub(crate) mod evdev;
 pub(crate) mod slider;
-use crate::{AppWindow, Icons, JoinState, KbPurpose, KeyCell};
+use crate::{AppWindow, JoinState, KeyGlyph, KbPurpose, KeyCell};
 use crate::app::UiAction;
 use drivers::api::RemoteKey;
 use crate::view::keyboard;
@@ -188,30 +188,23 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
         let kb = kb.clone();
         move |outcome: keyboard::Outcome| {
             let Some(app) = weak.upgrade() else { return };
-            let icons = app.global::<Icons>();
             let cells: Vec<KeyCell> = kb
                 .borrow()
                 .cells()
                 .into_iter()
                 .map(|c| KeyCell {
                     label: c.label.into(),
-                    icon: match c.kind {
-                        keyboard::Kind::Shift => icons.get_shift(),
-                        keyboard::Kind::Delete => icons.get_delete(),
-                        _ => SharedString::new(),
+                    glyph: match c.kind {
+                        keyboard::Kind::Shift => KeyGlyph::Shift,
+                        keyboard::Kind::Delete => KeyGlyph::Delete,
+                        _ => KeyGlyph::None,
                     },
                     x: c.x,
                     y: c.y,
                     w: c.w,
                     h: c.h,
                     focused: c.focused,
-                    style: match c.style {
-                        keyboard::Style::Char => 0,
-                        keyboard::Style::Action => 1,
-                        keyboard::Style::ActionOn => 2,
-                        keyboard::Style::JoinDim => 3,
-                        keyboard::Style::JoinReady => 4,
-                    },
+                    style: c.style,
                 })
                 .collect();
             app.set_kb_keys(ModelRc::new(VecModel::from(cells)));
@@ -248,7 +241,7 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
     app.on_kb_nav({
         let (kb, after) = (kb.clone(), after.clone());
         move |name| {
-            let outcome = kb.borrow_mut().key(&name);
+            let outcome = kb.borrow_mut().key(name);
             after(outcome);
         }
     });
