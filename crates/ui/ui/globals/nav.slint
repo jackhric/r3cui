@@ -32,6 +32,16 @@ export global Nav {
     }
 
     // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
+    // Moves between screens inside the current page (Integrations' nested screens, the lab's): every Layer slides
+    // its content on them as a page change slides the pages.
+    out property <int> inner-moves;
+    out property <bool> inner-deeper;
+
+    public function inner(deeper: bool) {
+        Nav.inner-deeper = deeper;
+        Nav.inner-moves += 1;
+    }
+
     public function go(p: PageId, f: int) {
         if (p != Nav.page) {
             Fx.haptic(Haptic.page);
@@ -81,6 +91,7 @@ export global Nav {
                 Nav.go(PageId.menu, Menu.row(MenuItem.lab));
             } else {
                 Nav.focus = focus;
+                Nav.inner(false);
             }
         } else if (Nav.page == PageId.integrations) {
             Cfg.back();
@@ -193,6 +204,7 @@ export global Nav {
             if (Lab.pick(i)) {
                 Fx.haptic(Haptic.select);
                 Nav.focus = 0;
+                Nav.inner(true);
             }
         } else {
             // Opening a page gets the page's own haptic; a pick that stays on one gets this.

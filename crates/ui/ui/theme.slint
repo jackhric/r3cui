@@ -23,6 +23,9 @@ export global Theme {
     out property <color> track: #FFFFFF24;
     out property <color> hair: #FFFFFF14;
     out property <duration> page-time: 280ms;
+    out property <easing> page-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+    // How far a page sits to the side before it slides in.
+    out property <length> page-offset: 56px;
 }
 
 // 24x24 stroked glyphs.
@@ -274,21 +277,54 @@ export component PageHeader inherits Rectangle {
     }
 }
 
-// A full-screen page that fades and slides by its depth in the navigation stack.
+// A full-screen page that fades and slides by its depth in the navigation stack, and slides its content the same
+// way when it moves between screens of its own (`Nav.inner`).
 export component Layer inherits Rectangle {
     in property <PageId> page;
     property <bool> active: Nav.page == root.page;
     property <int> depth: Nav.depth-of(root.page);
     property <int> current-depth: Nav.depth-of(Nav.page);
+    property <int> inner-moves: Nav.inner-moves;
+    property <length> shift: 0px;
+    property <bool> sliding;
 
     y: 0;
     width: 480px;
     height: 800px;
-    x: root.active ? 0px : root.depth > root.current-depth ? 56px : root.depth < root.current-depth ? -56px : 0px;
+    x: root.active ? 0px : root.depth > root.current-depth ? Theme.page-offset : root.depth < root.current-depth ? -Theme.page-offset : 0px;
     opacity: root.active ? 1 : 0;
     visible: self.opacity > 0;
-    animate x { duration: Theme.page-time; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+    animate x { duration: Theme.page-time; easing: Theme.page-easing; }
     animate opacity { duration: Theme.page-time; easing: ease-out; }
+    animate shift { duration: root.sliding ? Theme.page-time : 0ms; easing: Theme.page-easing; }
+
+    changed inner-moves => {
+        if !root.active {
+            return;
+        }
+        root.sliding = false;
+        root.shift = Nav.inner-deeper ? Theme.page-offset : -Theme.page-offset;
+        settle.running = true;
+    }
+    // The new screen is placed off to the side first; the next frame slides it in from there.
+    settle := Timer {
+        interval: 16ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.sliding = true;
+            root.shift = 0px;
+        }
+    }
+
+    Rectangle {
+        x: root.shift;
+        width: 480px;
+        height: 800px;
+        // The old screen is gone at once, so the new one never starts from black.
+        opacity: 1 - 0.75 * abs(root.shift / Theme.page-offset);
+        @children
+    }
 }
 
 // The one primitive for every option layer (inputs, menu, settings, tracks): a header with a

@@ -83,6 +83,11 @@ pub(crate) fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, Stri
         }
     });
 }
+thread_local! {
+    /// The depth of the Integrations screen last shown, and whether its page was on screen then.
+    static SETTINGS_SHOWN: std::cell::Cell<(usize, bool)> = const { std::cell::Cell::new((0, false)) };
+}
+
 /// Draw the Integrations screen on show, keeping the focus where the logic says.
 pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::integrations::Page) {
     ui(weak, move |app| {
@@ -100,11 +105,18 @@ pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::int
                 ..Default::default()
             })
             .collect();
-        let new_screen = app.global::<Cfg>().get_title() != page.title.as_str() || app.global::<Cfg>().get_depth() != page.depth as i32;
+        let here = app.on_page(PageId::Integrations);
+        // A move between its screens slides like a page, but only one made on it: arriving from the keyboard or
+        // another page already slid.
+        let (was_depth, was_here) = SETTINGS_SHOWN.replace((page.depth, here));
+        let moved = page.depth != was_depth;
+        if moved && here && was_here {
+            app.global::<Nav>().invoke_inner(page.depth > was_depth);
+        }
+        let new_screen = moved || app.global::<Cfg>().get_title() != page.title.as_str();
         if !new_screen && app.global::<Cfg>().get_rows().iter().eq(rows.iter().cloned()) {
             return;
         }
-        app.global::<Cfg>().set_depth(page.depth as i32);
         app.global::<Cfg>().set_title(page.title.as_str().into());
         app.global::<Cfg>().set_rows(ModelRc::new(VecModel::from(rows)));
         if new_screen && app.on_page(PageId::Integrations) {
