@@ -66,7 +66,7 @@ two quick writes cut the first effect short.
 
 ### Event table
 
-`UI_EVENTS` in `feedback.rs` (Slint calls `root.haptic("name")`), plus `SLIDER_MUTE` and
+`cue_for` in `feedback.rs` (Slint calls `root.haptic(Haptic.page)` and the like; `Haptic` is an enum in `ui/types.slint`), plus `SLIDER_MUTE` and
 `SLIDER_LIMIT` for the Rust side:
 
 | Event | Cue |

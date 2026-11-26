@@ -8,6 +8,7 @@
 
 use crate::hardware::audio::{self, Sound};
 use crate::app::settings;
+use crate::Haptic;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::OnceLock;
@@ -235,37 +236,29 @@ impl Cue {
     }
 }
 
-/// What the screen's events play. `None` stops whatever hold feedback is running.
-pub const UI_EVENTS: &[(&str, Option<Cue>)] = &[
-    ("tap", Some(Cue::Tap)),
-    ("page", Some(Cue::Tap)),
-    ("tick", Some(Cue::Tick)),
-    ("select", Some(Cue::Select)),
-    ("back", Some(Cue::Back)),
-    ("success", Some(Cue::Success)),
-    ("error", Some(Cue::Error)),
-    ("power-hold", Some(Cue::Rumble)),
-    ("power-complete", Some(Cue::Success)),
-    ("home-hold", Some(Cue::HoldRamp)),
-    ("home-complete", Some(Cue::HoldComplete)),
-    ("hold-cancel", None),
-];
-
 pub const SLIDER_MUTE: Cue = Cue::Select;
 /// Every volume change, from the keys or the slider.
 pub const VOLUME: Cue = Cue::Volume;
 pub const SLIDER_LIMIT: Cue = Cue::Limit;
 
-pub fn from_ui(name: &str) -> Option<Option<Cue>> {
-    UI_EVENTS.iter().find(|(n, _)| *n == name).map(|(_, cue)| *cue)
+/// What the screen's events play. `None` stops whatever hold feedback is running.
+pub fn cue_for(event: Haptic) -> Option<Cue> {
+    match event {
+        Haptic::Page => Some(Cue::Tap),
+        Haptic::Select => Some(Cue::Select),
+        Haptic::PowerHold => Some(Cue::Rumble),
+        Haptic::PowerComplete => Some(Cue::Success),
+        Haptic::HomeHold => Some(Cue::HoldRamp),
+        Haptic::HomeComplete => Some(Cue::HoldComplete),
+        Haptic::HoldCancel => None,
+    }
 }
 
-/// Run an event name from the UI.
-pub fn ui_event(name: &str) {
-    match from_ui(name) {
-        Some(Some(cue)) => play(cue),
-        Some(None) => stop(),
-        None => tracing::debug!("unknown feedback event {name}"),
+/// Run an event from the screen.
+pub fn ui_event(event: Haptic) {
+    match cue_for(event) {
+        Some(cue) => play(cue),
+        None => stop(),
     }
 }
 
@@ -802,9 +795,8 @@ mod tests {
 
     #[test]
     fn ui_events_resolve() {
-        assert_eq!(from_ui("power-hold"), Some(Some(Cue::Rumble)));
-        assert_eq!(from_ui("hold-cancel"), Some(None));
-        assert_eq!(from_ui("nope"), None);
+        assert_eq!(cue_for(Haptic::PowerHold), Some(Cue::Rumble));
+        assert_eq!(cue_for(Haptic::HoldCancel), None);
     }
 
     #[test]

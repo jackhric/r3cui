@@ -132,7 +132,7 @@ fn main() -> anyhow::Result<()> {
         app.on_cfg_back(move || drop(tx.send(UiAction::Integrations(Settings::Back))));
     }
     app.on_power_action(send(UiAction::Power));
-    app.on_haptic(|name| feedback::ui_event(&name));
+    app.on_haptic(feedback::ui_event);
     let lab = Rc::new(RefCell::new(feedback::Lab::default()));
     let show_lab = {
         let weak = app.as_weak();

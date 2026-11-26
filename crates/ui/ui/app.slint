@@ -7,7 +7,7 @@ import { Logos } from "logos.slint";
 import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
-import { Capture, Choice, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, StatusRow, KeyCell, LibItem } from "types.slint";
+import { Capture, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, StatusRow, KeyCell, LibItem } from "types.slint";
 
 export * from "types.slint";
 export { Theme, Logos, Icons, Marks, Codecs, KeyChars }
@@ -381,8 +381,7 @@ export component AppWindow inherits Window {
     callback kb-tap(int);
     // The physical power key, held: switch what global control drives on or off. A short press does nothing.
     callback power-held();
-    // An event name from `UI_EVENTS` in feedback.rs.
-    callback haptic(string);
+    callback haptic(Haptic);
     // Seconds to jump, back (negative) or forward.
     callback seek(int);
     callback open-picker(Picker);
@@ -448,7 +447,7 @@ export component AppWindow inherits Window {
     // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
     public function go(p: int, f: int) {
         if (p != root.page) {
-            root.haptic("page");
+            root.haptic(Haptic.page);
         }
         if (root.page == 0 && p != 0) {
             root.capture(Capture.stage);
@@ -495,14 +494,14 @@ export component AppWindow inherits Window {
         root.focus-index = i;
         // A pick that opens another page already gets the page's haptic.
         if (root.page != 10 && root.page != 1 && root.page != 2 && root.page != 9 && root.page != 11) {
-            root.haptic("select");
+            root.haptic(Haptic.select);
         }
         if (root.page == 11) {
-            root.haptic("select");
+            root.haptic(Haptic.select);
             root.cfg-pick(i);
         } else if (root.page == 10) {
             if (root.lab-pick(i)) {
-                root.haptic("select");
+                root.haptic(Haptic.select);
                 root.focus-index = 0;
             }
         } else if (root.page == 1) {
@@ -589,7 +588,7 @@ export component AppWindow inherits Window {
                     root.hold-look = 2;
                     root.power-hold-start = animation-tick();
                     root.power-holding = true;
-                    root.haptic("power-hold");
+                    root.haptic(Haptic.power-hold);
                 }
                 return accept;
             }
@@ -644,7 +643,7 @@ export component AppWindow inherits Window {
                 }
             }
             if (!event.repeat && event.text == Key.Return) {
-                root.haptic("select");
+                root.haptic(Haptic.select);
             }
             root.key(event.text);
             return accept;
@@ -655,7 +654,7 @@ export component AppWindow inherits Window {
                 root.home-down = false;
                 if (!root.home-used) {
                     if (root.home-rumbling) {
-                        root.haptic("hold-cancel");
+                        root.haptic(Haptic.hold-cancel);
                     }
                     // A tap: back to the home screen from anywhere else, or the input's own home.
                     if (root.page != 0) {
@@ -667,7 +666,7 @@ export component AppWindow inherits Window {
             }
             if ((event.text.to-lowercase() == KeyChars.power) && root.power-holding) {
                 root.power-holding = false;
-                root.haptic("hold-cancel");
+                root.haptic(Haptic.hold-cancel);
             }
             return accept;
         }
@@ -679,7 +678,7 @@ export component AppWindow inherits Window {
                 root.power-latched = true;
                 root.power-completed = true;
                 root.power-held();
-                root.haptic("power-complete");
+                root.haptic(Haptic.power-complete);
             }
         }
         // Taps are common, so the rumble waits a moment before starting.
@@ -691,7 +690,7 @@ export component AppWindow inherits Window {
                 root.hold-look = 1;
                 root.home-hold-start = animation-tick();
                 root.home-rumbling = true;
-                root.haptic("home-hold");
+                root.haptic(Haptic.home-hold);
             }
         }
         Timer {
@@ -699,7 +698,7 @@ export component AppWindow inherits Window {
             running: root.home-down && !root.home-used;
             triggered => {
                 root.home-used = true;
-                root.haptic("home-complete");
+                root.haptic(Haptic.home-complete);
                 root.go(1, root.input-index);
             }
         }

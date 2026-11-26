@@ -1,3 +1,14 @@
+// What the screen asks the haptic motor and speaker for; `cue_for` in feedback.rs says what each plays.
+export enum Haptic {
+    page,
+    select,
+    power-hold,
+    power-complete,
+    home-hold,
+    home-complete,
+    hold-cancel,
+}
+
 // What the library shows. Only `off` and `wall` are live; the rest are the previews' variations.
 export enum LibMode {
     off,
