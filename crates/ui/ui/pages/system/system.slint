@@ -5,6 +5,8 @@ import { Icons } from "../../marks/icons.slint";
 import { Theme, Layout, Type } from "../../theme.slint";
 import { PageId, RowSize, UpdateState } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
+import { Caption } from "../../widgets/caption.slint";
+import { PageBody, Gap, Spring, Inset } from "../../widgets/page-body.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
 import { Row } from "../../widgets/row.slint";
 
@@ -16,85 +18,77 @@ export component SystemPage inherits Layer {
         title: "System";
         back => { Nav.back(); }
     }
-    R3Wordmark {
-        x: (Layout.screen-w - self.width) / 2;
-        y: 188px;
-        wide: 198px;
-    }
-    Text {
-        y: 262px;
-        width: Layout.screen-w;
-        horizontal-alignment: center;
-        text: Software.r3-version;
-        font-size: 64px;
-        font-weight: Type.display-weight;
-        color: Theme.text;
-    }
-    HorizontalLayout {
-        y: 340px;
-        width: Layout.screen-w;
-        height: 24px;
-        alignment: center;
-        spacing: 8px;
-        Rectangle {
-            width: 8px;
-            Rectangle {
-                width: 8px;
-                height: 8px;
-                border-radius: 4px;
-                background: root.available ? Theme.accent : Software.r3-state == UpdateState.current ? Theme.good : Theme.t3;
-            }
+    PageBody {
+        Gap { size: Layout.gap-l; }
+        HorizontalLayout {
+            alignment: center;
+            R3Wordmark { wide: 198px; }
         }
         Text {
-            text: Software.r3-status;
-            font-size: Type.body;
-            color: Theme.t2;
-            vertical-alignment: center;
+            horizontal-alignment: center;
+            text: Software.r3-version;
+            font-size: Type.hero;
+            font-weight: Type.display-weight;
+            color: Theme.text;
         }
-    }
-    Row {
-        y: 384px;
-        top-line: true;
-        bottom-line: true;
-        choice: { label: root.available ? "Update r3cui" : Software.r3-state == UpdateState.checking ? "Checking…" : "Check for updates", value: root.available ? Software.r3-new-version : "", chevron: root.available };
-        focused: Nav.focus == Software.action-row;
-        tapped => { Nav.activate(Software.action-row); }
-    }
-    Text {
-        x: Layout.margin;
-        y: 488px;
-        text: "THE REMOTE";
-        font-size: Type.caption;
-        letter-spacing: 2px;
-        color: Theme.t2;
-    }
-    Row {
-        y: 514px;
-        size: RowSize.compact;
-        uc-mark: true;
-        top-line: true;
-        bottom-line: true;
-        choice: { label: "Firmware", value: Software.fw-installed, chevron: true };
-        focused: Nav.focus == Software.firmware-row;
-        tapped => { Nav.activate(Software.firmware-row); }
-    }
-    Row {
-        y: 578px;
-        size: RowSize.compact;
-        uc-mark: true;
-        bottom-line: true;
-        choice: { label: "Web configurator", value: Software.web-on ? "On" : "Off", chevron: true };
-        focused: Nav.focus == Software.web-row;
-        tapped => { Nav.activate(Software.web-row); }
-    }
-    Row {
-        y: 692px;
-        glyph: Icons.trash;
-        danger: true;
-        top-line: true;
-        bottom-line: true;
-        choice: { label: "Uninstall r3cui", detail: "Erases r3cui; the stock UI comes back.", chevron: true };
-        focused: Nav.focus == Software.uninstall-row;
-        tapped => { Nav.activate(Software.uninstall-row); }
+        HorizontalLayout {
+            alignment: center;
+            spacing: Layout.gap-s;
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 4px;
+                    background: root.available ? Theme.accent : Software.r3-state == UpdateState.current ? Theme.good : Theme.t3;
+                }
+            }
+            Text {
+                text: Software.r3-status;
+                font-size: Type.body;
+                color: Theme.t2;
+                vertical-alignment: center;
+            }
+        }
+        Gap { size: Layout.gap-m; }
+        Row {
+            top-line: true;
+            bottom-line: true;
+            choice: { label: root.available ? "Update r3cui" : Software.r3-state == UpdateState.checking ? "Checking…" : "Check for updates", value: root.available ? Software.r3-new-version : "", chevron: root.available };
+            focused: Nav.focus == Software.action-row;
+            tapped => { Nav.activate(Software.action-row); }
+        }
+        Gap { size: Layout.gap-l; }
+        Inset {
+            Caption { text: "THE REMOTE"; }
+        }
+        Gap { size: Layout.gap-s; }
+        Row {
+            size: RowSize.compact;
+            uc-mark: true;
+            top-line: true;
+            bottom-line: true;
+            choice: { label: "Firmware", value: Software.fw-installed, chevron: true };
+            focused: Nav.focus == Software.firmware-row;
+            tapped => { Nav.activate(Software.firmware-row); }
+        }
+        Row {
+            size: RowSize.compact;
+            uc-mark: true;
+            bottom-line: true;
+            choice: { label: "Web configurator", value: Software.web-on ? "On" : "Off", chevron: true };
+            focused: Nav.focus == Software.web-row;
+            tapped => { Nav.activate(Software.web-row); }
+        }
+        Spring { }
+        Row {
+            glyph: Icons.trash;
+            danger: true;
+            top-line: true;
+            bottom-line: true;
+            choice: { label: "Uninstall r3cui", detail: "Erases r3cui; the stock UI comes back.", chevron: true };
+            focused: Nav.focus == Software.uninstall-row;
+            tapped => { Nav.activate(Software.uninstall-row); }
+        }
     }
 }

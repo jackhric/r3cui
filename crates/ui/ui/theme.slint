@@ -54,6 +54,12 @@ export global Layout {
     out property <length> row-detail: 84px;
     // Between a row's leading mark and its label.
     out property <length> lead-gap: 18px;
+    // The space between a unique page's parts, smallest to largest.
+    out property <length> gap-xs: 4px;
+    out property <length> gap-s: 8px;
+    out property <length> gap-m: 16px;
+    out property <length> gap-l: 24px;
+    out property <length> gap-xl: 32px;
     out property <length> dot-size: 14px;
 }
 
@@ -71,6 +77,11 @@ export global Type {
     out property <length> label-compact: 22px;
     out property <length> value-compact: 20px;
     out property <length> caption: 14px;
+    // A caption is set in capitals and spaced out.
+    out property <length> caption-spacing: 2px;
+    // The big thin numbers: a version, a level. hero is the one a page is about.
+    out property <length> display: 56px;
+    out property <length> hero: 64px;
     out property <int> display-weight: 200;
     // How tall Inter's digits are, as a share of the font size: a text sized by what shows divides by this.
     out property <float> digit-height: 0.747;

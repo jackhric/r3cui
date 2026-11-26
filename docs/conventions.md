@@ -25,9 +25,17 @@ left out. Slint contracts are checked when the crate compiles.
 ## One primitive per look
 
 Every page inherits `Layer` (`widgets/layer.slint`), which slides it in and out and slides its own nested screens
-(`Nav.inner`). Every row on every list and settings page is `Row` (`widgets/row.slint`): a list page hands its rows
-to `ChoiceList`, a hand-laid page places `Row`s itself, with `size`, a leading glyph or mark, `danger` and a slot at
-the right edge for what a row needs beyond that. A new look for rows goes into `Row`, not into a page.
+(`Nav.inner`). A page is either a list or unique:
+
+- A **list** hands its rows to `ChoiceList`.
+- A **unique** page (System, an update, the web configurator) puts its parts in a `PageBody`
+  (`widgets/page-body.slint`): they stack down from under the header in the page's order, with `Gap`s from the
+  `Layout.gap-*` scale between them, `Inset` keeps a part inside the side margins, and parts after a `Spring` sit at
+  the bottom. A unique page sets no `y` of its own.
+
+Every row on either is `Row` (`widgets/row.slint`), with `size`, a leading glyph or mark, `danger` and a slot at the
+right edge for what a row needs beyond that; a section label over rows is `Caption`. A new look goes into the
+primitive, not into a page.
 
 ## Comments
 

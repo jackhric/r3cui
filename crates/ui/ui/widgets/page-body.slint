@@ -1,0 +1,27 @@
+import { Layout } from "../theme.slint";
+
+// The body of a unique page, one that is not a list: its parts stacked down from under the header (or the navbar,
+// without one), in order, with `Gap`s between them. Parts after a `Spring` sit at the bottom.
+export component PageBody inherits VerticalLayout {
+    in property <bool> under-header: true;
+    x: 0;
+    y: root.under-header ? Layout.list-top : Layout.navbar-h;
+    width: Layout.screen-w;
+    height: Layout.screen-h - self.y - Layout.bottom-inset;
+}
+
+export component Gap inherits Rectangle {
+    in property <length> size: Layout.gap-m;
+    height: root.size;
+}
+
+// Takes the room the page's parts leave.
+export component Spring inherits Rectangle {
+    vertical-stretch: 1;
+}
+
+// A part kept inside the page's side margins, where the rows run edge to edge.
+export component Inset inherits HorizontalLayout {
+    padding-left: Layout.margin;
+    padding-right: Layout.margin;
+}
