@@ -17,12 +17,7 @@ impl Registry {
     }
 
     pub fn builtin() -> Self {
-        let registry = Self::new()
-            .with(&crate::homeassistant::SPEC, Box::new(|e| Arc::new(crate::homeassistant::HomeAssistant::start(e))))
-            .with(&crate::kodi::SPEC, Box::new(|e| Arc::new(crate::kodi::Kodi::start(e))));
-        #[cfg(feature = "demo")]
-        let registry = registry.with(&crate::demo::SPEC, Box::new(|e| Arc::new(crate::demo::Demo::start(e))));
-        registry
+        BUILTIN.iter().fold(Self::new(), |r, &(spec, start)| r.with(spec, Box::new(start)))
     }
 
     pub fn with(mut self, spec: &'static Spec, start: Start) -> Self {
@@ -62,7 +57,17 @@ fn default_value(kind: FieldKind, text: &str) -> Value {
     }
 }
 
-/// How a driver type's field is stored, if the type and field are known.
+type StartFn = fn(&DriverEntry) -> Arc<dyn Driver>;
+
+/// Every built-in driver type: the one list of them.
+const BUILTIN: &[(&Spec, StartFn)] = &[
+    (&crate::homeassistant::SPEC, |e| Arc::new(crate::homeassistant::HomeAssistant::start(e))),
+    (&crate::kodi::SPEC, |e| Arc::new(crate::kodi::Kodi::start(e))),
+    #[cfg(feature = "demo")]
+    (&crate::demo::SPEC, |e| Arc::new(crate::demo::Demo::start(e))),
+];
+
+/// How a built-in driver type stores a field, if the type and field are known.
 pub fn field_kind(driver_type: &str, key: &str) -> Option<FieldKind> {
-    Registry::builtin().spec(driver_type)?.field(key).map(|f| f.kind)
+    BUILTIN.iter().find(|(s, _)| s.id == driver_type)?.0.field(key).map(|f| f.kind)
 }
