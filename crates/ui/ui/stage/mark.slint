@@ -2,7 +2,7 @@ import { Control } from "../globals/control.slint";
 import { Fx } from "../globals/fx.slint";
 import { Health } from "../globals/health.slint";
 import { Nav } from "../globals/nav.slint";
-import { Theme } from "../theme.slint";
+import { Theme, Layout } from "../theme.slint";
 import { PageId } from "../types.slint";
 import { VolumeChip } from "volume-chip.slint";
 import { WarningRow } from "warning-row.slint";
@@ -11,8 +11,8 @@ export component MarkView inherits Rectangle {
     // The colour wash behind the mark, faded out at the top and bottom so the navbar
     // and the volume line sit on plain black.
     Image {
-        width: 480px;
-        height: 800px;
+        width: Layout.screen-w;
+        height: Layout.screen-h;
         source: Fx.lava;
         image-fit: fill;
         image-rendering: pixelated;
@@ -47,7 +47,7 @@ export component MarkView inherits Rectangle {
     // The app in front on the input's screen, under the mark.
     if Control.app != "": Text {
         y: 490px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Control.app;
         font-size: 26px;
@@ -57,7 +57,7 @@ export component MarkView inherits Rectangle {
     // An input with no mark of its own needs its name to be told apart.
     if Control.input != "" && Control.input-generic && Control.app == "": Text {
         y: 490px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Control.input;
         font-size: 26px;

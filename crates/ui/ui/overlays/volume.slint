@@ -1,3 +1,4 @@
+import { Layout } from "../theme.slint";
 import { Control } from "../globals/control.slint";
 import { Fx } from "../globals/fx.slint";
 import { Glyph, Icons } from "../marks/icons.slint";
@@ -20,7 +21,7 @@ export component VolumeOverlay inherits Rectangle {
     }
     VolumeReadout {
         y: 0;
-        height: 800px;
+        height: Layout.screen-h;
         top: 270px;
         volume: Control.volume;
         volume-db: Control.volume-db;

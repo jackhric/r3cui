@@ -1,5 +1,5 @@
 import { Nav } from "../globals/nav.slint";
-import { Theme } from "../theme.slint";
+import { Theme, Layout } from "../theme.slint";
 
 import { PageId } from "../types.slint";
 
@@ -15,8 +15,8 @@ export component Layer inherits Rectangle {
     property <bool> sliding;
 
     y: 0;
-    width: 480px;
-    height: 800px;
+    width: Layout.screen-w;
+    height: Layout.screen-h;
     x: root.active ? 0px : root.depth > root.current-depth ? Theme.page-offset : root.depth < root.current-depth ? -Theme.page-offset : 0px;
     opacity: root.active ? 1 : 0;
     visible: self.opacity > 0;
@@ -45,8 +45,8 @@ export component Layer inherits Rectangle {
 
     Rectangle {
         x: root.shift;
-        width: 480px;
-        height: 800px;
+        width: Layout.screen-w;
+        height: Layout.screen-h;
         // The old screen is gone at once, so the new one never starts from black.
         opacity: 1 - 0.75 * abs(root.shift / Theme.page-offset);
         @children

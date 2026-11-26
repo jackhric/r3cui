@@ -1,5 +1,5 @@
 import { Glyph, Icons } from "../marks/icons.slint";
-import { Theme } from "../theme.slint";
+import { Theme, Layout } from "../theme.slint";
 
 export component OffView inherits Rectangle {
     Glyph {
@@ -10,7 +10,7 @@ export component OffView inherits Rectangle {
     }
     Text {
         y: 436px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: "Off";
         font-size: 26px;

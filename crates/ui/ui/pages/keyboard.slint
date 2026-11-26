@@ -2,7 +2,7 @@ import { Kb } from "../globals/kb.slint";
 import { Nav } from "../globals/nav.slint";
 import { Wifi } from "../globals/wifi.slint";
 import { Glyph, Icons } from "../marks/icons.slint";
-import { Theme } from "../theme.slint";
+import { Theme, Layout } from "../theme.slint";
 import { JoinState, KbPurpose, KeyGlyph, KeyStyle, PageId } from "../types.slint";
 import { Layer } from "../widgets/layer.slint";
 import { PageHeader } from "../widgets/page-header.slint";
@@ -23,7 +23,7 @@ export component KeyboardPage inherits Layer {
         back => { Nav.back(); }
     }
     Text {
-        x: 40px;
+        x: Layout.margin;
         y: 128px;
         text: Kb.purpose != KbPurpose.wifi-password ? Kb.caption : "PASSWORD";
         font-size: 13px;
@@ -32,9 +32,9 @@ export component KeyboardPage inherits Layer {
         color: Theme.t2;
     }
     Rectangle {
-        x: 40px;
+        x: Layout.margin;
         y: 158px;
-        width: 400px;
+        width: Layout.content-w;
         height: 84px;
         clip: true;
         HorizontalLayout {
@@ -61,10 +61,10 @@ export component KeyboardPage inherits Layer {
         }
     }
     Rectangle {
-        x: 40px;
+        x: Layout.margin;
         y: 242px;
-        width: 400px;
-        height: 1px;
+        width: Layout.content-w;
+        height: Layout.hairline;
         background: Theme.hair;
     }
 
@@ -98,7 +98,7 @@ export component KeyboardPage inherits Layer {
     if Wifi.join-state == JoinState.joining: Rectangle {
         Text {
             y: 440px;
-            width: 480px;
+            width: Layout.screen-w;
             horizontal-alignment: center;
             text: "Joining…";
             font-size: 32px;

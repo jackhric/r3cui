@@ -35,7 +35,7 @@ import { TracksPage } from "pages/tracks.slint";
 import { JoinFailedPage } from "pages/wifi/join-failed.slint";
 import { WifiPage } from "pages/wifi/wifi.slint";
 import { Stage } from "stage/stage.slint";
-import { Theme } from "theme.slint";
+import { Theme, Layout } from "theme.slint";
 import { Capture, Haptic, HomeView, JoinState, NavKey, PageId } from "types.slint";
 
 // What Rust reaches: the types and every global.
@@ -64,8 +64,8 @@ export { Wifi } from "globals/wifi.slint";
 
 export component AppWindow inherits Window {
     title: "remote-ui";
-    width: 480px;
-    height: 800px;
+    width: Layout.screen-w;
+    height: Layout.screen-h;
     background: Theme.bg;
     default-font-family: "Hanken Grotesk";
     forward-focus: keys;
@@ -242,8 +242,8 @@ export component AppWindow inherits Window {
             }
 
             Image {
-                width: 480px;
-                height: 800px;
+                width: Layout.screen-w;
+                height: Layout.screen-h;
                 source: Fx.world-blur;
                 image-fit: fill;
                 opacity: root.under;

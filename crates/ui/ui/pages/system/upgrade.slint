@@ -1,12 +1,12 @@
 import { Glyph, Icons } from "../../marks/icons.slint";
-import { Theme } from "../../theme.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
 
 // `from → to`, the new version large and light, the old one small beside it on the same baseline.
 export component Upgrade inherits Rectangle {
     in property <string> from;
     in property <string> to;
 
-    width: 480px;
+    width: Layout.screen-w;
     height: 66px;
     property <length> total: old.preferred-width + 54px + new.preferred-width;
     property <length> left: (root.width - root.total) / 2;
@@ -29,7 +29,7 @@ export component Upgrade inherits Rectangle {
         x: root.left + old.preferred-width + 54px;
         text: root.to;
         font-size: 56px;
-        font-weight: 200;
+        font-weight: Type.display-weight;
         color: Theme.text;
     }
 }

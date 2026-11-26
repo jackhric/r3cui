@@ -1,4 +1,4 @@
-import { Theme } from "../theme.slint";
+import { Theme, Layout, Type } from "../theme.slint";
 
 import { LibItem, LibMode, WallStyle } from "../types.slint";
 
@@ -181,7 +181,7 @@ component Card inherits Rectangle {
         alignment: start;
         Text { text: root.item.title; font-size: 24px; font-weight: 600; color: Theme.text; wrap: word-wrap; }
         MetaLine { item: root.item; alignment: start; }
-        Text { text: root.item.genre; font-size: 14px; color: Theme.t2; }
+        Text { text: root.item.genre; font-size: Type.caption; color: Theme.t2; }
         Rectangle { height: 4px; }
         Rectangle {
             visible: root.item.progress > 0;
@@ -231,7 +231,7 @@ component Details inherits Rectangle {
         width: root.width;
         height: root.lines * 25px;
         text: root.item.plot;
-        font-size: 18px;
+        font-size: Type.body;
         color: Theme.text-dim;
         wrap: word-wrap;
         overflow: elide;
@@ -334,7 +334,7 @@ export component Library inherits Rectangle {
             alignment: start;
             Text { text: root.current.title; font-size: 26px; font-weight: 600; color: Theme.text; horizontal-alignment: center; wrap: word-wrap; }
             MetaLine { item: root.current; alignment: center; }
-            Text { text: root.current.genre; font-size: 14px; color: Theme.t3; horizontal-alignment: center; }
+            Text { text: root.current.genre; font-size: Type.caption; color: Theme.t3; horizontal-alignment: center; }
             Rectangle {
                 visible: root.current.progress > 0;
                 height: 4px;
@@ -404,7 +404,7 @@ export component Library inherits Rectangle {
             height: root.height - 366px;
             background: #000000;
             Rectangle { y: -36px; height: 36px; background: @linear-gradient(180deg, #00000000 0%, #000000 100%); }
-            Rectangle { x: 24px; y: 0; width: parent.width - 48px; height: 1px; background: Theme.hair; }
+            Rectangle { x: 24px; y: 0; width: parent.width - 48px; height: Layout.hairline; background: Theme.hair; }
             Details { x: 24px; y: parent.height - 24px - self.height; width: parent.width - 48px; item: root.current; lines: 5; }
         }
         // 2: the grid carries on underneath, fading out behind the words.

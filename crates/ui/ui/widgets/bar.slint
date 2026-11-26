@@ -1,4 +1,4 @@
-import { Theme } from "../theme.slint";
+import { Theme, Layout } from "../theme.slint";
 
 // The one instrument: a thick bar. Volume, film progress and sliders all use it.
 export component Bar inherits Rectangle {
@@ -7,7 +7,7 @@ export component Bar inherits Rectangle {
     in property <bool> handle: false;
     property <float> v: clamp(root.value, 0, 1);
 
-    width: 400px;
+    width: Layout.content-w;
     height: 14px;
     border-radius: 7px;
     background: Theme.track;

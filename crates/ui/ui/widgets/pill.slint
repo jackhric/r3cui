@@ -1,11 +1,11 @@
-import { Theme } from "../theme.slint";
+import { Theme, Layout } from "../theme.slint";
 
 export component Pill inherits Rectangle {
     in property <string> label;
     in property <bool> focused;
     callback tapped();
-    x: 40px;
-    width: 400px;
+    x: Layout.margin;
+    width: Layout.content-w;
     height: 64px;
     border-radius: 32px;
     background: #131314;

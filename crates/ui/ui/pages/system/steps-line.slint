@@ -1,4 +1,4 @@
-import { Theme } from "../../theme.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
 
 // The stages of an install in a line: the ones done in green, the one under way in white, the rest dim.
 export component StepsLine inherits Rectangle {
@@ -6,14 +6,14 @@ export component StepsLine inherits Rectangle {
     // The index of the stage under way.
     in property <int> current;
 
-    width: 480px;
+    width: Layout.screen-w;
     height: 20px;
     HorizontalLayout {
         alignment: center;
         spacing: 22px;
         for name[i] in root.names: Text {
             text: name;
-            font-size: 16px;
+            font-size: Type.small;
             color: i < root.current ? Theme.good : i == root.current ? Theme.text : Theme.t3;
             animate color { duration: 200ms; }
         }

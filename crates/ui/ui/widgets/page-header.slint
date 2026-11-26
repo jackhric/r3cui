@@ -1,18 +1,18 @@
 import { Glyph, Icons } from "../marks/icons.slint";
 
-import { Theme } from "../theme.slint";
+import { Theme, Layout, Type } from "../theme.slint";
 
 export component PageHeader inherits Rectangle {
     in property <string> title;
     callback back();
 
     x: 0;
-    y: 64px;
-    width: 480px;
-    height: 104px;
+    y: Layout.header-y;
+    width: Layout.screen-w;
+    height: Layout.header-h;
 
     Glyph {
-        x: 40px;
+        x: Layout.margin;
         size: 28px;
         commands: Icons.left;
         tint: Theme.text;
@@ -20,7 +20,7 @@ export component PageHeader inherits Rectangle {
     Text {
         x: 84px;
         text: root.title;
-        font-size: 26px;
+        font-size: Type.label;
         font-weight: 500;
         color: Theme.text;
     }

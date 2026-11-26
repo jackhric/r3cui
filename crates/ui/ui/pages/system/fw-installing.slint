@@ -1,6 +1,6 @@
 import { Software } from "../../globals/software.slint";
 import { UcMark } from "../../marks/brand.slint";
-import { Theme } from "../../theme.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
 import { InstallPhase, PageId } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { StepsLine } from "steps-line.slint";
@@ -10,26 +10,26 @@ export component FwInstallingPage inherits Layer {
     TouchArea { mouse-cursor: Theme.cursor; }
 
     UcMark {
-        x: (480px - self.width) / 2;
+        x: (Layout.screen-w - self.width) / 2;
         y: 176px;
         wide: 150px;
     }
     Text {
         y: 322px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Software.fw-phase == InstallPhase.download ? "DOWNLOADING" : Software.fw-phase == InstallPhase.restart ? "RESTARTING" : "INSTALLING";
-        font-size: 16px;
+        font-size: Type.small;
         letter-spacing: 2px;
         color: Theme.t2;
     }
     Text {
         y: 348px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Software.fw-new-version;
         font-size: 56px;
-        font-weight: 200;
+        font-weight: Type.display-weight;
         color: Theme.text;
     }
     Rectangle {
@@ -49,7 +49,7 @@ export component FwInstallingPage inherits Layer {
     }
     Text {
         y: 462px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Software.fw-step-line;
         font-size: 20px;
@@ -62,18 +62,18 @@ export component FwInstallingPage inherits Layer {
     }
     Text {
         y: 690px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: "Keep the remote docked until it restarts.";
-        font-size: 18px;
+        font-size: Type.body;
         color: Theme.t2;
     }
     Text {
         y: 722px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: "Buttons are off while it installs.";
-        font-size: 16px;
+        font-size: Type.small;
         color: Theme.t3;
     }
 }

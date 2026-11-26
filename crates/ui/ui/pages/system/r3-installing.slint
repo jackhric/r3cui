@@ -1,6 +1,6 @@
 import { Software } from "../../globals/software.slint";
 import { R3Wordmark } from "../../marks/brand.slint";
-import { Theme } from "../../theme.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
 import { InstallPhase, PageId } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { Ring } from "../../widgets/ring.slint";
@@ -22,31 +22,31 @@ export component R3InstallingPage inherits Layer {
         progress: Software.r3-percent / 100;
     }
     R3Wordmark {
-        x: (480px - self.width) / 2;
+        x: (Layout.screen-w - self.width) / 2;
         y: 282px - self.height / 2;
         wide: 136px;
     }
     Text {
         y: 432px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Software.r3-phase == InstallPhase.download ? "DOWNLOADING" : Software.r3-phase == InstallPhase.restart ? "RESTARTING" : "INSTALLING";
-        font-size: 16px;
+        font-size: Type.small;
         letter-spacing: 2px;
         color: Theme.t2;
     }
     Text {
         y: 458px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Software.r3-new-version;
         font-size: 56px;
-        font-weight: 200;
+        font-weight: Type.display-weight;
         color: Theme.text;
     }
     Text {
         y: 528px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Software.r3-percent + "%";
         font-size: 20px;
@@ -59,10 +59,10 @@ export component R3InstallingPage inherits Layer {
     }
     Text {
         y: 722px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: "The screen goes dark for a moment.";
-        font-size: 18px;
+        font-size: Type.body;
         color: Theme.t2;
     }
 }

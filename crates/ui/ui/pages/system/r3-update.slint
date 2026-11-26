@@ -1,7 +1,7 @@
 import { Nav } from "../../globals/nav.slint";
 import { Software } from "../../globals/software.slint";
 import { R3Wordmark } from "../../marks/brand.slint";
-import { Theme } from "../../theme.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
 import { PageId } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
@@ -16,7 +16,7 @@ export component R3UpdatePage inherits Layer {
         back => { Nav.back(); }
     }
     R3Wordmark {
-        x: (480px - self.width) / 2;
+        x: (Layout.screen-w - self.width) / 2;
         y: 192px;
         wide: 136px;
     }
@@ -27,10 +27,10 @@ export component R3UpdatePage inherits Layer {
     }
     Text {
         y: 322px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Software.r3-release-line;
-        font-size: 18px;
+        font-size: Type.body;
         color: Theme.t2;
     }
     Image {
@@ -50,7 +50,7 @@ export component R3UpdatePage inherits Layer {
         spacing: 8px;
         Text {
             text: "WHAT’S NEW";
-            font-size: 14px;
+            font-size: Type.caption;
             letter-spacing: 2px;
             color: Theme.t2;
         }
@@ -62,15 +62,15 @@ export component R3UpdatePage inherits Layer {
         }
         Text {
             text: Software.r3-repo;
-            font-size: 16px;
+            font-size: Type.small;
             color: Theme.t3;
             overflow: elide;
         }
     }
     if Software.r3-error != "": Text {
-        x: 40px;
+        x: Layout.margin;
         y: 550px;
-        width: 400px;
+        width: Layout.content-w;
         wrap: word-wrap;
         text: Software.r3-error;
         font-size: 17px;

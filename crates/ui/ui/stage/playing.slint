@@ -5,7 +5,7 @@ import { Nav } from "../globals/nav.slint";
 import { Playback } from "../globals/playback.slint";
 import { Tracks } from "../globals/tracks.slint";
 import { Icons, Marks } from "../marks/icons.slint";
-import { Theme } from "../theme.slint";
+import { Theme, Layout, Type } from "../theme.slint";
 import { PageId, Picker } from "../types.slint";
 import { Bar } from "../widgets/bar.slint";
 import { FormatBadge } from "format-badge.slint";
@@ -19,15 +19,15 @@ export component PlayingView inherits Rectangle {
     // The backdrop arrives already blurred and darkened; the scrim fades it into black
     // where the controls sit.
     Image {
-        width: 480px;
-        height: 800px;
+        width: Layout.screen-w;
+        height: Layout.screen-h;
         source: Playback.backdrop;
         image-fit: cover;
         opacity: 0.55;
     }
     Image {
-        width: 480px;
-        height: 800px;
+        width: Layout.screen-w;
+        height: Layout.screen-h;
         source: Fx.grain;
         image-fit: fill;
         image-rendering: pixelated;
@@ -75,32 +75,32 @@ export component PlayingView inherits Rectangle {
     }
     Text {
         y: 430px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Playback.sub;
-        font-size: 18px;
+        font-size: Type.body;
         color: Theme.t2;
     }
     Bar {
-        x: 40px;
+        x: Layout.margin;
         y: 470px;
         value: Playback.progress;
     }
     Text {
-        x: 40px;
+        x: Layout.margin;
         y: 494px;
         text: Playback.elapsed;
-        font-size: 18px;
+        font-size: Type.body;
         font-weight: 400;
         color: Theme.t2;
     }
     Text {
-        x: 40px;
+        x: Layout.margin;
         y: 494px;
-        width: 400px;
+        width: Layout.content-w;
         horizontal-alignment: right;
         text: Playback.paused ? Playback.time-left + "  ·  paused" : Playback.time-left + "  ·  " + Playback.ends-at;
-        font-size: 18px;
+        font-size: Type.body;
         color: Theme.t2;
     }
 

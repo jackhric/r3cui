@@ -1,3 +1,4 @@
+import { Layout } from "../theme.slint";
 import { Fx } from "../globals/fx.slint";
 import { Capture } from "../types.slint";
 
@@ -29,15 +30,15 @@ export component StageSwap inherits Rectangle {
 
     visible: Fx.swapping && Fx.capturing == Capture.none;
     Image {
-        width: 480px;
-        height: 800px;
+        width: Layout.screen-w;
+        height: Layout.screen-h;
         source: Fx.swap-in-blur;
         image-fit: fill;
         opacity: 1 - clamp((root.progress - 0.55) / 0.45, 0, 1);
     }
     Image {
-        width: 480px;
-        height: 800px;
+        width: Layout.screen-w;
+        height: Layout.screen-h;
         transform-origin: { x: self.width / 2, y: self.height / 2 };
         transform-scale: Fx.swap-plain ? 1 : 1 + 0.05 * root.progress;
         source: Fx.swap-out-blur;
@@ -45,8 +46,8 @@ export component StageSwap inherits Rectangle {
         opacity: 1 - clamp((root.progress - 0.25) / 0.35, 0, 1);
     }
     Image {
-        width: 480px;
-        height: 800px;
+        width: Layout.screen-w;
+        height: Layout.screen-h;
         transform-origin: { x: self.width / 2, y: self.height / 2 };
         transform-scale: Fx.swap-plain ? 1 : 1 + 0.05 * root.progress;
         source: Fx.swap-out;

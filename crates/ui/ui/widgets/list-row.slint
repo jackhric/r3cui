@@ -1,6 +1,6 @@
 import { Glyph, Icons, Logo } from "../marks/icons.slint";
 
-import { Theme } from "../theme.slint";
+import { Theme, Layout, Type, Motion } from "../theme.slint";
 
 export component ListRow inherits Rectangle {
     in property <string> label;
@@ -15,52 +15,52 @@ export component ListRow inherits Rectangle {
     callback tapped();
 
     x: 0;
-    width: 480px;
+    width: Layout.screen-w;
     height: 112px;
 
     if root.divider: Rectangle {
         y: 0;
-        height: 1px;
+        height: Layout.hairline;
         background: Theme.hair;
     }
     Rectangle {
         x: 0;
-        width: 4px;
-        height: 40px;
-        border-radius: 2px;
+        width: Layout.focus-bar-w;
+        height: Layout.focus-bar-h;
+        border-radius: Layout.focus-bar-radius;
         background: Theme.accent;
         opacity: root.focused ? 1 : 0;
-        animate opacity { duration: 140ms; }
+        animate opacity { duration: Motion.fade; }
     }
     if root.icon != "": Logo {
-        x: 40px;
+        x: Layout.margin;
         commands: root.icon;
         tint: root.focused ? Theme.text : Theme.t2;
     }
     Text {
-        x: root.icon != "" ? 96px : 40px;
+        x: root.icon != "" ? 96px : Layout.margin;
         text: root.label;
-        font-size: 26px;
-        font-weight: root.focused ? 500 : 400;
+        font-size: Type.label;
+        font-weight: root.focused ? Type.label-focused-weight : Type.label-weight;
         color: root.focused ? Theme.text : Theme.text-dim;
-        animate color { duration: 140ms; }
+        animate color { duration: Motion.fade; }
     }
     Text {
         x: 0;
-        width: (root.chevron || root.checked ? 402px : 440px) - root.trailing;
+        width: (root.chevron || root.checked ? Layout.value-edge-trailing : Layout.value-edge) - root.trailing;
         horizontal-alignment: right;
         text: root.value;
-        font-size: 22px;
-        font-weight: 300;
+        font-size: Type.value;
+        font-weight: Type.value-weight;
         color: Theme.t2;
     }
     if root.chevron: Glyph {
-        x: 416px;
+        x: Layout.trailing-x;
         commands: Icons.right;
         tint: Theme.t3;
     }
     if root.checked: Glyph {
-        x: 416px;
+        x: Layout.trailing-x;
         commands: Icons.check;
         tint: Theme.text;
     }

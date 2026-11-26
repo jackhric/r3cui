@@ -2,7 +2,7 @@ import { Nav } from "../../globals/nav.slint";
 import { Software } from "../../globals/software.slint";
 import { R3Wordmark } from "../../marks/brand.slint";
 import { Icons } from "../../marks/icons.slint";
-import { Theme } from "../../theme.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
 import { PageId, UpdateState } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
@@ -17,22 +17,22 @@ export component SystemPage inherits Layer {
         back => { Nav.back(); }
     }
     R3Wordmark {
-        x: (480px - self.width) / 2;
+        x: (Layout.screen-w - self.width) / 2;
         y: 188px;
         wide: 198px;
     }
     Text {
         y: 262px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Software.r3-version;
         font-size: 64px;
-        font-weight: 200;
+        font-weight: Type.display-weight;
         color: Theme.text;
     }
     HorizontalLayout {
         y: 340px;
-        width: 480px;
+        width: Layout.screen-w;
         height: 24px;
         alignment: center;
         spacing: 8px;
@@ -47,7 +47,7 @@ export component SystemPage inherits Layer {
         }
         Text {
             text: Software.r3-status;
-            font-size: 18px;
+            font-size: Type.body;
             color: Theme.t2;
             vertical-alignment: center;
         }
@@ -63,10 +63,10 @@ export component SystemPage inherits Layer {
         tapped => { Nav.activate(Software.action-row); }
     }
     Text {
-        x: 40px;
+        x: Layout.margin;
         y: 488px;
         text: "THE REMOTE";
-        font-size: 14px;
+        font-size: Type.caption;
         letter-spacing: 2px;
         color: Theme.t2;
     }

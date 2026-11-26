@@ -24,3 +24,46 @@ export global Theme {
     // How far a page sits to the side before it slides in.
     out property <length> page-offset: 56px;
 }
+
+// The screen and the grid every page and row is laid out on.
+export global Layout {
+    out property <length> screen-w: 480px;
+    out property <length> screen-h: 800px;
+    out property <length> margin: 40px;
+    out property <length> content-w: 400px;
+    out property <length> header-y: 64px;
+    out property <length> header-h: 104px;
+    out property <length> list-top: 168px;
+    out property <length> bottom-inset: 24px;
+    out property <length> row-min: 76px;
+    out property <length> row-max: 96px;
+    out property <length> value-edge: 440px;
+    out property <length> value-edge-trailing: 402px;
+    out property <length> trailing-x: 416px;
+    out property <length> focus-bar-w: 4px;
+    out property <length> focus-bar-h: 40px;
+    out property <length> focus-bar-radius: 2px;
+    out property <length> hairline: 1px;
+}
+
+// Font sizes and weights shared across pages.
+export global Type {
+    out property <length> label: 26px;
+    out property <int> label-weight: 400;
+    out property <int> label-focused-weight: 500;
+    out property <length> value: 22px;
+    out property <int> value-weight: 300;
+    out property <length> body: 18px;
+    out property <length> small: 16px;
+    out property <length> caption: 14px;
+    out property <int> display-weight: 200;
+}
+
+// Timings and scale for focus, lift and toggles.
+export global Motion {
+    out property <duration> fade: 140ms;
+    out property <duration> lift: 180ms;
+    out property <float> lift-scale: 1.035;
+    out property <duration> toggle: 160ms;
+    out property <duration> list-scroll: 200ms;
+}

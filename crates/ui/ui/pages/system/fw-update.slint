@@ -2,7 +2,7 @@ import { Nav } from "../../globals/nav.slint";
 import { Software } from "../../globals/software.slint";
 import { UcMark } from "../../marks/brand.slint";
 import { Marks } from "../../marks/icons.slint";
-import { Theme } from "../../theme.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
 import { PageId, UpdateState } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
@@ -18,7 +18,7 @@ export component FwUpdatePage inherits Layer {
         back => { Nav.back(); }
     }
     UcMark {
-        x: (480px - self.width) / 2;
+        x: (Layout.screen-w - self.width) / 2;
         y: 192px;
         wide: 84px;
     }
@@ -29,25 +29,25 @@ export component FwUpdatePage inherits Layer {
     }
     if !root.available: Text {
         y: 264px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Software.fw-installed;
         font-size: 56px;
-        font-weight: 200;
+        font-weight: Type.display-weight;
         color: Theme.text;
     }
     Text {
         y: 334px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: root.available ? Software.fw-release-line : Software.fw-status;
-        font-size: 18px;
+        font-size: Type.body;
         color: Theme.t2;
     }
     if root.available: Rectangle {
-        x: 40px;
+        x: Layout.margin;
         y: 376px;
-        width: 400px;
+        width: Layout.content-w;
         height: 164px;
         border-radius: 14px;
         background: #FFFFFF0A;
@@ -58,7 +58,7 @@ export component FwUpdatePage inherits Layer {
             spacing: 10px;
             Text {
                 text: "WHAT’S NEW";
-                font-size: 14px;
+                font-size: Type.caption;
                 letter-spacing: 2px;
                 color: Theme.t2;
             }
@@ -66,15 +66,15 @@ export component FwUpdatePage inherits Layer {
                 text: Software.fw-notes;
                 wrap: word-wrap;
                 overflow: elide;
-                font-size: 18px;
+                font-size: Type.body;
                 color: Theme.text-dim;
             }
         }
     }
     if root.available: HorizontalLayout {
-        x: 40px;
+        x: Layout.margin;
         y: 556px;
-        width: 400px;
+        width: Layout.content-w;
         height: 24px;
         spacing: 10px;
         alignment: start;
@@ -95,9 +95,9 @@ export component FwUpdatePage inherits Layer {
         }
     }
     if !root.available && Software.fw-error != "": Text {
-        x: 40px;
+        x: Layout.margin;
         y: 376px;
-        width: 400px;
+        width: Layout.content-w;
         wrap: word-wrap;
         text: Software.fw-error;
         font-size: 17px;

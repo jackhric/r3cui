@@ -2,7 +2,7 @@ import { Fx } from "../globals/fx.slint";
 import { Home } from "../globals/home.slint";
 import { Lib } from "../globals/lib.slint";
 import { Sys } from "../globals/sys.slint";
-import { Theme } from "../theme.slint";
+import { Theme, Layout, Type } from "../theme.slint";
 import { Capture, HomeView, LibMode } from "../types.slint";
 import { Library } from "library.slint";
 import { MarkView } from "mark.slint";
@@ -54,10 +54,10 @@ export component Stage inherits Rectangle {
 
     if !Sys.connected: Text {
         y: 772px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Sys.status;
-        font-size: 14px;
+        font-size: Type.caption;
         color: Theme.t3;
         overflow: elide;
     }
@@ -67,8 +67,8 @@ export component Stage inherits Rectangle {
     dissolve := StageSwap { }
 
     Image {
-    width: 480px;
-    height: 800px;
+    width: Layout.screen-w;
+    height: Layout.screen-h;
     source: Fx.stage-blur;
     image-fit: fill;
     opacity: root.recede;

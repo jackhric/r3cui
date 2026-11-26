@@ -1,6 +1,6 @@
 import { Nav } from "../../globals/nav.slint";
 import { Wifi } from "../../globals/wifi.slint";
-import { Theme } from "../../theme.slint";
+import { Theme, Layout } from "../../theme.slint";
 import { PageId } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
@@ -16,7 +16,7 @@ export component JoinFailedPage inherits Layer {
     }
     Text {
         y: 300px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: "Couldn’t join";
         font-size: 44px;
@@ -25,7 +25,7 @@ export component JoinFailedPage inherits Layer {
     }
     Text {
         y: 376px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: "Check the password and try again.";
         font-size: 22px;

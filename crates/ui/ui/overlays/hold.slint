@@ -3,7 +3,7 @@ import { Fx } from "../globals/fx.slint";
 import { KeyChars } from "../globals/keys.slint";
 import { Nav } from "../globals/nav.slint";
 import { Glyph, Icons, Logo } from "../marks/icons.slint";
-import { Theme } from "../theme.slint";
+import { Theme, Layout } from "../theme.slint";
 import { Capture, Haptic, PageId } from "../types.slint";
 import { Ring } from "../widgets/ring.slint";
 
@@ -145,7 +145,7 @@ export component HoldOverlay inherits Rectangle {
     }
     Text {
         y: 548px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: root.hold-look == HoldKind.home ? "Inputs"
             : root.power-completed ? (root.power-turning-off ? "Off" : "On")

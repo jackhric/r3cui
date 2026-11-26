@@ -1,6 +1,6 @@
 import { UcMark } from "../marks/brand.slint";
 import { Glyph, Icons } from "../marks/icons.slint";
-import { Theme } from "../theme.slint";
+import { Theme, Layout, Type, Motion } from "../theme.slint";
 
 // A row of the System and update pages: a label, what it is now, and where it leads.
 export component SysRow inherits Rectangle {
@@ -21,40 +21,40 @@ export component SysRow inherits Rectangle {
     callback tapped();
 
     x: 0;
-    width: 480px;
+    width: Layout.screen-w;
     height: 76px;
-    property <length> lead: root.remote-mark ? 81px : root.glyph != "" ? 80px : 40px;
-    property <float> lift: root.focused || ta.has-hover ? 1.035 : 1;
-    animate lift { duration: 180ms; easing: ease-out; }
+    property <length> lead: root.remote-mark ? 81px : root.glyph != "" ? 80px : Layout.margin;
+    property <float> lift: root.focused || ta.has-hover ? Motion.lift-scale : 1;
+    animate lift { duration: Motion.lift; easing: ease-out; }
 
     if root.top-line: Rectangle {
         y: 0;
-        height: 1px;
+        height: Layout.hairline;
         background: Theme.hair;
     }
     Rectangle {
         y: parent.height - 1px;
-        height: 1px;
+        height: Layout.hairline;
         background: Theme.hair;
     }
     Rectangle {
         x: 0;
         y: (parent.height - self.height) / 2;
-        width: 4px;
-        height: 40px;
-        border-radius: 2px;
+        width: Layout.focus-bar-w;
+        height: Layout.focus-bar-h;
+        border-radius: Layout.focus-bar-radius;
         background: Theme.accent;
         opacity: root.focused ? 1 : 0;
-        animate opacity { duration: 140ms; }
+        animate opacity { duration: Motion.fade; }
     }
     if root.remote-mark: UcMark {
-        x: 40px;
+        x: Layout.margin;
         y: (parent.height - self.height) / 2;
         wide: 27px;
         tint: root.focused ? Theme.text : Theme.text-dim;
     }
     if root.glyph != "": Glyph {
-        x: 40px;
+        x: Layout.margin;
         y: (parent.height - self.height) / 2;
         commands: root.glyph;
         tint: root.glyph-tint;
@@ -68,9 +68,9 @@ export component SysRow inherits Rectangle {
         transform-origin: { x: 0, y: self.height / 2 };
         transform-scale: root.lift;
         font-size: root.label-size;
-        font-weight: root.focused ? 500 : 400;
+        font-weight: root.focused ? Type.label-focused-weight : Type.label-weight;
         color: root.focused ? root.focused-tint : root.label-tint;
-        animate color { duration: 140ms; }
+        animate color { duration: Motion.fade; }
     }
     if root.detail != "": Text {
         x: root.lead;
@@ -78,21 +78,21 @@ export component SysRow inherits Rectangle {
         width: 410px - root.lead;
         overflow: elide;
         text: root.detail;
-        font-size: 16px;
+        font-size: Type.small;
         color: Theme.t2;
     }
     Text {
         x: 0;
         y: (parent.height - self.height) / 2;
-        width: root.chevron ? 402px : 440px;
+        width: root.chevron ? Layout.value-edge-trailing : Layout.value-edge;
         horizontal-alignment: right;
         text: root.value;
         font-size: 20px;
-        font-weight: 300;
+        font-weight: Type.value-weight;
         color: Theme.t2;
     }
     if root.chevron: Glyph {
-        x: 416px;
+        x: Layout.trailing-x;
         y: (parent.height - self.height) / 2;
         size: 20px;
         commands: Icons.right;

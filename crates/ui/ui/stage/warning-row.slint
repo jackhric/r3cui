@@ -1,4 +1,4 @@
-import { Theme } from "../theme.slint";
+import { Theme, Layout } from "../theme.slint";
 import { Dot } from "../types.slint";
 import { StatusDot } from "../widgets/status-dot.slint";
 
@@ -7,7 +7,7 @@ export component WarningRow inherits Rectangle {
     in property <string> message;
     callback tapped();
     x: 0;
-    width: 480px;
+    width: Layout.screen-w;
     height: 56px;
     HorizontalLayout {
         alignment: center;

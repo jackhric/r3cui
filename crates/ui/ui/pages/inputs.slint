@@ -1,7 +1,7 @@
 import { Control } from "../globals/control.slint";
 import { Nav } from "../globals/nav.slint";
 import { Glyph, Icons, Logo } from "../marks/icons.slint";
-import { Theme } from "../theme.slint";
+import { Theme, Layout } from "../theme.slint";
 import { Dot, PageId } from "../types.slint";
 import { ChoiceList } from "../widgets/choice-list.slint";
 import { Layer } from "../widgets/layer.slint";
@@ -22,7 +22,7 @@ export component InputsPage inherits Layer {
 
     if root.empty: VerticalLayout {
         y: 68px;
-        height: 800px - 68px - 116px;
+        height: Layout.screen-h - 68px - 116px;
         padding-left: 48px;
         padding-right: 48px;
         alignment: center;
@@ -71,7 +71,7 @@ export component InputsPage inherits Layer {
     }
 
     if root.empty: SysRow {
-        y: 800px - 40px - self.height;
+        y: Layout.screen-h - Layout.margin - self.height;
         top-line: true;
         label: Control.no-inputs.row;
         value: Control.no-inputs.value;

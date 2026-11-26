@@ -1,7 +1,7 @@
 import { Nav } from "../../globals/nav.slint";
 import { Software } from "../../globals/software.slint";
 import { UcMark } from "../../marks/brand.slint";
-import { Theme } from "../../theme.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
 import { PageId } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
@@ -15,16 +15,16 @@ export component WebConfigPage inherits Layer {
         back => { Nav.back(); }
     }
     UcMark {
-        x: 480px - 40px - self.width;
+        x: Layout.screen-w - Layout.margin - self.width;
         y: 64px + (104px - self.height) / 2;
         wide: 36px;
     }
     Text {
         y: 190px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: "PIN";
-        font-size: 14px;
+        font-size: Type.caption;
         letter-spacing: 2px;
         color: Theme.t2;
     }
@@ -50,7 +50,7 @@ export component WebConfigPage inherits Layer {
         }
     }
     Image {
-        x: (480px - self.width) / 2;
+        x: (Layout.screen-w - self.width) / 2;
         y: 332px + (176px - self.height) / 2;
         width: self.source.width * 1px;
         height: self.source.height * 1px;
@@ -59,7 +59,7 @@ export component WebConfigPage inherits Layer {
     }
     Text {
         y: 524px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: Software.web-address;
         font-size: 20px;
@@ -67,10 +67,10 @@ export component WebConfigPage inherits Layer {
     }
     Text {
         y: 556px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: "Same Wi-Fi as the remote · user web-configurator";
-        font-size: 16px;
+        font-size: Type.small;
         color: Theme.t3;
     }
     SysRow {

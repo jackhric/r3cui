@@ -1,6 +1,6 @@
 import { Glyph, Icons, Marks } from "../marks/icons.slint";
 
-import { Theme } from "../theme.slint";
+import { Theme, Layout } from "../theme.slint";
 
 export component StatusBar inherits Rectangle {
     in property <string> clock;
@@ -11,11 +11,11 @@ export component StatusBar inherits Rectangle {
 
     x: 0;
     y: 0;
-    width: 480px;
+    width: Layout.screen-w;
     height: 64px;
 
     Text {
-        x: 40px;
+        x: Layout.margin;
         text: root.clock;
         font-size: 26px;
         color: Theme.text;

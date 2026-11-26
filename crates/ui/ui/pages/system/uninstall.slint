@@ -2,7 +2,7 @@ import { Fx } from "../../globals/fx.slint";
 import { Nav } from "../../globals/nav.slint";
 import { Software } from "../../globals/software.slint";
 import { Glyph, Icons } from "../../marks/icons.slint";
-import { Theme } from "../../theme.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
 import { Haptic, PageId, UninstallState } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
@@ -72,7 +72,7 @@ export component UninstallPage inherits Layer {
     }
     Text {
         y: 410px;
-        width: 480px;
+        width: Layout.screen-w;
         horizontal-alignment: center;
         text: root.working ? "Uninstalling…" : "Hold OK to uninstall";
         font-size: 30px;
@@ -80,19 +80,19 @@ export component UninstallPage inherits Layer {
         color: Theme.text;
     }
     Text {
-        x: 40px;
+        x: Layout.margin;
         y: 456px;
-        width: 400px;
+        width: Layout.content-w;
         horizontal-alignment: center;
         wrap: word-wrap;
         text: Software.uninstall-error != "" ? Software.uninstall-error : root.working ? "Keep the remote powered." : "Back cancels";
-        font-size: 18px;
+        font-size: Type.body;
         color: Software.uninstall-error != "" ? Theme.off : Theme.t2;
     }
     VerticalLayout {
-        x: 40px;
+        x: Layout.margin;
         y: 504px;
-        width: 400px;
+        width: Layout.content-w;
         spacing: 14px;
         alignment: start;
         for line in [
@@ -118,7 +118,7 @@ export component UninstallPage inherits Layer {
             Text {
                 text: line;
                 wrap: word-wrap;
-                font-size: 18px;
+                font-size: Type.body;
                 color: Theme.text-dim;
             }
         }
