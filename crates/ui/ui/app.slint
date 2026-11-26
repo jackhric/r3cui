@@ -2,79 +2,55 @@ import "fonts/HankenGrotesk-200.ttf";
 import "fonts/HankenGrotesk-300.ttf";
 import "fonts/HankenGrotesk-400.ttf";
 import "fonts/HankenGrotesk-500.ttf";
-import { ChoiceList, Theme, Icons, Marks, Glyph, Logo, Bar, StatusBar, ListRow, PageHeader, Layer } from "theme.slint";
-import { Logos } from "logos.slint";
-import { Codecs } from "codecs.slint";
+import { Theme } from "theme.slint";
 import { KeyChars } from "keys.slint";
-import { Library } from "library.slint";
-import { Capture, HomeView, PageId, FormatMark, PowerAction, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
-import { Health } from "globals/health.slint";
-import { Playback } from "globals/playback.slint";
+import { Capture, Haptic, HomeView, JoinState, NavKey, PageId } from "types.slint";
 import { Control } from "globals/control.slint";
-import { Sys } from "globals/sys.slint";
 import { Fx } from "globals/fx.slint";
-import { Lib } from "globals/lib.slint";
-import { Tracks } from "globals/tracks.slint";
-import { Lab } from "globals/lab.slint";
-import { Cfg } from "globals/cfg.slint";
-import { Wifi } from "globals/wifi.slint";
-import { Kb } from "globals/kb.slint";
-import { Prefs } from "globals/prefs.slint";
-import { Nav } from "globals/nav.slint";
 import { Home } from "globals/home.slint";
-import { HoldOverlay } from "overlays/hold.slint";
-import { Menu } from "globals/menu.slint";
-import { Power } from "globals/power.slint";
-
-import { WarningRow } from "widgets/warning-row.slint";
-import { Pill } from "widgets/pill.slint";
-import { FormatBadge } from "widgets/format-badge.slint";
-import { VolumeChip } from "widgets/volume-chip.slint";
-import { VolumeReadout } from "widgets/volume-readout.slint";
-import { TrackButton } from "widgets/track-button.slint";
-import { SkipButton } from "widgets/skip-button.slint";
-import { PosterStandIn } from "widgets/poster-stand-in.slint";
-
-import { VolumeOverlay } from "overlays/volume.slint";
-
+import { Kb } from "globals/kb.slint";
+import { Nav } from "globals/nav.slint";
+import { Prefs } from "globals/prefs.slint";
+import { Sys } from "globals/sys.slint";
+import { Wifi } from "globals/wifi.slint";
 import { ChargeCard } from "overlays/charge-card.slint";
-
+import { HoldOverlay } from "overlays/hold.slint";
 import { NavBar } from "overlays/navbar.slint";
-
-import { StageSwap } from "stage/swap.slint";
-
-import { OffView } from "stage/off.slint";
-
-import { MarkView } from "stage/mark.slint";
-
-import { PlayingView } from "stage/playing.slint";
-
+import { VolumeOverlay } from "overlays/volume.slint";
+import { DisplayPage } from "pages/display.slint";
+import { InputsPage } from "pages/inputs.slint";
+import { IntegrationsPage } from "pages/integrations.slint";
+import { JoinFailedPage } from "pages/join-failed.slint";
+import { KeyboardPage } from "pages/keyboard.slint";
+import { LabPage } from "pages/lab.slint";
+import { MenuPage } from "pages/menu.slint";
+import { PowerPage } from "pages/power.slint";
+import { StatusPage } from "pages/status.slint";
+import { TracksPage } from "pages/tracks.slint";
+import { WifiPage } from "pages/wifi.slint";
 import { Stage } from "stage/stage.slint";
 
-import { TracksPage } from "pages/tracks.slint";
-
-import { JoinFailedPage } from "pages/join-failed.slint";
-
-import { LabPage } from "pages/lab.slint";
-
-import { IntegrationsPage } from "pages/integrations.slint";
-
-import { StatusPage } from "pages/status.slint";
-
-import { KeyboardPage } from "pages/keyboard.slint";
-
-import { WifiPage } from "pages/wifi.slint";
-
-import { PowerPage } from "pages/power.slint";
-
-import { DisplayPage } from "pages/display.slint";
-
-import { MenuPage } from "pages/menu.slint";
-
-import { InputsPage } from "pages/inputs.slint";
-
+// What Rust reaches: the types and every global.
 export * from "types.slint";
-export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs, Kb, Wifi, Cfg, Lab, Tracks, Lib, Fx, Sys, Control, Playback, Health, Nav, Menu, Power }
+export { Theme, Icons, Marks } from "theme.slint";
+export { Logos } from "logos.slint";
+export { Codecs } from "codecs.slint";
+export { KeyChars } from "keys.slint";
+export { Cfg } from "globals/cfg.slint";
+export { Control } from "globals/control.slint";
+export { Fx } from "globals/fx.slint";
+export { Health } from "globals/health.slint";
+export { Kb } from "globals/kb.slint";
+export { Lab } from "globals/lab.slint";
+export { Lib } from "globals/lib.slint";
+export { Menu } from "globals/menu.slint";
+export { Nav } from "globals/nav.slint";
+export { Playback } from "globals/playback.slint";
+export { Power } from "globals/power.slint";
+export { Prefs } from "globals/prefs.slint";
+export { Sys } from "globals/sys.slint";
+export { Tracks } from "globals/tracks.slint";
+export { Wifi } from "globals/wifi.slint";
 
 export component AppWindow inherits Window {
     title: "remote-ui";
@@ -87,8 +63,6 @@ export component AppWindow inherits Window {
     public function hold-library() { stage.hold-library(); }
     public function run-library() { stage.run-library(); }
     out property <bool> lava-on: Nav.page == PageId.home && Home.view == HomeView.mark && Sys.lit;
-
-
     out property <bool> power-overlay: hold.power-overlay;
     out property <bool> power-turning-off: hold.power-turning-off;
 
@@ -224,38 +198,17 @@ export component AppWindow inherits Window {
                 // The stage behind is only scenery while a list is open.
                 TouchArea { mouse-cursor: Theme.cursor; }
 
-            // Inputs
-            InputsPage { }
-
-            // Menu
-            MenuPage { }
-
-            // Menu / Display
-            DisplayPage { }
-
-            // Menu / Power
-            PowerPage { }
-
-            // Menu / Wi-Fi
-            WifiPage { }
-
-            // Menu / Wi-Fi / password
-            KeyboardPage { }
-
-            // Menu / Status
-            StatusPage { }
-
-            // Menu / Integrations, every screen of it
-            IntegrationsPage { }
-
-            // Menu / Feedback lab
-            LabPage { }
-
-            // Menu / Wi-Fi / join failed
-            JoinFailedPage { }
-
-            // Audio or subtitle tracks
-            TracksPage { }
+                InputsPage { }
+                MenuPage { }
+                DisplayPage { }
+                PowerPage { }
+                WifiPage { }
+                KeyboardPage { }
+                StatusPage { }
+                IntegrationsPage { }
+                LabPage { }
+                JoinFailedPage { }
+                TracksPage { }
             }
 
             Image {
