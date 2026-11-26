@@ -2,7 +2,7 @@
 
 r3cui's own client for the **Android TV Remote protocol v2**: the one Google's phone remote app speaks to
 Android TV and Google TV boxes. No developer options, no ADB; the box only needs to be on the network and
-paired once. The crate has no UI dependency; a driver will wrap it (not written yet, see "Open gaps").
+paired once. The crate has no UI dependency; the driver is `crates/drivers/src/androidtv.rs` (see docs/drivers.md).
 
 ## The protocol
 
@@ -115,5 +115,3 @@ cargo run -p androidtv --example atv-watch -- <host> [credentials.json] [key]  #
 - Not implemented: text entry (IME batch edit), voice, `adjust_volume_level`, preferred audio device. Volume is
   changed with `VolumeUp`/`VolumeDown`/`VolumeMute` keys.
 - No mDNS discovery (`_androidtvremote2._tcp`); the user enters an IP.
-- The driver (`crates/drivers`) is a follow-up: setup fields (host, pairing code), `Credentials` in `modules.json`,
-  an entity mapped from `TvState` and the key commands.

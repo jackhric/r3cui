@@ -55,7 +55,7 @@ the desktop and the device build.
 | `FakeServer` | `crates/wsclient/src/testing.rs` (feature `testing`) | the scaffold under every fake below, and `coreapi`'s tests |
 | `FakeKodi` | `crates/kodi/src/testing.rs` | `crates/kodi/tests/fake.rs`, the Kodi driver |
 | `FakeHa` | `crates/homeassistant/src/testing.rs` | `crates/homeassistant/tests/fake.rs`, the HA driver |
-| `FakeTv` | `crates/androidtv/src/testing.rs` | `crates/androidtv/tests/fake.rs` (also `examples/fake-androidtv.rs`) |
+| `FakeTv` | `crates/androidtv/src/testing.rs` | `crates/androidtv/tests/fake.rs`, the Android TV driver (also `examples/fake-androidtv.rs`) |
 | `FakeDriver` and its specs | `crates/drivers/src/testing.rs` (feature `testing`) | host routing and the Integrations screens, with no network |
 
 `FakeKodi` and `FakeHa` also run as stand-alone servers for the desktop app (`examples/fake-kodi.rs`,

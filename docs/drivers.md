@@ -38,6 +38,7 @@ Today's drivers:
 |---|---|---|---|
 | Home Assistant (`crates/homeassistant`, r3cui's own client) | yes | later | — |
 | Kodi (`crates/kodi`) | — | yes | yes (Now Playing, library wall) |
+| Android TV (`crates/androidtv`) | power only | yes | yes (the app in front) |
 | Demo (desktop builds, `demo` feature) | yes | yes | yes |
 
 The core's own integrations are not a path any more: the receiver, the key-backlight helpers and
@@ -53,10 +54,12 @@ crates/homeassistant   HA WebSocket client: auth, states, entity subscriptions, 
                        wire constants. Like crates/kodi: an engine with no IO, a service that reconnects, a handle.
                        `testing` feature: FakeHa, an in-process HA server for tests.
 crates/kodi            Kodi JSON-RPC client. `testing` feature: FakeKodi.
+crates/androidtv       Android TV Remote v2 client (pairing, keys, state). `testing` feature: FakeTv.
 crates/drivers         The contract and the drivers. No Slint.
   api.rs                 ports, views, intents, the setup schema (Field), Status
   homeassistant.rs       the HA driver (global control, key backlight)
   kodi/                  the Kodi driver (remote + UI slots, library wall)
+  androidtv.rs           the Android TV driver (remote, the app in front, power, pairing by code)
   demo/                  made-up receiver, film and shelf, to try the frontend with nothing to connect to;
                          demo/data.rs holds every made-up value, and `demo::modules()` the setup that binds it
   registry.rs            every driver type, by id
@@ -86,6 +89,7 @@ pub trait Driver: Send + Sync {
     fn power(&self, target: &str) -> Option<Port<Option<Power>, PowerIntent>> { None }
     fn remote(&self) -> Option<mpsc::UnboundedSender<RemoteKey>> { None }
     fn ui(&self) -> Option<Port<Stage, UiIntent>> { None }
+    fn pair(&self) -> Option<PairStart> { None }                     // only for a spec with `pairing`
     fn key_light(&self) -> Option<watch::Receiver<KeyLight>> { None }
     fn targets(&self, kind: TargetKind) -> BoxFuture<Vec<Target>>;   // for the entity pickers
 }
@@ -95,7 +99,8 @@ pub trait Driver: Send + Sync {
 - `Sources { current, list }`; `SourceIntent::Select`.
 - `Power { on }`; `PowerIntent::Set(bool)`. A Home Assistant media_player is on unless its state is off, standby,
   unavailable or unknown. With no power binding the UI shows the remote as on and holding Power does nothing.
-- `Stage { media: Option<Media>, library: Option<Library> }`. Both `None` is a blank stage.
+- `Stage { media: Option<Media>, library: Option<Library>, app: Option<App> }`. All `None` is a blank stage. `App`
+  is the program in front on a box that runs apps; the mark stage names it under the input's mark.
 - `UiIntent`: `Shown(bool)` (the host says whether the slot is on screen and the remote awake, so
   a driver only polls when it matters), `PlayPause`, `Seek(secs)`, `Audio(i)`, `Subtitle(Option<i>)`.
 - Images are URLs. The frontend fetches, scales and caches them, so no driver depends on image
@@ -106,12 +111,41 @@ same for every driver.
 
 ## Setup schema
 
-Each driver type has a static `Spec { id, name, fields, provides }`. A `Field` is
-`{ key, label, kind: Text | Url | Port | Secret | Entity(domain), required, default }`. The
+Each driver type has a static `Spec { id, name, icon, fields, provides, pairing }`. A `Field` is
+`{ key, label, kind: Text | Url | Port | Secret | Credential | Target(kind), required, default }`. The
 Integrations pages are drawn from it, so a new driver needs no new Slint.
 
 `Secret` fields (the HA token) are never shown back; the row reads "Set" or "Not set". A token is
 pasted into `modules.json` for now; pairing through an HA integration (HACS) comes later.
+
+`Credential` fields are written by pairing and nothing else: they get no row and are never typed, shown or edited.
+`Provides.power` marks a driver that can be bound as global Power without being global control (its Power picker row
+is the driver itself; the target is its id).
+
+### Pairing by code
+
+A spec with `pairing: Some(CodePairing { code_len })` is paired from Settings → Integrations: its page has a **Pair**
+row, and setting the last required field of a driver with nothing paired goes straight on to pairing. The flow:
+
+1. `Driver::pair()` returns a future that contacts the device, which then shows its code, and gives back a
+   `Pairer` (the `Pairing` page reads "Contacting …" meanwhile).
+2. The keyboard opens (`KbPurpose::Code`, `code_len` characters, action "Pair").
+3. `Pairer::finish(code)` answers `Ok(Paired)`: the field values to store (the credentials), which are saved and the
+   driver restarted; `Err(WrongCode)`: back to the keyboard with "WRONG CODE, TRY AGAIN" and the same `Pairer`; or
+   `Err(Failed(why))`: the page shows why, with Try again.
+
+`app/integrations.rs` holds this as a pure state machine (`Effect::Pair`, `Effect::Code`, `Effect::Finish`; `pair_started`
+and `pair_checked` take the results); the session runs the futures and brings the results back as `Later::PairStarted`
+and `Later::PairChecked`.
+
+### Android TV
+
+Setup is the address alone; pairing stores `cert_pem` and `key_pem` (a self-signed client certificate generated at the
+first pairing). Remote: every `RemoteKey` is an Android key code (`key_code` in `drivers/src/androidtv.rs`). UI: the
+app in front while the box is on, named from a small table of package names, otherwise by the last part of the
+package. Power: `Power { on }` from the box's state; `Set(x)` presses the power key only when the state differs.
+Status: Connected, Connecting, Unreachable, or "Needs pairing" (`Health::NotPaired`) when the box turns the
+certificate away. No volume: that stays on the receiver.
 
 ## Configuration: `modules.json`
 
@@ -175,7 +209,9 @@ A driver's status may name what is wrong ("Token rejected", "media_player.x not 
 - Every engine (HA, Kodi, the input list, the host's routing) is plain logic with unit tests.
 - `FakeHa` and `FakeKodi` are real WebSocket servers in-process, built on `wsclient::testing`: the clients are
   tested end to end, including reconnects.
-- `FakeDriver` lets host tests check routing without any network.
+- `FakeDriver` lets host tests check routing without any network. `FAKE_PAIRABLE` is its spec with a code pairing.
+- `FakeTv` (crates/androidtv) is a TLS Android TV with both ports; the Android TV driver's tests pair with it and
+  check keys, power, the app in front and `NotPaired`.
 - `scripts/test.sh` runs what CI runs: the whole workspace's tests, then clippy with warnings as errors.
 - On the desktop, `--steps <script> --out <dir>` drives the live window key by key and takes pictures, against the
   core simulator and the fakes run as servers (`cargo run -p kodi --features testing --example fake-kodi`, and `fake-ha` in

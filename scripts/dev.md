@@ -75,6 +75,20 @@ Then add each in Settings → Integrations (Kodi: host `127.0.0.1` and the port 
 The simulator's own demo Home Assistant (`127.0.0.1:8123`, token `HASS_TOKEN` in the simulator's `docker/.env`) has
 a `media_player.receiver` that works as global control too.
 
+## A stand-in Android TV
+
+```sh
+cargo run -p androidtv --features testing --example fake-androidtv   # 127.0.0.1:6466 and :6467; prints each pairing code
+```
+
+In Settings → Integrations choose Add integration → Android TV, set Address to `127.0.0.1`: pairing starts at once,
+the keyboard opens, and the fake prints `pairing code: XXXXXX`. Type that code and press Pair (a wrong one stays on the
+keyboard with an error). Then give the driver to an input's Remote and Screen slots (Inputs → Default when there is no
+source) and, if you like, to Power under Global control. The screen shows the app the fake reports.
+
+The code depends on the client certificate, so a steps file cannot hold it: write it to a file as the fake prints it
+and use `type-file <path>` in the steps, which types the file's text when the step comes.
+
 ## The demo
 
 `cargo run -p remote-ui -- --demo` (or `UC_DEMO=1`, or `--record` without `--live`) runs the real session with nothing

@@ -8,6 +8,7 @@
 //! press home        # a key held down until `release home`, to take a picture meanwhile
 //! type 127.0.0.1    # tapped out on the on-screen keyboard, a key at a time
 //! tap Done          # one keyboard key, by its label
+//! type-file code.txt  # the file's text, read when this step comes: a code that exists only once the app is running
 //! page menu        # open a page by name (home inputs menu display power wifi keyboard status join-failed tracks
 //!                   # feedback-lab integrations), as a tap on its button would
 //! snap inputs       # <out>/inputs.png (not when filming)
@@ -36,6 +37,8 @@ pub(crate) enum Do {
     Release(SharedString),
     /// One keyboard key, by its label; the keyboard's mode is switched first if it isn't showing.
     Tap(String),
+    /// Every character of a file, as `type` would, read when the step comes.
+    TypeFile(PathBuf),
     Page(PageId),
     Snap(String),
     Awake,
@@ -92,6 +95,8 @@ pub(crate) fn parse(text: &str) -> Result<Vec<(Duration, Do)>, String> {
                 }
             }
             "tap" => push(&mut wait, Do::Tap(rest.to_string())),
+            "type-file" if !rest.is_empty() => push(&mut wait, Do::TypeFile(rest.into())),
+            "type-file" => return Err(err("a path")),
             "page" => push(&mut wait, Do::Page(page_by_name(rest).ok_or(err("a page name"))?)),
             "snap" if !rest.is_empty() => push(&mut wait, Do::Snap(rest.to_string())),
             "snap" => return Err(err("a name")),
@@ -126,6 +131,12 @@ pub(crate) fn perform(app: &AppWindow, action: &Do, out: Option<&Path>) -> bool 
     match action {
         Do::Press(text) => app.window().dispatch_event(WindowEvent::KeyPressed { text: text.clone() }),
         Do::Release(text) => app.window().dispatch_event(WindowEvent::KeyReleased { text: text.clone() }),
+        Do::TypeFile(path) => match std::fs::read_to_string(path) {
+            Ok(text) => text.trim().chars().for_each(|c| {
+                perform(app, &Do::Tap(c.to_string()), out);
+            }),
+            Err(e) => tracing::warn!("steps: {}: {e}", path.display()),
+        },
         Do::Tap(label) => {
             // Digits and symbols live on the other layout; capitals need shift, which a script doesn't ask for.
             let at = key_at(app, label).or_else(|| {
