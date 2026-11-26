@@ -1,9 +1,9 @@
-//! Everything the screen shows, independent of where it came from (core or demo).
+//! Everything the screen shows, independent of where it came from.
 
 use drivers::api::KeyLight;
 use crate::remote::{health, wifi};
 
-/// Everything the screen shows, independent of where it came from (core or demo).
+/// Everything the screen shows, independent of where it came from.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Model {
     pub volume: i32,
@@ -24,9 +24,6 @@ pub(crate) struct Model {
     pub position: f64,
     pub media_format: String,
     pub media_sub: String,
-    /// Demo only: the audio streams as named, and the one playing.
-    pub audio_tracks: Vec<String>,
-    pub audio_track: String,
     pub battery: i32,
     /// On the dock or a cable.
     pub charging: bool,
@@ -42,8 +39,6 @@ pub(crate) struct Model {
     pub status: Vec<health::StatusLine>,
     pub warning: String,
     pub key_light: KeyLight,
-    /// Demo only: pretend Home Assistant cannot be reached.
-    pub demo_ha_down: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -52,60 +47,4 @@ pub(crate) struct InputEntry {
     pub name: String,
     /// The mark of the driver in its slots; without one, a brand mark is found from the name.
     pub icon: Option<&'static str>,
-}
-impl Model {
-    pub fn demo() -> Self {
-        Self {
-            volume: 62,
-            has_volume: true,
-            muted: false,
-            input: "PLAYSTATION 5".into(),
-            inputs: ["ANDROID TV", "KODI", "PLAYSTATION 5", "XBOX 360"]
-                .into_iter()
-                .map(|s| InputEntry { id: s.into(), name: s.into(), icon: (s == "KODI").then_some(drivers::kodi::SPEC.icon) })
-                .collect(),
-            title: "Mad Max: Fury Road".into(),
-            paused: false,
-            duration: 7200.0,
-            position: 2788.0,
-            media_format: "DTS-HD MA 7.1".into(),
-            audio_tracks: vec!["English DTS-HD MA 7.1 - DTS-HD MA 7.1".into(), "English Commentary - AAC-LC stereo".into(), "French - Dolby Digital 5.1".into()],
-            audio_track: "English DTS-HD MA 7.1 - DTS-HD MA 7.1".into(),
-            battery: 81,
-            volume_max: 72,
-            awake: true,
-            power_on: true,
-            wifi_ssid: "HomeNetwork".into(),
-            wifi: wifi::demo_networks("HomeNetwork"),
-            wifi_band: "b".into(),
-            ..Default::default()
-        }
-        .with_demo_overrides()
-        .with_demo_health()
-    }
-
-    /// Demo only: `UC_DEMO_TITLE`, `UC_DEMO_SOURCE` and `UC_DEMO_FORMAT` pick what the demo shows,
-    /// for previews of other films.
-    fn with_demo_overrides(mut self) -> Self {
-        let var = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
-        if let Some(t) = var("UC_DEMO_TITLE") {
-            self.title = t;
-        }
-        if let Some(s) = var("UC_DEMO_SOURCE") {
-            self.input = s;
-        }
-        if let Some(f) = var("UC_DEMO_FORMAT") {
-            self.media_format = f;
-        }
-        self
-    }
-
-    /// Demo only: derive the status rows from the rest of the model.
-    pub fn with_demo_health(mut self) -> Self {
-        use drivers::api::{Health, Status};
-        let link = |name: &str, up: bool| health::Link { name: name.into(), status: Status::new(if up { Health::Up } else { Health::Down }), in_use: true };
-        self.staged = self.input.eq_ignore_ascii_case("kodi");
-        (self.status, self.warning) = health::health(&self.wifi_ssid, &[link("Home Assistant", !self.demo_ha_down), link("Kodi", true)]);
-        self
-    }
 }

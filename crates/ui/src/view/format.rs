@@ -10,13 +10,6 @@ pub(crate) fn band_label(band: &str) -> Option<&'static str> {
         _ => None,
     }
 }
-/// "French VF - AAC-LC stereo" → ("French VF", "AAC-LC stereo")
-pub(crate) fn split_track(t: &str) -> (String, String) {
-    match t.split_once(" - ") {
-        Some((name, codec)) => (name.trim().to_string(), codec.split('(').next().unwrap_or_default().trim().to_string()),
-        None => (t.to_string(), String::new()),
-    }
-}
 pub(crate) fn duration_label(secs: i64) -> String {
     if secs >= 60 && secs % 60 == 0 {
         format!("{} min", secs / 60)
@@ -32,12 +25,6 @@ pub(crate) fn clock(secs: f64) -> String {
     } else {
         format!("{}:{:02}", s / 60, s % 60)
     }
-}
-/// Kodi reports its audio stream as "English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)": language and
-/// stream name, then the codec with its channel layout. The codec part is what the badge shows.
-pub(crate) fn audio_format(sound_mode: &str) -> String {
-    let codec = sound_mode.rsplit(" - ").next().unwrap_or_default();
-    codec.split('(').next().unwrap_or_default().trim().to_string()
 }
 /// The badge for Kodi's audio stream: a logo id and what the logo does not already say. The
 /// stream name is free text from the file (often "DTS-HD MA 5.1", sometimes the driver's fallback
@@ -158,7 +145,6 @@ mod tests {
         assert_eq!(clock(4328.0), "1:12:08");
         assert_eq!(clock(548.0), "9:08");
         assert_eq!(clock(548.9), "9:08");
-        assert_eq!(split_track("French VF - AAC-LC stereo"), ("French VF".into(), "AAC-LC stereo".into()));
         let badge = |s: &str| { let (l, t) = codec_badge(s); (l, t) };
         assert_eq!(badge("DTS-HD MA 7.1"), ("dts", "HD MA 7.1".to_string()));
         assert_eq!(badge("TrueHD Atmos 7.1"), ("dolby", "TrueHD Atmos 7.1".to_string()));
@@ -169,8 +155,5 @@ mod tests {
         assert_eq!(badge("DTS:X 7.1"), ("dts", "X 7.1".to_string()));
         assert_eq!(badge("Pcm_S24Le 2 channels"), ("", "PCM Stereo".to_string()));
         assert_eq!(badge("FLAC 2.0"), ("flac", "Stereo".to_string()));
-        assert_eq!(audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)"), "DTS-HD MA 5.1");
-        assert_eq!(codec_badge(&audio_format("English DTS-HD MA 5.1 - DTS-HD MA 5.1(side)")), ("dts", "HD MA 5.1".to_string()));
-        assert_eq!(audio_format(""), "");
     }
 }

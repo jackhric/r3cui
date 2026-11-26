@@ -67,6 +67,14 @@ cargo run -p homeassistant --features testing --example fake-ha -- 127.0.0.1:812
 The simulator's own demo Home Assistant (`127.0.0.1:8123`, token `HASS_TOKEN` in the simulator's `docker/.env`) has
 a `media_player.receiver` that works as global control too.
 
+## The demo
+
+`cargo run -p remote-ui -- --demo` (or `UC_DEMO=1`, or `--record` without `--live`) runs the real session with nothing
+to connect to: an in-memory setup (`drivers::demo::modules()`) puts the Demo driver behind global volume and source
+and every input's remote, and behind Kodi's screen, and a made-up remote stands in for the core (battery, Wi-Fi to
+join; keys `c` charger, `z` asleep, `x` every driver down). Nothing is written to `config/`. All the made-up values
+are in `crates/drivers/src/demo/data.rs`; the `--shots` stills read the same ones.
+
 ## Driving the live app
 
 `--steps <file> --out <dir>` presses keys through the window and takes pictures along the way

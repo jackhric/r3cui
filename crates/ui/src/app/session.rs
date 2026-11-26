@@ -12,18 +12,19 @@ use crate::app::integrations::{Effect, Integrations};
 use crate::app::model::{InputEntry, Model};
 use crate::app::{Later, Settings, UiAction, settings};
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
-use crate::hardware::{backlight, feedback};
+use crate::hardware::feedback;
 use crate::input::{slider, Route, VolumeKey};
-use crate::remote::health::{self, Link};
-use crate::remote::system::{self, load_settings, System};
-use crate::remote::wifi::{self, Wifi};
+use crate::remote::health;
+use crate::remote::system::{load_settings, System};
+use crate::remote::link::Link;
+use crate::remote::wifi::Wifi;
 use crate::view::library::Wall;
 use crate::view::screen::Screen;
 use crate::{Menu, MenuItem, PageId};
 use crate::{KbPurpose, Picker};
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
-use drivers::api::{Media, Stage, UiIntent, VolumeIntent};
+use drivers::api::{Health, Media, Stage, Status, UiIntent, VolumeIntent};
 use drivers::{Host, Input, Modules, Registry, Store};
 
 use std::sync::atomic::AtomicU64;
@@ -43,7 +44,8 @@ const KEYS_REPAINT_AFTER_WAKE: Duration = Duration::from_millis(400);
 /// What outlives a core reconnect: the drivers and what the screen keeps of them.
 pub(crate) struct Frontend {
     pub(crate) host: Host,
-    pub(crate) store: Store,
+    /// Where the Integrations pages save; the demo keeps its setup to itself.
+    store: Option<Store>,
     global: Global,
     wall: Wall,
     settings: Integrations,
@@ -70,13 +72,22 @@ impl Frontend {
             }
         };
         tracing::info!(drivers = ?modules.drivers.keys().collect::<Vec<_>>(), "modules from {}", store.path.display());
-        Self { host: Host::new(Registry::builtin(), modules), store, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), poster_url: String::new() }
+        Self { host: Host::new(Registry::builtin(), modules), store: Some(store), global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), poster_url: String::new() }
+    }
+
+    /// The demo's drivers, set up in memory. Within a tokio runtime.
+    #[cfg(feature = "demo")]
+    pub(crate) fn demo(weak: slint::Weak<AppWindow>) -> Self {
+        let modules = drivers::demo::modules();
+        Self { host: Host::new(Registry::builtin(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), poster_url: String::new() }
     }
 
     /// Changes from the Integrations pages: saved, then applied.
     pub(crate) fn apply(&mut self, modules: Modules) {
-        if let Err(e) = self.store.save(&modules) {
-            tracing::error!("{}: {e}", self.store.path.display());
+        if let Some(store) = &self.store {
+            if let Err(e) = store.save(&modules) {
+                tracing::error!("{}: {e}", store.path.display());
+            }
         }
         self.host.apply(modules);
     }
@@ -104,6 +115,8 @@ struct Session<'a> {
     front: &'a mut Frontend,
     system: System,
     wifi: Wifi,
+    /// Demo only: pretend every driver is unreachable.
+    links_down: bool,
 }
 
 impl Session<'_> {
@@ -164,8 +177,11 @@ impl Session<'_> {
     fn model(&self, current: Option<&Input>, stage: &Stage) -> Model {
         let host = &self.front.host;
         let g = self.front.global.view(host);
-        let links: Vec<Link> =
-            host.statuses().into_iter().map(|(id, name, status)| Link { in_use: host.in_use(&id, current), name, status }).collect();
+        let links: Vec<health::Link> = host
+            .statuses()
+            .into_iter()
+            .map(|(id, name, status)| health::Link { in_use: host.in_use(&id, current), name, status: if self.links_down { Status::new(Health::Down) } else { status } })
+            .collect();
         let (status, warning) = health::health(&self.wifi.ssid, &links);
         let now = Instant::now();
         let media = stage.media.as_ref();
@@ -178,7 +194,6 @@ impl Session<'_> {
             scanning: self.wifi.scanning,
             status,
             warning,
-            demo_ha_down: false,
             volume: g.volume,
             has_volume: host.has_volume(),
             volume_max: g.volume_max,
@@ -193,8 +208,6 @@ impl Session<'_> {
             position,
             media_format: media.map(|m| m.format.clone()).unwrap_or_default(),
             media_sub: media.map(|m| m.subtitle.clone()).unwrap_or_default(),
-            audio_tracks: Vec::new(),
-            audio_track: String::new(),
             battery: self.system.battery,
             charging: self.system.charging,
             awake: self.system.awake,
@@ -243,24 +256,36 @@ fn tracks(media: Option<&Media>, picker: Picker) -> (Vec<(String, String)>, usiz
 pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceiver<UiAction>, front: &mut Frontend) -> anyhow::Result<()> {
     let cfg = coreapi::Config::from_env()?;
     set_status(weak, false, format!("Connecting to {}…", cfg.url));
-    let (core, mut events) = coreapi::connect(cfg).await?;
+    let (core, events) = coreapi::connect(cfg).await?;
     let (system, wifi) = tokio::join!(System::load(&core), Wifi::load(&core));
-    let mut session = Session { front, system, wifi };
     load_settings(weak, &core).await;
+    // Presses made while offline would otherwise fire in a burst on reconnect.
+    while actions.try_recv().is_ok() {}
+    serve(weak, actions, front, Link::Core(core), events, system, wifi).await
+}
+
+/// The session proper, over a link to the remote: `run`'s core, or the demo's stand-in.
+pub(crate) async fn serve(
+    weak: &slint::Weak<AppWindow>,
+    actions: &mut mpsc::UnboundedReceiver<UiAction>,
+    front: &mut Frontend,
+    link: Link,
+    mut events: mpsc::Receiver<coreapi::Event>,
+    system: System,
+    wifi: Wifi,
+) -> anyhow::Result<()> {
+    let mut session = Session { front, system, wifi, links_down: false };
     session.show(weak);
     set_status(weak, true, String::new());
 
-    // Presses made while offline would otherwise fire in a burst on reconnect.
-    while actions.try_recv().is_ok() {}
-
     let overlay = Arc::new(AtomicU64::new(0));
     let (later_tx, mut later_rx) = mpsc::unbounded_channel::<Later>();
-    let keys = backlight::Backlight::start(core.clone());
+    let keys = link.backlight();
     let refresh_wifi = |delay: Duration| {
-        let (core, tx) = (core.clone(), later_tx.clone());
+        let (link, tx) = (link.clone(), later_tx.clone());
         tokio::spawn(async move {
             tokio::time::sleep(delay).await;
-            let (ssid, networks) = wifi::scan(&core).await;
+            let (ssid, networks) = link.scan().await;
             let _ = tx.send(Later::Wifi(ssid, networks));
         });
     };
@@ -305,7 +330,6 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
             Some(later) = later_rx.recv() => {
                 match later {
                     Later::Wifi(ssid, networks) => session.wifi.found(ssid, networks),
-                    Later::Switched => {}
                     Later::Targets(targets) => session.front.settings.targets_loaded(targets),
                     Later::SendVolume => {
                         let send = volume_gate.due(Instant::now());
@@ -325,10 +349,9 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                 tracing::debug!(msg = %ev.msg, cat = ?ev.cat, data = %ev.data, "event");
                 match ev.typed() {
                     CoreEvent::PowerModeChange(p) => {
-                        if session.system.on_power_mode(&p) {
+                        if let (true, Some(keys)) = (session.system.on_power_mode(&p), keys.clone()) {
                             keys.repaint();
                             // The core restores its own idea of the keys as it wakes; paint over it again once it has.
-                            let keys = keys.clone();
                             tokio::spawn(async move {
                                 tokio::time::sleep(KEYS_REPAINT_AFTER_WAKE).await;
                                 keys.repaint();
@@ -398,8 +421,12 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         let on = front.global.view(&front.host).on;
                         front.global.toggle_power(&front.host, on);
                     }
-                    UiAction::Backlight(wanted) => keys.show(wanted),
-                    UiAction::Display { brightness, auto } => system::set_display(&core, brightness, auto),
+                    UiAction::Backlight(wanted) => {
+                        if let Some(keys) = &keys {
+                            keys.show(wanted);
+                        }
+                    }
+                    UiAction::Display { brightness, auto } => link.set_display(brightness, auto),
                     UiAction::Slider(slider::Gesture::Steps(n)) => {
                         let g = front.global.view(&front.host);
                         let v = slide(g.volume, n, g.volume_max);
@@ -416,21 +443,24 @@ pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::Unbou
                         front.global.toggle_mute(&front.host, muted);
                     }
                     UiAction::WifiBand => {
-                        session.wifi.toggle_band(&core).await;
+                        link.toggle_band(&mut session.wifi).await;
                         // The remote reconnects on the new band; look again once it has.
-                        refresh_wifi(WIFI_REFRESH_AFTER_BAND_SWITCH);
+                        refresh_wifi(link.settle(WIFI_REFRESH_AFTER_BAND_SWITCH));
                     }
                     UiAction::WifiScan => {
-                        session.wifi.start_scan(&core);
+                        link.start_scan(&mut session.wifi);
                         // SCAN_COMPLETED normally brings the results sooner; this covers a missed event.
-                        refresh_wifi(WIFI_REFRESH_AFTER_SCAN);
+                        refresh_wifi(link.settle(WIFI_REFRESH_AFTER_SCAN));
                     }
                     UiAction::WifiJoin { ssid, hex, password } => {
-                        if !session.wifi.join(&core, &ssid, &hex, &password).await {
+                        if !link.join(&mut session.wifi, &ssid, &hex, &password, &later_tx).await {
                             let _ = later_tx.send(Later::JoinDone(false));
                         }
                     }
                     UiAction::Integrations(action) => session.settings(weak, action, &later_tx),
+                    #[cfg(feature = "demo")]
+                    UiAction::DemoKey(key) => crate::app::demo::toggle(key, &mut session.system, &mut session.links_down),
+                    #[cfg(not(feature = "demo"))]
                     UiAction::DemoKey(_) => {}
                 }
                 session.show(weak);

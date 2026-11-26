@@ -13,7 +13,6 @@ mod remote;
 mod view;
 
 use crate::app::{UiAction, settings};
-use crate::app::demo::{apply_demo_settings, run_demo};
 use crate::app::session::{Frontend, RECONNECT_DELAY, run};
 use crate::art::grain;
 use crate::hardware::{backlight, feedback};
@@ -92,13 +91,18 @@ fn main() -> anyhow::Result<()> {
     if let Some(dir) = arg("--shots") {
         return shots::run(app, dir.into(), frame);
     }
+    #[cfg(feature = "preview")]
     let record = arg("--record");
     // Recordings play the demo unless `--live` asks for the core's real state.
-    let live = args.iter().any(|a| a == "--live");
-    let demo = (record.is_some() && !live) || args.iter().any(|a| a == "--demo") || std::env::var_os("UC_DEMO").is_some();
-    if demo {
-        apply_demo_settings(&app);
-    }
+    #[cfg(feature = "demo")]
+    let demo = {
+        let live = args.iter().any(|a| a == "--live");
+        let demo = (arg("--record").is_some() && !live) || args.iter().any(|a| a == "--demo") || std::env::var_os("UC_DEMO").is_some();
+        if demo {
+            app::demo::apply_demo_settings(&app);
+        }
+        demo
+    };
 
     let weak = app.as_weak();
     let send = |f: fn(String) -> UiAction| {
@@ -221,8 +225,10 @@ fn main() -> anyhow::Result<()> {
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
         rt.block_on(async move {
+            #[cfg(feature = "demo")]
             if demo {
-                run_demo(&weak, &mut act_rx).await;
+                let mut front = Frontend::demo(weak.clone());
+                app::demo::run(&weak, &mut act_rx, &mut front).await;
                 return;
             }
             let mut front = Frontend::start(weak.clone());

@@ -127,29 +127,6 @@ impl Button {
         }
     }
 
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Back => "BACK",
-            Self::Home => "HOME",
-            Self::Menu => "MENU",
-            Self::DpadUp => "DPAD_UP",
-            Self::DpadDown => "DPAD_DOWN",
-            Self::DpadLeft => "DPAD_LEFT",
-            Self::DpadRight => "DPAD_RIGHT",
-            Self::DpadMiddle => "DPAD_MIDDLE",
-            Self::VolumeUp => "VOLUME_UP",
-            Self::VolumeDown => "VOLUME_DOWN",
-            Self::Mute => "MUTE",
-            Self::ChannelUp => "CHANNEL_UP",
-            Self::ChannelDown => "CHANNEL_DOWN",
-            Self::Prev => "PREV",
-            Self::Play => "PLAY",
-            Self::Next => "NEXT",
-            Self::Stop => "STOP",
-            Self::Record => "RECORD",
-        }
-    }
-
     pub fn route(self) -> Option<Route> {
         use {RemoteKey as K, Route::*};
         Some(match self {

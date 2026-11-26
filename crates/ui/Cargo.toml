@@ -37,10 +37,12 @@ optional = true
 
 [features]
 default = ["desktop"]
-desktop = ["slint/backend-winit", "slint/renderer-femtovg", "preview", "drivers/demo"]
+desktop = ["slint/backend-winit", "slint/renderer-femtovg", "preview", "demo"]
 device = ["slint/backend-linuxkms", "slint/renderer-femtovg", "slint/renderer-software", "slint/software-renderer-path", "dep:evdev"]
 # Screenshot, recording and remote-photo framing tools (--shots, --snap, --record, --frame).
-preview = ["dep:kodi"]
+preview = ["dep:kodi", "demo"]
+# A made-up receiver and player behind the real session (--demo), and the data the preview stills share with it.
+demo = ["drivers/demo"]
 
 [dev-dependencies]
 drivers = { path = "../drivers", features = ["testing"] }

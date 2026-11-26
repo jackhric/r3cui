@@ -2,5 +2,6 @@
 //! screen depends on is doing. Other programs are drivers (`crates/drivers`), not here.
 
 pub(crate) mod health;
+pub(crate) mod link;
 pub(crate) mod system;
 pub(crate) mod wifi;

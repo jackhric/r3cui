@@ -33,6 +33,10 @@ pub(crate) struct Response {
 impl Wifi {
     pub(crate) async fn load(core: &coreapi::Core) -> Self {
         let ((ssid, networks), band) = tokio::join!(scan(core), band(core));
+        Self::new(ssid, networks, band)
+    }
+
+    pub(crate) fn new(ssid: String, networks: Vec<Network>, band: String) -> Self {
         Self { ssid, networks, band, ..Self::default() }
     }
 
@@ -68,7 +72,7 @@ impl Wifi {
         if !password.is_empty() {
             network["password"] = json!(password);
         }
-        self.joining = Some((None, Instant::now()));
+        self.begin_join();
         match core.request("add_wifi_network", network).await {
             Ok(r) if r.is_ok() => {
                 self.joining = Some((r.data.get("id").and_then(Value::as_i64), Instant::now()));
@@ -79,6 +83,10 @@ impl Wifi {
                 false
             }
         }
+    }
+
+    pub(crate) fn begin_join(&mut self) {
+        self.joining = Some((None, Instant::now()));
     }
 
     /// Switch the preferred band to the other one.
@@ -165,11 +173,14 @@ pub(crate) async fn scan(core: &coreapi::Core) -> (String, Vec<Network>) {
     (ssid, found.into_iter().take(MAX_NETWORKS).map(|(_, n)| n).collect())
 }
 
+#[cfg(feature = "demo")]
 pub fn demo_networks(connected: &str) -> Vec<Network> {
-    [("HomeNetwork", 3), ("Guest", 4), ("SmartHome", 2)]
+    let mut found: Vec<Network> = drivers::demo::data::WIFI
         .into_iter()
         .map(|(ssid, bars)| Network { ssid: ssid.into(), hex: String::new(), secured: true, bars, connected: ssid == connected })
-        .collect()
+        .collect();
+    found.sort_by_key(|n| !n.connected);
+    found
 }
 
 /// The preferred Wi-Fi band ("a" or "b"), or empty when the core does not say.

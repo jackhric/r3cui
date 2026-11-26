@@ -53,7 +53,8 @@ crates/drivers         The contract and the drivers. No Slint.
   api/                   ports, views, intents, the setup schema (Field), Status
   homeassistant/         the HA driver (global control, key backlight)
   kodi/                  the Kodi driver (remote + UI slots, library wall)
-  demo.rs                made-up receiver, film and shelf, to try the frontend with nothing to connect to
+  demo/                  made-up receiver, film and shelf, to try the frontend with nothing to connect to;
+                         demo/data.rs holds every made-up value, and `demo::modules()` the setup that binds it
   registry.rs            every driver type, by id
   config.rs              modules.json: instances, global bindings, inputs
   inputs.rs              the input list: the source's list with the user's order, names, hiding

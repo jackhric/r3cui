@@ -1,6 +1,7 @@
 //! The app's state and its loop: what the UI asks for (`UiAction`), what background work reports back (`Later`),
 //! the model the screen shows, and the session that joins the core and the drivers to it.
 
+#[cfg(feature = "demo")]
 pub(crate) mod demo;
 pub(crate) mod global;
 pub(crate) mod integrations;
@@ -19,7 +20,8 @@ pub(crate) enum UiAction {
     Button(Button),
     /// The play button on Now Playing: for the input's UI slot.
     PlayPause,
-    /// Desktop only: a key that toggles part of the demo (c charging, x Home Assistant down, z awake).
+    /// Desktop only: a key that toggles part of the demo (see `demo::toggle`).
+    #[cfg_attr(not(feature = "demo"), allow(dead_code))]
     DemoKey(char),
     SelectInput(String),
     Power(PowerAction),
@@ -50,8 +52,6 @@ pub(crate) enum Settings {
 pub(crate) enum Later {
     Wifi(String, Vec<wifi::Network>),
     JoinDone(bool),
-    /// Demo only: the device has caught up with an input change.
-    Switched,
     /// The slider's throttled volume command is due.
     SendVolume,
     /// What an Integrations picker offers, as its driver answered.
