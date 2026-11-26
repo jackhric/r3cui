@@ -8,9 +8,10 @@ import { Codecs } from "codecs.slint";
 import { KeyChars } from "keys.slint";
 import { Library } from "library.slint";
 import { Capture, PageId, FormatMark, PowerAction, Dot, KeyGlyph, KeyStyle, NavKey, Choice, Haptic, LibMode, WallStyle, JoinState, KbPurpose, Picker, InputRow, WifiRow, KeyCell, LibItem } from "types.slint";
+import { Prefs } from "globals/prefs.slint";
 
 export * from "types.slint";
-export { Theme, Logos, Icons, Marks, Codecs, KeyChars }
+export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs }
 
 enum HomeView {
     playing,
@@ -325,11 +326,6 @@ export component AppWindow inherits Window {
     out property <bool> lit: root.awake && !root.resting;
 
     in property <string> wifi-name;
-    in-out property <int> brightness: 90;
-    in-out property <bool> auto-brightness: true;
-    in property <string> screen-off-after;
-    in property <string> haptics;
-    in property <string> sleep-after;
 
     in property <[WifiRow]> wifi-rows;
     in-out property <WifiRow> wifi-target;
@@ -387,8 +383,6 @@ export component AppWindow inherits Window {
     callback pick-track(Picker, int);
     // Any key or touch: restarts the charger's countdown to dark.
     callback activity();
-    // The user changed brightness or auto brightness on the Display page.
-    callback display-changed();
 
     out property <bool> power-overlay: root.power-holding || root.power-latched;
     out property <bool> power-turning-off: true;
@@ -523,8 +517,8 @@ export component AppWindow inherits Window {
             }
         } else if (root.page == PageId.display) {
             if (i == 1) {
-                root.auto-brightness = !root.auto-brightness;
-                root.display-changed();
+                Prefs.auto-brightness = !Prefs.auto-brightness;
+                Prefs.changed();
             }
         } else if (root.page == PageId.wifi) {
             if (i == root.wifi-rows.length + 1) {
@@ -642,9 +636,9 @@ export component AppWindow inherits Window {
                 }
                 if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
                     if (root.page == PageId.display && root.focus-index == 0) {
-                        if (!root.auto-brightness) {
-                            root.brightness = max(5, min(100, root.brightness + (event.text == Key.LeftArrow ? -5 : 5)));
-                            root.display-changed();
+                        if (!Prefs.auto-brightness) {
+                            Prefs.brightness = max(5, min(100, Prefs.brightness + (event.text == Key.LeftArrow ? -5 : 5)));
+                            Prefs.changed();
                         }
                     } else if (event.text == Key.LeftArrow) {
                         root.back();
@@ -746,7 +740,6 @@ export component AppWindow inherits Window {
                 transform-origin: { x: self.width / 2, y: self.height / 2 };
                 transform-scale: root.capturing == Capture.stage ? 1 : (1 - 0.08 * root.recede) * (root.swapping && !root.swap-plain ? 0.97 + 0.03 * root.swap : 1);
                 opacity: root.capturing == Capture.stage ? 1 : 1 - 0.55 * root.recede;
-
 
                     // The input's UI slot, playing
                     Rectangle {
@@ -1111,8 +1104,8 @@ export component AppWindow inherits Window {
                     rows: [
                         { label: "Wi-Fi", value: root.wifi-name, chevron: true },
                         { label: "Integrations", chevron: true },
-                        { label: "Display", value: root.auto-brightness ? "Auto" : root.brightness + "%", chevron: true },
-                        { label: "Sound & haptics", value: root.haptics, chevron: true },
+                        { label: "Display", value: Prefs.auto-brightness ? "Auto" : Prefs.brightness + "%", chevron: true },
+                        { label: "Sound & haptics", value: Prefs.haptics, chevron: true },
                         { label: "Power", chevron: true },
                         { label: "Status", chevron: true },
                         { label: "Feedback lab", chevron: true },
@@ -1149,14 +1142,14 @@ export component AppWindow inherits Window {
                     text: "Brightness";
                     font-size: 26px;
                     font-weight: root.focus-index == 0 ? 500 : 400;
-                    color: root.auto-brightness ? Theme.t3 : root.focus-index == 0 ? Theme.text : Theme.text-dim;
+                    color: Prefs.auto-brightness ? Theme.t3 : root.focus-index == 0 ? Theme.text : Theme.text-dim;
                 }
                 Text {
                     x: 40px;
                     y: 176px;
                     width: 400px;
                     horizontal-alignment: right;
-                    text: root.auto-brightness ? "Automatic" : root.brightness + "%";
+                    text: Prefs.auto-brightness ? "Automatic" : Prefs.brightness + "%";
                     font-size: 22px;
                     font-weight: 300;
                     color: Theme.t2;
@@ -1165,10 +1158,10 @@ export component AppWindow inherits Window {
                 Bar {
                     x: 40px;
                     y: 250px;
-                    value: root.brightness / 100;
-                    handle: !root.auto-brightness;
-                    tint: root.auto-brightness ? Theme.t3 : Theme.accent;
-                    opacity: root.auto-brightness ? 0.5 : 1;
+                    value: Prefs.brightness / 100;
+                    handle: !Prefs.auto-brightness;
+                    tint: Prefs.auto-brightness ? Theme.t3 : Theme.accent;
+                    opacity: Prefs.auto-brightness ? 0.5 : 1;
                     animate opacity { duration: 160ms; }
                 }
                 TouchArea {
@@ -1177,11 +1170,11 @@ export component AppWindow inherits Window {
                     y: 220px;
                     width: 432px;
                     height: 74px;
-                    enabled: !root.auto-brightness;
+                    enabled: !Prefs.auto-brightness;
                     function set() {
                         root.focus-index = 0;
-                        root.brightness = max(5, min(100, round((self.mouse-x - 16px) / 400px * 100)));
-                        root.display-changed();
+                        Prefs.brightness = max(5, min(100, round((self.mouse-x - 16px) / 400px * 100)));
+                        Prefs.changed();
                     }
                     pointer-event(e) => {
                         if (e.kind == PointerEventKind.down) {
@@ -1205,14 +1198,14 @@ export component AppWindow inherits Window {
                         width: 56px;
                         height: 32px;
                         border-radius: 16px;
-                        background: root.auto-brightness ? Theme.text : Theme.track;
+                        background: Prefs.auto-brightness ? Theme.text : Theme.track;
                         animate background { duration: 160ms; }
                         Rectangle {
-                            x: root.auto-brightness ? 28px : 4px;
+                            x: Prefs.auto-brightness ? 28px : 4px;
                             width: 24px;
                             height: 24px;
                             border-radius: 12px;
-                            background: root.auto-brightness ? Theme.bg : Theme.t2;
+                            background: Prefs.auto-brightness ? Theme.bg : Theme.t2;
                             animate x { duration: 160ms; easing: ease-out; }
                         }
                     }
@@ -1221,7 +1214,7 @@ export component AppWindow inherits Window {
                     y: 432px;
                     height: 104px;
                     label: "Screen off after";
-                    value: root.screen-off-after;
+                    value: Prefs.screen-off-after;
                     chevron: true;
                     focused: root.focus-index == 2;
                     tapped => { root.activate(2); }
@@ -1239,7 +1232,7 @@ export component AppWindow inherits Window {
                         { label: "Standby" },
                         { label: "Restart" },
                         { label: "Power off" },
-                        { label: "Sleep after", value: root.sleep-after, chevron: true },
+                        { label: "Sleep after", value: Prefs.sleep-after, chevron: true },
                     ];
                     focused-row: root.focus-index;
                     pick(i) => { root.activate(i); }

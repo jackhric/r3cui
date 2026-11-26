@@ -1,5 +1,7 @@
 //! The demo: a simulated session for the desktop and the website, with no core behind it.
 
+use slint::ComponentHandle;
+use crate::Prefs;
 use crate::AppWindow;
 use crate::app::{Later, UiAction};
 use crate::app::model::Model;
@@ -28,9 +30,9 @@ pub(crate) fn apply_demo_settings(app: &AppWindow) {
     if let Some(b) = art("UC_DEMO_FANART").or(poster) {
         app.set_backdrop(slint::Image::from_rgba8(backdrop_pixels(&b)));
     }
-    app.set_haptics("On".into());
-    app.set_screen_off_after("60 s".into());
-    app.set_sleep_after("3 min".into());
+    app.global::<Prefs>().set_haptics("On".into());
+    app.global::<Prefs>().set_screen_off_after("60 s".into());
+    app.global::<Prefs>().set_sleep_after("3 min".into());
 }
 pub(crate) fn demo_tracks(m: &Model, kind: Picker, subtitle: usize) -> (Vec<(String, String)>, usize) {
     if kind == Picker::Audio {

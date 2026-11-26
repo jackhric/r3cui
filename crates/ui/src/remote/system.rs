@@ -1,6 +1,8 @@
 //! The remote itself, as the core reports it: battery, charger, whether it's awake, and the display, haptics, sound
 //! and power-saving settings the menu shows.
 
+use slint::ComponentHandle;
+use crate::Prefs;
 use crate::view::format::duration_label;
 use crate::view::ui;
 use crate::hardware::feedback;
@@ -78,14 +80,14 @@ pub(crate) async fn load_settings(weak: &slint::Weak<AppWindow>, core: &coreapi:
     let (screen_off, sleep) = (secs(&power, "display_off_sec"), secs(&power, "standby_sec"));
     ui(weak, move |app| {
         if let Some(b) = brightness {
-            app.set_brightness(b as i32);
+            app.global::<Prefs>().set_brightness(b as i32);
         }
         if let Some(a) = auto {
-            app.set_auto_brightness(a);
+            app.global::<Prefs>().set_auto_brightness(a);
         }
-        app.set_haptics(haptics.map_or("", |on| if on { "On" } else { "Off" }).into());
-        app.set_screen_off_after(screen_off.unwrap_or_default().into());
-        app.set_sleep_after(sleep.unwrap_or_default().into());
+        app.global::<Prefs>().set_haptics(haptics.map_or("", |on| if on { "On" } else { "Off" }).into());
+        app.global::<Prefs>().set_screen_off_after(screen_off.unwrap_or_default().into());
+        app.global::<Prefs>().set_sleep_after(sleep.unwrap_or_default().into());
     });
 }
 

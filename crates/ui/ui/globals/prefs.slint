@@ -1,0 +1,9 @@
+export global Prefs {
+    in-out property <int> brightness: 90;
+    in-out property <bool> auto-brightness: true;
+    in property <string> screen-off-after;
+    in property <string> haptics;
+    in property <string> sleep-after;
+    // The user changed brightness or auto brightness on the Display page.
+    callback changed();
+}

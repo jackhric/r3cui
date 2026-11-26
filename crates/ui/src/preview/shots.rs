@@ -2,6 +2,7 @@
 //! plays a scripted session and pipes frames to ffmpeg. With `--frame <photo>` both show the UI
 //! inside the remote with its keys lit.
 
+use crate::Prefs;
 use crate::hardware::backlight;
 use crate::input::{keys, Button};
 use crate::view::screen::Screen;
@@ -908,9 +909,9 @@ fn site_script(name: &str) -> Vec<(u64, Act)> {
             (900, ui(|a| a.go_to(PageId::Menu, 0))),
             (700, ui(|a| a.invoke_move(1))),
             (600, ui(|a| a.invoke_activate(1))),
-            (800, ui(|a| a.set_brightness(70))),
-            (500, ui(|a| a.set_brightness(45))),
-            (600, ui(|a| a.set_brightness(90))),
+            (800, ui(|a| a.global::<Prefs>().set_brightness(70))),
+            (500, ui(|a| a.global::<Prefs>().set_brightness(45))),
+            (600, ui(|a| a.global::<Prefs>().set_brightness(90))),
             (900, ui(|a| a.invoke_back())),
             (600, ui(|a| a.invoke_move(1))),
             (350, ui(|a| a.invoke_move(1))),
@@ -1029,9 +1030,9 @@ fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         (2000, ui(|a| a.go_to(PageId::Menu, 0))),
         (700, ui(|a| a.invoke_move(1))),
         (600, ui(|a| a.invoke_activate(1))),
-        (900, ui(|a| a.set_brightness(70))),
-        (600, ui(|a| a.set_brightness(45))),
-        (700, ui(|a| a.set_brightness(90))),
+        (900, ui(|a| a.global::<Prefs>().set_brightness(70))),
+        (600, ui(|a| a.global::<Prefs>().set_brightness(45))),
+        (700, ui(|a| a.global::<Prefs>().set_brightness(90))),
         (900, ui(|a| a.invoke_back())),
         (600, ui(|a| a.invoke_move(1))),
         (320, ui(|a| a.invoke_move(1))),

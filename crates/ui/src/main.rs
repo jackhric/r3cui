@@ -203,11 +203,11 @@ fn main() -> anyhow::Result<()> {
         }
     });
     app.on_activity(poke);
-    app.on_display_changed({
+    app.global::<Prefs>().on_changed({
         let (tx, weak) = (act_tx.clone(), app.as_weak());
         move || {
             if let Some(app) = weak.upgrade() {
-                let _ = tx.send(UiAction::Display { brightness: app.get_brightness(), auto: app.get_auto_brightness() });
+                let _ = tx.send(UiAction::Display { brightness: app.global::<Prefs>().get_brightness(), auto: app.global::<Prefs>().get_auto_brightness() });
             }
         }
     });
