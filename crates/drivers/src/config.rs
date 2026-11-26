@@ -259,6 +259,8 @@ impl Modules {
     }
 }
 
+const KNOWN_FILE: &str = "targets.json";
+
 /// Where `modules.json` lives: read and written in `dir`, with `seed` the copy shipped in the archive. Whichever was
 /// written last wins: a new archive (with a token pasted into its copy) takes over, and changes made on the remote
 /// since it was installed stay.
@@ -271,6 +273,11 @@ pub struct Store {
 impl Store {
     pub fn new(dir: &Path, seed_dir: Option<&Path>) -> Self {
         Self { path: dir.join("modules.json"), seed: seed_dir.map(|d| d.join("modules.json")).filter(|s| *s != dir.join("modules.json")) }
+    }
+
+    /// Where the drivers' last target lists are kept (`KnownTargets`), beside the modules.
+    pub fn known_path(&self) -> PathBuf {
+        self.path.with_file_name(KNOWN_FILE)
     }
 
     /// The saved modules; `None` when there are none anywhere yet. A file that doesn't parse is an error, so a

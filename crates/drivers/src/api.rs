@@ -246,7 +246,8 @@ impl Status {
 }
 
 /// What a target field picks from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TargetKind {
     MediaPlayer,
     Light,
@@ -254,7 +255,7 @@ pub enum TargetKind {
     Sensor,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Target {
     pub id: String,
     pub name: String,

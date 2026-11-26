@@ -117,6 +117,11 @@ Integrations pages are drawn from it, so a new driver needs no new Slint. `addre
 the device is: when the source has listed no inputs, the empty Inputs page shows the driver's mark and status and
 asks whether that address is online.
 
+`Target(kind)` fields and global control are picked from the driver's `targets(kind)`. The last list each driver gave
+is kept in `targets.json` beside `modules.json` (`drivers::KnownTargets`): a picker opens on it at once, keeps it (its
+title marked "· offline") while the driver is down, and names what is bound as the driver last named it. Whatever is
+bound shows even with nothing to list.
+
 `Secret` fields (the HA token) are never shown back; the row reads "Set" or "Not set". A token is
 pasted into `modules.json` for now; pairing through an HA integration (HACS) comes later.
 
