@@ -1,5 +1,6 @@
 //! Typed reads over an `EntityState`: what a media player or a light's attributes mean.
 
+use crate::protocol::{attribute, state};
 use crate::state::EntityState;
 
 /// Home Assistant's `MediaPlayerEntityFeature` bits, as listed in `supported_features`.
@@ -18,29 +19,29 @@ pub struct MediaPlayer<'a>(pub &'a EntityState);
 
 impl MediaPlayer<'_> {
     pub fn is_on(&self) -> bool {
-        !matches!(self.0.state.as_str(), "off" | "standby" | "unavailable" | "unknown")
+        !matches!(self.0.state.as_str(), state::OFF | state::STANDBY | state::UNAVAILABLE | state::UNKNOWN)
     }
 
     /// 0 to 1.
     pub fn volume_level(&self) -> Option<f64> {
-        self.0.attr_f64("volume_level")
+        self.0.attr_f64(attribute::VOLUME_LEVEL)
     }
 
     pub fn muted(&self) -> Option<bool> {
-        self.0.attr_bool("is_volume_muted")
+        self.0.attr_bool(attribute::IS_VOLUME_MUTED)
     }
 
     pub fn source(&self) -> Option<&str> {
-        self.0.attr_str("source")
+        self.0.attr_str(attribute::SOURCE)
     }
 
     pub fn source_list(&self) -> Vec<&str> {
-        let list = self.0.attr("source_list").and_then(|v| v.as_array());
+        let list = self.0.attr(attribute::SOURCE_LIST).and_then(|v| v.as_array());
         list.map(|a| a.iter().filter_map(|s| s.as_str()).collect()).unwrap_or_default()
     }
 
     pub fn supported(&self, feature: Feature) -> bool {
-        let bits = self.0.attr("supported_features").and_then(|v| v.as_u64()).unwrap_or(0);
+        let bits = self.0.attr(attribute::SUPPORTED_FEATURES).and_then(|v| v.as_u64()).unwrap_or(0);
         bits & feature as u64 != 0
     }
 }
@@ -50,18 +51,18 @@ pub struct Light<'a>(pub &'a EntityState);
 
 impl Light<'_> {
     pub fn is_on(&self) -> bool {
-        self.0.state == "on"
+        self.0.state == state::ON
     }
 
     /// 0 to 255.
     pub fn brightness(&self) -> Option<u8> {
-        let b = self.0.attr_f64("brightness")?;
+        let b = self.0.attr_f64(attribute::BRIGHTNESS)?;
         Some(b.clamp(0.0, 255.0).round() as u8)
     }
 
     /// Hue in degrees, then saturation 0 to 100.
     pub fn hs_color(&self) -> Option<(f64, f64)> {
-        let pair = self.0.attr("hs_color")?.as_array()?;
+        let pair = self.0.attr(attribute::HS_COLOR)?.as_array()?;
         Some((pair.first()?.as_f64()?, pair.get(1)?.as_f64()?))
     }
 }

@@ -2,6 +2,7 @@
 
 use crate::error::{Error, Result};
 use crate::ids::EntityId;
+use crate::protocol::{field, MessageType};
 use crate::state::EntityState;
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -21,22 +22,23 @@ impl Incoming {
     pub(crate) fn parse(frame: &str) -> Result<Self> {
         let v: Value = serde_json::from_str(frame).map_err(|e| Error::Decode(e.to_string()))?;
         let text = |key: &str| v.get(key).and_then(Value::as_str).map(str::to_owned);
-        let id = v.get("id").and_then(Value::as_u64).map(|n| n as u32);
-        Ok(match (v.get("type").and_then(Value::as_str), id) {
-            (Some("auth_required"), _) => Self::AuthRequired,
-            (Some("auth_ok"), _) => Self::AuthOk { version: text("ha_version") },
-            (Some("auth_invalid"), _) => Self::AuthInvalid { message: text("message").unwrap_or_default() },
-            (Some("result"), Some(id)) => {
-                let outcome = if v.get("success").and_then(Value::as_bool) == Some(true) {
-                    Ok(v.get("result").cloned().unwrap_or(Value::Null))
+        let id = v.get(field::ID).and_then(Value::as_u64).map(|n| n as u32);
+        let kind = v.get(field::TYPE).and_then(Value::as_str).and_then(MessageType::parse);
+        Ok(match (kind, id) {
+            (Some(MessageType::AuthRequired), _) => Self::AuthRequired,
+            (Some(MessageType::AuthOk), _) => Self::AuthOk { version: text(field::HA_VERSION) },
+            (Some(MessageType::AuthInvalid), _) => Self::AuthInvalid { message: text(field::MESSAGE).unwrap_or_default() },
+            (Some(MessageType::Result), Some(id)) => {
+                let outcome = if v.get(field::SUCCESS).and_then(Value::as_bool) == Some(true) {
+                    Ok(v.get(field::RESULT).cloned().unwrap_or(Value::Null))
                 } else {
-                    let error = v.get("error");
-                    let field = |key: &str| error.and_then(|e| e.get(key)).and_then(Value::as_str).unwrap_or_default().to_owned();
-                    Err(Error::Failed { code: field("code"), message: field("message") })
+                    let error = v.get(field::ERROR);
+                    let text = |key: &str| error.and_then(|e| e.get(key)).and_then(Value::as_str).unwrap_or_default().to_owned();
+                    Err(Error::Failed { code: text(field::CODE), message: text(field::MESSAGE) })
                 };
                 Self::Reply { id, outcome }
             }
-            (Some("event"), Some(id)) => Self::Event { id, event: v.get("event").cloned().unwrap_or(Value::Null) },
+            (Some(MessageType::Event), Some(id)) => Self::Event { id, event: v.get(field::EVENT).cloned().unwrap_or(Value::Null) },
             _ => Self::Other,
         })
     }

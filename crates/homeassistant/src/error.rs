@@ -21,3 +21,9 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<wsclient::ConnectError> for Error {
+    fn from(e: wsclient::ConnectError) -> Self {
+        Self::Unreachable(e.to_string())
+    }
+}

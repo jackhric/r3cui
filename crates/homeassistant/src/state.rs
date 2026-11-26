@@ -2,6 +2,7 @@
 
 use crate::error::Error;
 use crate::ids::EntityId;
+use crate::protocol::{attribute, state};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -38,7 +39,7 @@ impl EntityState {
     }
 
     pub fn is_available(&self) -> bool {
-        !matches!(self.state.as_str(), "unavailable" | "unknown")
+        !matches!(self.state.as_str(), state::UNAVAILABLE | state::UNKNOWN)
     }
 
     pub fn attr(&self, key: &str) -> Option<&Value> {
@@ -58,7 +59,7 @@ impl EntityState {
     }
 
     pub fn friendly_name(&self) -> Option<&str> {
-        self.attr_str("friendly_name")
+        self.attr_str(attribute::FRIENDLY_NAME)
     }
 
     /// A sensor's value; `None` when it is unavailable or not a number.
