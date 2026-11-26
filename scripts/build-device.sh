@@ -5,6 +5,7 @@
 # One-time setup: unpack ucr2-aarch64-toolchain-<ver>-noqt.tar.gz (unfoldedcircle/ucr2-toolchain
 # releases) so that $UC_SDK/bin/aarch64-none-linux-gnu-gcc exists.
 set -eu
+# R3CUI_FEATURES adds cargo features to the device build, e.g. R3CUI_FEATURES=demo for the made-up remote and devices.
 
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/.." && pwd)
@@ -28,7 +29,7 @@ docker run --rm \
         export PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_SYSROOT_DIR=$sysroot
         export PKG_CONFIG_LIBDIR=$sysroot/usr/lib/pkgconfig:$sysroot/usr/share/pkgconfig
         export BINDGEN_EXTRA_CLANG_ARGS="--sysroot=$sysroot"
-        cargo build --locked --release -p remote-ui --no-default-features --features device \
+        cargo build --locked --release -p remote-ui --no-default-features --features device'"${R3CUI_FEATURES:+,$R3CUI_FEATURES}"' \
             --target aarch64-unknown-linux-gnu --target-dir /src/target-device
         chown -R '"$(id -u):$(id -g)"' /src/target-device /usr/local/cargo/registry
     '

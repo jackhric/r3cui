@@ -41,6 +41,8 @@ A 480×800 window opens and authenticates with the core. The rest of the screen 
 ## Notes / limits
 
 - The simulator can't install custom UIs and has no suspend/BT/mic; it's for the WS + UI loop only.
+- Device demo: `R3CUI_FEATURES=demo scripts/build-device.sh` compiles the demo in, and `UC_DEMO=1` in `settings.json`'s
+  `env` turns it on, to try made-up devices and voice on the real remote.
 - Device build: `scripts/build-device.sh` cross-compiles the `device` feature for aarch64 in a container and runs
   `packaging/pack.sh`; `scripts/test.sh` also clippy-checks that build. See docs/plan.md and docs/device-contract.md.
 
