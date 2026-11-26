@@ -1,0 +1,25 @@
+import { Glyph, Icons, Theme } from "../theme.slint";
+
+export component SkipButton inherits Rectangle {
+    in property <bool> back;
+    callback tapped();
+    width: 64px;
+    height: 64px;
+    opacity: touch.pressed ? 0.5 : 1;
+    Glyph {
+        size: 64px;
+        commands: root.back ? Icons.skip-back : Icons.skip-forward;
+        tint: Theme.text;
+    }
+    Text {
+        y: 22px;
+        text: "10";
+        font-size: 17px;
+        font-weight: 500;
+        color: Theme.text;
+    }
+    touch := TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { root.tapped(); }
+    }
+}

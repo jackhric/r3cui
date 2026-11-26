@@ -1,0 +1,23 @@
+import { Theme } from "../theme.slint";
+
+export component Pill inherits Rectangle {
+    in property <string> label;
+    in property <bool> focused;
+    callback tapped();
+    x: 40px;
+    width: 400px;
+    height: 64px;
+    border-radius: 32px;
+    background: #131314;
+    border-width: root.focused ? 4px : 0px;
+    border-color: Theme.accent;
+    Text {
+        text: root.label;
+        font-size: 22px;
+        color: root.focused ? Theme.text : Theme.t2;
+    }
+    TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { root.tapped(); }
+    }
+}

@@ -1,0 +1,29 @@
+import { Glyph, Theme } from "../theme.slint";
+
+export component TrackButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    callback tapped();
+    width: 200px;
+    height: 60px;
+    border-radius: 30px;
+    background: touch.pressed ? #FFFFFF26 : #FFFFFF12;
+    HorizontalLayout {
+        alignment: center;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            Glyph { commands: root.icon; tint: Theme.text; }
+        }
+        Text {
+            text: root.label;
+            font-size: 22px;
+            color: Theme.text;
+            vertical-alignment: center;
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { root.tapped(); }
+    }
+}

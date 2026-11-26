@@ -1,0 +1,32 @@
+import { FormatMark } from "../types.slint";
+import { Theme } from "../theme.slint";
+
+// A codec's logo and the rest of its name.
+export component FormatBadge inherits HorizontalLayout {
+    in property <FormatMark> mark;
+    in property <string> label;
+    alignment: center;
+    spacing: 12px;
+    height: 40px;
+    if root.mark.path != "": Rectangle {
+        width: root.mark.size * root.mark.width / root.mark.height;
+        Path {
+            // A wordmark sits on the label's baseline (27px down the 40px row, measured for
+            // 22px Hanken Grotesk); a mark is centred.
+            y: root.mark.baseline ? 27px - root.mark.size : (40px - root.mark.size) / 2;
+            width: parent.width;
+            height: root.mark.size;
+            viewbox-y: root.mark.top;
+            viewbox-width: root.mark.width;
+            viewbox-height: root.mark.height;
+            commands: root.mark.path;
+            fill: Theme.text;
+        }
+    }
+    Text {
+        text: root.label;
+        font-size: 22px;
+        color: Theme.t2;
+        vertical-alignment: center;
+    }
+}
