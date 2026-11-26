@@ -3,7 +3,7 @@
 
 use crate::api::*;
 use crate::config::{Binding, DriverEntry, Modules, Role, Slot};
-use data::{COLUMNS, INPUTS, LEVEL_LIMIT, RECEIVER, SHELF, START_INPUT, START_LEVEL, SWITCH};
+use data::{COLUMNS, INPUTS, KODI, LEVEL_LIMIT, RECEIVER, SHELF, START_INPUT, START_LEVEL, SWITCH};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
@@ -35,7 +35,8 @@ pub struct Demo {
     status: watch::Receiver<Status>,
 }
 
-/// A setup that points everything at the demo driver: global volume and source, and every input's remote and screen.
+/// A setup that points everything at the demo driver: global volume and source, every input's remote, and the screen of
+/// the one input that plays (the others show their idle logo, as an input with nothing to show does).
 pub fn modules() -> Modules {
     let mut m = Modules::default();
     let id = m.add_driver(SPEC.id, Default::default());
@@ -44,8 +45,8 @@ pub fn modules() -> Modules {
     m.bind(Role::Source, binding());
     for input in INPUTS {
         m.set_slot(input, Slot::Remote, Some(id.clone()));
-        m.set_slot(input, Slot::Ui, Some(id.clone()));
     }
+    m.set_slot(KODI, Slot::Ui, Some(id.clone()));
     m
 }
 
@@ -194,6 +195,14 @@ impl Driver for Demo {
         Some(self.ui.clone())
     }
 
+    fn mark(&self, input: &str) -> &'static str {
+        if input == KODI {
+            crate::kodi::SPEC.icon
+        } else {
+            ""
+        }
+    }
+
     fn targets(&self, _: TargetKind) -> Targets<'_> {
         Box::pin(async { vec![Target { id: RECEIVER.into(), name: "Demo receiver".into() }] })
     }
@@ -209,12 +218,12 @@ mod tests {
     }
 
     #[test]
-    fn the_demo_setup_fills_every_slot() {
+    fn the_demo_setup_fills_the_slots() {
         let m = modules();
         assert!(m.global.volume.is_some() && m.global.source.is_some());
         for input in INPUTS {
             let e = m.input(input).unwrap();
-            assert_eq!((e.remote.as_deref(), e.ui.as_deref()), (Some(SPEC.id), Some(SPEC.id)), "{input}");
+            assert_eq!((e.remote.as_deref(), e.ui.as_deref()), (Some(SPEC.id), (input == KODI).then_some(SPEC.id)), "{input}");
         }
     }
 

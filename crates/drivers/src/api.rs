@@ -305,6 +305,10 @@ pub trait Driver: Send + Sync {
     fn key_light(&self) -> Option<watch::Receiver<Option<KeyLight>>> {
         None
     }
+    /// The mark shown for `input` while this driver fills its slot; by default the driver's own, empty for none.
+    fn mark(&self, _input: &str) -> &'static str {
+        self.spec().icon
+    }
     /// What a target field of this driver can point at, for the pickers.
     fn targets(&self, _kind: TargetKind) -> Targets<'_> {
         Box::pin(async { Vec::new() })

@@ -218,7 +218,7 @@ impl Host {
 
     /// The mark of the driver that fills `input`'s screen slot, or else its remote slot.
     pub fn icon(&self, input: &Input) -> Option<&'static str> {
-        let mark = |slot: &Option<String>| Some(self.running.get(slot.as_deref()?)?.driver.spec().icon).filter(|i| !i.is_empty());
+        let mark = |slot: &Option<String>| Some(self.running.get(slot.as_deref()?)?.driver.mark(&input.id)).filter(|i| !i.is_empty());
         mark(&input.ui).or_else(|| mark(&input.remote))
     }
 

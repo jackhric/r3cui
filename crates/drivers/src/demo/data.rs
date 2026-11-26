@@ -5,8 +5,13 @@ use crate::api::*;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-pub const INPUTS: [&str; 4] = ["ANDROID TV", "KODI", "PLAYSTATION 5", "XBOX 360"];
-pub const START_INPUT: &str = "PLAYSTATION 5";
+pub const ANDROID_TV: &str = "ANDROID TV";
+/// The one input shown with a driver's mark, as a real Kodi would; the others get their brand's.
+pub const KODI: &str = "KODI";
+pub const PLAYSTATION: &str = "PLAYSTATION 5";
+pub const XBOX: &str = "XBOX 360";
+pub const INPUTS: [&str; 4] = [ANDROID_TV, KODI, PLAYSTATION, XBOX];
+pub const START_INPUT: &str = PLAYSTATION;
 pub const RECEIVER: &str = "demo.receiver";
 
 pub const START_LEVEL: i32 = 62;
@@ -37,6 +42,9 @@ pub const SHELF: [(&str, &str); 6] = [
 ];
 /// The shelf is laid out this many to a row.
 pub const COLUMNS: usize = 3;
+
+/// What the status page lists besides Wi-Fi, in the stills, where no driver reports it.
+pub const LINKS: [&str; 2] = ["Home Assistant", "Kodi"];
 
 pub const BATTERY: i32 = 81;
 pub const WIFI_HOME: &str = "HomeNetwork";
