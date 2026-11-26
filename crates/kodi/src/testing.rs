@@ -4,22 +4,27 @@
 //! `tokio::time`'s, so tests may pause time.
 
 use serde_json::{json, Value};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{broadcast, watch};
-use tokio::task::JoinHandle;
 use tokio::time::Instant;
-use tokio_tungstenite::tungstenite::Message;
+use wsclient::testing::{Broadcaster, FakeServer, Peer, Reply as Frames};
 
+use crate::browse::MOVIES;
 use crate::config::KodiConfig;
-use futures_util::{SinkExt, StreamExt};
+use crate::methods::gui::{GetInfoLabels, InfoLabel};
+use crate::methods::input::{Back, ContextMenu, Down, ExecuteAction, Home, Info, InputAction, Left, Right, Select, ShowOsd, Up};
+use crate::methods::library::{GetDirectory, SortMethod, SortOrder};
+use crate::methods::player::{GetActivePlayers, GetItem, GetProperties, Open, PlayPause, Seek, SetAudioStream, SetSubtitle, Stop};
+use crate::methods::system::{GetApplicationProperties, GetSettingValue, Ping, Version};
+use crate::notification::name;
+use crate::rpc::{Method, JSONRPC_VERSION};
 
 const PLAYER: u64 = 1;
 const NOT_FOUND: i32 = -32601;
 const INVALID: i32 = -32602;
 const FAILED: i32 = -32100;
+const SENDER: &str = "xbmc";
+const MOVIES_PATH: &str = "videodb://movies/titles/";
 
 struct Movie {
     id: u32,
@@ -63,13 +68,20 @@ fn movie(id: u32) -> Option<&'static Movie> {
     LIBRARY.iter().find(|m| m.id == id)
 }
 
-fn sorted(method: &str, ascending: bool) -> Vec<&'static Movie> {
+fn serialized_as<T: serde::Serialize>(value: &Value, expected: T) -> bool {
+    *value == serde_json::to_value(expected).expect("serialises")
+}
+
+fn sorted(method: &Value, ascending: bool) -> Vec<&'static Movie> {
     let mut list: Vec<_> = LIBRARY.iter().collect();
-    match method {
-        "year" => list.sort_by_key(|m| m.year),
-        "time" => list.sort_by_key(|m| m.runtime),
-        "title" => list.sort_by_key(|m| m.title.to_lowercase()),
-        _ => list.sort_by_key(|m| m.sort_title()),
+    if serialized_as(method, SortMethod::Year) {
+        list.sort_by_key(|m| m.year);
+    } else if serialized_as(method, SortMethod::Duration) {
+        list.sort_by_key(|m| m.runtime);
+    } else if serialized_as(method, SortMethod::Title) {
+        list.sort_by_key(|m| m.title.to_lowercase());
+    } else {
+        list.sort_by_key(|m| m.sort_title());
     }
     if !ascending {
         list.reverse();
@@ -95,7 +107,7 @@ fn subtitle_streams() -> Value {
 }
 
 fn notification(method: &str, data: Value) -> String {
-    json!({ "jsonrpc": "2.0", "method": method, "params": { "data": data, "sender": "xbmc" } }).to_string()
+    json!({ "jsonrpc": JSONRPC_VERSION, "method": method, "params": { "data": data, "sender": SENDER } }).to_string()
 }
 
 struct Playing {
@@ -140,14 +152,14 @@ impl Inner {
         self.stop(out);
         let base = Duration::from_secs(if resume { movie.resume } else { 0 }.into());
         let p = Playing { movie, base, since: Instant::now(), speed: 1, audio: 0, subtitle: 0, subtitles_on: false };
-        out.push(notification("Player.OnPlay", p.event()));
-        out.push(notification("Player.OnAVStart", p.event()));
+        out.push(notification(name::PLAYER_ON_PLAY, p.event()));
+        out.push(notification(name::PLAYER_ON_AV_START, p.event()));
         self.playing = Some(p);
     }
 
     fn stop(&mut self, out: &mut Vec<String>) -> bool {
         let Some(p) = self.playing.take() else { return false };
-        out.push(notification("Player.OnStop", json!({ "end": false, "item": { "id": p.movie.id, "type": "movie" } })));
+        out.push(notification(name::PLAYER_ON_STOP, json!({ "end": false, "item": { "id": p.movie.id, "type": "movie" } })));
         true
     }
 
@@ -157,9 +169,9 @@ impl Inner {
         p.rebase(p.position(), speed);
         match (was, speed) {
             (a, b) if a == b => {}
-            (_, 0) => out.push(notification("Player.OnPause", p.event())),
-            (0, _) => out.push(notification("Player.OnResume", p.event())),
-            _ => out.push(notification("Player.OnSpeedChanged", p.event())),
+            (_, 0) => out.push(notification(name::PLAYER_ON_PAUSE, p.event())),
+            (0, _) => out.push(notification(name::PLAYER_ON_RESUME, p.event())),
+            _ => out.push(notification(name::PLAYER_ON_SPEED_CHANGED, p.event())),
         }
     }
 
@@ -170,7 +182,7 @@ impl Inner {
         let mut data = p.event();
         data["player"]["time"] = time(p.base);
         data["player"]["seekoffset"] = time(Duration::from_secs_f64(offset.abs()));
-        out.push(notification("Player.OnSeek", data));
+        out.push(notification(name::PLAYER_ON_SEEK, data));
     }
 
     fn player(&self, params: &Value) -> Result<&Playing, (i32, &'static str)> {
@@ -183,76 +195,77 @@ impl Inner {
 
     fn handle(&mut self, method: &str, params: &Value, out: &mut Vec<String>) -> Reply {
         let ok = || Ok(json!("OK"));
-        let list = sorted("sorttitle", true);
+        let list = sorted(&Value::Null, true);
         match method {
-            "JSONRPC.Ping" => Ok(json!("pong")),
-            "JSONRPC.Version" => Ok(json!({ "version": { "major": 13, "minor": 5, "patch": 0 } })),
-            "Application.GetProperties" => {
+            Ping::NAME => Ok(json!("pong")),
+            Version::NAME => Ok(json!({ "version": { "major": 13, "minor": 5, "patch": 0 } })),
+            GetApplicationProperties::NAME => {
                 Ok(json!({ "name": "Kodi", "version": { "major": 21, "minor": 3, "revision": "20250217-fake", "tag": "stable" } }))
             }
-            "Settings.GetSettingValue" => Ok(json!({ "value": false })),
-            "XBMC.GetInfoLabels" => {
+            GetSettingValue::NAME => Ok(json!({ "value": false })),
+            GetInfoLabels::NAME => {
                 let focused = list[self.focus];
-                let label = |name: &str| -> String {
-                    match name {
-                        "Container.Content" => "movies".into(),
-                        "Container.FolderPath" => "videodb://movies/titles/".into(),
-                        "Container.SortMethod" => "Title".into(),
-                        "Container.SortOrder" => "Ascending".into(),
-                        "Container.NumItems" => list.len().to_string(),
-                        "Container.CurrentItem" => (self.focus + 1).to_string(),
-                        "Container.Column" => "0".into(),
-                        "Container.Row" | "Container.Position" => self.focus.to_string(),
-                        "ListItem.DBID" => focused.id.to_string(),
-                        "ListItem.DBTYPE" => "movie".into(),
-                        _ => String::new(),
-                    }
-                };
+                let position = self.focus.to_string();
+                let values = [
+                    (InfoLabel::ContainerContent, MOVIES.to_string()),
+                    (InfoLabel::ContainerFolderPath, MOVIES_PATH.to_string()),
+                    (InfoLabel::ContainerSortMethod, "Title".to_string()),
+                    (InfoLabel::ContainerSortOrder, "Ascending".to_string()),
+                    (InfoLabel::ContainerNumItems, list.len().to_string()),
+                    (InfoLabel::ContainerCurrentItem, (self.focus + 1).to_string()),
+                    (InfoLabel::ContainerColumn, "0".to_string()),
+                    (InfoLabel::ContainerRow, position.clone()),
+                    (InfoLabel::ContainerPosition, position),
+                    (InfoLabel::ListItemDbId, focused.id.to_string()),
+                    (InfoLabel::ListItemDbType, "movie".to_string()),
+                ];
+                let label = |name: &str| values.iter().find(|(l, _)| l.name() == name).map(|(_, v)| v.clone()).unwrap_or_default();
                 let labels = params["labels"].as_array().ok_or((INVALID, "Invalid params."))?;
                 Ok(Value::Object(labels.iter().filter_map(Value::as_str).map(|n| (n.to_string(), json!(label(n)))).collect()))
             }
-            "Files.GetDirectory" => {
-                if params["directory"] != "videodb://movies/titles/" {
+            GetDirectory::NAME => {
+                if params["directory"] != MOVIES_PATH {
                     return Err((FAILED, "Failed to execute method."));
                 }
                 let sort = &params["sort"];
-                let files: Vec<_> = sorted(sort["method"].as_str().unwrap_or("sorttitle"), sort["order"] != "descending").iter().map(|m| m.file()).collect();
+                let files: Vec<_> = sorted(&sort["method"], !serialized_as(&sort["order"], SortOrder::Descending)).iter().map(|m| m.file()).collect();
                 Ok(json!({ "files": files, "limits": { "start": 0, "end": files.len(), "total": files.len() } }))
             }
-            "Input.Up" | "Input.Down" | "Input.Left" | "Input.Right" => {
+            Up::NAME | Down::NAME | Left::NAME | Right::NAME => {
                 let last = list.len() - 1;
                 match method {
-                    "Input.Up" | "Input.Left" => self.focus = self.focus.saturating_sub(1),
+                    Up::NAME | Left::NAME => self.focus = self.focus.saturating_sub(1),
                     _ => self.focus = (self.focus + 1).min(last),
                 }
                 ok()
             }
-            "Input.Select" => {
+            Select::NAME => {
                 if self.playing.is_none() {
                     self.start(list[self.focus], false, out);
                 }
                 ok()
             }
-            "Input.Back" | "Input.Home" | "Input.ContextMenu" | "Input.Info" | "Input.ShowOSD" => ok(),
-            "Input.ExecuteAction" => {
-                match params["action"].as_str() {
-                    Some("playpause") => match self.playing.as_ref().map(|p| p.speed) {
+            Back::NAME | Home::NAME | ContextMenu::NAME | Info::NAME | ShowOsd::NAME => ok(),
+            ExecuteAction::NAME => {
+                let action = &params["action"];
+                if action.is_null() {
+                    return Err((INVALID, "Invalid params."));
+                }
+                if serialized_as(action, InputAction::PlayPause) {
+                    match self.playing.as_ref().map(|p| p.speed) {
                         Some(speed) => self.set_speed(i32::from(speed == 0), out),
                         None => self.start(list[self.focus], false, out),
-                    },
-                    Some("stop") => {
-                        self.stop(out);
                     }
-                    Some(_) => {}
-                    None => return Err((INVALID, "Invalid params.")),
+                } else if serialized_as(action, InputAction::Stop) {
+                    self.stop(out);
                 }
                 ok()
             }
-            "Player.GetActivePlayers" => Ok(match self.playing {
+            GetActivePlayers::NAME => Ok(match self.playing {
                 Some(_) => json!([{ "playerid": PLAYER, "playertype": "internal", "type": "video" }]),
                 None => json!([]),
             }),
-            "Player.GetItem" => {
+            GetItem::NAME => {
                 let p = self.player(params)?;
                 let m = p.movie;
                 Ok(json!({ "item": {
@@ -260,7 +273,7 @@ impl Inner {
                     "runtime": m.runtime, "art": m.art(), "file": format!("/movies/{}.mkv", m.id),
                 } }))
             }
-            "Player.GetProperties" => {
+            GetProperties::NAME => {
                 let p = self.player(params)?;
                 let names = params["properties"].as_array().ok_or((INVALID, "Invalid params."))?;
                 let mut out = serde_json::Map::new();
@@ -282,13 +295,13 @@ impl Inner {
                 }
                 Ok(Value::Object(out))
             }
-            "Player.Open" => {
+            Open::NAME => {
                 let id = params["item"]["movieid"].as_u64().ok_or((INVALID, "Invalid params."))?;
                 let movie = movie(id as u32).ok_or((FAILED, "Failed to execute method."))?;
                 self.start(movie, params["options"]["resume"] == true, out);
                 ok()
             }
-            "Player.PlayPause" => {
+            PlayPause::NAME => {
                 let speed = self.player(params)?.speed;
                 let to = match &params["play"] {
                     Value::Bool(on) => i32::from(*on),
@@ -297,12 +310,12 @@ impl Inner {
                 self.set_speed(to, out);
                 Ok(json!({ "speed": to }))
             }
-            "Player.Stop" => {
+            Stop::NAME => {
                 self.player(params)?;
                 self.stop(out);
                 ok()
             }
-            "Player.Seek" => {
+            Seek::NAME => {
                 let p = self.player(params)?;
                 let value = &params["value"];
                 let to = if value["time"].is_object() {
@@ -318,13 +331,13 @@ impl Inner {
                 let p = self.playing.as_ref().expect("seeking kept the player");
                 Ok(json!({ "time": time(p.position()), "totaltime": time(p.total()), "percentage": 0.0 }))
             }
-            "Player.SetAudioStream" => {
+            SetAudioStream::NAME => {
                 self.player(params)?;
                 let stream = params["stream"].as_u64().filter(|i| *i < 1).ok_or((INVALID, "Invalid params."))?;
                 self.playing.as_mut().expect("checked").audio = stream as u32;
                 ok()
             }
-            "Player.SetSubtitle" => {
+            SetSubtitle::NAME => {
                 self.player(params)?;
                 let enable = params["enable"].as_bool().unwrap_or(false);
                 let p = self.playing.as_mut().expect("checked");
@@ -346,21 +359,11 @@ impl Inner {
 
 struct Shared {
     inner: Mutex<Inner>,
-    notes: broadcast::Sender<String>,
-    kick: watch::Sender<u64>,
     calls: Mutex<Vec<String>>,
-    open: AtomicUsize,
-    accepted: AtomicUsize,
 }
 
 impl Shared {
-    fn publish(&self, notes: Vec<String>) {
-        for n in notes {
-            let _ = self.notes.send(n);
-        }
-    }
-
-    fn respond(&self, frame: &str) -> Option<String> {
+    fn respond(&self, frame: &str, notes: &Broadcaster<String>) -> Option<String> {
         let request: Value = serde_json::from_str(frame).ok()?;
         let id = request.get("id")?.clone();
         let method = request["method"].as_str().unwrap_or_default();
@@ -368,53 +371,32 @@ impl Shared {
         let mut out = Vec::new();
         let result = self.inner.lock().unwrap().handle(method, &request["params"], &mut out);
         let reply = match result {
-            Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
-            Err((code, message)) => json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } }),
+            Ok(result) => json!({ "jsonrpc": JSONRPC_VERSION, "id": id, "result": result }),
+            Err((code, message)) => json!({ "jsonrpc": JSONRPC_VERSION, "id": id, "error": { "code": code, "message": message } }),
         };
-        self.publish(out);
+        out.into_iter().for_each(|note| notes.send(note));
         Some(reply.to_string())
     }
 }
 
-struct OpenGuard(Arc<Shared>);
-
-impl Drop for OpenGuard {
-    fn drop(&mut self) {
-        self.0.open.fetch_sub(1, Ordering::SeqCst);
-    }
+struct KodiPeer {
+    shared: Arc<Shared>,
+    notes: Broadcaster<String>,
 }
 
-async fn serve(stream: TcpStream, shared: Arc<Shared>, mut notes: broadcast::Receiver<String>, mut kicked: watch::Receiver<u64>) {
-    let _open = OpenGuard(shared.clone());
-    let Ok(socket) = tokio_tungstenite::accept_async(stream).await else { return };
-    let (mut sink, mut source) = socket.split();
-    loop {
-        let send = tokio::select! {
-            frame = source.next() => match frame {
-                Some(Ok(Message::Text(text))) => shared.respond(&text),
-                Some(Ok(_)) => None,
-                _ => break,
-            },
-            note = notes.recv() => match note {
-                Ok(n) => Some(n),
-                Err(broadcast::error::RecvError::Lagged(_)) => None,
-                Err(_) => break,
-            },
-            _ = kicked.changed() => break,
-        };
-        if let Some(text) = send {
-            if sink.send(Message::Text(text)).await.is_err() {
-                break;
-            }
-        }
+impl Peer<String> for KodiPeer {
+    fn frame(&mut self, text: &str) -> Frames {
+        self.shared.respond(text, &self.notes).map_or_else(Frames::nothing, Frames::say)
     }
-    let _ = sink.close().await;
+
+    fn broadcast(&mut self, note: &String) -> Frames {
+        Frames::say(note.clone())
+    }
 }
 
 pub struct FakeKodi {
-    port: u16,
+    server: FakeServer<String>,
     shared: Arc<Shared>,
-    accept: JoinHandle<()>,
 }
 
 impl FakeKodi {
@@ -424,33 +406,18 @@ impl FakeKodi {
 
     /// On a given address, to run it as a stand-in Kodi for the desktop UI.
     pub async fn start_on(addr: &str) -> Self {
-        let listener = TcpListener::bind(addr).await.expect("bind");
-        let port = listener.local_addr().expect("bound").port();
-        let (notes, _) = broadcast::channel(64);
-        let shared = Arc::new(Shared {
-            inner: Mutex::default(),
-            notes,
-            kick: watch::channel(0).0,
-            calls: Mutex::default(),
-            open: AtomicUsize::new(0),
-            accepted: AtomicUsize::new(0),
-        });
-        let accept = tokio::spawn({
+        let shared = Arc::new(Shared { inner: Mutex::default(), calls: Mutex::default() });
+        let server = FakeServer::start(addr, {
             let shared = shared.clone();
-            async move {
-                while let Ok((stream, _)) = listener.accept().await {
-                    shared.open.fetch_add(1, Ordering::SeqCst);
-                    shared.accepted.fetch_add(1, Ordering::SeqCst);
-                    tokio::spawn(serve(stream, shared.clone(), shared.notes.subscribe(), shared.kick.subscribe()));
-                }
-            }
-        });
-        Self { port, shared, accept }
+            move |notes| KodiPeer { shared: shared.clone(), notes }
+        })
+        .await;
+        Self { server, shared }
     }
 
     /// A config pointing the real service here; the HTTP port is unused, as no artwork is served.
     pub fn config(&self) -> KodiConfig {
-        KodiConfig { host: "127.0.0.1".into(), http_port: 1, ws_port: self.port, credentials: None }
+        KodiConfig { host: "127.0.0.1".into(), http_port: 1, ws_port: self.server.addr().port(), credentials: None }
     }
 
     /// Method names received, in order, across all connections.
@@ -460,12 +427,12 @@ impl FakeKodi {
 
     /// Connections open now.
     pub fn connections(&self) -> usize {
-        self.shared.open.load(Ordering::SeqCst)
+        self.server.open()
     }
 
     /// Connections ever accepted: tells a reconnect from the first connection.
     pub fn accepted(&self) -> usize {
-        self.shared.accepted.load(Ordering::SeqCst)
+        self.server.accepted()
     }
 
     /// Start a movie from its beginning, as if from Kodi's own GUI (notifying every connection).
@@ -473,24 +440,21 @@ impl FakeKodi {
         let movie = movie(movieid).expect("a movie in the fake library");
         let mut out = Vec::new();
         self.shared.inner.lock().unwrap().start(movie, false, &mut out);
-        self.shared.publish(out);
+        self.publish(out);
     }
 
     pub fn stop(&self) {
         let mut out = Vec::new();
         self.shared.inner.lock().unwrap().stop(&mut out);
-        self.shared.publish(out);
+        self.publish(out);
     }
 
     /// Drop every connection; the listener stays up, so a client can reconnect.
     pub fn kick(&self) {
-        self.shared.kick.send_modify(|generation| *generation += 1);
+        self.server.kick();
     }
-}
 
-impl Drop for FakeKodi {
-    fn drop(&mut self) {
-        self.accept.abort();
-        self.kick();
+    fn publish(&self, notes: Vec<String>) {
+        notes.into_iter().for_each(|note| self.server.broadcast(note));
     }
 }

@@ -78,6 +78,34 @@ struct PlayerSpeed {
     time: Option<Time>,
 }
 
+/// Kodi's notification names, as they arrive in `method`.
+pub mod name {
+    pub const PLAYER_ON_PLAY: &str = "Player.OnPlay";
+    pub const PLAYER_ON_AV_START: &str = "Player.OnAVStart";
+    pub const PLAYER_ON_AV_CHANGE: &str = "Player.OnAVChange";
+    pub const PLAYER_ON_PAUSE: &str = "Player.OnPause";
+    pub const PLAYER_ON_RESUME: &str = "Player.OnResume";
+    pub const PLAYER_ON_SPEED_CHANGED: &str = "Player.OnSpeedChanged";
+    pub const PLAYER_ON_SEEK: &str = "Player.OnSeek";
+    pub const PLAYER_ON_STOP: &str = "Player.OnStop";
+    pub const PLAYER_ON_PROPERTY_CHANGED: &str = "Player.OnPropertyChanged";
+    pub const SCREENSAVER_ACTIVATED: &str = "GUI.OnScreensaverActivated";
+    pub const DPMS_ACTIVATED: &str = "GUI.OnDPMSActivated";
+    pub const SCREENSAVER_DEACTIVATED: &str = "GUI.OnScreensaverDeactivated";
+    pub const DPMS_DEACTIVATED: &str = "GUI.OnDPMSDeactivated";
+    pub const INPUT_ON_INPUT_REQUESTED: &str = "Input.OnInputRequested";
+    pub const INPUT_ON_INPUT_FINISHED: &str = "Input.OnInputFinished";
+    pub const VIDEO_LIBRARY_ON_UPDATE: &str = "VideoLibrary.OnUpdate";
+    pub const VIDEO_LIBRARY_ON_REMOVE: &str = "VideoLibrary.OnRemove";
+    pub const VIDEO_LIBRARY_ON_SCAN_FINISHED: &str = "VideoLibrary.OnScanFinished";
+    pub const VIDEO_LIBRARY_ON_CLEAN_FINISHED: &str = "VideoLibrary.OnCleanFinished";
+    pub const VIDEO_LIBRARY_ON_REFRESH: &str = "VideoLibrary.OnRefresh";
+    pub const SYSTEM_ON_QUIT: &str = "System.OnQuit";
+    pub const SYSTEM_ON_RESTART: &str = "System.OnRestart";
+    pub const SYSTEM_ON_SLEEP: &str = "System.OnSleep";
+    pub const SYSTEM_ON_WAKE: &str = "System.OnWake";
+}
+
 impl Notification {
     pub fn parse(method: &str, params: &RawValue) -> Self {
         let data = |m: &str| -> Option<PlayerData> {
@@ -85,14 +113,14 @@ impl Notification {
         };
         let player = |m: &str| data(m).map(|d| PlayerEvent { player: d.player.playerid, speed: d.player.speed, item: d.item });
         let parsed = match method {
-            "Player.OnPlay" => player(method).map(Self::Play),
-            "Player.OnAVStart" => player(method).map(Self::AvStart),
-            "Player.OnAVChange" => player(method).map(Self::AvChange),
-            "Player.OnPause" => player(method).map(Self::Pause),
-            "Player.OnResume" => player(method).map(Self::Resume),
-            "Player.OnSpeedChanged" => player(method).map(Self::SpeedChanged),
-            "Player.OnSeek" => data(method).map(|d| Self::Seek(SeekEvent { player: d.player.playerid, speed: d.player.speed, time: d.player.time })),
-            "Player.OnStop" => {
+            name::PLAYER_ON_PLAY => player(method).map(Self::Play),
+            name::PLAYER_ON_AV_START => player(method).map(Self::AvStart),
+            name::PLAYER_ON_AV_CHANGE => player(method).map(Self::AvChange),
+            name::PLAYER_ON_PAUSE => player(method).map(Self::Pause),
+            name::PLAYER_ON_RESUME => player(method).map(Self::Resume),
+            name::PLAYER_ON_SPEED_CHANGED => player(method).map(Self::SpeedChanged),
+            name::PLAYER_ON_SEEK => data(method).map(|d| Self::Seek(SeekEvent { player: d.player.playerid, speed: d.player.speed, time: d.player.time })),
+            name::PLAYER_ON_STOP => {
                 #[derive(Deserialize)]
                 struct Stop {
                     #[serde(default)]
@@ -100,10 +128,10 @@ impl Notification {
                 }
                 serde_json::from_str::<Params<Stop>>(params.get()).ok().map(|p| Self::Stop { end: p.data.end })
             }
-            "Player.OnPropertyChanged" => data(method).map(|d| Self::PropertyChanged { player: d.player.playerid }),
-            "GUI.OnScreensaverActivated" | "GUI.OnDPMSActivated" => Some(Self::Screensaver(true)),
-            "GUI.OnScreensaverDeactivated" | "GUI.OnDPMSDeactivated" => Some(Self::Screensaver(false)),
-            "Input.OnInputRequested" => {
+            name::PLAYER_ON_PROPERTY_CHANGED => data(method).map(|d| Self::PropertyChanged { player: d.player.playerid }),
+            name::SCREENSAVER_ACTIVATED | name::DPMS_ACTIVATED => Some(Self::Screensaver(true)),
+            name::SCREENSAVER_DEACTIVATED | name::DPMS_DEACTIVATED => Some(Self::Screensaver(false)),
+            name::INPUT_ON_INPUT_REQUESTED => {
                 #[derive(Deserialize)]
                 struct Asked {
                     #[serde(rename = "type")]
@@ -115,12 +143,12 @@ impl Notification {
                 }
                 serde_json::from_str::<Params<Asked>>(params.get()).ok().map(|p| Self::InputRequested { kind: p.data.kind, value: p.data.value, title: p.data.title })
             }
-            "Input.OnInputFinished" => Some(Self::InputFinished),
-            "VideoLibrary.OnUpdate" | "VideoLibrary.OnRemove" | "VideoLibrary.OnScanFinished" | "VideoLibrary.OnCleanFinished" | "VideoLibrary.OnRefresh" => {
+            name::INPUT_ON_INPUT_FINISHED => Some(Self::InputFinished),
+            name::VIDEO_LIBRARY_ON_UPDATE | name::VIDEO_LIBRARY_ON_REMOVE | name::VIDEO_LIBRARY_ON_SCAN_FINISHED | name::VIDEO_LIBRARY_ON_CLEAN_FINISHED | name::VIDEO_LIBRARY_ON_REFRESH => {
                 Some(Self::LibraryChanged)
             }
-            "System.OnQuit" | "System.OnRestart" | "System.OnSleep" => Some(Self::Leaving),
-            "System.OnWake" => Some(Self::Wake),
+            name::SYSTEM_ON_QUIT | name::SYSTEM_ON_RESTART | name::SYSTEM_ON_SLEEP => Some(Self::Leaving),
+            name::SYSTEM_ON_WAKE => Some(Self::Wake),
             _ => None,
         };
         parsed.unwrap_or_else(|| Self::Unknown { method: method.to_string() })

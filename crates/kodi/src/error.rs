@@ -9,8 +9,6 @@ pub enum Error {
     NotConfigured,
     #[error("cannot reach {endpoint}: {reason}")]
     Unreachable { endpoint: Arc<str>, reason: Arc<str> },
-    #[error("Kodi refused the username or password")]
-    Unauthorized,
     #[error("{method} timed out after {after:?}")]
     Timeout { method: &'static str, after: Duration },
     /// Kodi's own JSON-RPC error: -32602 invalid params, -32100 failed to execute, -32601 no such method.
@@ -25,3 +23,9 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<wsclient::ConnectError> for Error {
+    fn from(e: wsclient::ConnectError) -> Self {
+        Self::Unreachable { endpoint: e.url.into(), reason: e.reason.into() }
+    }
+}

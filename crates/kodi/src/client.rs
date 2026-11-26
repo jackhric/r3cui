@@ -5,49 +5,43 @@ use crate::error::{Error, Result};
 use crate::ids::RequestId;
 use crate::rpc::{decode, Method, Request, RpcError};
 use serde_json::value::RawValue;
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
+use wsclient::{Pending, Unanswered};
 
 type Reply = std::result::Result<Box<RawValue>, RpcError>;
 
 #[derive(Clone)]
 pub(crate) struct Client {
     out: mpsc::UnboundedSender<String>,
-    pending: Arc<Mutex<HashMap<RequestId, oneshot::Sender<Reply>>>>,
+    pending: Pending<RequestId, Reply>,
     next: Arc<AtomicU32>,
 }
 
 impl Client {
     pub(crate) fn new(out: mpsc::UnboundedSender<String>) -> Self {
-        Self { out, pending: Arc::default(), next: Arc::new(AtomicU32::new(1)) }
+        Self { out, pending: Pending::new(), next: Arc::new(AtomicU32::new(1)) }
     }
 
     pub(crate) async fn call<M: Method>(&self, method: &M, timeout: Duration) -> Result<M::Output> {
         let id = RequestId(self.next.fetch_add(1, Ordering::Relaxed));
         let request = Request::new(id, method);
-        let (tx, rx) = oneshot::channel();
-        self.pending.lock().unwrap().insert(id, tx);
+        let rx = self.pending.insert(id);
         if self.out.send(request.body).is_err() {
-            self.pending.lock().unwrap().remove(&id);
+            self.pending.cancel(&id);
             return Err(Error::Closed);
         }
-        match tokio::time::timeout(timeout, rx).await {
-            Ok(Ok(reply)) => decode::<M>(reply),
-            Ok(Err(_)) => Err(Error::Closed),
-            Err(_) => {
-                self.pending.lock().unwrap().remove(&id);
-                Err(Error::Timeout { method: M::NAME, after: timeout })
-            }
+        match self.pending.wait(&id, rx, timeout).await {
+            Ok(reply) => decode::<M>(reply),
+            Err(Unanswered::Closed) => Err(Error::Closed),
+            Err(Unanswered::TimedOut) => Err(Error::Timeout { method: M::NAME, after: timeout }),
         }
     }
 
     /// A reply arrived.
     pub(crate) fn deliver(&self, id: RequestId, reply: Reply) {
-        if let Some(tx) = self.pending.lock().unwrap().remove(&id) {
-            let _ = tx.send(reply);
-        }
+        self.pending.deliver(&id, reply);
     }
 }

@@ -2,7 +2,7 @@
 //! than what a core integration passes on. The design, and where each feature lives, is in docs/kodi-client.md.
 //!
 //! Layers, bottom up: `ids` and `wire` (Kodi's values), `rpc` (the envelope and the `Method` trait), `methods` (one
-//! typed struct per call), `notification` (Kodi's events); then `transport` and `client` (one WebSocket, calls matched
+//! typed struct per call), `notification` (Kodi's events); then `client` (calls over one `wsclient` connection, matched
 //! to replies), `engine` (all the logic, no IO), `state` (what the UI reads) and `service`/`handle` (running it).
 
 pub mod art;
@@ -21,7 +21,6 @@ mod service;
 pub mod state;
 #[cfg(feature = "testing")]
 pub mod testing;
-mod transport;
 pub mod wire;
 
 pub use config::{Credentials, KodiConfig};

@@ -16,6 +16,10 @@ pub const LABELS: &[InfoLabel] = &[
     InfoLabel::ContainerPosition,
 ];
 
+/// `Container.Content` for the lists the client browses.
+pub(crate) const MOVIES: &str = "movies";
+const TV_SHOWS: &str = "tvshows";
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Content {
     Movies,
@@ -43,8 +47,8 @@ pub struct Browsing {
 impl Browsing {
     pub fn from_labels(l: &InfoLabels) -> Self {
         let content = match l.text(InfoLabel::ContainerContent) {
-            "movies" => Content::Movies,
-            "tvshows" => Content::TvShows,
+            MOVIES => Content::Movies,
+            TV_SHOWS => Content::TvShows,
             other => Content::Other(other.to_string()),
         };
         Self {

@@ -7,6 +7,9 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
+/// The envelope's `jsonrpc` member.
+pub const JSONRPC_VERSION: &str = "2.0";
+
 /// One of Kodi's methods: its name in the schema, its parameters (the struct itself), and what it answers.
 pub trait Method: Serialize + Send + Sync + 'static {
     const NAME: &'static str;
@@ -30,7 +33,7 @@ impl Request {
             method: &'static str,
             params: &'a P,
         }
-        let body = serde_json::to_string(&Envelope { jsonrpc: "2.0", id, method: M::NAME, params })
+        let body = serde_json::to_string(&Envelope { jsonrpc: JSONRPC_VERSION, id, method: M::NAME, params })
             .expect("method params always serialise");
         Self { id, method: M::NAME, body }
     }

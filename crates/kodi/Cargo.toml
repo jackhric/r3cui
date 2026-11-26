@@ -7,8 +7,7 @@ description = "r3cui's own Kodi client: typed JSON-RPC over WebSocket and HTTP, 
 
 [dependencies]
 tokio.workspace = true
-tokio-tungstenite.workspace = true
-futures-util.workspace = true
+wsclient = { path = "../wsclient" }
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 tracing.workspace = true
@@ -20,7 +19,7 @@ tracing-subscriber.workspace = true
 
 [features]
 # FakeKodi: an in-process Kodi JSON-RPC WebSocket server for tests.
-testing = []
+testing = ["wsclient/testing"]
 
 [[test]]
 name = "fake"
