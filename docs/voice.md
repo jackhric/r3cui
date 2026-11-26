@@ -1,8 +1,8 @@
 # Voice: hold to talk, sent where r3cui says
 
-Status (2026-11-26): the Core-API calls (`crates/coreapi`), the voice link (`crates/voicelink`) and the relay
-(`crates/voice-relay`) are built and tested against fakes; nothing has run on the remote yet. The Assist client,
-the voice port and the UI are still to do.
+Status (2026-11-26): the Core-API calls (`crates/coreapi`), the voice link (`crates/voicelink`), the relay
+(`crates/voice-relay`) and the Assist client (`crates/homeassistant`) are built and tested against fakes; nothing has
+run on the remote yet. The voice port and the UI are still to do.
 
 Hold the voice key, talk, let go. r3cui shows that it is listening the moment the key goes down, sends the audio
 to wherever Global control → Voice points (Home Assistant Assist first), and shows what was heard and the answer.
@@ -90,6 +90,21 @@ proposal is `aarch64-unknown-linux-musl`:
 `aarch64-none-linux-gnu-gcc` (or `rust-lld`), in the same container after `rustup target add
 aarch64-unknown-linux-musl`. Not implemented or tried yet. Then `packaging/voice-relay.sh <driver binary>` writes
 `packaging/out/r3cui-voice.tar.gz` (`driver.json` at the root, `bin/driver`).
+
+### Assist API (`crates/homeassistant`)
+
+- `HaHandle::pipelines() -> Result<Pipelines>`: `list` of `Pipeline { id, name, language }` and the `preferred` id.
+- `HaHandle::run_voice(pipeline: Option<&str>, sample_rate, EndStage::{Intent, Tts}, timeout) -> Result<VoiceRun>`:
+  sends `assist_pipeline/run` from `stt`, returns once HA's `run-start` (with the `stt_binary_handler_id`) is seen,
+  whether it came before or after the reply. A run started while another is going cancels the other.
+- `VoiceRun::send_audio(&[u8])` sends `[handler_id] + PCM` as a binary frame (empty audio is skipped: a lone id ends the
+  stream), `end_audio()` sends the lone id, `next().await` yields `AssistEvent`s: `Listening`, `VadStart`, `VadEnd`,
+  `Heard { text }`, `Answer { text, success }`, `Speech { url, mime_type }`, `Finished`, `Failed { code, message }`,
+  then `None` (also `None` when the connection is lost first). Dropping a run that has not finished cancels it in HA.
+- `VoiceError` (`Timeout`, `NoTextRecognized`, `InvalidAudio`, `ServiceUnavailable`, `Unexpected`) mirrors the core's
+  codes; the HA strings are mapped in one place (`assist.rs`), named in `protocol::assist::error_code`.
+- `crates/wsclient` sends binary frames through `Connection::out` (`Outbox::send_binary`), in order with text.
+- `FakeHa` answers the list and runs, records binary frames (`audio_frames()`), and scripts events (`run_event`).
 
 ## Setting it up on the remote (once, the user's call)
 

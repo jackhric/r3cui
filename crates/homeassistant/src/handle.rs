@@ -1,5 +1,6 @@
 //! `HaHandle`: what the UI holds. It watches `HaState`, changes what is watched, and calls Home Assistant's services.
 
+use crate::assist::{self, EndStage, Pipelines, VoiceRun};
 use crate::client::Client;
 use crate::config::HaConfig;
 use crate::error::{Error, Result};
@@ -62,6 +63,18 @@ impl HaHandle {
     /// Every entity in Home Assistant, for pickers.
     pub async fn states(&self) -> Result<Vec<(EntityId, EntityState)>> {
         wire::states(self.call(MessageType::GetStates, json!({}), STATES).await?)
+    }
+
+    /// The Assist pipelines, and which one Home Assistant prefers.
+    pub async fn pipelines(&self) -> Result<Pipelines> {
+        assist::pipelines(&self.call(MessageType::AssistPipelineList, json!({}), CALL).await?)
+    }
+
+    /// Starts a voice run on `pipeline` (the preferred one when `None`) and returns once Home Assistant is ready for
+    /// audio. A run started while another is going cancels the other.
+    pub async fn run_voice(&self, pipeline: Option<&str>, sample_rate: u32, end: EndStage, timeout: Duration) -> Result<VoiceRun> {
+        let client = self.client.lock().unwrap().clone().ok_or(Error::Closed)?;
+        VoiceRun::start(client, pipeline, sample_rate, end, timeout).await
     }
 
     pub async fn volume_set(&self, entity: &EntityId, level: f64) -> Result<()> {

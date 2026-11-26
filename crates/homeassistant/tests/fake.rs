@@ -154,3 +154,149 @@ async fn changing_the_watched_set_resubscribes() {
     until_state(&handle, "nothing", |s| s.entities.is_empty()).await;
     assert_eq!(ha.connections(), 1, "no reconnect for a new watch set");
 }
+
+mod assist {
+    use super::*;
+    use homeassistant::protocol::assist::EventType;
+    use homeassistant::{AssistEvent, EndStage, VoiceError};
+    use std::time::Duration;
+    use wsclient::testing::eventually;
+
+    const TIMEOUT: Duration = Duration::from_secs(30);
+
+    async fn connected() -> (FakeHa, HaHandle) {
+        let ha = fake().await;
+        let handle = HaService::start(ha.config(), vec![]);
+        until_state(&handle, "the link", |s| s.link == Link::Up).await;
+        (ha, handle)
+    }
+
+    async fn frames(ha: &FakeHa, count: usize) -> Vec<Vec<u8>> {
+        eventually("the audio frames", || async { ha.audio_frames().len() >= count }).await;
+        ha.audio_frames()
+    }
+
+    async fn next(run: &mut homeassistant::VoiceRun) -> AssistEvent {
+        tokio::time::timeout(wsclient::testing::WAIT, run.next()).await.expect("an event in time").expect("the run is still going")
+    }
+
+    #[tokio::test]
+    async fn lists_pipelines_and_the_preferred_one() {
+        let (ha, handle) = connected().await;
+        ha.set_pipelines(&[("p1", "Home Assistant", "en"), ("p2", "Cloud", "de")], Some("p2"));
+        let got = handle.pipelines().await.unwrap();
+        assert_eq!(got.list.iter().map(|p| (p.id.as_str(), p.name.as_str(), p.language.as_str())).collect::<Vec<_>>(), [("p1", "Home Assistant", "en"), ("p2", "Cloud", "de")]);
+        assert_eq!(got.preferred.as_deref(), Some("p2"));
+    }
+
+    #[tokio::test]
+    async fn a_run_asks_for_stt_to_the_end_stage_and_streams_audio_with_the_handler_id() {
+        let (ha, handle) = connected().await;
+        let run = handle.run_voice(Some("p1"), 16_000, EndStage::Intent, TIMEOUT).await.unwrap();
+        let request = &ha.voice_runs()[0];
+        assert_eq!(request["type"], "assist_pipeline/run");
+        assert_eq!((request["start_stage"].as_str(), request["end_stage"].as_str(), request["pipeline"].as_str()), (Some("stt"), Some("intent"), Some("p1")));
+        assert_eq!((request["input"]["sample_rate"].as_u64(), request["timeout"].as_u64()), (Some(16_000), Some(30)));
+
+        let id = FakeHa::stt_binary_handler_id();
+        run.send_audio(&[1, 2, 3, 4]).unwrap();
+        run.send_audio(&[]).unwrap();
+        run.send_audio(&[5, 6]).unwrap();
+        run.end_audio().unwrap();
+        assert_eq!(frames(&ha, 3).await, [vec![id, 1, 2, 3, 4], vec![id, 5, 6], vec![id]]);
+    }
+
+    #[tokio::test]
+    async fn the_preferred_pipeline_and_tts_are_asked_for_by_leaving_out_the_id() {
+        let (ha, handle) = connected().await;
+        let _run = handle.run_voice(None, 16_000, EndStage::Tts, TIMEOUT).await.unwrap();
+        let request = &ha.voice_runs()[0];
+        assert_eq!(request["end_stage"], "tts");
+        assert!(request.get("pipeline").is_none());
+    }
+
+    #[tokio::test]
+    async fn a_full_run_reports_what_was_heard_the_answer_and_the_speech() {
+        let (ha, handle) = connected().await;
+        let mut run = handle.run_voice(None, 16_000, EndStage::Tts, TIMEOUT).await.unwrap();
+        ha.run_event(EventType::SttStart, json!({}));
+        ha.run_event(EventType::SttVadStart, json!({}));
+        ha.run_event(EventType::SttVadEnd, json!({}));
+        ha.run_event(EventType::SttEnd, json!({"stt_output": {"text": "turn on the desk light"}}));
+        ha.run_event(EventType::IntentStart, json!({}));
+        let answer = json!({"intent_output": {"response": {"response_type": "action_done", "speech": {"plain": {"speech": "Turned on the light"}}}}});
+        ha.run_event(EventType::IntentEnd, answer);
+        ha.run_event(EventType::TtsEnd, json!({"tts_output": {"url": "/api/tts_proxy/a.mp3", "mime_type": "audio/mpeg"}}));
+        ha.run_event(EventType::RunEnd, json!({}));
+        let mut got = Vec::new();
+        while let Some(event) = tokio::time::timeout(wsclient::testing::WAIT, run.next()).await.expect("events in time") {
+            got.push(event);
+        }
+        assert_eq!(
+            got,
+            [
+                AssistEvent::Listening,
+                AssistEvent::VadStart,
+                AssistEvent::VadEnd,
+                AssistEvent::Heard { text: "turn on the desk light".into() },
+                AssistEvent::Answer { text: "Turned on the light".into(), success: true },
+                AssistEvent::Speech { url: "/api/tts_proxy/a.mp3".into(), mime_type: "audio/mpeg".into() },
+                AssistEvent::Finished,
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn run_start_before_the_result_still_starts_the_run() {
+        let (ha, handle) = connected().await;
+        ha.run_start_before_result(true);
+        let run = handle.run_voice(None, 16_000, EndStage::Intent, TIMEOUT).await.unwrap();
+        run.end_audio().unwrap();
+        assert_eq!(frames(&ha, 1).await, [vec![FakeHa::stt_binary_handler_id()]]);
+    }
+
+    #[tokio::test]
+    async fn an_answer_that_did_not_work_is_not_a_success() {
+        let (ha, handle) = connected().await;
+        let mut run = handle.run_voice(None, 16_000, EndStage::Intent, TIMEOUT).await.unwrap();
+        let answer = json!({"intent_output": {"response": {"response_type": "error", "speech": {"plain": {"speech": "Sorry, I am not aware of any device"}}}}});
+        ha.run_event(EventType::IntentEnd, answer);
+        assert_eq!(next(&mut run).await, AssistEvent::Answer { text: "Sorry, I am not aware of any device".into(), success: false });
+    }
+
+    #[tokio::test]
+    async fn an_error_event_fails_the_run_with_the_cores_code() {
+        let (ha, handle) = connected().await;
+        let mut run = handle.run_voice(None, 16_000, EndStage::Intent, TIMEOUT).await.unwrap();
+        ha.run_event(EventType::Error, json!({"code": "stt-no-text-recognized", "message": "No text recognized"}));
+        ha.run_event(EventType::RunEnd, json!({}));
+        assert_eq!(next(&mut run).await, AssistEvent::Failed { code: VoiceError::NoTextRecognized, message: "No text recognized".into() });
+        assert_eq!(run.next().await, None, "nothing after a failure");
+    }
+
+    #[tokio::test]
+    async fn a_second_run_cancels_the_first_and_so_does_dropping() {
+        let (ha, handle) = connected().await;
+        let mut first = handle.run_voice(None, 16_000, EndStage::Intent, TIMEOUT).await.unwrap();
+        let second = handle.run_voice(None, 16_000, EndStage::Intent, TIMEOUT).await.unwrap();
+        eventually("the first run to be cancelled", || async { ha.voice_cancels() == 1 }).await;
+        assert_eq!(first.next().await, None);
+        drop(second);
+        eventually("the second run to be cancelled", || async { ha.voice_cancels() == 2 }).await;
+    }
+
+    #[tokio::test]
+    async fn losing_the_connection_ends_the_run() {
+        let (ha, handle) = connected().await;
+        let mut run = handle.run_voice(None, 16_000, EndStage::Intent, TIMEOUT).await.unwrap();
+        ha.kick();
+        assert_eq!(tokio::time::timeout(wsclient::testing::WAIT, run.next()).await, Ok(None));
+    }
+
+    #[tokio::test]
+    async fn without_a_connection_nothing_starts() {
+        let handle = HaService::start(HaConfig::new("https://ha.example.org", "t"), vec![]);
+        assert_eq!(handle.pipelines().await, Err(Error::Closed));
+        assert!(matches!(handle.run_voice(None, 16_000, EndStage::Intent, TIMEOUT).await, Err(Error::Closed)));
+    }
+}

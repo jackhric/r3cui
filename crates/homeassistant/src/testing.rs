@@ -1,18 +1,22 @@
 //! `FakeHa`: an in-process Home Assistant WebSocket server for tests. It speaks the real protocol (auth, ping,
 //! `get_states`, `subscribe_entities` with compressed diffs, `call_service`) and gives media players the effects
-//! the services have in Home Assistant.
+//! the services have in Home Assistant. It also answers Assist: the pipeline list, and voice runs whose audio it
+//! records and whose events a test scripts.
 
 use crate::config::HaConfig;
+use crate::protocol::assist::{self, EventType};
 use crate::protocol::{attribute, domain, field, service, state, MessageType};
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use wsclient::testing::{Broadcaster, FakeServer, Peer, Reply};
 
 const HA_VERSION: &str = "2024.11.3";
 const FAKE_CONTEXT: &str = "01FAKE";
 const VOLUME_STEP: f64 = 0.01;
+const STT_BINARY_HANDLER_ID: u8 = 7;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Entity {
@@ -21,16 +25,28 @@ struct Entity {
 }
 
 #[derive(Clone, Debug)]
-struct Push {
+struct Change {
     id: String,
     old: Option<Entity>,
     new: Entity,
+}
+
+#[derive(Clone, Debug)]
+enum Push {
+    Entity(Change),
+    /// An event of the voice run in progress.
+    Voice(Value),
 }
 
 struct Shared {
     token: String,
     entities: Mutex<BTreeMap<String, Entity>>,
     calls: Mutex<Vec<(String, String, Value)>>,
+    pipelines: Mutex<(Vec<Value>, Option<String>)>,
+    voice_runs: Mutex<Vec<Value>>,
+    audio: Mutex<Vec<Vec<u8>>>,
+    voice_cancels: AtomicUsize,
+    run_start_first: AtomicBool,
 }
 
 pub struct FakeHa {
@@ -45,10 +61,19 @@ impl FakeHa {
 
     /// On a given address, to run it as a stand-in Home Assistant for the desktop UI.
     pub async fn start_on(addr: &str, token: &str) -> Self {
-        let shared = Arc::new(Shared { token: token.to_owned(), entities: Mutex::default(), calls: Mutex::default() });
+        let shared = Arc::new(Shared {
+            token: token.to_owned(),
+            entities: Mutex::default(),
+            calls: Mutex::default(),
+            pipelines: Mutex::default(),
+            voice_runs: Mutex::default(),
+            audio: Mutex::default(),
+            voice_cancels: AtomicUsize::new(0),
+            run_start_first: AtomicBool::new(false),
+        });
         let server = FakeServer::start(addr, {
             let shared = shared.clone();
-            move |pushes| HaPeer { shared: shared.clone(), pushes, signed_in: false, sub: None }
+            move |pushes| HaPeer { shared: shared.clone(), pushes, signed_in: false, sub: None, runs: Vec::new() }
         })
         .await;
         Self { server, shared }
@@ -73,6 +98,42 @@ impl FakeHa {
         self.shared.calls.lock().unwrap().clone()
     }
 
+    /// What `assist_pipeline/pipeline/list` answers: `(id, name, language)` for each, and the preferred id.
+    pub fn set_pipelines(&self, pipelines: &[(&str, &str, &str)], preferred: Option<&str>) {
+        let list = pipelines.iter().map(|(id, name, language)| json!({ "id": id, "name": name, "language": language })).collect();
+        *self.shared.pipelines.lock().unwrap() = (list, preferred.map(str::to_owned));
+    }
+
+    /// The `assist_pipeline/run` requests received so far.
+    pub fn voice_runs(&self) -> Vec<Value> {
+        self.shared.voice_runs.lock().unwrap().clone()
+    }
+
+    /// The binary frames received so far, each whole: the handler id, then the audio.
+    pub fn audio_frames(&self) -> Vec<Vec<u8>> {
+        self.shared.audio.lock().unwrap().clone()
+    }
+
+    /// The handler id `run-start` hands out.
+    pub const fn stt_binary_handler_id() -> u8 {
+        STT_BINARY_HANDLER_ID
+    }
+
+    /// Sends `run-start` ahead of the run's result instead of after it, as Home Assistant sometimes does.
+    pub fn run_start_before_result(&self, first: bool) {
+        self.shared.run_start_first.store(first, Ordering::SeqCst);
+    }
+
+    /// Sends an event to the voice run in progress: `data` is the event's payload.
+    pub fn run_event(&self, kind: EventType, data: Value) {
+        self.server.broadcast(Push::Voice(json!({ field::TYPE: kind.as_str(), assist::field::DATA: data, "timestamp": "2024-11-26T10:00:00" })));
+    }
+
+    /// Runs cancelled by the client (an `unsubscribe_events` for a run).
+    pub fn voice_cancels(&self) -> usize {
+        self.shared.voice_cancels.load(Ordering::SeqCst)
+    }
+
     /// Drops every connection.
     pub fn kick(&self) {
         self.server.kick();
@@ -94,7 +155,7 @@ impl Shared {
         let mut new = old.clone().unwrap_or(Entity { state: String::new(), attributes: Map::new() });
         change(&mut new);
         entities.insert(id.to_owned(), new.clone());
-        to.send(Push { id: id.to_owned(), old, new });
+        to.send(Push::Entity(Change { id: id.to_owned(), old, new }));
     }
 
     fn call_service(&self, name: &str, service: &str, data: &Value, target: &Value, to: &Broadcaster<Push>) {
@@ -190,6 +251,7 @@ struct HaPeer {
     pushes: Broadcaster<Push>,
     signed_in: bool,
     sub: Option<Subscription>,
+    runs: Vec<u64>,
 }
 
 impl Peer<Push> for HaPeer {
@@ -209,12 +271,18 @@ impl Peer<Push> for HaPeer {
         Reply::say(message(MessageType::AuthOk, json!({ field::HA_VERSION: HA_VERSION })))
     }
 
+    fn binary(&mut self, bytes: &[u8]) -> Reply {
+        self.shared.audio.lock().unwrap().push(bytes.to_vec());
+        Reply::nothing()
+    }
+
     fn broadcast(&mut self, push: &Push) -> Reply {
-        match &self.sub {
-            Some(s) if s.entities.contains(&push.id) => {
-                let event = event_for(&push.id, &push.old, &push.new);
+        match (push, &self.sub, self.runs.last().copied()) {
+            (Push::Entity(change), Some(s), _) if s.entities.contains(&change.id) => {
+                let event = event_for(&change.id, &change.old, &change.new);
                 Reply::say_all(event.map(|event| event_frame(s.id, event)).into_iter().collect())
             }
+            (Push::Voice(event), _, Some(run)) => Reply::say(event_frame(run, event.clone())),
             _ => Reply::nothing(),
         }
     }
@@ -247,6 +315,31 @@ impl HaPeer {
                 let initial: Map<String, Value> = wanted.iter().filter_map(|k| Some((k.clone(), full(entities.get(k)?)))).collect();
                 self.sub = Some(Subscription { id, entities: wanted });
                 vec![result(id, Ok(Value::Null)), event_frame(id, json!({ "a": initial }))]
+            }
+            Some(MessageType::AssistPipelineList) => {
+                let (pipelines, preferred) = shared.pipelines.lock().unwrap().clone();
+                vec![result(id, Ok(json!({ assist::field::PIPELINES: pipelines, assist::field::PREFERRED_PIPELINE: preferred })))]
+            }
+            Some(MessageType::AssistPipelineRun) => {
+                shared.voice_runs.lock().unwrap().push(msg.clone());
+                self.runs.push(id);
+                let started = event_frame(
+                    id,
+                    json!({
+                        field::TYPE: EventType::RunStart.as_str(),
+                        assist::field::DATA: { assist::field::RUNNER_DATA: { assist::field::STT_BINARY_HANDLER_ID: STT_BINARY_HANDLER_ID, assist::field::TIMEOUT: 300 } },
+                    }),
+                );
+                if shared.run_start_first.load(Ordering::SeqCst) {
+                    vec![started, result(id, Ok(Value::Null))]
+                } else {
+                    vec![result(id, Ok(Value::Null)), started]
+                }
+            }
+            Some(MessageType::UnsubscribeEvents) if msg[field::SUBSCRIPTION].as_u64().is_some_and(|run| self.runs.contains(&run)) => {
+                self.runs.retain(|run| Some(*run) != msg[field::SUBSCRIPTION].as_u64());
+                shared.voice_cancels.fetch_add(1, Ordering::SeqCst);
+                vec![result(id, Ok(Value::Null))]
             }
             Some(MessageType::UnsubscribeEvents) => {
                 if self.sub.as_ref().is_some_and(|s| Some(s.id) == msg[field::SUBSCRIPTION].as_u64()) {

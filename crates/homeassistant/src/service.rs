@@ -83,6 +83,9 @@ impl Following {
                             }
                             Err(e) => tracing::debug!("homeassistant event: {e}"),
                         },
+                        Ok(Incoming::Event { id, event }) => {
+                            client.route(id, event);
+                        }
                         Ok(_) => {}
                         Err(e) => tracing::debug!("homeassistant frame: {e}"),
                     }
@@ -124,7 +127,9 @@ impl Session for Following {
 
     async fn serve(&mut self, conn: Connection) -> Error {
         let error = self.follow(conn).await;
-        *self.slot.lock().unwrap() = None;
+        if let Some(client) = self.slot.lock().unwrap().take() {
+            client.close_routes();
+        }
         error
     }
 
