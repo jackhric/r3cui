@@ -416,7 +416,8 @@ export component ChoiceList inherits Rectangle {
                 color: parent.focused || row.dot == Dot.down ? Theme.text : Theme.text-dim;
                 animate color { duration: 140ms; }
             }
-            if row.detail != "": Text {
+            detail-text := Text {
+                visible: row.detail != "";
                 x: parent.lead;
                 y: parent.height / 2 + 6px;
                 width: parent.edge - parent.lead - (row.value == "" ? 0px : value-text.width + 20px);
@@ -425,9 +426,9 @@ export component ChoiceList inherits Rectangle {
                 font-size: 18px;
                 color: Theme.t2;
             }
-            // As wide as it needs, up to a point; the label takes the rest.
+            // The label and its detail come first: the value gets what they leave, but always room for a status word.
             value-text := Text {
-                width: min(self.preferred-width, 220px);
+                width: max(min(self.preferred-width, parent.edge - parent.lead - max(label-text.preferred-width * parent.lift, detail-text.preferred-width) - 20px), min(self.preferred-width, 140px));
                 x: parent.edge - self.width;
                 overflow: elide;
                 horizontal-alignment: right;
