@@ -97,10 +97,13 @@ fn volume_of(s: &HaState, target: &EntityId, limit: Option<&EntityId>) -> Option
     Some(Volume { level: (player.volume_level()? * 100.0).round() as i32, max, muted: player.muted().unwrap_or(false) })
 }
 
+fn power_of(s: &HaState, target: &EntityId) -> Option<Power> {
+    Some(Power { on: MediaPlayer(s.entities.get(target)?).is_on() })
+}
+
 fn sources_of(s: &HaState, target: &EntityId) -> Option<Sources> {
     let player = MediaPlayer(s.entities.get(target)?);
     Some(Sources {
-        on: player.is_on(),
         current: player.source().unwrap_or_default().to_string(),
         list: player.source_list().into_iter().map(String::from).collect(),
     })
@@ -181,8 +184,28 @@ impl Driver for HomeAssistant {
                 let what = format!("{t} {intent:?}");
                 match intent {
                     SourceIntent::Select(name) => in_order(what, async move { ha.select_source(&t, &name).await }).await,
-                    SourceIntent::Power(true) => in_order(what, async move { ha.turn_on(&t).await }).await,
-                    SourceIntent::Power(false) => in_order(what, async move { ha.turn_off(&t).await }).await,
+                }
+            }
+        });
+        Some(port)
+    }
+
+    fn power(&self, target: &str) -> Option<PowerPort> {
+        let target = EntityId::from(target);
+        self.watch(&target);
+        let (view, mut intents, port) = port(power_of(&self.ha.state().borrow(), &target));
+        follow(self.ha.state(), view, {
+            let target = target.clone();
+            move |s: &HaState| power_of(s, &target)
+        });
+        let ha = self.ha.clone();
+        tokio::spawn(async move {
+            while let Some(intent) = intents.recv().await {
+                let (ha, t) = (ha.clone(), target.clone());
+                let what = format!("{t} {intent:?}");
+                match intent {
+                    PowerIntent::Set(true) => in_order(what, async move { ha.turn_on(&t).await }).await,
+                    PowerIntent::Set(false) => in_order(what, async move { ha.turn_off(&t).await }).await,
                 }
             }
         });
@@ -239,7 +262,9 @@ mod tests {
         assert_eq!((v.level, v.max, v.muted), (56, 72, false));
         let source = ha.source("media_player.receiver").unwrap();
         let s = until(&mut source.view.clone(), Option::is_some).await.unwrap();
-        assert_eq!((s.on, s.current.as_str(), s.list.len()), (true, "KODI", 3));
+        assert_eq!((s.current.as_str(), s.list.len()), ("KODI", 3));
+        let power = ha.power("media_player.receiver").unwrap();
+        assert_eq!(until(&mut power.view.clone(), Option::is_some).await, Some(Power { on: true }));
 
         volume.send(VolumeIntent::Set(40));
         until(&mut volume.view.clone(), |v| v.as_ref().is_some_and(|v| v.level == 40)).await;
@@ -247,8 +272,8 @@ mod tests {
         until(&mut volume.view.clone(), |v| v.as_ref().is_some_and(|v| v.muted)).await;
         source.send(SourceIntent::Select("NET".into()));
         until(&mut source.view.clone(), |s| s.as_ref().is_some_and(|s| s.current == "NET")).await;
-        source.send(SourceIntent::Power(false));
-        until(&mut source.view.clone(), |s| s.as_ref().is_some_and(|s| !s.on)).await;
+        power.send(PowerIntent::Set(false));
+        until(&mut power.view.clone(), |p| *p == Some(Power { on: false })).await;
         let services: Vec<String> = fake.calls().into_iter().map(|(d, s, _)| format!("{d}.{s}")).collect();
         assert_eq!(services, ["media_player.volume_set", "media_player.volume_mute", "media_player.select_source", "media_player.turn_off"]);
     }

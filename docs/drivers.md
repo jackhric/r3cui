@@ -11,19 +11,21 @@ offers, and the user decides which driver fills which job in Settings → Integr
 ```
 Global control                        what the whole remote drives
 ├─ Volume  → driver + target          (Home Assistant: a media_player entity)
-├─ Source  → driver + target          (may be a different entity from Volume)
-└─ Inputs                             the Source target's input list, in the user's order
+├─ Inputs  → driver + target          (may be a different entity from Volume; `global.source` in modules.json)
+├─ Power   → driver + target          (own entity, or follows Inputs when unset)
+└─ Input list                         the Inputs target's input list, in the user's order
    ├─ KODI    remote slot: Kodi    UI slot: Kodi
    ├─ TV      remote slot: —       UI slot: —        → a blank screen
    └─ ...
 ```
 
-- **Global control** gets volume, mute, power, the input switcher and Home, whatever input is on.
+- **Global control** gets volume, mute, power, the input switcher and Home, whatever input is on. Settings →
+  Integrations → Global control has one row each for Volume, Inputs and Power.
 - **Remote slot**: where every other button goes while that input is on (d-pad, OK, back, menu,
   channel, transport). Empty: those buttons do nothing.
 - **UI slot**: what the stage shows while that input is on: Now Playing, a library wall, or
   nothing. Empty: a blank stage.
-- **No Source target**: there is one implicit input, *Default*, with its own two slots, so a
+- **No Inputs target**: there is one implicit input, *Default*, with its own two slots, so a
   Kodi-only setup without Home Assistant still works.
 
 Drivers are set up once under Settings → Integrations (address, port, token, ...), then picked per
@@ -32,7 +34,7 @@ several later is a config change, not a redesign.
 
 Today's drivers:
 
-| Driver | Global (volume, source) | Remote slot | UI slot |
+| Driver | Global (volume, inputs, power) | Remote slot | UI slot |
 |---|---|---|---|
 | Home Assistant (`crates/homeassistant`, r3cui's own client) | yes | later | — |
 | Kodi (`crates/kodi`) | — | yes | yes (Now Playing, library wall) |
@@ -81,6 +83,7 @@ pub trait Driver: Send + Sync {
     fn status(&self) -> watch::Receiver<Status>;           // one row on the status page
     fn volume(&self, target: &str) -> Option<Port<Option<Volume>, VolumeIntent>> { None }
     fn source(&self, target: &str) -> Option<Port<Option<Sources>, SourceIntent>> { None }
+    fn power(&self, target: &str) -> Option<Port<Option<Power>, PowerIntent>> { None }
     fn remote(&self) -> Option<mpsc::UnboundedSender<RemoteKey>> { None }
     fn ui(&self) -> Option<Port<Stage, UiIntent>> { None }
     fn key_light(&self) -> Option<watch::Receiver<KeyLight>> { None }
@@ -89,7 +92,9 @@ pub trait Driver: Send + Sync {
 ```
 
 - `Volume { level, max, muted }`, on a 0–100 scale (Home Assistant's `volume_level` × 100).
-- `Sources { on, current, list }`.
+- `Sources { current, list }`; `SourceIntent::Select`.
+- `Power { on }`; `PowerIntent::Set(bool)`. A Home Assistant media_player is on unless its state is off, standby,
+  unavailable or unknown. With no power binding the UI shows the remote as on and holding Power does nothing.
 - `Stage { media: Option<Media>, library: Option<Library> }`. Both `None` is a blank stage.
 - `UiIntent`: `Shown(bool)` (the host says whether the slot is on screen and the remote awake, so
   a driver only polls when it matters), `PlayPause`, `Seek(secs)`, `Audio(i)`, `Subtitle(Option<i>)`.
@@ -124,7 +129,8 @@ Integrations pages change something.
   },
   "global": {
     "volume": { "driver": "homeassistant", "target": "media_player.theater_receiver" },
-    "source": { "driver": "homeassistant", "target": "media_player.theater_receiver" }
+    "source": { "driver": "homeassistant", "target": "media_player.theater_receiver" },
+    "power": { "driver": "homeassistant", "target": "media_player.theater_tv" }
   },
   "inputs": [
     { "id": "KODI", "remote": "kodi", "ui": "kodi" },
@@ -134,6 +140,9 @@ Integrations pages change something.
 }
 ```
 
+- **Power.** `global.power` is optional. A `modules.json` without it keeps working: power follows `global.source`
+  (same driver and target), resolved in one place, `Modules::power_binding`, which the host binds. Picking None for
+  Power therefore returns it to following Inputs; a setup with no Inputs binding and no Power has no power control.
 - **Input ids.** Home Assistant's `source_list` is a list of names with no stable id, so the
   source's name is the key. If the receiver renames an input, its settings no longer apply and it
   shows as new.
@@ -150,7 +159,7 @@ Integrations pages change something.
 | Button | Goes to |
 |---|---|
 | Volume up/down, mute, the slider | Global volume |
-| Power (held) | Global source: on/off |
+| Power (held) | Global power: on/off |
 | Input (voice key), Home | r3cui itself (the input list, the home page) |
 | Everything else | The current input's remote slot |
 

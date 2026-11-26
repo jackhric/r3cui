@@ -43,6 +43,7 @@ struct Inner {
     status: watch::Sender<Status>,
     volume: (watch::Sender<Option<Volume>>, Mutex<mpsc::UnboundedReceiver<VolumeIntent>>, VolumePort),
     source: (watch::Sender<Option<Sources>>, Mutex<mpsc::UnboundedReceiver<SourceIntent>>, SourcePort),
+    power: (watch::Sender<Option<Power>>, Mutex<mpsc::UnboundedReceiver<PowerIntent>>, PowerPort),
     ui: (watch::Sender<Stage>, Mutex<mpsc::UnboundedReceiver<UiIntent>>, UiPort),
     keys: (mpsc::UnboundedSender<RemoteKey>, Mutex<mpsc::UnboundedReceiver<RemoteKey>>),
     bound: Mutex<Vec<String>>,
@@ -57,6 +58,7 @@ impl FakeDriver {
     pub fn new(spec: &'static Spec) -> Self {
         let (v, vr, vp) = port(None);
         let (s, sr, sp) = port(None);
+        let (pw, pwr, pwp) = port(None);
         let (u, ur, up) = port(Stage::default());
         let (ktx, krx) = mpsc::unbounded_channel();
         Self(Arc::new(Inner {
@@ -64,6 +66,7 @@ impl FakeDriver {
             status: watch::channel(Status::new(Health::Connecting)).0,
             volume: (v, Mutex::new(vr), vp),
             source: (s, Mutex::new(sr), sp),
+            power: (pw, Mutex::new(pwr), pwp),
             ui: (u, Mutex::new(ur), up),
             keys: (ktx, Mutex::new(krx)),
             bound: Mutex::default(),
@@ -82,6 +85,10 @@ impl FakeDriver {
         self.0.source.0.send_replace(Some(s));
     }
 
+    pub fn set_power(&self, p: Power) {
+        self.0.power.0.send_replace(Some(p));
+    }
+
     pub fn set_stage(&self, s: Stage) {
         self.0.ui.0.send_replace(s);
     }
@@ -96,6 +103,10 @@ impl FakeDriver {
 
     pub fn source_intents(&self) -> Vec<SourceIntent> {
         drain(&self.0.source.1)
+    }
+
+    pub fn power_intents(&self) -> Vec<PowerIntent> {
+        drain(&self.0.power.1)
     }
 
     pub fn ui_intents(&self) -> Vec<UiIntent> {
@@ -125,6 +136,11 @@ impl Driver for FakeDriver {
     fn source(&self, target: &str) -> Option<SourcePort> {
         self.0.bound.lock().unwrap().push(target.to_string());
         Some(self.0.source.2.clone())
+    }
+
+    fn power(&self, target: &str) -> Option<PowerPort> {
+        self.0.bound.lock().unwrap().push(target.to_string());
+        Some(self.0.power.2.clone())
     }
 
     fn remote(&self) -> Option<mpsc::UnboundedSender<RemoteKey>> {

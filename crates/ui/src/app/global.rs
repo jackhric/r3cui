@@ -2,7 +2,7 @@
 //! until the device confirms it (it can take seconds, and a minute to come on), and the volume scale.
 
 use crate::app::optimistic::Optimistic;
-use drivers::api::{SourceIntent, Sources, Volume, VolumeIntent};
+use drivers::api::{PowerIntent, SourceIntent, Sources, Volume, VolumeIntent};
 use drivers::Host;
 use std::time::Duration;
 
@@ -57,9 +57,9 @@ impl Global {
             muted: self.mute.resolve(v.muted),
             switching: self.input.pending(&reported),
             input: self.input.resolve(reported),
-            // The device is the source of truth: anything short of on is off. With no input list there is nothing to
+            // The device is the source of truth: anything short of on is off. With no power binding there is nothing to
             // switch off.
-            on: self.power.resolve(s.as_ref().is_none_or(|s| s.on)),
+            on: self.power.resolve(host.power().is_none_or(|p| p.on)),
         }
     }
 
@@ -71,7 +71,7 @@ impl Global {
     /// Switch on if off, off if on.
     pub(crate) fn toggle_power(&mut self, host: &Host, on: bool) {
         self.power.ask(!on);
-        host.send_source(SourceIntent::Power(!on));
+        host.send_power(PowerIntent::Set(!on));
     }
 
     /// A slider step to `level`; the slider's pacing decides when it is sent.

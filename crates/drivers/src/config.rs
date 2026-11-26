@@ -45,6 +45,9 @@ pub struct Global {
     pub volume: Option<Binding>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<Binding>,
+    /// Unset, power follows the source: `Modules::power_binding`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub power: Option<Binding>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -87,6 +90,7 @@ pub enum Slot {
 pub enum Role {
     Volume,
     Source,
+    Power,
 }
 
 /// The old hardwired input Kodi was tied to, before inputs were configurable.
@@ -135,6 +139,12 @@ impl Modules {
         serde_json::to_string_pretty(self).expect("modules serialise") + "\n"
     }
 
+    /// What power is bound to: its own binding, else wherever the source is, so a `modules.json` from before power
+    /// had its own keeps working.
+    pub fn power_binding(&self) -> Option<&Binding> {
+        self.global.power.as_ref().or(self.global.source.as_ref())
+    }
+
     pub fn input(&self, id: &str) -> Option<&InputEntry> {
         self.inputs.iter().find(|i| i.id == id)
     }
@@ -162,7 +172,7 @@ impl Modules {
     /// Removes a driver and everything that pointed at it.
     pub fn remove_driver(&mut self, id: &str) {
         self.drivers.remove(id);
-        for role in [&mut self.global.volume, &mut self.global.source] {
+        for role in [&mut self.global.volume, &mut self.global.source, &mut self.global.power] {
             if role.as_ref().is_some_and(|b| b.driver == id) {
                 *role = None;
             }
@@ -194,6 +204,7 @@ impl Modules {
         match role {
             Role::Volume => self.global.volume = binding,
             Role::Source => self.global.source = binding,
+            Role::Power => self.global.power = binding,
         }
     }
 
@@ -315,11 +326,28 @@ mod tests {
     }
 
     #[test]
+    fn power_follows_the_source_until_bound_on_its_own() {
+        let mut m = sample();
+        assert_eq!(m.global.power, None, "a file from before power had its own");
+        assert_eq!(m.power_binding(), m.global.source.as_ref());
+        assert!(!m.to_json().contains("power"), "unset stays out of the file");
+        let own = Binding { driver: "homeassistant".into(), target: "media_player.tv".into() };
+        m.bind(Role::Power, Some(own.clone()));
+        assert_eq!(m.power_binding(), Some(&own));
+        assert_eq!(Modules::parse(&m.to_json()).unwrap(), m);
+        m.bind(Role::Power, None);
+        assert_eq!(m.power_binding(), m.global.source.as_ref());
+        m.bind(Role::Source, None);
+        assert_eq!(m.power_binding(), None);
+    }
+
+    #[test]
     fn removing_a_driver_clears_what_pointed_at_it() {
         let mut m = sample();
         m.remove_driver("kodi");
         assert_eq!(m.input("KODI"), None, "nothing left on it");
         assert!(m.global.volume.is_some());
+        m.bind(Role::Power, m.global.volume.clone());
         m.remove_driver("homeassistant");
         assert_eq!(m.global, Global::default());
         assert!(m.input("NET").unwrap().hidden);

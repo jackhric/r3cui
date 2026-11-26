@@ -1,7 +1,7 @@
 //! Runs the drivers `modules.json` sets up and routes between them and the frontend: global control to its
 //! bindings, keys and the stage to the current input's slots. The frontend sees ports and inputs, never a driver.
 
-use crate::api::{Driver, KeyLight, RemoteKey, SourceIntent, SourcePort, Sources, Stage, Status, UiIntent, Volume, VolumeIntent, VolumePort};
+use crate::api::{Driver, KeyLight, Power, PowerIntent, PowerPort, RemoteKey, SourceIntent, SourcePort, Sources, Stage, Status, UiIntent, Volume, VolumeIntent, VolumePort};
 use crate::config::{Binding, DriverEntry, Modules};
 use crate::inputs::{self, Input};
 use crate::registry::Registry;
@@ -30,6 +30,7 @@ pub struct Host {
     running: BTreeMap<String, Running>,
     volume: Option<Bound<VolumePort>>,
     source: Option<Bound<SourcePort>>,
+    power: Option<Bound<PowerPort>>,
     key_light: Option<watch::Receiver<Option<KeyLight>>>,
     /// Bumped whenever anything a driver shows changes.
     changed: watch::Sender<u64>,
@@ -48,6 +49,7 @@ impl Host {
             running: BTreeMap::new(),
             volume: None,
             source: None,
+            power: None,
             key_light: None,
             changed: watch::channel(0).0,
             forwarders: Vec::new(),
@@ -98,6 +100,7 @@ impl Host {
         // inputs would blink out meanwhile.
         self.volume = rebind(self.volume.take(), &self.modules.global.volume, &self.running, |d, t| d.volume(t));
         self.source = rebind(self.source.take(), &self.modules.global.source, &self.running, |d, t| d.source(t));
+        self.power = rebind(self.power.take(), &self.modules.power_binding().cloned(), &self.running, |d, t| d.power(t));
         self.key_light = self.running.values().find_map(|r| r.driver.key_light());
 
         let changed = self.changed.clone();
@@ -106,6 +109,9 @@ impl Host {
             watch_all.push(forward(b.port.view.clone(), changed.clone()));
         }
         if let Some(b) = &self.source {
+            watch_all.push(forward(b.port.view.clone(), changed.clone()));
+        }
+        if let Some(b) = &self.power {
             watch_all.push(forward(b.port.view.clone(), changed.clone()));
         }
         if let Some(k) = &self.key_light {
@@ -148,6 +154,14 @@ impl Host {
 
     pub fn send_source(&self, intent: SourceIntent) -> bool {
         self.source.as_ref().map(|b| b.port.send(intent)).is_some()
+    }
+
+    pub fn power(&self) -> Option<Power> {
+        self.power.as_ref().and_then(|b| b.port.get())
+    }
+
+    pub fn send_power(&self, intent: PowerIntent) -> bool {
+        self.power.as_ref().map(|b| b.port.send(intent)).is_some()
     }
 
     pub fn key_light(&self) -> Option<KeyLight> {
@@ -225,7 +239,7 @@ impl Host {
     /// Whether global control or `input` relies on the driver `id`.
     pub fn in_use(&self, id: &str, input: Option<&Input>) -> bool {
         let g = &self.modules.global;
-        let bound = [&g.volume, &g.source].into_iter().flatten().any(|b| b.driver == id);
+        let bound = [&g.volume, &g.source].into_iter().flatten().chain(self.modules.power_binding()).any(|b| b.driver == id);
         bound || input.is_some_and(|i| i.remote.as_deref() == Some(id) || i.ui.as_deref() == Some(id))
     }
 }
@@ -271,13 +285,14 @@ mod tests {
         m.add_driver(FAKE_PLAYER.id, Default::default());
         m.bind(Role::Volume, Some(Binding { driver: FAKE_GLOBAL.id.into(), target: "receiver".into() }));
         m.bind(Role::Source, Some(Binding { driver: FAKE_GLOBAL.id.into(), target: "receiver".into() }));
+        m.bind(Role::Power, Some(Binding { driver: FAKE_GLOBAL.id.into(), target: "switch".into() }));
         m.set_slot("KODI", Slot::Remote, Some(FAKE_PLAYER.id.into()));
         m.set_slot("KODI", Slot::Ui, Some(FAKE_PLAYER.id.into()));
         (Host::new(fakes.registry(), m), fakes)
     }
 
     fn report_sources(fake: &FakeDriver, current: &str) {
-        fake.set_sources(Sources { on: true, current: current.into(), list: vec!["TV".into(), "KODI".into()] });
+        fake.set_sources(Sources { current: current.into(), list: vec!["TV".into(), "KODI".into()] });
     }
 
     #[tokio::test]
@@ -305,7 +320,12 @@ mod tests {
         tokio::task::yield_now().await;
         assert_eq!(global.volume_intents(), [VolumeIntent::Up]);
         assert_eq!(global.source_intents(), [SourceIntent::Select("TV".into())]);
-        assert_eq!(global.targets_bound(), ["receiver", "receiver"]);
+        assert_eq!(global.targets_bound(), ["receiver", "receiver", "switch"]);
+        global.set_power(Power { on: true });
+        assert_eq!(host.power(), Some(Power { on: true }));
+        assert!(host.send_power(PowerIntent::Set(false)));
+        tokio::task::yield_now().await;
+        assert_eq!(global.power_intents(), [PowerIntent::Set(false)]);
     }
 
     #[tokio::test]
@@ -371,8 +391,24 @@ mod tests {
         let mut m = host.modules().clone();
         m.set_hidden("TV", true);
         host.apply(m);
-        assert_eq!(fakes.get(FAKE_GLOBAL.id).targets_bound().len(), 2, "not asked for new ports");
+        assert_eq!(fakes.get(FAKE_GLOBAL.id).targets_bound().len(), 3, "not asked for new ports");
         assert_eq!(host.inputs().len(), 2, "the inputs never blink out");
+    }
+
+    #[tokio::test]
+    async fn power_follows_the_source_until_it_has_its_own_binding() {
+        let (mut host, fakes) = setup();
+        let global = fakes.get(FAKE_GLOBAL.id);
+        let mut m = host.modules().clone();
+        m.bind(Role::Power, None);
+        host.apply(m);
+        assert_eq!(global.targets_bound(), ["receiver", "receiver", "switch", "receiver"], "rebound to the source's target");
+        assert!(host.send_power(PowerIntent::Set(true)));
+        let mut m = host.modules().clone();
+        m.bind(Role::Source, None);
+        host.apply(m);
+        assert!(!host.send_power(PowerIntent::Set(true)), "nothing to switch");
+        assert_eq!(host.power(), None);
     }
 
     #[tokio::test]

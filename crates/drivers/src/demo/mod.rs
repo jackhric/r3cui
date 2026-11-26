@@ -22,6 +22,7 @@ pub static SPEC: Spec = Spec {
 struct State {
     volume: Volume,
     sources: Sources,
+    power: Power,
     media: Option<Media>,
     shown: bool,
     focus: usize,
@@ -30,6 +31,7 @@ struct State {
 pub struct Demo {
     volume: Port<Option<Volume>, VolumeIntent>,
     source: Port<Option<Sources>, SourceIntent>,
+    power: PowerPort,
     ui: UiPort,
     remote: mpsc::UnboundedSender<RemoteKey>,
     status: watch::Receiver<Status>,
@@ -43,6 +45,7 @@ pub fn modules() -> Modules {
     let binding = || Some(Binding { driver: id.clone(), target: RECEIVER.into() });
     m.bind(Role::Volume, binding());
     m.bind(Role::Source, binding());
+    m.bind(Role::Power, binding());
     for input in INPUTS {
         m.set_slot(input, Slot::Remote, Some(id.clone()));
     }
@@ -54,13 +57,15 @@ impl Demo {
     pub fn start(_: &DriverEntry) -> Self {
         let state = Arc::new(Mutex::new(State {
             volume: Volume { level: START_LEVEL, max: LEVEL_LIMIT, muted: false },
-            sources: Sources { on: true, current: START_INPUT.into(), list: INPUTS.map(String::from).to_vec() },
+            sources: Sources { current: START_INPUT.into(), list: INPUTS.map(String::from).to_vec() },
+            power: Power { on: true },
             media: Some(data::film(Instant::now())),
             shown: false,
             focus: 0,
         }));
         let (volume_tx, mut volume_rx, volume) = port(None);
         let (source_tx, mut source_rx, source) = port(None);
+        let (power_tx, mut power_rx, power) = port(None);
         let (stage_tx, mut ui_rx, ui) = port(Stage::default());
         let (remote, mut keys) = mpsc::unbounded_channel();
         let shelf = data::shelf();
@@ -70,6 +75,7 @@ impl Demo {
                 let s = state.lock().unwrap();
                 volume_tx.send_replace(Some(s.volume.clone()));
                 source_tx.send_replace(Some(s.sources.clone()));
+                power_tx.send_replace(Some(s.power));
                 let library = (s.shown && s.media.is_none()).then(|| Library { list: shelf.clone(), focus: s.focus });
                 stage_tx.send_replace(Stage { media: s.media.clone(), library });
             }
@@ -111,8 +117,8 @@ impl Demo {
                                     change(Box::new(move |s| s.sources.current = name));
                                 });
                             }
-                            SourceIntent::Power(on) => change(Box::new(move |s| s.sources.on = on)),
                         },
+                        Some(PowerIntent::Set(on)) = power_rx.recv() => change(Box::new(move |s| s.power.on = on)),
                         Some(i) = ui_rx.recv() => change(Box::new(move |s| ui_intent(s, i))),
                         Some(k) = keys.recv() => change(Box::new(move |s| key(s, k))),
                         else => break,
@@ -120,7 +126,7 @@ impl Demo {
                 }
             }
         });
-        Self { volume, source, ui, remote, status: watch::channel(Status::new(Health::Up)).1 }
+        Self { volume, source, power, ui, remote, status: watch::channel(Status::new(Health::Up)).1 }
     }
 }
 
@@ -187,6 +193,10 @@ impl Driver for Demo {
         Some(self.source.clone())
     }
 
+    fn power(&self, _: &str) -> Option<PowerPort> {
+        Some(self.power.clone())
+    }
+
     fn remote(&self) -> Option<mpsc::UnboundedSender<RemoteKey>> {
         Some(self.remote.clone())
     }
@@ -220,7 +230,7 @@ mod tests {
     #[test]
     fn the_demo_setup_fills_the_slots() {
         let m = modules();
-        assert!(m.global.volume.is_some() && m.global.source.is_some());
+        assert!(m.global.volume.is_some() && m.global.source.is_some() && m.global.power.is_some());
         for input in INPUTS {
             let e = m.input(input).unwrap();
             assert_eq!((e.remote.as_deref(), e.ui.as_deref()), (Some(SPEC.id), (input == KODI).then_some(SPEC.id)), "{input}");
@@ -236,6 +246,10 @@ mod tests {
         until(&mut volume.view.clone(), |v| v.as_ref().is_some_and(|v| v.level == START_LEVEL + 1)).await;
         source.send(SourceIntent::Select("KODI".into()));
         until(&mut source.view.clone(), |s| s.as_ref().is_some_and(|s| s.current == "KODI")).await;
+
+        let power = d.power("x").unwrap();
+        power.send(PowerIntent::Set(false));
+        until(&mut power.view.clone(), |p| *p == Some(Power { on: false })).await;
 
         ui.send(UiIntent::Shown(true));
         d.remote().unwrap().send(RemoteKey::Stop).unwrap();

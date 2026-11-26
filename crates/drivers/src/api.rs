@@ -53,7 +53,6 @@ pub enum VolumeIntent {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Sources {
-    pub on: bool,
     pub current: String,
     pub list: Vec<String>,
 }
@@ -61,11 +60,21 @@ pub struct Sources {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceIntent {
     Select(String),
-    Power(bool),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Power {
+    pub on: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PowerIntent {
+    Set(bool),
 }
 
 pub type VolumePort = Port<Option<Volume>, VolumeIntent>;
 pub type SourcePort = Port<Option<Sources>, SourceIntent>;
+pub type PowerPort = Port<Option<Power>, PowerIntent>;
 pub type UiPort = Port<Stage, UiIntent>;
 
 /// The buttons that go to the current input's remote slot. Volume, mute, power, Home and the input key are the
@@ -294,6 +303,9 @@ pub trait Driver: Send + Sync {
         None
     }
     fn source(&self, _target: &str) -> Option<SourcePort> {
+        None
+    }
+    fn power(&self, _target: &str) -> Option<PowerPort> {
         None
     }
     fn remote(&self) -> Option<mpsc::UnboundedSender<RemoteKey>> {

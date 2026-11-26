@@ -64,6 +64,9 @@ pub(crate) struct Integrations {
     editing: Option<Editing>,
 }
 
+/// The rows of Global control, in order.
+const GLOBAL_ROLES: [Role; 3] = [Role::Volume, Role::Source, Role::Power];
+
 fn row(label: impl Into<String>) -> Row {
     Row { label: label.into(), ..Default::default() }
 }
@@ -114,7 +117,7 @@ impl Integrations {
         let (title, rows) = match self.top() {
             Screen::Root => {
                 let mut rows = vec![
-                    Row { value: m.global.source.as_ref().or(m.global.volume.as_ref()).map_or("None".into(), |b| short(&b.target)), chevron: true, ..row("Global control") },
+                    Row { value: m.global.source.as_ref().or(m.global.volume.as_ref()).or(m.power_binding()).map_or("None".into(), |b| short(&b.target)), chevron: true, ..row("Global control") },
                     Row { value: format!("{} shown", host.inputs().iter().filter(|i| !i.hidden).count()), chevron: true, ..row("Inputs") },
                 ];
                 let statuses = host.statuses();
@@ -137,7 +140,8 @@ impl Integrations {
                 let target = |b: &Option<Binding>| b.as_ref().map_or("None".to_string(), |b| short(&b.target));
                 let rows = vec![
                     Row { value: target(&m.global.volume), chevron: true, detail: "Volume and mute".into(), ..row("Volume") },
-                    Row { value: target(&m.global.source), chevron: true, detail: "Inputs and power".into(), ..row("Source") },
+                    Row { value: target(&m.global.source), chevron: true, detail: "The input list".into(), ..row("Inputs") },
+                    Row { value: target(&m.power_binding().cloned()), chevron: true, detail: "On and off".into(), ..row("Power") },
                 ];
                 ("Global control".to_string(), rows)
             }
@@ -145,8 +149,13 @@ impl Integrations {
                 let bound = match role {
                     Role::Volume => &m.global.volume,
                     Role::Source => &m.global.source,
+                    Role::Power => &m.power_binding().cloned(),
                 };
-                let title = if *role == Role::Volume { "Volume" } else { "Source" };
+                let title = match role {
+                    Role::Volume => "Volume",
+                    Role::Source => "Inputs",
+                    Role::Power => "Power",
+                };
                 if global_driver(host).is_none() {
                     (title.to_string(), vec![row("Add Home Assistant first")])
                 } else {
@@ -182,7 +191,7 @@ impl Integrations {
                     .addable(host)
                     .map(|s| {
                         let jobs: Vec<&str> =
-                            [(s.provides.global, "volume and inputs"), (s.provides.remote, "buttons"), (s.provides.ui, "screen")].into_iter().filter(|(y, _)| *y).map(|(_, j)| j).collect();
+                            [(s.provides.global, "volume, inputs and power"), (s.provides.remote, "buttons"), (s.provides.ui, "screen")].into_iter().filter(|(y, _)| *y).map(|(_, j)| j).collect();
                         Row { icon: s.icon, detail: capitalise(&jobs.join(", ")), chevron: true, ..row(s.name) }
                     })
                     .collect();
@@ -286,7 +295,7 @@ impl Integrations {
                 Effect::Stay
             }
             Screen::Global => {
-                let role = if at == 0 { Role::Volume } else { Role::Source };
+                let role = GLOBAL_ROLES[at.min(GLOBAL_ROLES.len() - 1)];
                 self.push(Screen::PickRole(role));
                 match global_driver(host) {
                     Some(driver) => Effect::Load { driver, kind: TargetKind::MediaPlayer },
@@ -439,7 +448,7 @@ mod tests {
         m.add_driver("fake-global", Default::default());
         m.bind(Role::Source, Some(Binding { driver: "fake-global".into(), target: "receiver".into() }));
         let host = Host::new(fakes.registry(), m);
-        fakes.get("fake-global").set_sources(Sources { on: true, current: "TV".into(), list: vec!["TV".into(), "KODI".into()] });
+        fakes.get("fake-global").set_sources(Sources { current: "TV".into(), list: vec!["TV".into(), "KODI".into()] });
         let mut ui = Integrations::default();
         ui.open();
         (host, fakes, ui)
@@ -518,6 +527,21 @@ mod tests {
         tap(&mut ui, &mut host, "Amp");
         assert_eq!(host.modules().global.volume, Some(Binding { driver: "fake-global".into(), target: "media_player.amp".into() }));
         assert_eq!(ui.page(&host).rows[0].value, "amp");
+    }
+
+    #[tokio::test]
+    async fn power_is_a_third_row_that_follows_inputs_until_picked() {
+        let (mut host, _fakes, mut ui) = setup();
+        tap(&mut ui, &mut host, "Global control");
+        let page = ui.page(&host);
+        assert_eq!(labels(&page), ["Volume", "Inputs", "Power"]);
+        assert_eq!(page.rows[2].value, "receiver", "follows the inputs binding");
+        tap(&mut ui, &mut host, "Power");
+        ui.targets_loaded(vec![Target { id: "media_player.tv".into(), name: "TV".into() }]);
+        tap(&mut ui, &mut host, "TV");
+        assert_eq!(host.modules().global.power, Some(Binding { driver: "fake-global".into(), target: "media_player.tv".into() }));
+        assert_eq!(host.modules().global.source.as_ref().unwrap().target, "receiver", "inputs untouched");
+        assert_eq!(ui.page(&host).rows[2].value, "tv");
     }
 
     #[tokio::test]
