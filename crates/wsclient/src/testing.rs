@@ -136,7 +136,11 @@ impl<M: Clone + Send + 'static> FakeServer<M> {
 
     /// Offers `message` to every open connection's peer.
     pub fn broadcast(&self, message: M) {
-        Broadcaster(self.broadcasts.clone()).send(message);
+        self.broadcaster().send(message);
+    }
+
+    pub fn broadcaster(&self) -> Broadcaster<M> {
+        Broadcaster(self.broadcasts.clone())
     }
 }
 
