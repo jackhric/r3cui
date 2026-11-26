@@ -8,7 +8,7 @@ A string or number that means something is named once, and everything else uses 
 |---|---|
 | Home Assistant's wire vocabulary: message types, frame fields, domains, services, states, attributes | `crates/homeassistant/src/protocol.rs` (`MessageType`, the `field` module, ...) |
 | Kodi's methods, parameters and shared value types | `crates/kodi/src/methods/` (one struct per method, checked against the vendored schema by `tests/schema.rs`) and `crates/kodi/src/wire.rs` |
-| Core-API events the UI acts on | `crates/coreapi/src/events.rs` |
+| Core-API message names and the events the UI acts on | `crates/coreapi/src/messages.rs`, `crates/coreapi/src/events.rs`; the System page's requests are typed in `system.rs` |
 | A driver's setup field keys | the driver's own `field` module: `drivers/src/homeassistant.rs`, `drivers/src/kodi/mod.rs` |
 | The characters hard keys arrive as | `keys` in `crates/ui/src/input/mod.rs`; the window gets the same values through `KeyChars` in `crates/ui/ui/keys.slint` |
 | Anything Slint and Rust both know about (pages, haptic events, library modes, ...) | a Slint `enum` in `crates/ui/ui/types.slint`, matched exhaustively in Rust |
@@ -53,6 +53,7 @@ the desktop and the device build.
 | Fake | Where | Used by |
 |---|---|---|
 | `FakeServer` | `crates/wsclient/src/testing.rs` (feature `testing`) | the scaffold under every fake below, and `coreapi`'s tests |
+| `FakeCore` | `crates/coreapi/src/testing.rs` (feature `testing`) | `coreapi`'s tests: sign-in, `version`, firmware updates, API access |
 | `FakeKodi` | `crates/kodi/src/testing.rs` | `crates/kodi/tests/fake.rs`, the Kodi driver |
 | `FakeHa` | `crates/homeassistant/src/testing.rs` | `crates/homeassistant/tests/fake.rs`, the HA driver |
 | `FakeTv` | `crates/androidtv/src/testing.rs` | `crates/androidtv/tests/fake.rs`, the Android TV driver (also `examples/fake-androidtv.rs`) |

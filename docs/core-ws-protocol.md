@@ -8,8 +8,10 @@ activity and button-mapping rows below are kept as spec notes only.
 Requests the UI sends today (`crates/ui/src/remote/`, `hardware/backlight.rs`): `get_power_mode`,
 `get_battery_charger`, `get_display_cfg` / `set_display_cfg`, `get_haptic_cfg`, `get_sound_cfg`,
 `get_power_saving_cfg`, `get_network_cfg` / `set_network_cfg`, `get_wifi_status`, `get_wifi_scan_status`,
-`wifi_scan_start`, `add_wifi_network`, `set_button_cfg`. Events it acts on (`coreapi::events`):
-`power_mode_change`, `battery_status`, `wifi_change`. The connection runs on `crates/wsclient`.
+`wifi_scan_start`, `add_wifi_network`, `set_button_cfg`, and for the System page `version`, `set_ui_info` (after every sign-in, as
+the stock UI does), `check_system_update`, `update_system`, `get_api_access`, `set_api_access`. Events it acts on
+(`coreapi::events`): `power_mode_change`, `battery_status`, `wifi_change`, `software_update`. Message names are the
+constants in `crates/coreapi/src/messages.rs`; the System page's requests are typed in `crates/coreapi/src/system.rs`. The connection runs on `crates/wsclient`.
 
 Authoritative spec: `unfoldedcircle/core-api`, `core-api/websocket/UCR-core-asyncapi.yaml`
 (AsyncAPI 2.6, v0.50.5). Reference implementation: `unfoldedcircle/remote-ui`, `src/core/core.cpp`.
@@ -70,3 +72,28 @@ Button presses and the capacitive slider arrive via **evdev in our process**, no
 The stock UI fetches the activity's button mappings and sends the mapped `execute_entity_command`
 (short vs long press distinguished ~800 ms). r3cui doesn't: the drivers host routes the keys
 (`docs/drivers.md`, "Buttons").
+
+## Software: firmware updates, the web configurator, r3cui's own updates
+
+`crates/coreapi/src/system.rs` types these, `crates/ui/src/app/software.rs` holds the state, `crates/ui/src/remote/software.rs`
+does the work. `coreapi::testing::FakeCore` answers all of them.
+
+| Message | Notes |
+|---|---|
+| `version` | `version_info`: model, device name, hostname, `address` (the remote's own, for the configurator link), api, core, ui, os |
+| `check_system_update {force_update}` | `system_update_info`: `installed_version`, `update_in_progress`, `available[]` with `download` PENDING / DOWNLOADING / DOWNLOADED / ERROR |
+| `update_system {update_id}` | `DOWNLOAD` when it starts fetching, `START` when it starts installing what was fetched. 503 battery under 50 %, 409 already running, 422 already downloaded |
+| event `software_update` | `START` / `PROGRESS` / `STOP` with `progress.state` and `download_percent`, `current_step` of `total_steps`, `current_percent`. The UI blocks all input while an update runs, as the stock UI does |
+| `get_api_access` / `set_api_access` | `web_configurator {enabled, pin}`. The PIN is never returned, so the UI makes a four-digit one itself and keeps it in memory to show |
+
+The UI does the firmware chain itself: `update_system` (fetch), wait for the download to finish (a `software_update` STOP or
+DONE, then `check_system_update` says DOWNLOADED), `update_system` again (install). Against a real core that sequence is
+read from the spec and the stock UI and has not been watched on a remote.
+
+r3cui's own updates are not the core's: `GET https://api.github.com/repos/jackhric/r3cui/releases/latest` (override with
+`UC_RELEASES_URL`), the `remote-ui.tar.gz` asset checked against its `digest`, then REST `POST /api/system/install/ui`
+(multipart `file`, `?void_warranty=yes`) with basic auth `web-configurator:<PIN>`, on `UC_SOCKET_URL`'s host and port, or
+port 80 if that does not answer. Uninstalling empties `UC_CONFIG_HOME` and `UC_DATA_HOME` (never `UC_STATE_HOME`), then
+`DELETE /api/system/install/ui`, or `PUT ...?enable=false` if that is refused. Both turn the web configurator on with a PIN
+of r3cui's own first and off again after if it was off (`UC_DATA_HOME/web-configurator-was-off` tells a restarted UI to
+finish that). The REST calls are tested against a local fake server (`crates/ui/src/remote/selfupdate/`), not a remote.
