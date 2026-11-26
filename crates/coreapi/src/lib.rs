@@ -8,13 +8,20 @@ pub use events::*;
 
 use anyhow::{anyhow, Context, Result};
 use base64::Engine as _;
-use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::tungstenite::Message;
+use wsclient::{Connection, Pending};
+
+const AUTH_REQUEST_ID: u64 = 1;
+const SUBSCRIBE_REQUEST_ID: u64 = 100;
+const FIRST_REQUEST_ID: u64 = 101;
+// A core that never sends `auth_required` accepted the header auth.
+const AUTH_PROMPT_WAIT: Duration = Duration::from_secs(3);
+const EVENT_BACKLOG: usize = 256;
 
 pub struct Config {
     pub url: String,
@@ -77,16 +84,13 @@ impl Response {
     }
 }
 
-struct Out {
-    msg: String,
-    data: Value,
-    reply: oneshot::Sender<Response>,
-}
-
-/// Handle to a connected core session. Cloneable; requests are multiplexed over the one socket.
+/// Handle to a connected core session. Cloneable; requests are multiplexed over the one socket, which closes when
+/// the last handle is dropped.
 #[derive(Clone)]
 pub struct Core {
-    tx: mpsc::Sender<Out>,
+    out: mpsc::UnboundedSender<String>,
+    pending: Pending<u64, Response>,
+    next_id: Arc<AtomicU64>,
 }
 
 impl Core {
@@ -102,10 +106,18 @@ impl Core {
     /// Queue a request without waiting for its answer. Requests reach the core in the order they
     /// are submitted, so a burst keeps its order while none of it waits on another's round trip.
     pub async fn submit(&self, msg: &str, data: Value) -> Result<oneshot::Receiver<Response>> {
-        let (reply, rx) = oneshot::channel();
-        self.tx.send(Out { msg: msg.to_string(), data, reply }).await.map_err(|_| anyhow!("core task gone"))?;
-        Ok(rx)
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let reply = self.pending.insert(id);
+        if self.out.send(request_frame(id, msg, data)).is_err() {
+            self.pending.cancel(&id);
+            return Err(anyhow!("core task gone"));
+        }
+        Ok(reply)
     }
+}
+
+fn request_frame(id: u64, msg: &str, data: Value) -> String {
+    json!({"kind":"req","id":id,"msg":msg,"msg_data":data}).to_string()
 }
 
 /// Connect, authenticate, subscribe to all events, and spawn the I/O task.
@@ -116,65 +128,37 @@ pub async fn connect(cfg: Config) -> Result<(Core, mpsc::Receiver<Event>)> {
         let value = format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(basic));
         request.headers_mut().insert("Authorization", value.parse().context("auth header")?);
     }
-    let (ws, _) = tokio_tungstenite::connect_async(request)
-        .await
-        .with_context(|| format!("ws connect {}", cfg.url))?;
-    let (mut write, mut read) = ws.split();
+    let mut conn = wsclient::connect(request).await.map_err(|e| anyhow!("ws connect {}: {}", cfg.url, e.reason))?;
 
-    authenticate(&mut write, &mut read, &cfg.token).await?;
+    authenticate(&mut conn, &cfg.token).await?;
     tracing::info!("core authenticated at {}", cfg.url);
 
-    let (out_tx, mut out_rx) = mpsc::channel::<Out>(32);
-    let (ev_tx, ev_rx) = mpsc::channel::<Event>(256);
+    let Connection { out, mut incoming } = conn;
+    let (ev_tx, ev_rx) = mpsc::channel::<Event>(EVENT_BACKLOG);
+    let pending = Pending::new();
 
-    tokio::spawn(async move {
-        let mut next_id: u64 = 100;
-        let mut pending: HashMap<u64, oneshot::Sender<Response>> = HashMap::new();
+    // New sessions default to "all", but ask explicitly so behaviour is independent of that.
+    let _ = out.send(request_frame(SUBSCRIBE_REQUEST_ID, "subscribe_events", json!({})));
 
-        // New sessions default to "all", but ask explicitly so behaviour is independent of that.
-        let sub = json!({"kind":"req","id":next_id,"msg":"subscribe_events","msg_data":{}});
-        next_id += 1;
-        let _ = write.send(Message::Text(sub.to_string())).await;
-
-        loop {
-            tokio::select! {
-                Some(out) = out_rx.recv() => {
-                    let rid = next_id;
-                    next_id += 1;
-                    pending.insert(rid, out.reply);
-                    let frame = json!({"kind":"req","id":rid,"msg":out.msg,"msg_data":out.data});
-                    if write.send(Message::Text(frame.to_string())).await.is_err() {
-                        break;
-                    }
+    tokio::spawn({
+        let pending = pending.clone();
+        async move {
+            while let Some(text) = incoming.recv().await {
+                if let Ok(v) = serde_json::from_str::<Value>(&text) {
+                    dispatch(v, &pending, &ev_tx).await;
                 }
-                msg = read.next() => {
-                    let Some(msg) = msg else { break };
-                    let msg = match msg {
-                        Ok(m) => m,
-                        Err(e) => { tracing::warn!("ws read error: {e}"); break; }
-                    };
-                    match msg {
-                        Message::Text(t) => {
-                            if let Ok(v) = serde_json::from_str::<Value>(t.as_str()) {
-                                dispatch(v, &mut pending, &ev_tx).await;
-                            }
-                        }
-                        Message::Close(_) => break,
-                        _ => {}
-                    }
-                }
-                else => break,
             }
+            pending.clear();
+            tracing::info!("core ws task ended");
         }
-        tracing::info!("core ws task ended");
     });
 
-    Ok((Core { tx: out_tx }, ev_rx))
+    Ok((Core { out, pending, next_id: Arc::new(AtomicU64::new(FIRST_REQUEST_ID)) }, ev_rx))
 }
 
 async fn dispatch(
     v: Value,
-    pending: &mut HashMap<u64, oneshot::Sender<Response>>,
+    pending: &Pending<u64, Response>,
     ev_tx: &mpsc::Sender<Event>,
 ) {
     match v.get("kind").and_then(Value::as_str) {
@@ -185,9 +169,7 @@ async fn dispatch(
                 data: v.get("msg_data").cloned().unwrap_or(Value::Null),
             };
             if let Some(id) = v.get("req_id").and_then(Value::as_u64) {
-                if let Some(tx) = pending.remove(&id) {
-                    let _ = tx.send(resp);
-                }
+                pending.deliver(&id, resp);
             }
         }
         Some("event") => {
@@ -202,39 +184,94 @@ async fn dispatch(
     }
 }
 
-type Writer = futures_util::stream::SplitSink<
-    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
-    Message,
->;
-type Reader = futures_util::stream::SplitStream<
-    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
->;
-
 /// Message-based handshake: wait for `auth_required`, reply with the token, expect `authentication`
 /// code 200. If the server never sends `auth_required` (header-auth path), assume it accepted us.
-async fn authenticate(write: &mut Writer, read: &mut Reader, token: &str) -> Result<()> {
+async fn authenticate(conn: &mut Connection, token: &str) -> Result<()> {
     loop {
-        tokio::select! {
-            _ = tokio::time::sleep(Duration::from_secs(3)) => return Ok(()),
-            msg = read.next() => {
-                let Some(msg) = msg else { return Err(anyhow!("connection closed during auth")) };
-                if let Message::Text(t) = msg? {
-                    let v: Value = serde_json::from_str(t.as_str()).unwrap_or(Value::Null);
-                    match v.get("msg").and_then(Value::as_str) {
-                        Some("auth_required") => {
-                            let frame = json!({"kind":"req","id":1,"msg":"auth","msg_data":{"token":token}});
-                            write.send(Message::Text(frame.to_string())).await
-                                .map_err(|e| anyhow!("send auth: {e}"))?;
-                        }
-                        Some("authentication") => {
-                            let code = v.get("code").and_then(Value::as_i64).unwrap_or(0);
-                            return if code == 200 { Ok(()) }
-                                   else { Err(anyhow!("authentication failed: code {code}")) };
-                        }
-                        _ => {}
-                    }
-                }
+        let Ok(frame) = tokio::time::timeout(AUTH_PROMPT_WAIT, conn.incoming.recv()).await else { return Ok(()) };
+        let Some(text) = frame else { return Err(anyhow!("connection closed during auth")) };
+        let v: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+        match v.get("msg").and_then(Value::as_str) {
+            Some("auth_required") => {
+                let frame = request_frame(AUTH_REQUEST_ID, "auth", json!({"token":token}));
+                conn.out.send(frame).map_err(|_| anyhow!("send auth: connection closed"))?;
+            }
+            Some("authentication") => {
+                let code = v.get("code").and_then(Value::as_i64).unwrap_or(0);
+                return if code == 200 { Ok(()) } else { Err(anyhow!("authentication failed: code {code}")) };
+            }
+            _ => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wsclient::testing::{FakeServer, Peer, Reply};
+
+    struct FakeCore {
+        token: &'static str,
+        signed_in: bool,
+    }
+
+    impl Peer<()> for FakeCore {
+        fn opened(&mut self) -> Reply {
+            Reply::say(json!({"kind":"event","msg":"auth_required"}).to_string())
+        }
+
+        fn frame(&mut self, text: &str) -> Reply {
+            let req: Value = serde_json::from_str(text).unwrap();
+            let id = req["id"].clone();
+            let answer = |code: i64, data: Value| json!({"kind":"resp","req_id":id,"msg":req["msg"],"code":code,"msg_data":data}).to_string();
+            if !self.signed_in {
+                let good = req["msg_data"]["token"] == self.token;
+                self.signed_in = good;
+                let frame = json!({"kind":"resp","req_id":id,"msg":"authentication","code":if good { 200 } else { 401 }}).to_string();
+                return if good { Reply::say(frame) } else { Reply::say(frame).then_close() };
+            }
+            match req["msg"].as_str() {
+                Some("subscribe_events") => Reply::nothing(),
+                Some("get_version") => Reply::say_all(vec![json!({"kind":"event","msg":"battery_status","msg_data":{"capacity":80}}).to_string(), answer(200, json!({"os":"1.0"}))]),
+                _ => Reply::say(answer(404, json!({"message":"nope"}))),
             }
         }
+    }
+
+    async fn fake_core() -> FakeServer<()> {
+        FakeServer::start("127.0.0.1:0", |_| FakeCore { token: "t", signed_in: false }).await
+    }
+
+    fn config(server: &FakeServer<()>, token: &str) -> Config {
+        Config { url: format!("ws://{}", server.addr()), token: token.into(), basic_auth: None }
+    }
+
+    #[tokio::test]
+    async fn requests_are_answered_and_events_arrive() {
+        let server = fake_core().await;
+        let (core, mut events) = connect(config(&server, "t")).await.unwrap();
+        let version = core.fetch("get_version").await.unwrap();
+        assert_eq!(version["os"], "1.0");
+        let event = events.recv().await.unwrap();
+        assert_eq!((event.msg.as_str(), event.data["capacity"].as_i64()), ("battery_status", Some(80)));
+        let refused = core.request("unknown", json!({})).await.unwrap();
+        assert_eq!(refused.code, 404);
+        assert!(refused.ok().is_err());
+    }
+
+    #[tokio::test]
+    async fn a_wrong_token_fails_the_connection() {
+        let server = fake_core().await;
+        let Err(e) = connect(config(&server, "wrong")).await else { panic!("connected with a bad token") };
+        assert!(e.to_string().contains("401"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn a_dropped_connection_ends_the_events_and_fails_requests() {
+        let server = fake_core().await;
+        let (core, mut events) = connect(config(&server, "t")).await.unwrap();
+        server.kick();
+        assert!(events.recv().await.is_none());
+        assert!(core.request("get_version", json!({})).await.is_err());
     }
 }

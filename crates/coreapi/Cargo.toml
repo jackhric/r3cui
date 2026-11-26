@@ -8,8 +8,11 @@ license.workspace = true
 base64 = "0.22"
 tokio.workspace = true
 tokio-tungstenite.workspace = true
-futures-util.workspace = true
+wsclient = { path = "../wsclient" }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+wsclient = { path = "../wsclient", features = ["testing"] }
