@@ -5,6 +5,7 @@
 pub(crate) mod demo;
 pub(crate) mod global;
 pub(crate) mod integrations;
+pub(crate) mod meter;
 pub(crate) mod model;
 pub(crate) mod optimistic;
 pub(crate) mod session;

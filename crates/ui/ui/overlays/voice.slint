@@ -1,21 +1,34 @@
 import { Fx } from "../globals/fx.slint";
 import { Voice } from "../globals/voice.slint";
-import { Glyph, Icons } from "../marks/icons.slint";
 import { Theme, Layout, Type, Motion } from "../theme.slint";
 import { Capture, VoiceStage } from "../types.slint";
-import { Caption } from "../widgets/caption.slint";
+import { Spinner } from "../widgets/spinner.slint";
 
-// While the voice key is held and after: listening, then what was heard and the answer.
+// Hold the voice key: light rises round the edges and moves with the voice; let go, a spinner while the answer is
+// worked out; then the answer, and everything fades.
 export component VoiceOverlay inherits Rectangle {
     property <bool> shown: Voice.stage != VoiceStage.off;
     property <bool> listening: Voice.stage == VoiceStage.listening;
+    property <bool> thinking: Voice.stage == VoiceStage.thinking;
     property <bool> failed: Voice.stage == VoiceStage.failed;
     property <bool> done: Voice.stage == VoiceStage.answered || root.failed;
-    background: Theme.scrim;
     opacity: self.shown ? 1 : 0;
     visible: self.opacity > 0 && Fx.capturing == Capture.none;
-    animate opacity { duration: Motion.lift; easing: ease-out; }
+    animate opacity { duration: root.shown || Voice.cut-short ? Motion.lift : Motion.voice-fade; easing: ease-in-out; }
 
+    // Words need a quiet ground; the light alone does not.
+    Rectangle {
+        background: Theme.scrim;
+        opacity: root.listening ? 0 : 1;
+        animate opacity { duration: Motion.voice-fade; easing: ease-in-out; }
+    }
+    Image {
+        width: Layout.screen-w;
+        height: Layout.screen-h;
+        source: Voice.aurora;
+        image-fit: fill;
+        image-rendering: smooth;
+    }
     TouchArea {
         enabled: root.done;
         mouse-cursor: Theme.cursor;
@@ -26,29 +39,9 @@ export component VoiceOverlay inherits Rectangle {
         padding-right: Layout.margin;
         alignment: center;
         spacing: Layout.gap-l;
-        HorizontalLayout {
+        if root.thinking: HorizontalLayout {
             alignment: center;
-            Rectangle {
-                width: 120px;
-                height: self.width;
-                // Breathes while it listens.
-                Rectangle {
-                    border-radius: self.width / 2;
-                    background: Theme.bg;
-                    border-width: 3px;
-                    border-color: root.failed ? Theme.off : Theme.accent;
-                    opacity: root.listening ? 0.45 + 0.55 * abs(sin(animation-tick() / 1ms * 0.2deg)) : 1;
-                }
-                Glyph {
-                    size: 52px;
-                    commands: Icons.mic;
-                    tint: Theme.text;
-                }
-            }
-        }
-        Caption {
-            horizontal-alignment: center;
-            text: root.listening ? "LISTENING" : Voice.stage == VoiceStage.thinking ? "THINKING" : "";
+            Spinner { }
         }
         if Voice.heard != "": Text {
             horizontal-alignment: center;

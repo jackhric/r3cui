@@ -6,6 +6,10 @@ export global Voice {
     in property <string> heard;
     // The answer; or, when the session failed, why, said for a person.
     in property <string> answer;
+    // The light rising round the edges, drawn by Rust each frame while the overlay is up.
+    in property <image> aurora;
+    // The session ended without an answer (the key was only tapped): it goes at once instead of fading slowly.
+    in property <bool> cut-short;
     callback press();
     callback release();
     callback dismiss();

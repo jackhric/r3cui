@@ -1,19 +1,25 @@
-# Hold the voice key to talk, in the demo: listening, thinking, the answer, then it goes; a tap opens the inputs.
+# Hold the voice key to talk, in the demo: the aurora rises and moves with a made-up voice, a spinner while the
+# answer is worked out, the answer, then it fades; a tap opens the inputs.
 #   cargo run -p remote-ui -- --demo --steps scripts/voice.steps --out <dir>
 awake
-wait 1500
+wait 800
 snap 00-home
 press v
-wait 400
-snap 01-listening
-wait 1600
+wait 250
+snap 01-entering
+wait 700
+snap 02-listening
+wait 1800
+snap 03-speaking
+wait 1800
+snap 04-speaking
 release v
-wait 300
-snap 02-thinking
-wait 1200
-snap 03-answered
-wait 4500
-snap 04-gone
+wait 400
+snap 05-thinking
+wait 1000
+snap 06-answered
+wait 5200
+snap 07-gone
 hold v 120
-wait 900
-snap 05-tap-inputs
+wait 1800
+snap 08-tap-inputs

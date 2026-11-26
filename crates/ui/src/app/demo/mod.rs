@@ -2,6 +2,7 @@
 //! the core, so there is nothing to connect to. The made-up data itself is `drivers::demo::data`.
 
 pub(crate) mod software;
+pub(crate) mod voice;
 
 use crate::app::session::{serve, Frontend};
 use crate::app::{Later, UiAction};

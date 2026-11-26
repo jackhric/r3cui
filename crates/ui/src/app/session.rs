@@ -160,6 +160,9 @@ impl Session<'_> {
         for d in todo {
             match d {
                 voice_key::Do::Driver(intent) => {
+                    if let drivers::api::VoiceIntent::Audio { pcm, .. } = &intent {
+                        crate::app::meter::hear(crate::app::meter::measure(pcm, voice_key::SAMPLE_RATE));
+                    }
                     self.front.host.send_voice(intent);
                 }
                 voice_key::Do::CoreStart(s) => {

@@ -106,6 +106,15 @@ aarch64-unknown-linux-musl`. Not implemented or tried yet. Then `packaging/voice
 - `crates/wsclient` sends binary frames through `Connection::out` (`Outbox::send_binary`), in order with text.
 - `FakeHa` answers the list and runs, records binary frames (`audio_frames()`), and scripts events (`run_event`).
 
+## On screen
+
+Holding the key brings up an aurora: light along the bottom edge and up the sides, fading as it climbs, coloured from
+the input's accent and seeded per session (`view/aurora.rs`, drawn on the CPU at 120×200 and scaled up smooth). It
+follows the voice: `app/meter.rs` measures each chunk's loudness and four bands (Goertzel), and the frame loop in
+`view/voice.rs` (30 Hz, only while the overlay is up) eases toward them, quick up and slow down, so it breathes. Let
+go and it settles behind a `Spinner`; the answer shows, then everything fades. A tap that was only the input switcher
+goes at once. The demo feeds a made-up voice (`app/demo/voice.rs`); `scripts/voice.steps` films it.
+
 ## Setting it up on the remote (once, the user's call)
 
 1. Install the relay package.

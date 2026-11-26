@@ -100,6 +100,9 @@ export global Motion {
     out property <float> lift-scale: 1.035;
     out property <duration> toggle: 160ms;
     out property <duration> list-scroll: 200ms;
-    // How long the voice overlay stays once it has the answer.
+    // How long the voice overlay stays once it has the answer, and how slowly it then goes.
     out property <duration> voice-linger: 4s;
+    out property <duration> voice-fade: 1000ms;
+    // One turn of a spinner.
+    out property <duration> spin: 1100ms;
 }

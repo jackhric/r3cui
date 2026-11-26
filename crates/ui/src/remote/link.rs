@@ -175,7 +175,7 @@ impl Link {
         match self {
             Self::Core(core) => voice::start(core, session).await,
             #[cfg(feature = "demo")]
-            Self::Demo(_) => {}
+            Self::Demo(_) => crate::app::demo::voice::talk(session),
         }
     }
 
@@ -183,7 +183,7 @@ impl Link {
         match self {
             Self::Core(core) => voice::end(core, session).await,
             #[cfg(feature = "demo")]
-            Self::Demo(_) => {}
+            Self::Demo(_) => crate::app::demo::voice::stop(session),
         }
     }
 }
