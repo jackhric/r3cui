@@ -96,7 +96,7 @@ export global Nav {
     }
 
     pure function rows() -> int {
-        Nav.page == PageId.inputs ? Control.inputs.length
+        Nav.page == PageId.inputs ? max(Control.inputs.length, 1)
             : Nav.page == PageId.integrations ? Cfg.rows.length
             : Nav.page == PageId.menu ? Menu.rows.length
             : Nav.page == PageId.display ? Prefs.rows
@@ -174,7 +174,9 @@ export global Nav {
 
     public function activate(i: int) {
         Nav.focus = i;
-        if (Nav.page == PageId.inputs) {
+        if (Nav.page == PageId.inputs && Control.inputs.length == 0) {
+            Cfg.open-for-inputs();
+        } else if (Nav.page == PageId.inputs) {
             Control.select-input(Control.inputs[i].id);
             Nav.go(PageId.home, 0);
         } else if (Nav.page == PageId.menu) {

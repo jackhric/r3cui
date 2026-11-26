@@ -3,6 +3,16 @@
 use crate::{AppWindow, Codecs, FormatMark, Logos};
 use slint::{ComponentHandle, SharedString};
 
+/// An address as a person would say it: no scheme, path or port.
+pub(crate) fn address_label(address: &str) -> String {
+    let rest = address.split_once("://").map_or(address, |(_, r)| r);
+    let host = rest.split('/').next().unwrap_or(rest);
+    match host.rsplit_once(':') {
+        Some((h, port)) if !h.contains(':') && port.chars().all(|c| c.is_ascii_digit()) => h.to_string(),
+        _ => host.to_string(),
+    }
+}
+
 pub(crate) fn band_label(band: &str) -> Option<&'static str> {
     match band {
         "a" => Some("5 GHz"),
@@ -164,6 +174,14 @@ pub(crate) fn input_logo(logos: &Logos, name: &str) -> SharedString {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn addresses_are_shown_as_the_host_alone() {
+        assert_eq!(address_label("http://homeassistant.local:8123"), "homeassistant.local");
+        assert_eq!(address_label("https://ha.example.org/lovelace"), "ha.example.org");
+        assert_eq!(address_label("192.168.1.20"), "192.168.1.20");
+        assert_eq!(address_label("[fe80::1]:8080"), "[fe80::1]:8080");
+    }
 
     #[test]
     fn release_facts() {

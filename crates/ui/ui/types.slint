@@ -98,6 +98,17 @@ export enum Dot {
     changed,
 }
 
+// What the Inputs page shows when the list is empty, and where its one row leads.
+export struct NoInputs {
+    // Empty when there are inputs.
+    message: string,
+    // The mark of the integration the inputs come from; none while nothing is set up.
+    icon: string,
+    dot: Dot,
+    row: string,
+    value: string,
+}
+
 // The d-pad as the on-screen keyboard sees it.
 export enum NavKey {
     up,

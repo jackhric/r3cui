@@ -7,6 +7,8 @@ export global Cfg {
     // The row to come back to from the keyboard.
     in property <int> focus;
     callback open();
+    // Opens where an empty input list gets fixed.
+    callback open-for-inputs();
     callback pick(int);
     callback back();
 }

@@ -1,16 +1,79 @@
-import { ChoiceList, Layer } from "../theme.slint";
+import { ChoiceList, Glyph, Icons, Layer, Logo, Theme } from "../theme.slint";
 import { Control } from "../globals/control.slint";
 import { Nav } from "../globals/nav.slint";
-import { PageId } from "../types.slint";
+import { Dot, PageId } from "../types.slint";
+import { SysRow } from "../widgets/sys-row.slint";
 
 export component InputsPage inherits Layer {
     page: PageId.inputs;
-    ChoiceList {
+    property <bool> empty: Control.inputs.length == 0;
+
+    if !root.empty: ChoiceList {
         title: "Inputs";
         show-title: false;
         rows: Control.input-choices;
         focused-row: Nav.focus;
         pick(i) => { Nav.activate(i); }
         back => { Nav.back(); }
+    }
+
+    if root.empty: VerticalLayout {
+        y: 68px;
+        height: 800px - 68px - 116px;
+        padding-left: 48px;
+        padding-right: 48px;
+        alignment: center;
+        Rectangle {
+            height: 80px;
+            if Control.no-inputs.icon == "": Glyph {
+                size: 72px;
+                commands: Icons.no-input;
+                tint: Theme.t3;
+                stroke-width: 1.25px * 72 / 24;
+            }
+            if Control.no-inputs.icon != "": Rectangle {
+                width: 80px;
+                Logo {
+                    size: 80px;
+                    commands: Control.no-inputs.icon;
+                    tint: Theme.t2;
+                }
+                if Control.no-inputs.dot != Dot.none: Rectangle {
+                    x: parent.width - 14px;
+                    y: parent.height - 16px;
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 11px;
+                    border-width: 4px;
+                    border-color: Theme.bg;
+                    background: Control.no-inputs.dot == Dot.up ? Theme.good : Control.no-inputs.dot == Dot.down ? Theme.off : Theme.t3;
+                }
+            }
+        }
+        Rectangle { height: 30px; }
+        Text {
+            horizontal-alignment: center;
+            text: "No inputs found";
+            font-size: 30px;
+            color: Theme.text;
+        }
+        Rectangle { height: 14px; }
+        Text {
+            horizontal-alignment: center;
+            wrap: word-wrap;
+            text: Control.no-inputs.message;
+            font-size: 20px;
+            color: Theme.t2;
+        }
+    }
+
+    if root.empty: SysRow {
+        y: 800px - 40px - self.height;
+        top-line: true;
+        label: Control.no-inputs.row;
+        value: Control.no-inputs.value;
+        chevron: true;
+        focused: Nav.focus == 0;
+        tapped => { Nav.activate(0); }
     }
 }

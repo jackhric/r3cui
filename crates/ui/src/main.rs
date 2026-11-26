@@ -131,6 +131,8 @@ fn main() -> anyhow::Result<()> {
         let tx = act_tx.clone();
         app.global::<Cfg>().on_open(move || drop(tx.send(UiAction::Integrations(Settings::Open))));
         let tx = act_tx.clone();
+        app.global::<Cfg>().on_open_for_inputs(move || drop(tx.send(UiAction::Integrations(Settings::OpenForInputs))));
+        let tx = act_tx.clone();
         app.global::<Cfg>().on_pick(move |i| drop(tx.send(UiAction::Integrations(Settings::Pick(i.max(0) as usize)))));
         let tx = act_tx.clone();
         app.global::<Cfg>().on_back(move || drop(tx.send(UiAction::Integrations(Settings::Back))));

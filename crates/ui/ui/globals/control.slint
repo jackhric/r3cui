@@ -1,4 +1,4 @@
-import { Choice, InputRow, PowerAction } from "../types.slint";
+import { Choice, InputRow, NoInputs, PowerAction } from "../types.slint";
 
 export global Control {
     in property <bool> power-on: true;
@@ -20,6 +20,7 @@ export global Control {
     in property <[InputRow]> inputs;
     in property <int> input-index;
     in property <[Choice]> input-choices;
+    in property <NoInputs> no-inputs;
     // The play/pause control on the stage.
     callback play-pause();
     // Raw key text; mapped to a hard button in Rust (desktop stand-in for evdev).

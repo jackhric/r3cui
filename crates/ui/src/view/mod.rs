@@ -20,13 +20,14 @@ use crate::Cfg;
 use crate::Wifi;
 use crate::view::screen::Screen;
 use crate::PageId;
-use crate::{AppWindow, Capture, Choice, JoinState, Logos, InputRow, Theme, WifiRow};
+use crate::{AppWindow, Capture, Choice, Dot, JoinState, Logos, InputRow, NoInputs as NoInputsView, Theme, WifiRow};
 
 use crate::app::settings;
-use crate::app::model::Model;
+use crate::app::model::{Model, NoInputs};
+use drivers::api::Health as DriverHealth;
 use crate::hardware::backlight;
 use crate::app::global::{volume_db, volume_percent};
-use crate::view::format::{band_label, clock, codec_badge, codec_logo, input_logo};
+use crate::view::format::{address_label, band_label, clock, codec_badge, codec_logo, input_logo};
 use crate::view::idle::poke;
 use crate::view::stage::{capture, stage_change};
 #[cfg(feature = "device")]
@@ -235,6 +236,7 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     if app.global::<Control>().get_input_choices().iter().ne(inputs.iter().cloned()) {
         app.global::<Control>().set_input_choices(ModelRc::new(VecModel::from(inputs)));
     }
+    app.global::<Control>().set_no_inputs(no_inputs(&m.no_inputs));
 
     app.global::<Wifi>().set_name(m.wifi_ssid.as_str().into());
     let wifi: Vec<WifiRow> = m
@@ -285,4 +287,24 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     let mark = codec_logo(app, logo);
     app.global::<Playback>().set_format(mark);
     app.global::<Playback>().set_format_label(label.into());
+}
+
+/// The empty Inputs page: why there is nothing to pick, and the row that leads to the fix.
+fn no_inputs(why: &NoInputs) -> NoInputsView {
+    match why {
+        NoInputs::No => NoInputsView::default(),
+        NoInputs::SetUp { global } => {
+            let place = if *global { "Global control" } else { "Inputs" };
+            NoInputsView { message: format!("Set up your inputs in\nMenu › Integrations › {place}").into(), row: "Set up inputs".into(), ..Default::default() }
+        }
+        NoInputs::Source { name, icon, address, status } => {
+            let place = address.as_deref().map_or_else(|| name.clone(), address_label);
+            let (message, dot) = match status.health {
+                DriverHealth::Down => (format!("Can't connect to {place},\nis it online?"), Dot::Down),
+                DriverHealth::Connecting | DriverHealth::Up => (format!("Connecting to {place}…"), Dot::Unknown),
+                DriverHealth::NotSetUp | DriverHealth::NotPaired => (format!("Finish setting up {name}"), Dot::Unknown),
+            };
+            NoInputsView { message: message.into(), icon: (*icon).into(), dot, row: name.into(), value: status.word().into() }
+        }
+    }
 }

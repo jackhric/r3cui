@@ -92,6 +92,11 @@ pub(crate) struct Integrations {
 /// The rows of Global control, in order.
 const GLOBAL_ROLES: [Role; 3] = [Role::Volume, Role::Source, Role::Power];
 
+/// The first screen's rows: Global control, Inputs, then one per driver.
+const ROOT_GLOBAL: usize = 0;
+const ROOT_INPUTS: usize = 1;
+const ROOT_DRIVERS: usize = 2;
+
 fn row(label: impl Into<String>) -> Row {
     Row { label: label.into(), ..Default::default() }
 }
@@ -131,6 +136,21 @@ impl Integrations {
     /// Opens on the first screen.
     pub(crate) fn open(&mut self) {
         (self.stack, self.targets, self.editing, self.phase) = (vec![(Screen::Root, 0)], None, None, Phase::default());
+    }
+
+    /// Opens where an empty input list is fixed: global control's Inputs when nothing is set up as the source, the
+    /// source's own screen while it has listed none, else the input list (every input is hidden).
+    pub(crate) fn open_for_inputs(&mut self, host: &Host) {
+        self.open();
+        let m = host.modules();
+        self.stack = match &m.global.source {
+            None => vec![(Screen::Root, ROOT_GLOBAL), (Screen::Global, GLOBAL_ROLES.iter().position(|r| *r == Role::Source).unwrap_or(0))],
+            Some(b) if host.inputs().is_empty() => {
+                let at = ROOT_DRIVERS + m.drivers.keys().position(|id| *id == b.driver).unwrap_or(0);
+                vec![(Screen::Root, at), (Screen::Driver(b.driver.clone()), 0)]
+            }
+            Some(_) => vec![(Screen::Root, ROOT_INPUTS), (Screen::Inputs, 0)],
+        };
     }
 
     fn top(&self) -> &Screen {
@@ -340,9 +360,9 @@ impl Integrations {
             Screen::Root => {
                 let drivers: Vec<String> = host.modules().drivers.keys().cloned().collect();
                 match at {
-                    0 => self.push(Screen::Global),
-                    1 => self.push(Screen::Inputs),
-                    n if n - 2 < drivers.len() => self.push(Screen::Driver(drivers[n - 2].clone())),
+                    ROOT_GLOBAL => self.push(Screen::Global),
+                    ROOT_INPUTS => self.push(Screen::Inputs),
+                    n if n - ROOT_DRIVERS < drivers.len() => self.push(Screen::Driver(drivers[n - ROOT_DRIVERS].clone())),
                     _ if self.addable(host).next().is_some() => self.push(Screen::Add),
                     _ => {}
                 }
@@ -680,6 +700,31 @@ mod tests {
         tap(&mut ui, &mut host, "Amp");
         assert_eq!(host.modules().global.volume, Some(Binding { driver: "fake-global".into(), target: "media_player.amp".into() }));
         assert_eq!(ui.page(&host).rows[0].value, "amp");
+    }
+
+    #[tokio::test]
+    async fn an_empty_input_list_opens_where_it_is_fixed() {
+        let fakes = Fakes::default();
+        let mut m = Modules::default();
+        m.add_driver("fake-global", Default::default());
+        let mut host = Host::new(fakes.registry(), m.clone());
+        let mut ui = Integrations::default();
+        ui.open_for_inputs(&host);
+        let page = ui.page(&host);
+        assert_eq!((page.title.as_str(), page.focus), ("Global control", 1), "nothing is the source: on its Inputs row");
+
+        m.bind(Role::Source, Some(Binding { driver: "fake-global".into(), target: "receiver".into() }));
+        host.apply(m.clone());
+        ui.open_for_inputs(&host);
+        assert_eq!(ui.page(&host).title, "Fake", "the source has listed nothing: its own screen");
+        assert_eq!(ui.back(), Effect::Stay);
+        assert_eq!(ui.page(&host).focus, ROOT_DRIVERS, "back lands on its row");
+
+        fakes.get("fake-global").set_sources(Sources { current: "TV".into(), list: vec!["TV".into()] });
+        m.set_hidden("TV", true);
+        host.apply(m);
+        ui.open_for_inputs(&host);
+        assert_eq!(ui.page(&host).title, "Inputs", "all hidden: the input list");
     }
 
     #[tokio::test]

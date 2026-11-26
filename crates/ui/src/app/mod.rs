@@ -44,6 +44,8 @@ pub(crate) enum UiAction {
 #[derive(Debug)]
 pub(crate) enum Settings {
     Open,
+    /// From the empty Inputs page: where its inputs get set up or its source mended.
+    OpenForInputs,
     Pick(usize),
     Back,
     /// The keyboard's Done.

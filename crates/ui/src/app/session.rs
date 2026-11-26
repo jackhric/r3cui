@@ -9,7 +9,7 @@ use crate::Kb;
 use crate::AppWindow;
 use crate::app::global::{slide, Global};
 use crate::app::integrations::{Effect, Integrations};
-use crate::app::model::{InputEntry, Model};
+use crate::app::model::{InputEntry, Model, NoInputs};
 use crate::app::software::{self, Software};
 use crate::app::{Later, Settings, UiAction, settings};
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
@@ -27,7 +27,7 @@ use crate::view::software::show as show_software;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
 use drivers::api::{Health, Media, PairError, Pairer, Stage, Status, UiIntent, VolumeIntent};
-use drivers::{Host, Input, Modules, Registry, Store};
+use drivers::{Host, Input, Modules, Registry, Store, DEFAULT_INPUT};
 
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -155,6 +155,13 @@ impl Session<'_> {
                 front.pairer = None;
                 Effect::Stay
             }
+            Settings::OpenForInputs => {
+                front.settings.open_for_inputs(&front.host);
+                front.pairer = None;
+                let focus = front.settings.page(&front.host).focus as i32;
+                ui(weak, move |app| app.go_to(PageId::Integrations, focus));
+                Effect::Stay
+            }
             Settings::Pick(i) => front.settings.pick(i, &front.host),
             Settings::Back => front.settings.back(),
             Settings::Text(text) => {
@@ -243,6 +250,27 @@ impl Session<'_> {
             .map(|(id, name, status)| health::Link { in_use: host.in_use(&id, current), name, status: if self.links_down { Status::new(Health::Down) } else { status } })
             .collect();
         let (status, warning) = health::health(&self.wifi.ssid, &links);
+        // Without a source, the one Default input is only worth listing when something fills its slots.
+        let inputs: Vec<InputEntry> = host
+            .inputs()
+            .into_iter()
+            .filter(|i| !i.hidden && !(i.id == DEFAULT_INPUT && i.remote.is_none() && i.ui.is_none()))
+            .map(|i| InputEntry { icon: host.icon(&i), id: i.id, name: i.name })
+            .collect();
+        let source = host.modules().global.source.as_ref();
+        let no_inputs = match source {
+            _ if !inputs.is_empty() => NoInputs::No,
+            Some(b) if host.inputs().is_empty() => {
+                let link = links.iter().zip(host.statuses()).find(|(_, (id, ..))| *id == b.driver).map(|(l, _)| l);
+                NoInputs::Source {
+                    name: link.map_or_else(|| b.driver.clone(), |l| l.name.clone()),
+                    icon: host.modules().drivers.get(&b.driver).and_then(|d| host.registry().spec(&d.kind)).map_or("", |s| s.icon),
+                    address: host.address(&b.driver),
+                    status: link.map_or_else(|| Status::new(Health::NotSetUp), |l| l.status.clone()),
+                }
+            }
+            _ => NoInputs::SetUp { global: source.is_none() },
+        };
         let now = Instant::now();
         let media = stage.media.as_ref();
         let (duration, position) = media.map_or((0.0, 0.0), |m| (m.total.as_secs_f64(), m.position_at(now).as_secs_f64()));
@@ -258,7 +286,8 @@ impl Session<'_> {
             has_volume: host.has_volume(),
             volume_max: g.volume_max,
             muted: g.muted,
-            inputs: host.inputs().into_iter().filter(|i| !i.hidden).map(|i| InputEntry { icon: host.icon(&i), id: i.id, name: i.name }).collect(),
+            inputs,
+            no_inputs,
             input: current.map_or(g.input, |i| i.id.clone()),
             switching: g.switching,
             staged: current.is_some_and(|i| i.ui.is_some()),
