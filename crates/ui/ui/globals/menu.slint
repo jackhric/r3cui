@@ -1,0 +1,25 @@
+import { Choice, MenuItem } from "../types.slint";
+import { Prefs } from "prefs.slint";
+import { Wifi } from "wifi.slint";
+
+export global Menu {
+    // The list's order, which `rows` follows.
+    pure public function row(item: MenuItem) -> int {
+        item == MenuItem.wifi ? 0
+            : item == MenuItem.integrations ? 1
+            : item == MenuItem.display ? 2
+            : item == MenuItem.sound ? 3
+            : item == MenuItem.power ? 4
+            : item == MenuItem.status ? 5
+            : 6
+    }
+    out property <[Choice]> rows: [
+        { label: "Wi-Fi", value: Wifi.name, chevron: true },
+        { label: "Integrations", chevron: true },
+        { label: "Display", value: Prefs.auto-brightness ? "Auto" : Prefs.brightness + "%", chevron: true },
+        { label: "Sound & haptics", value: Prefs.haptics, chevron: true },
+        { label: "Power", chevron: true },
+        { label: "Status", chevron: true },
+        { label: "Feedback lab", chevron: true },
+    ];
+}

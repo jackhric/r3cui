@@ -19,7 +19,7 @@ use crate::remote::system::{self, load_settings, System};
 use crate::remote::wifi::{self, Wifi};
 use crate::view::library::Wall;
 use crate::view::screen::Screen;
-use crate::PageId;
+use crate::{Menu, MenuItem, PageId};
 use crate::{KbPurpose, Picker};
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
@@ -157,7 +157,7 @@ impl Session<'_> {
                     app.go_to(PageId::Keyboard, 0);
                 });
             }
-            Effect::Leave => ui(weak, |app| app.go_to(PageId::Menu, 1)),
+            Effect::Leave => ui(weak, |app| app.go_to(PageId::Menu, app.global::<Menu>().invoke_row(MenuItem::Integrations))),
         }
     }
 

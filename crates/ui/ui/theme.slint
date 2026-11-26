@@ -1,4 +1,5 @@
-import { Choice, Dot } from "types.slint";
+import { Choice, Dot, PageId } from "types.slint";
+import { Nav } from "globals/nav.slint";
 
 // `accent` is the one interface colour. It is in-out so Rust can change it at runtime:
 // `app.global::<Theme>().set_accent(color)`.
@@ -272,9 +273,10 @@ export component PageHeader inherits Rectangle {
 
 // A full-screen page that fades and slides by its depth in the navigation stack.
 export component Layer inherits Rectangle {
-    in property <int> depth;
-    in property <int> current-depth;
-    in property <bool> active;
+    in property <PageId> page;
+    property <bool> active: Nav.page == root.page;
+    property <int> depth: Nav.depth-of(root.page);
+    property <int> current-depth: Nav.depth-of(Nav.page);
 
     y: 0;
     width: 480px;

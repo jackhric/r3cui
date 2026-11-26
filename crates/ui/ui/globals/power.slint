@@ -1,0 +1,14 @@
+import { Choice } from "../types.slint";
+import { Prefs } from "prefs.slint";
+
+export global Power {
+    out property <int> standby: 0;
+    out property <int> restart: 1;
+    out property <int> power-off: 2;
+    out property <[Choice]> rows: [
+        { label: "Standby" },
+        { label: "Restart" },
+        { label: "Power off" },
+        { label: "Sleep after", value: Prefs.sleep-after, chevron: true },
+    ];
+}

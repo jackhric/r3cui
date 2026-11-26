@@ -1,0 +1,179 @@
+import { Capture, Dest, Haptic, JoinState, KbPurpose, MenuItem, PageId, PowerAction } from "../types.slint";
+import { Cfg } from "cfg.slint";
+import { Control } from "control.slint";
+import { Fx } from "fx.slint";
+import { Kb } from "kb.slint";
+import { Lab } from "lab.slint";
+import { Menu } from "menu.slint";
+import { Power } from "power.slint";
+import { Prefs } from "prefs.slint";
+import { Tracks } from "tracks.slint";
+import { Wifi } from "wifi.slint";
+
+export global Nav {
+    in-out property <PageId> page: PageId.home;
+    in-out property <int> focus;
+
+    // Lists one step from the stage share a depth, so opening one from the stage is the layer
+    // transition alone, without a sideways slide.
+    pure public function depth-of(p: PageId) -> int {
+        p == PageId.home || p == PageId.inputs || p == PageId.menu || p == PageId.tracks ? 1
+            : p == PageId.keyboard ? 3
+            : p == PageId.join-failed ? 4
+            : 2
+    }
+    pure public function shows-menu(p: PageId) -> bool {
+        p == PageId.home || p == PageId.inputs
+    }
+    pure public function hides-navbar(p: PageId) -> bool {
+        p == PageId.keyboard || p == PageId.join-failed
+    }
+
+    // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
+    public function go(p: PageId, f: int) {
+        if (p != Nav.page) {
+            Fx.haptic(Haptic.page);
+        }
+        if (Nav.page == PageId.home && p != PageId.home) {
+            Fx.capture(Capture.stage);
+        }
+        Nav.focus = f;
+        Nav.page = p;
+    }
+
+    pure function back-to(p: PageId) -> Dest {
+        if (p == PageId.display) {
+            return { page: PageId.menu, focus: Menu.row(MenuItem.display) };
+        }
+        if (p == PageId.power) {
+            return { page: PageId.menu, focus: Menu.row(MenuItem.power) };
+        }
+        if (p == PageId.wifi) {
+            return { page: PageId.menu, focus: Menu.row(MenuItem.wifi) };
+        }
+        if (p == PageId.status) {
+            return { page: PageId.menu, focus: Menu.row(MenuItem.status) };
+        }
+        return { page: PageId.home, focus: 0 };
+    }
+
+    public function back() {
+        if (Nav.page == PageId.feedback-lab) {
+            let focus = Lab.back();
+            if (focus < 0) {
+                Nav.go(PageId.menu, Menu.row(MenuItem.lab));
+            } else {
+                Nav.focus = focus;
+            }
+        } else if (Nav.page == PageId.integrations) {
+            Cfg.back();
+        } else if (Nav.page == PageId.keyboard && Kb.purpose == KbPurpose.text) {
+            Nav.go(PageId.integrations, Cfg.focus);
+        } else if (Nav.page == PageId.keyboard || Nav.page == PageId.join-failed) {
+            Wifi.join-state = JoinState.idle;
+            Nav.go(PageId.wifi, 0);
+        } else {
+            let to = Nav.back-to(Nav.page);
+            Nav.go(to.page, to.focus);
+        }
+    }
+
+    pure function rows() -> int {
+        Nav.page == PageId.inputs ? Control.inputs.length
+            : Nav.page == PageId.integrations ? Cfg.rows.length
+            : Nav.page == PageId.menu ? Menu.rows.length
+            : Nav.page == PageId.display ? Prefs.rows
+            : Nav.page == PageId.power ? Power.rows.length
+            : Nav.page == PageId.wifi ? Wifi.count
+            : Nav.page == PageId.join-failed ? Wifi.stay-row + 1
+            : Nav.page == PageId.tracks ? Tracks.rows.length
+            : Nav.page == PageId.feedback-lab ? Lab.rows.length
+            : 1
+    }
+
+    public function move(d: int) {
+        Nav.focus = max(0, min(Nav.rows() - 1, Nav.focus + d));
+    }
+
+    function activate-menu(i: int) {
+        if (i == Menu.row(MenuItem.wifi)) {
+            Wifi.scan();
+            Nav.go(PageId.wifi, 0);
+        } else if (i == Menu.row(MenuItem.integrations)) {
+            Cfg.open();
+            Nav.go(PageId.integrations, 0);
+        } else if (i == Menu.row(MenuItem.display)) {
+            Nav.go(PageId.display, 0);
+        } else if (i == Menu.row(MenuItem.power)) {
+            Nav.go(PageId.power, 0);
+        } else if (i == Menu.row(MenuItem.status)) {
+            Nav.go(PageId.status, 0);
+        } else if (i == Menu.row(MenuItem.lab)) {
+            Nav.go(PageId.feedback-lab, 0);
+        }
+    }
+
+    function activate-wifi(i: int) {
+        if (i == Wifi.band-row) {
+            Wifi.band();
+        } else if (i >= Wifi.scan-row) {
+            Wifi.scan();
+        } else if (!Wifi.rows[i].connected) {
+            Wifi.target = Wifi.rows[i];
+            if (Wifi.rows[i].secured) {
+                Kb.purpose = KbPurpose.wifi-password;
+                Kb.reset();
+                Nav.go(PageId.keyboard, 0);
+            } else {
+                Wifi.join-state = JoinState.joining;
+                Nav.go(PageId.keyboard, 0);
+                Wifi.join(Wifi.target.ssid, Wifi.target.ssid-hex, "");
+            }
+        }
+    }
+
+    public function activate(i: int) {
+        Nav.focus = i;
+        if (Nav.page == PageId.inputs) {
+            Control.select-input(Control.inputs[i].id);
+            Nav.go(PageId.home, 0);
+        } else if (Nav.page == PageId.menu) {
+            Nav.activate-menu(i);
+        } else if (Nav.page == PageId.tracks) {
+            if (i < Tracks.rows.length) {
+                Tracks.pick(Tracks.picker, i);
+            }
+            Nav.go(PageId.home, 0);
+        } else if (Nav.page == PageId.integrations) {
+            Fx.haptic(Haptic.select);
+            Cfg.pick(i);
+        } else if (Nav.page == PageId.feedback-lab) {
+            if (Lab.pick(i)) {
+                Fx.haptic(Haptic.select);
+                Nav.focus = 0;
+            }
+        } else {
+            // Opening a page gets the page's own haptic; a pick that stays on one gets this.
+            Fx.haptic(Haptic.select);
+            if (Nav.page == PageId.display) {
+                if (i == Prefs.auto-row) {
+                    Prefs.auto-brightness = !Prefs.auto-brightness;
+                    Prefs.changed();
+                }
+            } else if (Nav.page == PageId.wifi) {
+                Nav.activate-wifi(i);
+            } else if (Nav.page == PageId.join-failed) {
+                Wifi.join-state = JoinState.idle;
+                Nav.go(i == Wifi.retry-row ? PageId.keyboard : PageId.wifi, 0);
+            } else if (Nav.page == PageId.power) {
+                if (i == Power.standby) {
+                    Control.power-action(PowerAction.standby);
+                } else if (i == Power.restart) {
+                    Control.power-action(PowerAction.restart);
+                } else if (i == Power.power-off) {
+                    Control.power-action(PowerAction.power-off);
+                }
+            }
+        }
+    }
+}

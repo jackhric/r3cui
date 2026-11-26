@@ -8,6 +8,7 @@ pub(crate) mod library;
 pub(crate) mod screen;
 pub(crate) mod stage;
 
+use crate::Nav;
 use crate::Health;
 use crate::Playback;
 use crate::Control;
@@ -75,7 +76,7 @@ pub(crate) fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, Stri
         let focus = rows.iter().position(|r| r.checked).unwrap_or(0) as i32;
         app.global::<Tracks>().set_rows(ModelRc::new(VecModel::from(rows)));
         if app.on_page(PageId::Tracks) {
-            app.set_focus_index(focus);
+            app.global::<Nav>().set_focus(focus);
         }
     });
 }
@@ -104,7 +105,7 @@ pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::int
         app.global::<Cfg>().set_title(page.title.as_str().into());
         app.global::<Cfg>().set_rows(ModelRc::new(VecModel::from(rows)));
         if new_screen && app.on_page(PageId::Integrations) {
-            app.set_focus_index(page.focus as i32);
+            app.global::<Nav>().set_focus(page.focus as i32);
         }
     });
 }

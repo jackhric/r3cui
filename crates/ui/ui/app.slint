@@ -20,9 +20,12 @@ import { Cfg } from "globals/cfg.slint";
 import { Wifi } from "globals/wifi.slint";
 import { Kb } from "globals/kb.slint";
 import { Prefs } from "globals/prefs.slint";
+import { Nav } from "globals/nav.slint";
+import { Menu } from "globals/menu.slint";
+import { Power } from "globals/power.slint";
 
 export * from "types.slint";
-export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs, Kb, Wifi, Cfg, Lab, Tracks, Lib, Fx, Sys, Control, Playback, Health }
+export { Theme, Logos, Icons, Marks, Codecs, KeyChars, Prefs, Kb, Wifi, Cfg, Lab, Tracks, Lib, Fx, Sys, Control, Playback, Health, Nav, Menu, Power }
 
 enum HomeView {
     playing,
@@ -275,10 +278,8 @@ export component AppWindow inherits Window {
 
     public function hold-library() { lib.hold(); }
     public function run-library() { lib.run(); }
-    out property <bool> lava-on: root.page == PageId.home && root.home-view == HomeView.mark && Sys.lit;
+    out property <bool> lava-on: Nav.page == PageId.home && root.home-view == HomeView.mark && Sys.lit;
 
-    in-out property <PageId> page: PageId.home;
-    in-out property <int> focus-index: 0;
 
     out property <bool> power-overlay: root.power-holding || root.power-latched;
     out property <bool> power-turning-off: true;
@@ -288,10 +289,7 @@ export component AppWindow inherits Window {
     property <bool> power-completed;
     property <color> power-tint: root.power-turning-off ? Theme.off : Theme.on;
 
-    // Lists one step from the stage share a depth, so opening one from the stage is the layer
-    // transition alone, without a sideways slide.
-    property <int> depth: root.page == PageId.home || root.page == PageId.inputs || root.page == PageId.menu || root.page == PageId.tracks ? 1 : root.page == PageId.keyboard ? 3 : root.page == PageId.join-failed ? 4 : 2;
-    property <float> recede: root.page != PageId.home ? 1 : 0;
+    property <float> recede: Nav.page != PageId.home ? 1 : 0;
     animate recede { duration: 460ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
     property <bool> overlay-open: (Control.volume-overlay && Control.power-on) || root.power-overlay || root.home-holding || (Sys.charge-card && Sys.lit);
     property <float> under: root.overlay-open ? 1 : 0;
@@ -318,126 +316,6 @@ export component AppWindow inherits Window {
     property <bool> home-used;
     property <bool> home-rumbling;
     property <HomeView> home-view: !Control.power-on ? HomeView.off : Playback.staged && Playback.title != "" ? HomeView.playing : Lib.mode != LibMode.off ? HomeView.wall : HomeView.mark;
-
-    // Haptics mark arriving somewhere new and pressing OK; moving the focus stays silent.
-    public function go(p: PageId, f: int) {
-        if (p != root.page) {
-            Fx.haptic(Haptic.page);
-        }
-        if (root.page == PageId.home && p != PageId.home) {
-            Fx.capture(Capture.stage);
-        }
-        root.focus-index = f;
-        root.page = p;
-    }
-    public function back() {
-        if (root.page == PageId.feedback-lab) {
-            let focus = Lab.back();
-            if (focus < 0) {
-                root.go(PageId.menu, 6);
-            } else {
-                root.focus-index = focus;
-            }
-        } else if (root.page == PageId.integrations) {
-            Cfg.back();
-        } else if (root.page == PageId.keyboard && Kb.purpose == KbPurpose.text) {
-            root.go(PageId.integrations, Cfg.focus);
-        } else if (root.page == PageId.display) {
-            root.go(PageId.menu, 2);
-        } else if (root.page == PageId.power) {
-            root.go(PageId.menu, 4);
-        } else if (root.page == PageId.wifi) {
-            root.go(PageId.menu, 0);
-        } else if (root.page == PageId.status) {
-            root.go(PageId.menu, 5);
-        } else if (root.page == PageId.tracks) {
-            root.go(PageId.home, 0);
-        } else if (root.page == PageId.keyboard || root.page == PageId.join-failed) {
-            Wifi.join-state = JoinState.idle;
-            root.go(PageId.wifi, 0);
-        } else {
-            root.go(PageId.home, 0);
-        }
-    }
-    function row-count() -> int {
-        root.page == PageId.inputs ? Control.inputs.length : root.page == PageId.integrations ? Cfg.rows.length : root.page == PageId.menu ? 7 : root.page == PageId.display ? 3 : root.page == PageId.power ? 4 : root.page == PageId.wifi ? Wifi.rows.length + (Wifi.band-known ? 2 : 1) : root.page == PageId.join-failed ? 2 : root.page == PageId.tracks ? Tracks.rows.length : root.page == PageId.feedback-lab ? Lab.rows.length : 1
-    }
-    public function move(d: int) {
-        root.focus-index = max(0, min(root.row-count() - 1, root.focus-index + d));
-    }
-    public function activate(i: int) {
-        root.focus-index = i;
-        // A pick that opens another page already gets the page's haptic.
-        if (root.page != PageId.feedback-lab && root.page != PageId.inputs && root.page != PageId.menu && root.page != PageId.tracks && root.page != PageId.integrations) {
-            Fx.haptic(Haptic.select);
-        }
-        if (root.page == PageId.integrations) {
-            Fx.haptic(Haptic.select);
-            Cfg.pick(i);
-        } else if (root.page == PageId.feedback-lab) {
-            if (Lab.pick(i)) {
-                Fx.haptic(Haptic.select);
-                root.focus-index = 0;
-            }
-        } else if (root.page == PageId.inputs) {
-            Control.select-input(Control.inputs[i].id);
-            root.go(PageId.home, 0);
-        } else if (root.page == PageId.menu) {
-            if (i == 0) {
-                Wifi.scan();
-                root.go(PageId.wifi, 0);
-            } else if (i == 1) {
-                Cfg.open();
-                root.go(PageId.integrations, 0);
-            } else if (i == 2) {
-                root.go(PageId.display, 0);
-            } else if (i == 4) {
-                root.go(PageId.power, 0);
-            } else if (i == 5) {
-                root.go(PageId.status, 0);
-            } else if (i == 6) {
-                root.go(PageId.feedback-lab, 0);
-            }
-        } else if (root.page == PageId.display) {
-            if (i == 1) {
-                Prefs.auto-brightness = !Prefs.auto-brightness;
-                Prefs.changed();
-            }
-        } else if (root.page == PageId.wifi) {
-            if (i == Wifi.rows.length + 1) {
-                Wifi.band();
-            } else if (i >= Wifi.rows.length) {
-                Wifi.scan();
-            } else if (!Wifi.rows[i].connected) {
-                Wifi.target = Wifi.rows[i];
-                if (Wifi.rows[i].secured) {
-                    Kb.purpose = KbPurpose.wifi-password;
-                    Kb.reset();
-                    root.go(PageId.keyboard, 0);
-                } else {
-                    Wifi.join-state = JoinState.joining;
-                    root.go(PageId.keyboard, 0);
-                    Wifi.join(Wifi.target.ssid, Wifi.target.ssid-hex, "");
-                }
-            }
-        } else if (root.page == PageId.tracks) {
-            if (i < Tracks.rows.length) {
-                Tracks.pick(Tracks.picker, i);
-            }
-            root.go(PageId.home, 0);
-        } else if (root.page == PageId.join-failed) {
-            Wifi.join-state = JoinState.idle;
-            root.go(i == 0 ? PageId.keyboard : PageId.wifi, 0);
-        } else if (root.page == PageId.power) {
-            if (i == 0) {
-                Control.power-action(PowerAction.standby);
-            } else if (i == 1) {
-                Control.power-action(PowerAction.restart);
-            } else if (i == 2) {
-                Control.power-action(PowerAction.power-off);
-            }
-        }
-    }
 
     property <float> wake: Sys.lit ? 1 : 0;
     animate wake { duration: 650ms; easing: ease-in-out; }
@@ -477,12 +355,12 @@ export component AppWindow inherits Window {
             }
             // The voice key is the input switcher, from anywhere.
             if (event.text.to-lowercase() == KeyChars.input) {
-                if (!event.repeat && root.page != PageId.keyboard) {
-                    root.go(root.page == PageId.inputs ? PageId.home : PageId.inputs, Control.input-index);
+                if (!event.repeat && Nav.page != PageId.keyboard) {
+                    Nav.go(Nav.page == PageId.inputs ? PageId.home : PageId.inputs, Control.input-index);
                 }
                 return accept;
             }
-            if (root.page == PageId.keyboard) {
+            if (Nav.page == PageId.keyboard) {
                 if (Wifi.join-state != JoinState.joining) {
                     if (event.text == Key.UpArrow) {
                         Kb.nav(NavKey.up);
@@ -500,31 +378,31 @@ export component AppWindow inherits Window {
                 }
                 return accept;
             }
-            if (root.page != PageId.home) {
+            if (Nav.page != PageId.home) {
                 if (event.text == Key.Escape || event.text == Key.Backspace) {
-                    root.back();
+                    Nav.back();
                     return accept;
                 }
                 if (event.text == Key.UpArrow) {
-                    root.move(-1);
+                    Nav.move(-1);
                     return accept;
                 }
                 if (event.text == Key.DownArrow) {
-                    root.move(1);
+                    Nav.move(1);
                     return accept;
                 }
                 if (event.text == Key.Return) {
-                    root.activate(root.focus-index);
+                    Nav.activate(Nav.focus);
                     return accept;
                 }
                 if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
-                    if (root.page == PageId.display && root.focus-index == 0) {
+                    if (Nav.page == PageId.display && Nav.focus == Prefs.brightness-row) {
                         if (!Prefs.auto-brightness) {
                             Prefs.brightness = max(5, min(100, Prefs.brightness + (event.text == Key.LeftArrow ? -5 : 5)));
                             Prefs.changed();
                         }
                     } else if (event.text == Key.LeftArrow) {
-                        root.back();
+                        Nav.back();
                     }
                     return accept;
                 }
@@ -544,8 +422,8 @@ export component AppWindow inherits Window {
                         Fx.haptic(Haptic.hold-cancel);
                     }
                     // A tap: back to the home screen from anywhere else, or the input's own home.
-                    if (root.page != PageId.home) {
-                        root.go(PageId.home, 0);
+                    if (Nav.page != PageId.home) {
+                        Nav.go(PageId.home, 0);
                     } else {
                         Control.key(KeyChars.home);
                     }
@@ -586,7 +464,7 @@ export component AppWindow inherits Window {
             triggered => {
                 root.home-used = true;
                 Fx.haptic(Haptic.home-complete);
-                root.go(PageId.inputs, Control.input-index);
+                Nav.go(PageId.inputs, Control.input-index);
             }
         }
         Timer {
@@ -596,7 +474,7 @@ export component AppWindow inherits Window {
         }
         Timer {
             interval: 550ms;
-            running: root.page == PageId.keyboard;
+            running: Nav.page == PageId.keyboard;
             triggered => { root.caret-on = !root.caret-on; }
         }
         Timer {
@@ -777,21 +655,21 @@ export component AppWindow inherits Window {
                         if Health.warning != "": WarningRow {
                             y: 648px;
                             message: Health.warning;
-                            tapped => { root.go(PageId.status, 0); }
+                            tapped => { Nav.go(PageId.status, 0); }
                         }
                         TrackButton {
                             x: 32px;
                             y: 716px;
                             icon: Icons.subtitles;
                             label: "Subtitles";
-                            tapped => { Tracks.rows = []; Tracks.picker = Picker.subtitles; root.go(PageId.tracks, 0); Tracks.open(Picker.subtitles); }
+                            tapped => { Tracks.rows = []; Tracks.picker = Picker.subtitles; Nav.go(PageId.tracks, 0); Tracks.open(Picker.subtitles); }
                         }
                         TrackButton {
                             x: 248px;
                             y: 716px;
                             icon: Icons.audio;
                             label: "Audio";
-                            tapped => { Tracks.rows = []; Tracks.picker = Picker.audio; root.go(PageId.tracks, 0); Tracks.open(Picker.audio); }
+                            tapped => { Tracks.rows = []; Tracks.picker = Picker.audio; Nav.go(PageId.tracks, 0); Tracks.open(Picker.audio); }
                         }
                     }
 
@@ -851,12 +729,12 @@ export component AppWindow inherits Window {
                             y: 300px;
                             width: 200px;
                             height: 200px;
-                            clicked => { root.go(PageId.inputs, Control.input-index); }
+                            clicked => { Nav.go(PageId.inputs, Control.input-index); }
                         }
                         if Health.warning != "": WarningRow {
                             y: 540px;
                             message: Health.warning;
-                            tapped => { root.go(PageId.status, 0); }
+                            tapped => { Nav.go(PageId.status, 0); }
                         }
                         if Control.has-volume: VolumeChip {
                             y: 700px;
@@ -963,51 +841,37 @@ export component AppWindow inherits Window {
 
             // Inputs
             Layer {
-                depth: 1;
-                current-depth: root.depth;
-                active: root.page == PageId.inputs;
+                page: PageId.inputs;
                 ChoiceList {
                     title: "Inputs";
                     show-title: false;
                     rows: Control.input-choices;
-                    focused-row: root.focus-index;
-                    pick(i) => { root.activate(i); }
-                    back => { root.back(); }
+                    focused-row: Nav.focus;
+                    pick(i) => { Nav.activate(i); }
+                    back => { Nav.back(); }
                 }
             }
 
             // Menu
             Layer {
-                depth: 1;
-                current-depth: root.depth;
-                active: root.page == PageId.menu;
+                page: PageId.menu;
 
                 ChoiceList {
                     title: "Menu";
-                    rows: [
-                        { label: "Wi-Fi", value: Wifi.name, chevron: true },
-                        { label: "Integrations", chevron: true },
-                        { label: "Display", value: Prefs.auto-brightness ? "Auto" : Prefs.brightness + "%", chevron: true },
-                        { label: "Sound & haptics", value: Prefs.haptics, chevron: true },
-                        { label: "Power", chevron: true },
-                        { label: "Status", chevron: true },
-                        { label: "Feedback lab", chevron: true },
-                    ];
-                    focused-row: root.focus-index;
-                    pick(i) => { root.activate(i); }
-                    back => { root.back(); }
+                    rows: Menu.rows;
+                    focused-row: Nav.focus;
+                    pick(i) => { Nav.activate(i); }
+                    back => { Nav.back(); }
                 }
             }
 
             // Menu / Display
             Layer {
-                depth: 2;
-                current-depth: root.depth;
-                active: root.page == PageId.display;
+                page: PageId.display;
 
                 PageHeader {
                     title: "Display";
-                    back => { root.back(); }
+                    back => { Nav.back(); }
                 }
                 Rectangle {
                     x: 0;
@@ -1016,7 +880,7 @@ export component AppWindow inherits Window {
                     height: 40px;
                     border-radius: 2px;
                     background: Theme.accent;
-                    opacity: root.focus-index == 0 ? 1 : 0;
+                    opacity: Nav.focus == Prefs.brightness-row ? 1 : 0;
                     animate opacity { duration: 140ms; }
                 }
                 Text {
@@ -1024,8 +888,8 @@ export component AppWindow inherits Window {
                     y: 172px;
                     text: "Brightness";
                     font-size: 26px;
-                    font-weight: root.focus-index == 0 ? 500 : 400;
-                    color: Prefs.auto-brightness ? Theme.t3 : root.focus-index == 0 ? Theme.text : Theme.text-dim;
+                    font-weight: Nav.focus == Prefs.brightness-row ? 500 : 400;
+                    color: Prefs.auto-brightness ? Theme.t3 : Nav.focus == Prefs.brightness-row ? Theme.text : Theme.text-dim;
                 }
                 Text {
                     x: 40px;
@@ -1055,7 +919,7 @@ export component AppWindow inherits Window {
                     height: 74px;
                     enabled: !Prefs.auto-brightness;
                     function set() {
-                        root.focus-index = 0;
+                        Nav.focus = Prefs.brightness-row;
                         Prefs.brightness = max(5, min(100, round((self.mouse-x - 16px) / 400px * 100)));
                         Prefs.changed();
                     }
@@ -1074,8 +938,8 @@ export component AppWindow inherits Window {
                     y: 328px;
                     height: 104px;
                     label: "Auto brightness";
-                    focused: root.focus-index == 1;
-                    tapped => { root.activate(1); }
+                    focused: Nav.focus == Prefs.auto-row;
+                    tapped => { Nav.activate(Prefs.auto-row); }
                     Rectangle {
                         x: 384px;
                         width: 56px;
@@ -1099,54 +963,43 @@ export component AppWindow inherits Window {
                     label: "Screen off after";
                     value: Prefs.screen-off-after;
                     chevron: true;
-                    focused: root.focus-index == 2;
-                    tapped => { root.activate(2); }
+                    focused: Nav.focus == Prefs.screen-off-row;
+                    tapped => { Nav.activate(Prefs.screen-off-row); }
                 }
             }
 
             // Menu / Power
             Layer {
-                depth: 2;
-                current-depth: root.depth;
-                active: root.page == PageId.power;
+                page: PageId.power;
                 ChoiceList {
                     title: "Power";
-                    rows: [
-                        { label: "Standby" },
-                        { label: "Restart" },
-                        { label: "Power off" },
-                        { label: "Sleep after", value: Prefs.sleep-after, chevron: true },
-                    ];
-                    focused-row: root.focus-index;
-                    pick(i) => { root.activate(i); }
-                    back => { root.back(); }
+                    rows: Power.rows;
+                    focused-row: Nav.focus;
+                    pick(i) => { Nav.activate(i); }
+                    back => { Nav.back(); }
                 }
             }
 
             // Menu / Wi-Fi
             Layer {
-                depth: 2;
-                current-depth: root.depth;
-                active: root.page == PageId.wifi;
+                page: PageId.wifi;
                 ChoiceList {
                     title: "Wi-Fi";
                     rows: Wifi.choices;
-                    focused-row: root.focus-index;
-                    pick(i) => { root.activate(i); }
-                    back => { root.back(); }
+                    focused-row: Nav.focus;
+                    pick(i) => { Nav.activate(i); }
+                    back => { Nav.back(); }
                 }
             }
 
             // Menu / Wi-Fi / password
             Layer {
-                depth: 3;
-                current-depth: root.depth;
-                active: root.page == PageId.keyboard;
+                page: PageId.keyboard;
 
                 PageHeader {
                     y: 0;
                     title: Kb.purpose == KbPurpose.text ? Kb.title : Wifi.target.ssid;
-                    back => { root.back(); }
+                    back => { Nav.back(); }
                 }
                 Text {
                     x: 40px;
@@ -1251,54 +1104,46 @@ export component AppWindow inherits Window {
 
             // Menu / Status
             Layer {
-                depth: 2;
-                current-depth: root.depth;
-                active: root.page == PageId.status;
+                page: PageId.status;
                 ChoiceList {
                     title: "Status";
                     rows: Health.choices;
-                    back => { root.back(); }
+                    back => { Nav.back(); }
                 }
             }
 
             // Menu / Integrations, every screen of it
             Layer {
-                depth: 2;
-                current-depth: root.depth;
-                active: root.page == PageId.integrations;
+                page: PageId.integrations;
                 ChoiceList {
                     title: Cfg.title;
                     rows: Cfg.rows;
-                    focused-row: root.focus-index;
-                    pick(i) => { root.activate(i); }
-                    back => { root.back(); }
+                    focused-row: Nav.focus;
+                    pick(i) => { Nav.activate(i); }
+                    back => { Nav.back(); }
                 }
             }
 
             // Menu / Feedback lab
             Layer {
-                depth: 2;
-                current-depth: root.depth;
-                active: root.page == PageId.feedback-lab;
+                page: PageId.feedback-lab;
                 ChoiceList {
                     title: Lab.title;
                     rows: Lab.rows;
-                    focused-row: root.focus-index;
-                    pick(i) => { root.activate(i); }
-                    back => { root.back(); }
+                    focused-row: Nav.focus;
+                    pick(i) => { Nav.activate(i); }
+                    back => { Nav.back(); }
                 }
             }
 
             // Menu / Wi-Fi / join failed
             Layer {
-                depth: 4;
-                current-depth: root.depth;
-                active: root.page == PageId.join-failed;
+                page: PageId.join-failed;
 
                 PageHeader {
                     y: 0;
                     title: Wifi.target.ssid;
-                    back => { root.back(); }
+                    back => { Nav.back(); }
                 }
                 Text {
                     y: 300px;
@@ -1320,29 +1165,27 @@ export component AppWindow inherits Window {
                 Pill {
                     y: 500px;
                     label: "Try again";
-                    focused: root.focus-index == 0;
-                    tapped => { root.activate(0); }
+                    focused: Nav.focus == Wifi.retry-row;
+                    tapped => { Nav.activate(Wifi.retry-row); }
                 }
                 Pill {
                     y: 580px;
                     label: Wifi.name == "" ? "Cancel" : "Stay on " + Wifi.name;
-                    focused: root.focus-index == 1;
-                    tapped => { root.activate(1); }
+                    focused: Nav.focus == Wifi.stay-row;
+                    tapped => { Nav.activate(Wifi.stay-row); }
                 }
             }
 
             // Audio or subtitle tracks
             Layer {
-                depth: 1;
-                current-depth: root.depth;
-                active: root.page == PageId.tracks;
+                page: PageId.tracks;
                 ChoiceList {
                     title: Tracks.picker == Picker.audio ? "Audio" : "Subtitles";
                     rows: Tracks.rows;
                     empty: "Loading…";
-                    focused-row: root.focus-index;
-                    pick(i) => { root.activate(i); }
-                    back => { root.back(); }
+                    focused-row: Nav.focus;
+                    pick(i) => { Nav.activate(i); }
+                    back => { Nav.back(); }
                 }
             }
             }
@@ -1527,26 +1370,26 @@ export component AppWindow inherits Window {
     navbar := Rectangle {
         y: 0;
         height: 64px;
-        opacity: root.reveal * (root.page == PageId.keyboard || root.page == PageId.join-failed ? 0 : 1);
+        opacity: root.reveal * (Nav.hides-navbar(Nav.page) ? 0 : 1);
         visible: self.opacity > 0 && Fx.capturing == Capture.none;
         animate opacity { duration: Theme.page-time; }
         StatusBar {
             clock: Sys.clock;
             battery: Sys.battery;
             charging: Sys.charging;
-            show-menu: root.page == PageId.home || root.page == PageId.inputs;
-            menu => { root.go(PageId.menu, 0); }
+            show-menu: Nav.shows-menu(Nav.page);
+            menu => { Nav.go(PageId.menu, 0); }
         }
         // The input's mark sits in the middle everywhere but the input's own screen (or the power-off one), so
         // away from it you can always tell where you are; tapping it opens the list.
         TouchArea {
-            property <bool> shown: Control.inputs.length > 0 && !(root.page == PageId.home && (root.home-view == HomeView.mark || root.home-view == HomeView.off));
+            property <bool> shown: Control.inputs.length > 0 && !(Nav.page == PageId.home && (root.home-view == HomeView.mark || root.home-view == HomeView.off));
             mouse-cursor: Theme.cursor;
             x: 190px;
             width: 100px;
             height: 64px;
-            enabled: self.shown && root.page != PageId.inputs;
-            clicked => { root.go(PageId.inputs, Control.input-index); }
+            enabled: self.shown && Nav.page != PageId.inputs;
+            clicked => { Nav.go(PageId.inputs, Control.input-index); }
             Logo {
                 size: 32px;
                 commands: Control.input-icon;

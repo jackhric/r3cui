@@ -1,4 +1,9 @@
 export global Prefs {
+    // The Display page's rows.
+    out property <int> brightness-row: 0;
+    out property <int> auto-row: 1;
+    out property <int> screen-off-row: 2;
+    out property <int> rows: 3;
     in-out property <int> brightness: 90;
     in-out property <bool> auto-brightness: true;
     in property <string> screen-off-after;

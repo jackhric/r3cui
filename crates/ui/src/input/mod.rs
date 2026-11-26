@@ -3,6 +3,7 @@
 #[cfg(feature = "device")]
 pub(crate) mod evdev;
 pub(crate) mod slider;
+use crate::Nav;
 use crate::Wifi;
 use crate::Kb;
 use crate::{AppWindow, JoinState, KeyGlyph, KbPurpose, KeyCell};
@@ -213,7 +214,7 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
             app.global::<Kb>().set_text(kb.borrow().text().into());
             match outcome {
                 keyboard::Outcome::Stay => {}
-                keyboard::Outcome::Leave => app.invoke_back(),
+                keyboard::Outcome::Leave => app.global::<Nav>().invoke_back(),
                 keyboard::Outcome::Done(text) if app.global::<Kb>().get_purpose() == KbPurpose::Text => {
                     let _ = tx.send(UiAction::Integrations(crate::app::Settings::Text(text)));
                 }

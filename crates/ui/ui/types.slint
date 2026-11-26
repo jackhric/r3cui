@@ -1,3 +1,14 @@
+// The rows of the menu, in the order `Menu.row` gives them.
+export enum MenuItem {
+    wifi,
+    integrations,
+    display,
+    sound,
+    power,
+    status,
+    lab,
+}
+
 export enum PageId {
     home,
     inputs,
@@ -13,6 +24,12 @@ export enum PageId {
     tracks,
     feedback-lab,
     integrations,
+}
+
+// Where Back leads: a page and the row to focus there.
+export struct Dest {
+    page: PageId,
+    focus: int,
 }
 
 export enum PowerAction {

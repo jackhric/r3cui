@@ -1,5 +1,7 @@
 //! The window's page, by name.
 
+use slint::ComponentHandle;
+use crate::Nav;
 use crate::{AppWindow, PageId};
 
 pub(crate) trait Screen {
@@ -9,10 +11,10 @@ pub(crate) trait Screen {
 
 impl Screen for AppWindow {
     fn on_page(&self, page: PageId) -> bool {
-        self.get_page() == page
+        self.global::<Nav>().get_page() == page
     }
     fn go_to(&self, page: PageId, focus: i32) {
-        self.invoke_go(page, focus);
+        self.global::<Nav>().invoke_go(page, focus);
     }
 }
 
