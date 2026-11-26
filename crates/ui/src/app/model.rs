@@ -16,6 +16,10 @@ pub(crate) struct Model {
     pub inputs: Vec<InputEntry>,
     /// Why `inputs` is empty.
     pub no_inputs: NoInputs,
+    /// Something takes voice: the voice key talks instead of opening the inputs.
+    pub has_voice: bool,
+    /// The voice session on screen.
+    pub voice: Option<drivers::api::Voice>,
     /// The input on now has something in its UI slot: the home page is its stage.
     pub staged: bool,
     /// The input was just picked here and the source has not confirmed it yet.

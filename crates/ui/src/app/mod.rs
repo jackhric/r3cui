@@ -10,6 +10,7 @@ pub(crate) mod optimistic;
 pub(crate) mod session;
 pub(crate) mod settings;
 pub(crate) mod software;
+pub(crate) mod voice;
 
 use crate::hardware::backlight;
 use crate::input::{slider, Button};
@@ -39,6 +40,9 @@ pub(crate) enum UiAction {
     /// Settings → Integrations.
     Integrations(Settings),
     Display { brightness: i32, auto: bool },
+    /// The voice key, down or up, while something takes voice.
+    VoiceKey { down: bool },
+    VoiceDismiss,
     Software(software::Action),
 }
 #[derive(Debug)]
@@ -66,4 +70,6 @@ pub(crate) enum Later {
     PairChecked(Result<drivers::api::Paired, drivers::api::PairError>, Box<dyn drivers::api::Pairer>),
     /// What the System pages asked the remote or the net for.
     Software(software::Event),
+    /// The relay did not end a session's audio in time after the key was let go.
+    VoiceEndDue(u32),
 }

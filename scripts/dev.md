@@ -109,6 +109,8 @@ and compare the pictures to see that nothing moved:
 cargo run -p remote-ui -- --demo --steps scripts/tour.steps --out <dir>
 ```
 
+`scripts/voice.steps` holds the voice key in the demo (listening, thinking, the made-up answer) and taps it
+(the input list).
 `scripts/system.steps` walks the System pages in the demo (Menu, System, Update r3cui and its install, Firmware and its install,
 Web configurator, Uninstall mid-hold); it also films with `--record <file.mp4> --frame <remote photo> --script steps:scripts/system.steps`.
 The demo's firmware 2.8.4 → 2.9.0 and r3cui 0.1.0 → 0.2.0 updates, their made-up installs and the web configurator's PINs are in

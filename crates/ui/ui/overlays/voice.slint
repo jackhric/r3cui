@@ -1,0 +1,73 @@
+import { Fx } from "../globals/fx.slint";
+import { Voice } from "../globals/voice.slint";
+import { Glyph, Icons } from "../marks/icons.slint";
+import { Theme, Layout, Type, Motion } from "../theme.slint";
+import { Capture, VoiceStage } from "../types.slint";
+import { Caption } from "../widgets/caption.slint";
+
+// While the voice key is held and after: listening, then what was heard and the answer.
+export component VoiceOverlay inherits Rectangle {
+    property <bool> shown: Voice.stage != VoiceStage.off;
+    property <bool> listening: Voice.stage == VoiceStage.listening;
+    property <bool> failed: Voice.stage == VoiceStage.failed;
+    property <bool> done: Voice.stage == VoiceStage.answered || root.failed;
+    background: Theme.scrim;
+    opacity: self.shown ? 1 : 0;
+    visible: self.opacity > 0 && Fx.capturing == Capture.none;
+    animate opacity { duration: Motion.lift; easing: ease-out; }
+
+    TouchArea {
+        enabled: root.done;
+        mouse-cursor: Theme.cursor;
+        clicked => { Voice.dismiss(); }
+    }
+    VerticalLayout {
+        padding-left: Layout.margin;
+        padding-right: Layout.margin;
+        alignment: center;
+        spacing: Layout.gap-l;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: 120px;
+                height: self.width;
+                // Breathes while it listens.
+                Rectangle {
+                    border-radius: self.width / 2;
+                    background: Theme.bg;
+                    border-width: 3px;
+                    border-color: root.failed ? Theme.off : Theme.accent;
+                    opacity: root.listening ? 0.45 + 0.55 * abs(sin(animation-tick() / 1ms * 0.2deg)) : 1;
+                }
+                Glyph {
+                    size: 52px;
+                    commands: Icons.mic;
+                    tint: Theme.text;
+                }
+            }
+        }
+        Caption {
+            horizontal-alignment: center;
+            text: root.listening ? "LISTENING" : Voice.stage == VoiceStage.thinking ? "THINKING" : "";
+        }
+        if Voice.heard != "": Text {
+            horizontal-alignment: center;
+            wrap: word-wrap;
+            text: "“" + Voice.heard + "”";
+            font-size: Type.headline;
+            color: Theme.text;
+        }
+        if Voice.answer != "": Text {
+            horizontal-alignment: center;
+            wrap: word-wrap;
+            text: Voice.answer;
+            font-size: Type.body;
+            color: root.failed ? Theme.off : Theme.t2;
+        }
+    }
+    Timer {
+        interval: Motion.voice-linger;
+        running: root.shown && root.done;
+        triggered => { Voice.dismiss(); }
+    }
+}

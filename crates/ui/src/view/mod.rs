@@ -9,6 +9,7 @@ pub(crate) mod qr;
 pub(crate) mod screen;
 pub(crate) mod software;
 pub(crate) mod stage;
+pub(crate) mod voice;
 
 use crate::Nav;
 use crate::Health;
@@ -249,6 +250,8 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
         app.global::<Control>().set_input_choices(ModelRc::new(VecModel::from(inputs)));
     }
     app.global::<Control>().set_no_inputs(no_inputs(&m.no_inputs));
+    app.global::<Control>().set_has_voice(m.has_voice);
+    voice::show(app, m.voice.as_ref());
 
     app.global::<Wifi>().set_name(m.wifi_ssid.as_str().into());
     let wifi: Vec<WifiRow> = m

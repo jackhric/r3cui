@@ -14,6 +14,7 @@ tokio.workspace = true
 # Only the previews read Kodi's own types (a saved library); the app reaches Kodi through `drivers`.
 kodi = { path = "../kodi", optional = true }
 drivers = { path = "../drivers" }
+voicelink = { path = "../voicelink" }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true

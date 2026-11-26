@@ -10,11 +10,13 @@ import { KeyChars } from "globals/keys.slint";
 import { Nav } from "globals/nav.slint";
 import { Prefs } from "globals/prefs.slint";
 import { Software } from "globals/software.slint";
+import { Voice } from "globals/voice.slint";
 import { Sys } from "globals/sys.slint";
 import { Wifi } from "globals/wifi.slint";
 import { ChargeCard } from "overlays/charge-card.slint";
 import { HoldOverlay } from "overlays/hold.slint";
 import { NavBar } from "overlays/navbar.slint";
+import { VoiceOverlay } from "overlays/voice.slint";
 import { VolumeOverlay } from "overlays/volume.slint";
 import { DisplayPage } from "pages/display.slint";
 import { InputsPage } from "pages/inputs.slint";
@@ -36,7 +38,7 @@ import { JoinFailedPage } from "pages/wifi/join-failed.slint";
 import { WifiPage } from "pages/wifi/wifi.slint";
 import { Stage } from "stage/stage.slint";
 import { Theme, Layout } from "theme.slint";
-import { Capture, Haptic, HomeView, JoinState, NavKey, PageId } from "types.slint";
+import { Capture, Haptic, HomeView, JoinState, NavKey, PageId, VoiceStage } from "types.slint";
 
 // What Rust reaches: the types and every global.
 export * from "types.slint";
@@ -60,6 +62,7 @@ export { Prefs } from "globals/prefs.slint";
 export { Software } from "globals/software.slint";
 export { Sys } from "globals/sys.slint";
 export { Tracks } from "globals/tracks.slint";
+export { Voice } from "globals/voice.slint";
 export { Wifi } from "globals/wifi.slint";
 
 export component AppWindow inherits Window {
@@ -78,7 +81,7 @@ export component AppWindow inherits Window {
 
     property <float> recede: Nav.page != PageId.home ? 1 : 0;
     animate recede { duration: 460ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
-    property <bool> overlay-open: (Control.volume-overlay && Control.power-on) || hold.power-overlay || hold.home-holding || (Sys.charge-card && Sys.lit);
+    property <bool> overlay-open: (Control.volume-overlay && Control.power-on) || hold.power-overlay || hold.home-holding || (Sys.charge-card && Sys.lit) || Voice.stage != VoiceStage.off;
     property <float> under: root.overlay-open ? 1 : 0;
     animate under { duration: 380ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
     public function hold-swap() { stage.hold-swap(); }
@@ -116,10 +119,14 @@ export component AppWindow inherits Window {
                 }
                 return accept;
             }
-            // The voice key is the input switcher, from anywhere.
+            // The voice key: held, it talks (when something takes voice); tapped, it is the input switcher.
             if (event.text.to-lowercase() == KeyChars.input) {
-                if (!event.repeat && Nav.page != PageId.keyboard) {
-                    Nav.go(Nav.page == PageId.inputs ? PageId.home : PageId.inputs, Control.input-index);
+                if (!event.repeat) {
+                    if (Control.has-voice) {
+                        Voice.press();
+                    } else {
+                        Nav.toggle-inputs();
+                    }
                 }
                 return accept;
             }
@@ -193,6 +200,9 @@ export component AppWindow inherits Window {
             if (event.text.to-lowercase() == KeyChars.power) {
                 hold.release-power();
             }
+            if (event.text.to-lowercase() == KeyChars.input && Control.has-voice) {
+                Voice.release();
+            }
             return accept;
         }
 
@@ -253,6 +263,7 @@ export component AppWindow inherits Window {
 
         // Volume overlay, over everything.
         VolumeOverlay { }
+        VoiceOverlay { }
     }
 
     hold := HoldOverlay { }

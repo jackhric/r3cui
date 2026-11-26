@@ -240,6 +240,16 @@ fn main() -> anyhow::Result<()> {
             let _ = tx.send(UiAction::PowerHeld);
         }
     });
+    let voice_key = |down| {
+        let tx = act_tx.clone();
+        move || drop(tx.send(UiAction::VoiceKey { down }))
+    };
+    app.global::<Voice>().on_press(voice_key(true));
+    app.global::<Voice>().on_release(voice_key(false));
+    app.global::<Voice>().on_dismiss({
+        let tx = act_tx.clone();
+        move || drop(tx.send(UiAction::VoiceDismiss))
+    });
 
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().expect("tokio runtime");

@@ -11,6 +11,7 @@ use crate::app::global::{slide, Global};
 use crate::app::integrations::{Effect, Integrations};
 use crate::app::model::{InputEntry, Model, NoInputs};
 use crate::app::software::{self, Software};
+use crate::app::voice::{self as voice_key, VoiceKey};
 use crate::app::{Later, Settings, UiAction, settings};
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
 use crate::hardware::feedback;
@@ -21,7 +22,7 @@ use crate::remote::link::Link;
 use crate::remote::wifi::Wifi;
 use crate::view::library::Wall;
 use crate::view::screen::Screen;
-use crate::{Menu, MenuItem, PageId};
+use crate::{Menu, MenuItem, Nav, PageId};
 use crate::{KbPurpose, Picker};
 use crate::view::software::show as show_software;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
@@ -129,6 +130,9 @@ struct Session<'a> {
     front: &'a mut Frontend,
     system: System,
     wifi: Wifi,
+    voice: VoiceKey,
+    /// r3cui's relay integration, to tell how a voice session ended; none in the demo.
+    relay: Option<voicelink::LinkHandle>,
     /// Demo only: pretend every driver is unreachable.
     links_down: bool,
 }
@@ -138,6 +142,11 @@ impl Session<'_> {
     fn show(&mut self, weak: &slint::Weak<AppWindow>) {
         let current = self.front.current();
         let stage = self.front.host.stage(current.as_ref());
+        for todo in self.voice.answered(self.front.host.voice().as_ref()) {
+            if let (voice_key::Do::Report(msg), Some(relay)) = (todo, &self.relay) {
+                relay.send(msg);
+            }
+        }
         let m = self.model(current.as_ref(), &stage);
         self.front.host.show(current.as_ref(), m.awake && m.power_on);
         self.front.wall.show(stage.library.as_ref());
@@ -145,6 +154,37 @@ impl Session<'_> {
         show_settings(weak, self.front.settings.page(&self.front.host));
         show_software(weak, self.front.software.view(Instant::now(), self.system.battery));
         render(weak, &m);
+    }
+
+    fn voice_do(&mut self, weak: &slint::Weak<AppWindow>, link: &Link, later: &mpsc::UnboundedSender<Later>, todo: Vec<voice_key::Do>) {
+        for d in todo {
+            match d {
+                voice_key::Do::Driver(intent) => {
+                    self.front.host.send_voice(intent);
+                }
+                voice_key::Do::CoreStart(s) => {
+                    let link = link.clone();
+                    tokio::spawn(async move { link.voice_start(s).await });
+                }
+                voice_key::Do::CoreEnd(s) => {
+                    let link = link.clone();
+                    tokio::spawn(async move { link.voice_end(s).await });
+                }
+                voice_key::Do::ToggleInputs => ui(weak, |app| app.global::<Nav>().invoke_toggle_inputs()),
+                voice_key::Do::EndAfter(s, wait) => {
+                    let later = later.clone();
+                    tokio::spawn(async move {
+                        tokio::time::sleep(wait).await;
+                        let _ = later.send(Later::VoiceEndDue(s));
+                    });
+                }
+                voice_key::Do::Report(msg) => {
+                    if let Some(relay) = &self.relay {
+                        relay.send(msg);
+                    }
+                }
+            }
+        }
     }
 
     /// Settings → Integrations: what a pick or back leads to.
@@ -292,6 +332,8 @@ impl Session<'_> {
             muted: g.muted,
             inputs,
             no_inputs,
+            has_voice: host.has_voice(),
+            voice: self.voice.shown(host.voice().as_ref()).cloned(),
             input: current.map_or(g.input, |i| i.id.clone()),
             switching: g.switching,
             staged: current.is_some_and(|i| i.ui.is_some()),
@@ -372,7 +414,8 @@ pub(crate) async fn serve(
     system: System,
     wifi: Wifi,
 ) -> anyhow::Result<()> {
-    let mut session = Session { front, system, wifi, links_down: false };
+    let mut relay = link.relay();
+    let mut session = Session { front, system, wifi, voice: VoiceKey::default(), relay: relay.as_ref().map(|r| r.handle.clone()), links_down: false };
     session.show(weak);
     set_status(weak, true, String::new());
 
@@ -427,8 +470,17 @@ pub(crate) async fn serve(
                 }
                 session.show(weak);
             }
+            Some(event) = next_relay(&mut relay) => {
+                let todo = session.voice.relay(event);
+                session.voice_do(weak, &link, &later_tx, todo);
+                session.show(weak);
+            }
             Some(later) = later_rx.recv() => {
                 match later {
+                    Later::VoiceEndDue(s) => {
+                        let todo = session.voice.end_due(s);
+                        session.voice_do(weak, &link, &later_tx, todo);
+                    }
                     Later::Wifi(ssid, networks) => session.wifi.found(ssid, networks),
                     Later::Targets { driver, kind, targets } => {
                         let front = &mut *session.front;
@@ -562,6 +614,11 @@ pub(crate) async fn serve(
                         }
                     }
                     UiAction::Display { brightness, auto } => link.set_display(brightness, auto),
+                    UiAction::VoiceKey { down } => {
+                        let todo = if down { session.voice.press(Instant::now()) } else { session.voice.release(Instant::now(), link.voice_grace()) };
+                        session.voice_do(weak, &link, &later_tx, todo);
+                    }
+                    UiAction::VoiceDismiss => session.voice.dismiss(session.front.host.voice().as_ref()),
                     UiAction::Slider(slider::Gesture::Steps(n)) => {
                         let g = front.global.view(&front.host);
                         let v = slide(g.volume, n, g.volume_max);
@@ -604,4 +661,12 @@ pub(crate) async fn serve(
         }
     }
     Ok(())
+}
+
+/// The relay's next event; never resolves without a relay.
+async fn next_relay(relay: &mut Option<voicelink::Link>) -> Option<voicelink::LinkEvent> {
+    match relay {
+        Some(r) => r.events.recv().await,
+        None => std::future::pending().await,
+    }
 }

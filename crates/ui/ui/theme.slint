@@ -23,6 +23,8 @@ export global Theme {
     out property <easing> page-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
     // How far a page sits to the side before it slides in.
     out property <length> page-offset: 56px;
+    // Behind an overlay: what is under it stays faintly there.
+    out property <color> scrim: #000000A6;
 }
 
 // The screen and the grid every page and row is laid out on.
@@ -98,4 +100,6 @@ export global Motion {
     out property <float> lift-scale: 1.035;
     out property <duration> toggle: 160ms;
     out property <duration> list-scroll: 200ms;
+    // How long the voice overlay stays once it has the answer.
+    out property <duration> voice-linger: 4s;
 }

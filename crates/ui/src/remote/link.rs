@@ -6,6 +6,7 @@ use crate::hardware::backlight::Backlight;
 use crate::remote::selfupdate::Release;
 use crate::remote::software::{self, Progress};
 use crate::remote::system;
+use crate::remote::voice;
 use crate::remote::wifi::{self, Network, Wifi};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
@@ -149,6 +150,40 @@ impl Link {
             Self::Core(core) => software::uninstall(core, access).await,
             #[cfg(feature = "demo")]
             Self::Demo(_) => crate::app::demo::software::uninstall().await,
+        }
+    }
+
+    /// r3cui's relay, which brings the remote's recorded audio; the demo has no microphone.
+    pub(crate) fn relay(&self) -> Option<voicelink::Link> {
+        match self {
+            Self::Core(_) => Some(voicelink::connect_loop()),
+            #[cfg(feature = "demo")]
+            Self::Demo(_) => None,
+        }
+    }
+
+    /// How long the relay gets to end a session's audio after the key is let go: none without one.
+    pub(crate) fn voice_grace(&self) -> Duration {
+        match self {
+            Self::Core(_) => crate::app::voice::END_GRACE,
+            #[cfg(feature = "demo")]
+            Self::Demo(_) => Duration::ZERO,
+        }
+    }
+
+    pub(crate) async fn voice_start(&self, session: u32) {
+        match self {
+            Self::Core(core) => voice::start(core, session).await,
+            #[cfg(feature = "demo")]
+            Self::Demo(_) => {}
+        }
+    }
+
+    pub(crate) async fn voice_end(&self, session: u32) {
+        match self {
+            Self::Core(core) => voice::end(core, session).await,
+            #[cfg(feature = "demo")]
+            Self::Demo(_) => {}
         }
     }
 }

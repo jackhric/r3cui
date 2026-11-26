@@ -95,7 +95,7 @@ pub(crate) struct Integrations {
 }
 
 /// The rows of Global control, in order.
-const GLOBAL_ROLES: [Role; 3] = [Role::Volume, Role::Source, Role::Power];
+const GLOBAL_ROLES: [Role; 4] = [Role::Volume, Role::Source, Role::Power, Role::Voice];
 
 /// The first screen's rows: Global control, Inputs, then one per driver.
 const ROOT_GLOBAL: usize = 0;
@@ -229,6 +229,7 @@ impl Integrations {
                     Row { value: target(&m.global.volume), chevron: true, detail: "Volume and mute".into(), ..row("Volume") },
                     Row { value: target(&m.global.source), chevron: true, detail: "The input list".into(), ..row("Inputs") },
                     Row { value: target(&m.power_binding().cloned()), chevron: true, detail: "On and off".into(), ..row("Power") },
+                    Row { value: target(&m.global.voice), chevron: true, detail: "Where the voice key sends speech".into(), ..row("Voice") },
                 ];
                 ("Global control".to_string(), rows)
             }
@@ -237,11 +238,13 @@ impl Integrations {
                     Role::Volume => &m.global.volume,
                     Role::Source => &m.global.source,
                     Role::Power => &m.power_binding().cloned(),
+                    Role::Voice => &m.global.voice,
                 };
                 let title = match role {
                     Role::Volume => "Volume",
                     Role::Source => "Inputs",
                     Role::Power => "Power",
+                    Role::Voice => "Voice",
                 };
                 let providers = if *role == Role::Power { power_providers(host) } else { Vec::new() };
                 let on_provider = bound.as_ref().is_some_and(|b| providers.contains(&b.driver));
@@ -415,8 +418,9 @@ impl Integrations {
             Screen::Global => {
                 let role = GLOBAL_ROLES[at.min(GLOBAL_ROLES.len() - 1)];
                 self.push(Screen::PickRole(role));
+                let kind = if role == Role::Voice { TargetKind::Pipeline } else { TargetKind::MediaPlayer };
                 match global_driver(host) {
-                    Some(driver) => Effect::Load { driver, kind: TargetKind::MediaPlayer },
+                    Some(driver) => Effect::Load { driver, kind },
                     None => Effect::Stay,
                 }
             }
@@ -798,7 +802,7 @@ mod tests {
         let (mut host, _fakes, mut ui) = setup();
         tap(&mut ui, &mut host, "Global control");
         let page = ui.page(&host);
-        assert_eq!(labels(&page), ["Volume", "Inputs", "Power"]);
+        assert_eq!(labels(&page), ["Volume", "Inputs", "Power", "Voice"]);
         assert_eq!(page.rows[2].value, "receiver", "follows the inputs binding");
         tap(&mut ui, &mut host, "Power");
         ui.targets_loaded("fake-global", TargetKind::MediaPlayer, vec![Target { id: "media_player.tv".into(), name: "TV".into() }]);

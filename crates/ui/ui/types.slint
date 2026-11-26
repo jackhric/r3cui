@@ -89,6 +89,15 @@ export struct FormatMark {
     baseline: bool,
 }
 
+// Where a voice session is, as the overlay shows it.
+export enum VoiceStage {
+    off,
+    listening,
+    thinking,
+    answered,
+    failed,
+}
+
 // How large a Row's text is: regular for lists, compact for a page's secondary rows.
 export enum RowSize {
     regular,

@@ -1,8 +1,8 @@
 # Voice: hold to talk, sent where r3cui says
 
-Status (2026-11-26): the Core-API calls (`crates/coreapi`), the voice link (`crates/voicelink`), the relay
-(`crates/voice-relay`) and the Assist client (`crates/homeassistant`) are built and tested against fakes; nothing has
-run on the remote yet. The voice port and the UI are still to do.
+Status (2026-11-26): built end to end and tested against fakes; the demo answers made-up speech
+(`scripts/voice.steps`). Nothing has run on the remote yet: the relay is not installed, the microphone is off and
+no voice assistant is set (see "Setting it up on the remote").
 
 Hold the voice key, talk, let go. r3cui shows that it is listening the moment the key goes down, sends the audio
 to wherever Global control → Voice points (Home Assistant Assist first), and shows what was heard and the answer.

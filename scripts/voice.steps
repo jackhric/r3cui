@@ -1,0 +1,19 @@
+# Hold the voice key to talk, in the demo: listening, thinking, the answer, then it goes; a tap opens the inputs.
+#   cargo run -p remote-ui -- --demo --steps scripts/voice.steps --out <dir>
+awake
+wait 1500
+snap 00-home
+press v
+wait 400
+snap 01-listening
+wait 1600
+release v
+wait 300
+snap 02-thinking
+wait 1200
+snap 03-answered
+wait 4500
+snap 04-gone
+hold v 120
+wait 900
+snap 05-tap-inputs

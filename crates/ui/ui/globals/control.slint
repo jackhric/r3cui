@@ -6,6 +6,8 @@ export global Control {
     in property <int> volume;
     // Something is set up as global volume.
     in property <bool> has-volume: true;
+    // Something takes voice: holding the voice key talks; a tap still opens the inputs.
+    in property <bool> has-voice;
     in property <string> volume-db;
     in property <bool> muted;
     in property <bool> volume-overlay;
