@@ -1,6 +1,8 @@
 # Voice: hold to talk, sent where r3cui says
 
-Status: design (2026-11-26). The Core-API calls and the `assistant_event` are built in `crates/coreapi`; the rest is not.
+Status (2026-11-26): the Core-API calls (`crates/coreapi`), the voice link (`crates/voicelink`) and the relay
+(`crates/voice-relay`) are built and tested against fakes; nothing has run on the remote yet. The Assist client,
+the voice port and the UI are still to do.
 
 Hold the voice key, talk, let go. r3cui shows that it is listening the moment the key goes down, sends the audio
 to wherever Global control → Voice points (Home Assistant Assist first), and shows what was heard and the answer.
@@ -58,9 +60,36 @@ The relay listens, r3cui connects and reconnects; a new connection replaces the 
 | relay → r3cui | binary | PCM samples of the session that began |
 | relay → r3cui | text `{"type":"end","session_id":7}` | the user let go: no more audio |
 | r3cui → relay | text `{"type":"finished","session_id":7}` | done; the relay tells the core |
-| r3cui → relay | text `{"type":"error","session_id":7,"code":"NO_TEXT_RECOGNIZED","message":"..."}` | failed; `code` is one of the core's: `TIMEOUT`, `NO_TEXT_RECOGNIZED`, `INVALID_AUDIO`, `SERVICE_UNAVAILABLE`, `UNEXPECTED_ERROR` |
+| r3cui → relay | text `{"type":"error","session_id":7,"code":"NO_TEXT_RECOGNIZED","message":"..."}` | failed; `code` is one of the core's: `TIMEOUT`, `NO_TEXT_RECOGNIZED`, `INVALID_AUDIO`, `SERVICE_UNAVAILABLE`, `INTENT_FAILED`, `TTS_FAILED`, `UNEXPECTED_ERROR` |
 
 `session_id` is the one r3cui chose for `voice_start`; the relay passes it through.
+
+## The relay
+
+- The Integration-API server listens on `$UC_INTEGRATION_INTERFACE:$UC_INTEGRATION_HTTP_PORT` (127.0.0.1:10791 when
+  unset, for desktop runs) and the voice link on 127.0.0.1:10790. Logs go to stdout.
+- One entity: id `voice`, type `voice_assistant`, name "r3cui", features `transcription` and `response_text`,
+  default `audio_cfg` (16 kHz, 1 channel, `I16`) and one profile. The core may show it prefixed with the driver id
+  (`r3cui_voice`); that is unverified.
+- `voice_start` is answered `200` at once, then `assistant_event` `ready`. With no r3cui on the link it is still
+  answered `200`, followed by `assistant_event` `error` `SERVICE_UNAVAILABLE` ("r3cui is not listening"). If the
+  link drops mid-session the core gets the same error ("r3cui disconnected").
+- `setup_driver` finishes at once (`driver_setup_change` `STOP`/`OK`): there is nothing to set up.
+- `driver.json` is `crates/voice-relay/driver.json`; a test keeps its version equal to the crate's. `min_core_api`
+  `0.20.0` is copied from the manufacturer's example and is not enforced by the core yet.
+- The core's frames are decoded with prost structs written out in `crates/voice-relay/src/proto.rs` (no protoc in the
+  build), checked against bytes encoded by hand from the vendored `proto/ucr_integration_voice.proto` (CC BY-SA 4.0).
+
+### Building it
+
+The device build container (`scripts/build-device.sh`) builds `-p remote-ui` for `aarch64-unknown-linux-gnu`
+against the SDK's glibc 2.33, dynamically linked. A custom integration must be a **statically linked** aarch64
+binary, so the relay cannot simply be built the same way. Its dependencies are pure Rust (no C, no TLS), so the
+proposal is `aarch64-unknown-linux-musl`:
+`cargo build --release -p voice-relay --bin driver --target aarch64-unknown-linux-musl`, linked with the SDK's
+`aarch64-none-linux-gnu-gcc` (or `rust-lld`), in the same container after `rustup target add
+aarch64-unknown-linux-musl`. Not implemented or tried yet. Then `packaging/voice-relay.sh <driver binary>` writes
+`packaging/out/r3cui-voice.tar.gz` (`driver.json` at the root, `bin/driver`).
 
 ## Setting it up on the remote (once, the user's call)
 
