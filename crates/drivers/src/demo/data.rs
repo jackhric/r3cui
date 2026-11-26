@@ -53,6 +53,29 @@ pub const WIFI: [(&str, i32); 3] = [(WIFI_HOME, 3), ("Guest", 4), ("SmartHome", 
 /// The preferred band as the core names it: "b" is 2.4 GHz.
 pub const WIFI_BAND: &str = "b";
 
+/// The remote's software, as the made-up core and GitHub report it: a firmware update and an r3cui update, both
+/// waiting.
+pub const REMOTE_ADDRESS: &str = "192.168.1.40";
+pub const FIRMWARE_INSTALLED: &str = "2.8.4";
+pub const FIRMWARE_UPDATE_ID: &str = "demo-firmware-2.9.0";
+pub const FIRMWARE_UPDATE: &str = "2.9.0";
+pub const FIRMWARE_RELEASE_DATE: &str = "2026-11-10";
+pub const FIRMWARE_SIZE: u64 = 118_000_000;
+pub const FIRMWARE_NOTES: &str = "Wi-Fi reconnects faster after a router restart, the charging light no longer flickers at 99%, and the dock stays paired through firmware updates.";
+pub const FIRMWARE_STEPS: u32 = 4;
+/// The version of r3cui the demo claims to be running, so that the update is newer whatever the crate's version is.
+pub const R3_RUNNING: &str = "0.1.0";
+pub const R3_UPDATE: &str = "0.2.0";
+pub const R3_RELEASE_URL: &str = "https://github.com/jackhric/r3cui/releases/tag/v0.2.0";
+pub const R3_RELEASE_DATE: &str = "2026-11-20";
+pub const R3_SIZE: u64 = 6_800_000;
+/// The PINs the made-up core hands out in turn, so a recording shows the same ones every time.
+pub const WEB_PINS: [&str; 3] = ["4827", "1593", "7306"];
+/// How long each made-up install phase takes: the download, the installation, then the restart that never comes.
+pub const DOWNLOAD_TIME: Duration = Duration::from_millis(4000);
+pub const INSTALL_TIME: Duration = Duration::from_millis(5000);
+pub const RESTART_TIME: Duration = Duration::from_millis(2500);
+
 pub fn film(now: Instant) -> Media {
     let track = |label: &str, detail: &str| Track { label: label.into(), detail: detail.into() };
     Media {
