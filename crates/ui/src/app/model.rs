@@ -24,6 +24,8 @@ pub(crate) struct Model {
     pub position: f64,
     pub media_format: String,
     pub media_sub: String,
+    /// The app in front on the input's screen slot, when it has one.
+    pub app: String,
     pub battery: i32,
     /// On the dock or a cable.
     pub charging: bool,

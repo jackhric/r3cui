@@ -212,6 +212,7 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     let name = m.inputs.iter().find(|s| s.id == m.input).map_or(m.input.as_str(), |s| s.name.as_str());
     app.global::<Control>().set_input(name.into());
     app.global::<Control>().set_switching(m.switching);
+    app.global::<Control>().set_app(m.app.as_str().into());
     let mark = |s: &crate::app::model::InputEntry| s.icon.map_or_else(|| input_logo(&logos, &s.id), SharedString::from);
     let icon = m.inputs.iter().find(|s| s.id == m.input).map_or_else(|| input_logo(&logos, &m.input), mark);
     app.global::<Control>().set_input_generic(icon == logos.get_generic());

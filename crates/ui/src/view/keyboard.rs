@@ -17,6 +17,8 @@ const ACTION_ROW: usize = 3;
 /// WPA2 passphrases are 8 to 63 characters.
 pub const MIN_LEN: usize = 8;
 const MAX_LEN: usize = 63;
+pub const DONE: &str = "Done";
+pub const PAIR: &str = "Pair";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {

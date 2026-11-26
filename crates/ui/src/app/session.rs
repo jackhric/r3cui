@@ -24,7 +24,7 @@ use crate::{Menu, MenuItem, PageId};
 use crate::{KbPurpose, Picker};
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
-use drivers::api::{Health, Media, Stage, Status, UiIntent, VolumeIntent};
+use drivers::api::{Health, Media, PairError, Pairer, Stage, Status, UiIntent, VolumeIntent};
 use drivers::{Host, Input, Modules, Registry, Store};
 
 use std::sync::atomic::AtomicU64;
@@ -49,6 +49,8 @@ pub(crate) struct Frontend {
     global: Global,
     wall: Wall,
     settings: Integrations,
+    /// The pairing under way, between the device showing its code and the code being checked.
+    pairer: Option<Box<dyn Pairer>>,
     /// The artwork on show, so it is fetched once per item.
     poster_url: String,
 }
@@ -72,14 +74,14 @@ impl Frontend {
             }
         };
         tracing::info!(drivers = ?modules.drivers.keys().collect::<Vec<_>>(), "modules from {}", store.path.display());
-        Self { host: Host::new(Registry::builtin(), modules), store: Some(store), global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), poster_url: String::new() }
+        Self { host: Host::new(Registry::builtin(), modules), store: Some(store), global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new() }
     }
 
     /// The demo's drivers, set up in memory. Within a tokio runtime.
     #[cfg(feature = "demo")]
     pub(crate) fn demo(weak: slint::Weak<AppWindow>) -> Self {
         let modules = drivers::demo::modules();
-        Self { host: Host::new(Registry::builtin(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), poster_url: String::new() }
+        Self { host: Host::new(Registry::builtin(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new() }
     }
 
     /// Changes from the Integrations pages: saved, then applied.
@@ -138,6 +140,7 @@ impl Session<'_> {
         let effect = match action {
             Settings::Open => {
                 front.settings.open();
+                front.pairer = None;
                 Effect::Stay
             }
             Settings::Pick(i) => front.settings.pick(i, &front.host),
@@ -145,9 +148,14 @@ impl Session<'_> {
             Settings::Text(text) => {
                 let focus = front.settings.page(&front.host).focus as i32;
                 ui(weak, move |app| app.go_to(PageId::Integrations, focus));
-                front.settings.text_entered(&text, &front.host).map_or(Effect::Stay, Effect::Apply)
+                front.settings.text_entered(&text, &front.host)
             }
         };
+        self.run(weak, effect, later);
+    }
+
+    fn run(&mut self, weak: &slint::Weak<AppWindow>, effect: Effect, later: &mpsc::UnboundedSender<Later>) {
+        let front = &mut *self.front;
         match effect {
             Effect::Stay => {}
             Effect::Apply(modules) => front.apply(modules),
@@ -170,6 +178,46 @@ impl Session<'_> {
                     app.go_to(PageId::Keyboard, 0);
                 });
             }
+            Effect::Code { title, caption, len } => {
+                let focus = front.settings.page(&front.host).focus as i32;
+                ui(weak, move |app| {
+                    app.global::<Kb>().set_purpose(KbPurpose::Code);
+                    app.global::<Kb>().set_title(title.into());
+                    app.global::<Kb>().set_caption(caption.into());
+                    app.global::<Kb>().set_min_len(len as i32);
+                    app.global::<Cfg>().set_focus(focus);
+                    app.global::<Kb>().invoke_start(Default::default());
+                    app.go_to(PageId::Keyboard, 0);
+                });
+            }
+            Effect::Pair { driver, apply } => {
+                if let Some(modules) = apply {
+                    front.apply(modules);
+                }
+                front.pairer = None;
+                let start = front.host.driver(&driver).and_then(|d| d.pair());
+                let later = later.clone();
+                tokio::spawn(async move {
+                    let started = match start {
+                        Some(start) => start.await,
+                        None => Err(PairError::Failed("Set it up first".into())),
+                    };
+                    let _ = later.send(Later::PairStarted(started));
+                });
+            }
+            Effect::Finish { code } => match front.pairer.take() {
+                Some(mut pairer) => {
+                    let later = later.clone();
+                    tokio::spawn(async move {
+                        let checked = pairer.finish(&code).await;
+                        let _ = later.send(Later::PairChecked(checked, pairer));
+                    });
+                }
+                None => {
+                    let lost = front.settings.pair_checked(Err(PairError::Failed("Pairing was interrupted".into())), &front.host);
+                    self.run(weak, lost, later);
+                }
+            },
             Effect::Leave => ui(weak, |app| app.go_to(PageId::Menu, app.global::<Menu>().invoke_row(MenuItem::Integrations))),
         }
     }
@@ -208,6 +256,7 @@ impl Session<'_> {
             position,
             media_format: media.map(|m| m.format.clone()).unwrap_or_default(),
             media_sub: media.map(|m| m.subtitle.clone()).unwrap_or_default(),
+            app: stage.app.as_ref().map(|a| a.name.clone()).unwrap_or_default(),
             battery: self.system.battery,
             charging: self.system.charging,
             awake: self.system.awake,
@@ -331,6 +380,25 @@ pub(crate) async fn serve(
                 match later {
                     Later::Wifi(ssid, networks) => session.wifi.found(ssid, networks),
                     Later::Targets(targets) => session.front.settings.targets_loaded(targets),
+                    Later::PairStarted(started) => {
+                        let front = &mut *session.front;
+                        let effect = match started {
+                            Ok(pairer) => {
+                                front.pairer = Some(pairer);
+                                front.settings.pair_started(Ok(()), &front.host)
+                            }
+                            Err(e) => front.settings.pair_started(Err(e), &front.host),
+                        };
+                        session.run(weak, effect, &later_tx);
+                    }
+                    Later::PairChecked(checked, pairer) => {
+                        let front = &mut *session.front;
+                        if checked == Err(PairError::WrongCode) {
+                            front.pairer = Some(pairer);
+                        }
+                        let effect = front.settings.pair_checked(checked, &front.host);
+                        session.run(weak, effect, &later_tx);
+                    }
                     Later::SendVolume => {
                         let send = volume_gate.due(Instant::now());
                         pace(&mut volume_gate, send, &session.front.host);

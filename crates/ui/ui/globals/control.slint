@@ -13,6 +13,8 @@ export global Control {
     in property <string> input-icon;
     // The input has no mark of its own, so its name stands in for it.
     in property <bool> input-generic;
+    // The app in front on the input's screen, by name.
+    in property <string> app;
     // An input picked here that the source has not confirmed yet.
     in property <bool> switching;
     in property <[InputRow]> inputs;

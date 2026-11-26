@@ -44,8 +44,18 @@ export component MarkView inherits Rectangle {
             Theme.t2-muted clamp(parent.sheen + 0.18, 0, 1) * 100%,
             Theme.t2-muted 100%);
     }
+    // The app in front on the input's screen, under the mark.
+    if Control.app != "": Text {
+        y: 490px;
+        width: 480px;
+        horizontal-alignment: center;
+        text: Control.app;
+        font-size: 26px;
+        color: Theme.t2;
+        overflow: elide;
+    }
     // An input with no mark of its own needs its name to be told apart.
-    if Control.input != "" && Control.input-generic: Text {
+    if Control.input != "" && Control.input-generic && Control.app == "": Text {
         y: 490px;
         width: 480px;
         horizontal-alignment: center;

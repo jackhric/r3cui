@@ -16,13 +16,13 @@ export component KeyboardPage inherits Layer {
 
     PageHeader {
         y: 0;
-        title: Kb.purpose == KbPurpose.text ? Kb.title : Wifi.target.ssid;
+        title: Kb.purpose != KbPurpose.wifi-password ? Kb.title : Wifi.target.ssid;
         back => { Nav.back(); }
     }
     Text {
         x: 40px;
         y: 128px;
-        text: Kb.purpose == KbPurpose.text ? Kb.caption : "PASSWORD";
+        text: Kb.purpose != KbPurpose.wifi-password ? Kb.caption : "PASSWORD";
         font-size: 13px;
         font-weight: 500;
         letter-spacing: 1.8px;

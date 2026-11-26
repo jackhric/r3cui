@@ -67,7 +67,7 @@ export global Nav {
             }
         } else if (Nav.page == PageId.integrations) {
             Cfg.back();
-        } else if (Nav.page == PageId.keyboard && Kb.purpose == KbPurpose.text) {
+        } else if (Nav.page == PageId.keyboard && Kb.purpose != KbPurpose.wifi-password) {
             Nav.go(PageId.integrations, Cfg.focus);
         } else if (Nav.page == PageId.keyboard || Nav.page == PageId.join-failed) {
             Wifi.join-state = JoinState.idle;

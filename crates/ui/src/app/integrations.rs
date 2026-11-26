@@ -3,7 +3,7 @@
 //! says what to show and what to do, and the session does it.
 
 use crate::Dot;
-use drivers::api::{FieldKind, Health, Spec, Target, TargetKind};
+use drivers::api::{Field, FieldKind, Health, PairError, Paired, Spec, Target, TargetKind};
 use drivers::{Binding, Host, Input, Modules, Role, Slot};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,6 +18,7 @@ enum Screen {
     Inputs,
     Input(String),
     PickSlot { input: String, slot: Slot },
+    Pairing(String),
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -39,6 +40,22 @@ pub(crate) struct Page {
     pub focus: usize,
 }
 
+/// Where a pairing has got to.
+#[derive(Debug, Clone, Default, PartialEq)]
+enum Phase {
+    /// The device is being contacted.
+    #[default]
+    Starting,
+    /// The device shows its code; the keyboard is up, or was and was left.
+    Waiting,
+    Checking,
+    Failed(String),
+}
+
+const CODE_TITLE: &str = "Pairing code";
+const CODE_CAPTION: &str = "SHOWN ON THE DEVICE";
+const CODE_WRONG: &str = "WRONG CODE, TRY AGAIN";
+
 #[derive(Debug, PartialEq)]
 pub(crate) enum Effect {
     Stay,
@@ -46,6 +63,12 @@ pub(crate) enum Effect {
     /// Fetch what a target field can point at from `driver`; `targets_loaded` brings them.
     Load { driver: String, kind: TargetKind },
     Text { title: String, caption: String, text: String },
+    /// The keyboard for a pairing code of `len` characters.
+    Code { title: String, caption: String, len: usize },
+    /// Start pairing `driver`, once `apply` (if any) has restarted it with what it needs.
+    Pair { driver: String, apply: Option<Modules> },
+    /// Give the code to the pairing under way.
+    Finish { code: String },
     Leave,
 }
 
@@ -53,6 +76,7 @@ pub(crate) enum Effect {
 enum Editing {
     Field { driver: String, key: &'static str },
     Name(String),
+    Code,
 }
 
 #[derive(Default)]
@@ -62,6 +86,7 @@ pub(crate) struct Integrations {
     /// What the open picker offers; `None` while loading.
     targets: Option<Vec<Target>>,
     editing: Option<Editing>,
+    phase: Phase,
 }
 
 /// The rows of Global control, in order.
@@ -88,6 +113,16 @@ fn global_driver(host: &Host) -> Option<String> {
     host.modules().drivers.keys().find(|id| spec_of(host, id).is_some_and(|s| s.provides.global)).cloned()
 }
 
+/// The drivers that can be global power without being global control.
+fn power_providers(host: &Host) -> Vec<String> {
+    host.modules().drivers.keys().filter(|id| spec_of(host, id).is_some_and(|s| s.provides.power && !s.provides.global)).cloned().collect()
+}
+
+/// What a binding points at, as a person would say it: the target of global control, or the driver itself.
+fn bound_name(host: &Host, b: &Binding) -> String {
+    if spec_of(host, &b.driver).is_some_and(|s| s.provides.global) { short(&b.target) } else { name_of(host, &b.driver) }
+}
+
 fn input_of(host: &Host, id: &str) -> Option<Input> {
     host.inputs().into_iter().find(|i| i.id == id)
 }
@@ -95,7 +130,7 @@ fn input_of(host: &Host, id: &str) -> Option<Input> {
 impl Integrations {
     /// Opens on the first screen.
     pub(crate) fn open(&mut self) {
-        (self.stack, self.targets, self.editing) = (vec![(Screen::Root, 0)], None, None);
+        (self.stack, self.targets, self.editing, self.phase) = (vec![(Screen::Root, 0)], None, None, Phase::default());
     }
 
     fn top(&self) -> &Screen {
@@ -117,7 +152,7 @@ impl Integrations {
         let (title, rows) = match self.top() {
             Screen::Root => {
                 let mut rows = vec![
-                    Row { value: m.global.source.as_ref().or(m.global.volume.as_ref()).or(m.power_binding()).map_or("None".into(), |b| short(&b.target)), chevron: true, ..row("Global control") },
+                    Row { value: m.global.source.as_ref().or(m.global.volume.as_ref()).or(m.power_binding()).map_or("None".into(), |b| bound_name(host, b)), chevron: true, ..row("Global control") },
                     Row { value: format!("{} shown", host.inputs().iter().filter(|i| !i.hidden).count()), chevron: true, ..row("Inputs") },
                 ];
                 let statuses = host.statuses();
@@ -137,7 +172,7 @@ impl Integrations {
                 ("Integrations".to_string(), rows)
             }
             Screen::Global => {
-                let target = |b: &Option<Binding>| b.as_ref().map_or("None".to_string(), |b| short(&b.target));
+                let target = |b: &Option<Binding>| b.as_ref().map_or("None".to_string(), |b| bound_name(host, b));
                 let rows = vec![
                     Row { value: target(&m.global.volume), chevron: true, detail: "Volume and mute".into(), ..row("Volume") },
                     Row { value: target(&m.global.source), chevron: true, detail: "The input list".into(), ..row("Inputs") },
@@ -156,18 +191,22 @@ impl Integrations {
                     Role::Source => "Inputs",
                     Role::Power => "Power",
                 };
-                if global_driver(host).is_none() {
-                    (title.to_string(), vec![row("Add Home Assistant first")])
-                } else {
-                    (title.to_string(), self.target_rows(bound.as_ref().map(|b| b.target.as_str())))
-                }
+                let providers = if *role == Role::Power { power_providers(host) } else { Vec::new() };
+                let on_provider = bound.as_ref().is_some_and(|b| providers.contains(&b.driver));
+                let mut rows = match global_driver(host) {
+                    Some(_) => self.target_rows(bound.as_ref().filter(|_| !on_provider).map(|b| b.target.as_str()), !on_provider && bound.is_none()),
+                    None if providers.is_empty() => vec![row("Add Home Assistant first")],
+                    None => vec![Row { checked: bound.is_none(), ..row("None") }],
+                };
+                rows.extend(providers.iter().map(|id| Row { icon: icon_of(host, id), checked: bound.as_ref().is_some_and(|b| b.driver == *id), ..row(name_of(host, id)) }));
+                (title.to_string(), rows)
             }
             Screen::Driver(id) => {
                 let entry = &m.drivers[id];
-                let mut rows: Vec<Row> = spec_of(host, id)
-                    .map(|s| s.fields)
-                    .unwrap_or_default()
-                    .iter()
+                let spec = spec_of(host, id);
+                let mut rows: Vec<Row> = spec
+                    .into_iter()
+                    .flat_map(|s| s.visible_fields())
                     .map(|f| {
                         let value = match (f.kind, entry.text(f.key)) {
                             (FieldKind::Secret, Some(_)) => "Set".to_string(),
@@ -178,12 +217,27 @@ impl Integrations {
                         Row { value, chevron: true, ..row(f.label) }
                     })
                     .collect();
+                if spec.is_some_and(|s| s.pairing.is_some()) {
+                    let needed = host.statuses().iter().any(|(d, _, s)| d == id && s.health == Health::NotPaired);
+                    rows.push(Row { value: if needed { "Needed".into() } else { String::new() }, chevron: true, detail: "Type the code the device shows".into(), ..row("Pair") });
+                }
                 rows.push(row(format!("Remove {}", name_of(host, id))));
                 (name_of(host, id), rows)
             }
+            Screen::Pairing(id) => {
+                let name = name_of(host, id);
+                let rows = match &self.phase {
+                    Phase::Starting => vec![row(format!("Contacting {name}…"))],
+                    Phase::Waiting => vec![Row { detail: "Shown on the device".into(), chevron: true, ..row("Enter the code") }],
+                    Phase::Checking => vec![row("Checking the code…")],
+                    Phase::Failed(why) => vec![Row { detail: why.clone(), ..row("Try again") }],
+                };
+                (format!("Pair {name}"), rows)
+            }
             Screen::PickField { driver, key } => {
                 let label = spec_of(host, driver).and_then(|s| s.fields.iter().find(|f| f.key == *key)).map_or(*key, |f| f.label);
-                (label.to_string(), self.target_rows(m.drivers.get(driver).and_then(|d| d.text(key)).as_deref()))
+                let current = m.drivers.get(driver).and_then(|d| d.text(key));
+                (label.to_string(), self.target_rows(current.as_deref(), current.is_none()))
             }
             Screen::Remove(id) => (format!("Remove {}?", name_of(host, id)), vec![row(format!("Remove {}", name_of(host, id))), row("Cancel")]),
             Screen::Add => {
@@ -191,7 +245,7 @@ impl Integrations {
                     .addable(host)
                     .map(|s| {
                         let jobs: Vec<&str> =
-                            [(s.provides.global, "volume, inputs and power"), (s.provides.remote, "buttons"), (s.provides.ui, "screen")].into_iter().filter(|(y, _)| *y).map(|(_, j)| j).collect();
+                            [(s.provides.global, "volume, inputs and power"), (s.provides.remote, "buttons"), (s.provides.ui, "screen"), (s.provides.power && !s.provides.global, "power")].into_iter().filter(|(y, _)| *y).map(|(_, j)| j).collect();
                         Row { icon: s.icon, detail: capitalise(&jobs.join(", ")), chevron: true, ..row(s.name) }
                     })
                     .collect();
@@ -245,9 +299,9 @@ impl Integrations {
         Page { title, rows, focus }
     }
 
-    /// "None", then what the picker offers, the current one ticked.
-    fn target_rows(&self, current: Option<&str>) -> Vec<Row> {
-        let mut rows = vec![Row { checked: current.is_none(), ..row("None") }];
+    /// "None" (ticked when `none_checked`), then what the picker offers, the current one ticked.
+    fn target_rows(&self, current: Option<&str>, none_checked: bool) -> Vec<Row> {
+        let mut rows = vec![Row { checked: none_checked, ..row("None") }];
         match &self.targets {
             None => rows.push(row("Loading…")),
             Some(t) if t.is_empty() => rows.push(row("Nothing found")),
@@ -303,14 +357,27 @@ impl Integrations {
                 }
             }
             Screen::PickRole(role) => {
-                let (Some(driver), Some(target)) = (global_driver(host), self.picked_target(at)) else { return Effect::Stay };
-                m.bind(role, target.map(|target| Binding { driver, target }));
+                let rows_before_providers = if global_driver(host).is_some() { self.targets.as_ref().map_or(1, |t| t.len().max(1)) } else { 0 };
+                let provider = at.checked_sub(rows_before_providers + 1).and_then(|i| power_providers(host).get(i).cloned()).filter(|_| role == Role::Power);
+                let binding = match (at, provider) {
+                    (0, _) => None,
+                    (_, Some(driver)) => Some(Binding { target: driver.clone(), driver }),
+                    _ => {
+                        let (Some(driver), Some(Some(target))) = (global_driver(host), self.picked_target(at)) else { return Effect::Stay };
+                        Some(Binding { driver, target })
+                    }
+                };
+                m.bind(role, binding);
                 self.pop();
                 Effect::Apply(m)
             }
             Screen::Driver(id) => {
-                let fields = spec_of(host, &id).map(|s| s.fields).unwrap_or_default();
-                match fields.get(at) {
+                let spec = spec_of(host, &id);
+                let fields: Vec<&Field> = spec.into_iter().flat_map(|s| s.visible_fields()).collect();
+                if spec.is_some_and(|s| s.pairing.is_some()) && at == fields.len() {
+                    return self.start_pairing(id, None);
+                }
+                match fields.get(at).copied() {
                     Some(f) => match f.kind {
                         FieldKind::Target(kind) => {
                             self.push(Screen::PickField { driver: id.clone(), key: f.key });
@@ -389,6 +456,11 @@ impl Integrations {
                 }
                 Effect::Apply(m)
             }
+            Screen::Pairing(id) => match self.phase.clone() {
+                Phase::Waiting => self.ask_code(&id, host, CODE_CAPTION),
+                Phase::Failed(_) => self.start_pairing(id, None),
+                Phase::Starting | Phase::Checking => Effect::Stay,
+            },
             Screen::PickSlot { input, slot } => {
                 let driver = match at {
                     0 => None,
@@ -404,14 +476,71 @@ impl Integrations {
         }
     }
 
-    /// The keyboard's Done.
-    pub(crate) fn text_entered(&mut self, text: &str, host: &Host) -> Option<Modules> {
+    /// The keyboard's Done. A pairable driver whose setup is complete, with nothing paired yet, goes on to pairing.
+    pub(crate) fn text_entered(&mut self, text: &str, host: &Host) -> Effect {
         let mut m = host.modules().clone();
-        match self.editing.take()? {
-            Editing::Field { driver, key } => m.set_field(&driver, key, text),
-            Editing::Name(input) => m.rename(&input, text),
+        match self.editing.take() {
+            None => return Effect::Stay,
+            Some(Editing::Code) => {
+                self.phase = Phase::Checking;
+                return Effect::Finish { code: text.trim().to_string() };
+            }
+            Some(Editing::Name(input)) => m.rename(&input, text),
+            Some(Editing::Field { driver, key }) => {
+                m.set_field(&driver, key, text);
+                if needs_pairing(&m, &driver, host) {
+                    return self.start_pairing(driver, Some(m));
+                }
+            }
         }
-        Some(m)
+        Effect::Apply(m)
+    }
+
+    fn start_pairing(&mut self, driver: String, apply: Option<Modules>) -> Effect {
+        if self.stack.last().is_none_or(|(s, _)| !matches!(s, Screen::Pairing(_))) {
+            self.push(Screen::Pairing(driver.clone()));
+        }
+        self.phase = Phase::Starting;
+        Effect::Pair { driver, apply }
+    }
+
+    /// The device answered and shows its code, or it did not.
+    pub(crate) fn pair_started(&mut self, started: Result<(), PairError>, host: &Host) -> Effect {
+        let Screen::Pairing(driver) = self.top().clone() else { return Effect::Stay };
+        match started {
+            Ok(()) => self.ask_code(&driver, host, CODE_CAPTION),
+            Err(e) => {
+                self.phase = Phase::Failed(pair_failure(e));
+                Effect::Stay
+            }
+        }
+    }
+
+    /// The pairing's verdict on the code: done, mistyped (the keyboard again), or failed.
+    pub(crate) fn pair_checked(&mut self, result: Result<Paired, PairError>, host: &Host) -> Effect {
+        let Screen::Pairing(driver) = self.top().clone() else { return Effect::Stay };
+        match result {
+            Ok(fields) => {
+                let mut m = host.modules().clone();
+                for (key, value) in fields {
+                    m.set_field(&driver, key, &value);
+                }
+                self.pop();
+                Effect::Apply(m)
+            }
+            Err(PairError::WrongCode) => self.ask_code(&driver, host, CODE_WRONG),
+            Err(e) => {
+                self.phase = Phase::Failed(pair_failure(e));
+                Effect::Stay
+            }
+        }
+    }
+
+    fn ask_code(&mut self, driver: &str, host: &Host, caption: &str) -> Effect {
+        let Some(pairing) = spec_of(host, driver).and_then(|s| s.pairing) else { return Effect::Stay };
+        self.phase = Phase::Waiting;
+        self.editing = Some(Editing::Code);
+        Effect::Code { title: CODE_TITLE.into(), caption: caption.into(), len: pairing.code_len }
     }
 
     fn pop(&mut self) {
@@ -423,6 +552,20 @@ impl Integrations {
     pub(crate) fn back(&mut self) -> Effect {
         self.pop();
         if self.stack.is_empty() { Effect::Leave } else { Effect::Stay }
+    }
+}
+
+/// Whether `driver` can be paired, has all it needs to be, and has nothing paired yet.
+fn needs_pairing(m: &Modules, driver: &str, host: &Host) -> bool {
+    let (Some(entry), Some(spec)) = (m.drivers.get(driver), spec_of(host, driver)) else { return false };
+    let has = |f: &Field| entry.text(f.key).is_some();
+    spec.pairing.is_some() && spec.fields.iter().filter(|f| f.required).all(has) && spec.fields.iter().filter(|f| f.kind == FieldKind::Credential).all(|f| !has(f))
+}
+
+fn pair_failure(e: PairError) -> String {
+    match e {
+        PairError::WrongCode => "Wrong code".into(),
+        PairError::Failed(why) => why,
     }
 }
 
@@ -440,7 +583,8 @@ fn capitalise(s: &str) -> String {
 mod tests {
     use super::*;
     use drivers::api::Sources;
-    use drivers::testing::Fakes;
+    use drivers::api::PairError;
+    use drivers::testing::{Fakes, FAKE_PAIRABLE, FAKE_PAIRABLE_CREDENTIAL};
 
     fn setup() -> (Host, Fakes, Integrations) {
         let fakes = Fakes::default();
@@ -468,6 +612,15 @@ mod tests {
         effect
     }
 
+    /// The keyboard's Done, applying what it changes.
+    fn type_text(ui: &mut Integrations, host: &mut Host, text: &str) -> Effect {
+        let effect = ui.text_entered(text, host);
+        if let Effect::Apply(m) = &effect {
+            host.apply(m.clone());
+        }
+        effect
+    }
+
     #[tokio::test]
     async fn adding_a_driver_and_putting_it_in_an_inputs_slots() {
         let (mut host, _fakes, mut ui) = setup();
@@ -478,7 +631,7 @@ mod tests {
         assert_eq!(ui.page(&host).rows[0].value, "Not set");
         let Effect::Text { title, text, .. } = tap(&mut ui, &mut host, "Host") else { panic!("asks for text") };
         assert_eq!((title.as_str(), text.as_str()), ("Host", ""));
-        host.apply(ui.text_entered("theater.local", &host).unwrap());
+        type_text(&mut ui, &mut host, "theater.local");
         assert_eq!(ui.page(&host).rows[0].value, "theater.local");
 
         ui.back();
@@ -501,7 +654,7 @@ mod tests {
         tap(&mut ui, &mut host, "Move up");
         tap(&mut ui, &mut host, "Show in the list");
         assert!(matches!(tap(&mut ui, &mut host, "Name"), Effect::Text { .. }));
-        host.apply(ui.text_entered("Kodi", &host).unwrap());
+        type_text(&mut ui, &mut host, "Kodi");
         assert_eq!(ui.page(&host).title, "Kodi");
         ui.back();
         let inputs = ui.page(&host);
@@ -556,5 +709,81 @@ mod tests {
         assert!(host.modules().drivers.is_empty() && host.modules().global.source.is_none());
         assert_eq!(ui.page(&host).title, "Integrations");
         assert_eq!(ui.back(), Effect::Leave);
+    }
+
+    fn pairable() -> (Host, Integrations) {
+        let mut m = Modules::default();
+        m.add_driver(FAKE_PAIRABLE.id, Default::default());
+        let host = Host::new(Fakes::default().registry(), m);
+        let mut ui = Integrations::default();
+        ui.open();
+        (host, ui)
+    }
+
+    #[tokio::test]
+    async fn credentials_are_not_rows_and_pairing_has_its_own() {
+        let (mut host, mut ui) = pairable();
+        tap(&mut ui, &mut host, "Pairable");
+        assert_eq!(labels(&ui.page(&host)), ["Host", "Pair", "Remove Pairable"]);
+    }
+
+    #[tokio::test]
+    async fn setting_the_host_starts_pairing_and_the_code_finishes_it() {
+        let (mut host, mut ui) = pairable();
+        tap(&mut ui, &mut host, "Pairable");
+        assert!(matches!(tap(&mut ui, &mut host, "Host"), Effect::Text { .. }));
+        let Effect::Pair { driver, apply: Some(m) } = ui.text_entered("10.0.0.5", &host) else { panic!("goes on to pairing") };
+        assert_eq!(driver, FAKE_PAIRABLE.id);
+        host.apply(m);
+        assert_eq!(ui.page(&host).title, "Pair Pairable");
+        assert_eq!(labels(&ui.page(&host)), ["Contacting Pairable…"]);
+
+        let Effect::Code { len, .. } = ui.pair_started(Ok(()), &host) else { panic!("asks for the code") };
+        assert_eq!(len, 6);
+        assert_eq!(ui.text_entered("1A2B3C", &host), Effect::Finish { code: "1A2B3C".into() });
+        assert_eq!(labels(&ui.page(&host)), ["Checking the code…"]);
+
+        let Effect::Code { caption, .. } = ui.pair_checked(Err(PairError::WrongCode), &host) else { panic!("asks again") };
+        assert_eq!(caption, "WRONG CODE, TRY AGAIN");
+        assert_eq!(ui.text_entered("1A2B3D", &host), Effect::Finish { code: "1A2B3D".into() });
+
+        let Effect::Apply(m) = ui.pair_checked(Ok(vec![(FAKE_PAIRABLE_CREDENTIAL, "secret".into())]), &host) else { panic!("stores the credentials") };
+        host.apply(m);
+        assert_eq!(host.modules().drivers[FAKE_PAIRABLE.id].text(FAKE_PAIRABLE_CREDENTIAL).as_deref(), Some("secret"));
+        assert_eq!(ui.page(&host).title, "Pairable", "back on the driver's page");
+    }
+
+    #[tokio::test]
+    async fn a_failed_pairing_can_be_tried_again_and_a_paired_driver_is_not_paired_on_host_edit() {
+        let (mut host, mut ui) = pairable();
+        tap(&mut ui, &mut host, "Pairable");
+        let Effect::Pair { .. } = tap(&mut ui, &mut host, "Pair") else { panic!("starts pairing") };
+        assert_eq!(ui.pair_started(Err(PairError::Failed("No answer".into())), &host), Effect::Stay);
+        assert_eq!(ui.page(&host).rows[0].detail, "No answer");
+        assert!(matches!(tap(&mut ui, &mut host, "Try again"), Effect::Pair { apply: None, .. }));
+        ui.back();
+        assert_eq!(ui.page(&host).title, "Pairable");
+
+        let mut m = host.modules().clone();
+        m.set_field(FAKE_PAIRABLE.id, FAKE_PAIRABLE_CREDENTIAL, "secret");
+        host.apply(m);
+        tap(&mut ui, &mut host, "Host");
+        assert!(matches!(ui.text_entered("10.0.0.6", &host), Effect::Apply(_)), "already paired: just saved");
+    }
+
+    #[tokio::test]
+    async fn power_can_be_bound_to_a_driver_that_offers_it() {
+        let (mut host, mut ui) = pairable();
+        tap(&mut ui, &mut host, "Global control");
+        assert_eq!(ui.page(&host).rows[2].value, "None");
+        tap(&mut ui, &mut host, "Power");
+        assert_eq!(labels(&ui.page(&host)), ["None", "Pairable"]);
+        tap(&mut ui, &mut host, "Pairable");
+        assert_eq!(host.modules().global.power, Some(Binding { driver: FAKE_PAIRABLE.id.into(), target: FAKE_PAIRABLE.id.into() }));
+        assert_eq!(ui.page(&host).rows[2].value, "Pairable");
+        tap(&mut ui, &mut host, "Power");
+        assert!(ui.page(&host).rows[1].checked);
+        tap(&mut ui, &mut host, "None");
+        assert_eq!(host.modules().global.power, None);
     }
 }

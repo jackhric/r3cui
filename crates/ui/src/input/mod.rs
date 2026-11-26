@@ -192,7 +192,7 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
             match outcome {
                 keyboard::Outcome::Stay => {}
                 keyboard::Outcome::Leave => app.global::<Nav>().invoke_back(),
-                keyboard::Outcome::Done(text) if app.global::<Kb>().get_purpose() == KbPurpose::Text => {
+                keyboard::Outcome::Done(text) if app.global::<Kb>().get_purpose() != KbPurpose::WifiPassword => {
                     let _ = tx.send(UiAction::Integrations(crate::app::Settings::Text(text)));
                 }
                 keyboard::Outcome::Done(password) => {
@@ -212,9 +212,13 @@ pub(crate) fn wire_keyboard(app: &AppWindow, tx: mpsc::UnboundedSender<UiAction>
         }
     });
     app.global::<Kb>().on_start({
-        let (kb, after) = (kb.clone(), after.clone());
+        let (kb, after, weak) = (kb.clone(), after.clone(), app.as_weak());
         move |text| {
-            kb.borrow_mut().start(0, "Done", &text);
+            let Some(app) = weak.upgrade() else { return };
+            match app.global::<Kb>().get_purpose() {
+                KbPurpose::Code => kb.borrow_mut().start(app.global::<Kb>().get_min_len().max(0) as usize, keyboard::PAIR, &text),
+                _ => kb.borrow_mut().start(0, keyboard::DONE, &text),
+            }
             after(keyboard::Outcome::Stay);
         }
     });

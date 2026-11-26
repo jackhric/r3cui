@@ -56,4 +56,8 @@ pub(crate) enum Later {
     SendVolume,
     /// What an Integrations picker offers, as its driver answered.
     Targets(Vec<drivers::api::Target>),
+    /// The device answered a pairing's start: it shows its code, or it did not.
+    PairStarted(Result<Box<dyn drivers::api::Pairer>, drivers::api::PairError>),
+    /// The pairing's verdict on a code, with the pairing handed back for another try.
+    PairChecked(Result<drivers::api::Paired, drivers::api::PairError>, Box<dyn drivers::api::Pairer>),
 }

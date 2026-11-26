@@ -3,10 +3,12 @@ import { KbPurpose, KeyCell, NavKey } from "../types.slint";
 export global Kb {
     in property <[KeyCell]> keys;
     in property <string> text;
-    // The keyboard is for a Wi-Fi password or for other text (an integration's setting, an input's name).
+    // The keyboard is for a Wi-Fi password, for other text (an integration's setting, an input's name) or for a pairing code.
     in-out property <KbPurpose> purpose;
     in property <string> title;
     in property <string> caption;
+    // The least characters the action key accepts, for a code.
+    in property <int> min-len;
     callback reset();
     // Ready the keyboard for other text, starting from this.
     callback start(string);
