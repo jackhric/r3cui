@@ -1,7 +1,5 @@
 //! r3cui's own updates: what GitHub says the latest release is, fetching its archive and checking it. Putting the
-//! archive on the remote is `rest`.
-
-pub(crate) mod rest;
+//! archive on the remote is `remote::rest`.
 
 use anyhow::{anyhow, bail, Context, Result};
 use semver::Version;

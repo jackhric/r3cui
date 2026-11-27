@@ -42,4 +42,5 @@ docker run --rm \
         chown -R '"$(id -u):$(id -g)"' /src/target-device /usr/local/cargo/registry
     '
 
+"$repo/scripts/build-relay.sh"
 "$repo/packaging/pack.sh" "$repo/target-device/aarch64-unknown-linux-gnu/release/remote-ui"

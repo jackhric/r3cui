@@ -39,6 +39,8 @@ pub(crate) fn show(weak: &slint::Weak<crate::AppWindow>, v: View) {
         s.set_r3_error(v.r3_error.into());
         s.set_uninstall_state(v.uninstall_state);
         s.set_uninstall_error(v.uninstall_error.into());
+        s.set_voice_setup(v.voice_setup);
+        s.set_voice_line(v.voice_line.into());
         s.set_fw_installed(v.fw_installed.into());
         s.set_fw_state(v.fw_state);
         s.set_fw_status(v.fw_status.into());

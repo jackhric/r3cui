@@ -2,7 +2,8 @@
 //! the remote or taking r3cui off. What to show of it is `app::software`.
 
 use crate::app::software::Access;
-use crate::remote::selfupdate::{self, rest::Rest, Release};
+use crate::remote::rest::Rest;
+use crate::remote::selfupdate::{self, Release};
 use crate::InstallPhase;
 use coreapi::{CheckSystemUpdate, Core, GetVersion, SystemUpdateInfo, UpdateRefusal, UpdateStart};
 use std::path::{Path, PathBuf};
@@ -69,11 +70,11 @@ fn data_folder() -> PathBuf {
     folder(DATA_HOME_ENV).unwrap_or_else(|| std::env::temp_dir().join("r3cui"))
 }
 
-fn rest(access: &Access) -> Rest {
+pub(crate) fn rest(access: &Access) -> Rest {
     Rest::new(&coreapi::Config::url_from_env(), &access.pin)
 }
 
-async fn grant(core: &Core, access: &Access) -> Result<(), String> {
+pub(crate) async fn grant(core: &Core, access: &Access) -> Result<(), String> {
     if !access.enable {
         return Ok(());
     }
@@ -86,7 +87,7 @@ async fn grant(core: &Core, access: &Access) -> Result<(), String> {
 }
 
 /// Puts the web configurator back as it was before `grant`.
-async fn revoke(core: &Core, access: &Access) {
+pub(crate) async fn revoke(core: &Core, access: &Access) {
     if !access.restore_off {
         return;
     }

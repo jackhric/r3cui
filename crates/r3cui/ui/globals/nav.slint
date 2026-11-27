@@ -194,6 +194,8 @@ export global Nav {
         } else if (i == Software.web-row) {
             Software.open-web();
             Nav.go(PageId.web-config, 0);
+        } else if (i == Software.voice-row) {
+            Software.install-voice();
         } else if (i == Software.uninstall-row) {
             Nav.go(PageId.uninstall, 0);
         }

@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
 use voicelink::{ErrorCode, SessionId};
 
-pub const ENTITY_ID: &str = "voice";
+pub const ENTITY_ID: &str = voicelink::RELAY_ENTITY_ID;
 pub const DRIVER_NAME: &str = "r3cui-voice";
 pub const API_VERSION: &str = "0.20.0";
 pub const DRIVER_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -309,7 +309,7 @@ mod tests {
     fn driver_json_matches_the_crate() {
         let meta = driver_metadata();
         assert_eq!(meta["version"], DRIVER_VERSION);
-        assert_eq!(meta["driver_id"], "r3cui_voice");
+        assert_eq!(meta["driver_id"], voicelink::RELAY_DRIVER_ID);
         assert!(meta.get("setup_data_schema").is_none());
     }
 }

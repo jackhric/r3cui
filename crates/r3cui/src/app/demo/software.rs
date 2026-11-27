@@ -14,6 +14,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 const TICK: Duration = Duration::from_millis(250);
+const VOICE_SETUP_TIME: Duration = Duration::from_secs(3);
 const DOWNLOAD_SHARE: u8 = 70;
 const INSTALL_SHARE: u8 = 95;
 
@@ -25,6 +26,7 @@ struct State {
     updated: bool,
     downloaded: bool,
     web_on: bool,
+    voice: bool,
 }
 
 impl Updates {
@@ -79,6 +81,10 @@ impl Updates {
 
     pub(crate) fn set_web(&self, on: bool) {
         self.0.lock().unwrap().web_on = on;
+    }
+
+    pub(crate) fn voice_ready(&self) -> bool {
+        self.0.lock().unwrap().voice
     }
 }
 
@@ -147,4 +153,11 @@ pub(crate) async fn install_r3(progress: Progress) -> Result<(), String> {
 pub(crate) async fn uninstall() -> Result<(), String> {
     tokio::time::sleep(RESTART_TIME).await;
     Err("Demo: nothing was erased. The remote would restart into its stock interface.".into())
+}
+
+/// The demo's voice integration goes in at once, made up like the rest.
+pub(crate) async fn install_voice(updates: &Updates) -> Result<(), String> {
+    tokio::time::sleep(VOICE_SETUP_TIME).await;
+    updates.0.lock().unwrap().voice = true;
+    Ok(())
 }

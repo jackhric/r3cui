@@ -9,7 +9,7 @@ use crate::remote::software::Progress;
 use crate::view::format::{ago, release_date, size_label};
 use crate::view::screen::Screen;
 use crate::view::ui;
-use crate::{AppWindow, InstallPhase, PageId, UninstallState, UpdateState};
+use crate::{AppWindow, InstallPhase, PageId, UninstallState, UpdateState, VoiceSetup};
 use coreapi::{DownloadState, SoftwareUpdate, SystemUpdateInfo, UpdateEventType, UpdateRefusal, UpdateRunState, UpdateStart};
 use semver::Version;
 use std::sync::Arc;
@@ -39,6 +39,7 @@ pub(crate) enum Action {
     NewPin,
     WebOff,
     Uninstall,
+    InstallVoice,
 }
 
 #[derive(Debug)]
@@ -53,6 +54,8 @@ pub(crate) enum Event {
     WebRead(bool),
     WebSet(Result<(), String>),
     Address(String),
+    VoiceRead(Result<bool, String>),
+    VoiceInstalled(Result<(), String>),
 }
 
 /// What the session is to do, in the order given.
@@ -67,6 +70,8 @@ pub(crate) enum Command {
     /// Turn the web configurator on with this PIN, or off.
     SetWeb { pin: Option<String> },
     Uninstall { access: Access },
+    ReadVoice,
+    InstallVoice { access: Access },
     Go(PageId),
 }
 
@@ -183,6 +188,8 @@ pub(crate) struct Software {
     firmware: Firmware,
     web: Web,
     uninstall: (UninstallState, String),
+    /// r3cui's voice integration, and what went wrong setting it up.
+    voice: (VoiceSetup, String),
     new_pin: Box<dyn FnMut() -> String + Send>,
 }
 
@@ -194,13 +201,14 @@ impl Software {
             firmware: Firmware { installed: String::new(), check: Check::Never, offer: None, error: None, install: None },
             web: Web::default(),
             uninstall: (UninstallState::Idle, String::new()),
+            voice: (VoiceSetup::Unknown, String::new()),
             new_pin: Box::new(new_pin),
         }
     }
 
     /// The core is connected: learn what it knows.
     pub(crate) fn on_connect(&mut self, now: Instant) -> Vec<Command> {
-        let mut commands = vec![Command::CheckFirmware { force: false }, Command::ReadWeb, Command::ReadAddress];
+        let mut commands = vec![Command::CheckFirmware { force: false }, Command::ReadWeb, Command::ReadAddress, Command::ReadVoice];
         commands.extend(self.tick(now));
         commands
     }
@@ -223,6 +231,9 @@ impl Software {
                     self.uninstall = (UninstallState::Idle, String::new());
                 }
                 let mut commands = vec![Command::ReadWeb];
+                if self.voice.0 != VoiceSetup::Working {
+                    commands.push(Command::ReadVoice);
+                }
                 if self.web.address.is_empty() {
                     commands.push(Command::ReadAddress);
                 }
@@ -279,12 +290,16 @@ impl Software {
                 self.uninstall = (UninstallState::Working, String::new());
                 vec![Command::Uninstall { access: self.access() }]
             }
+            Action::InstallVoice if self.voice.0 != VoiceSetup::Working && !self.busy() => {
+                self.voice = (VoiceSetup::Working, String::new());
+                vec![Command::InstallVoice { access: self.access() }]
+            }
             _ => Vec::new(),
         }
     }
 
     fn busy(&self) -> bool {
-        self.r3.install.is_some() || self.firmware.install.is_some()
+        self.r3.install.is_some() || self.firmware.install.is_some() || self.uninstall.0 == UninstallState::Working
     }
 
     fn access(&mut self) -> Access {
@@ -343,6 +358,30 @@ impl Software {
             }
             Event::Address(address) => {
                 self.web.address = address;
+                Vec::new()
+            }
+            Event::VoiceRead(read) => {
+                if self.voice.0 != VoiceSetup::Working {
+                    self.voice.0 = match read {
+                        Ok(true) => VoiceSetup::Ready,
+                        Ok(false) if self.voice.0 == VoiceSetup::Failed => VoiceSetup::Failed,
+                        Ok(false) => VoiceSetup::Absent,
+                        Err(e) => {
+                            tracing::warn!("voice settings: {e}");
+                            VoiceSetup::Unknown
+                        }
+                    };
+                }
+                Vec::new()
+            }
+            Event::VoiceInstalled(result) => {
+                self.voice = match result {
+                    Ok(()) => (VoiceSetup::Ready, String::new()),
+                    Err(e) => {
+                        tracing::warn!("setting up voice: {e}");
+                        (VoiceSetup::Failed, e)
+                    }
+                };
                 Vec::new()
             }
         }
@@ -509,6 +548,14 @@ impl Software {
             r3_error: r3.error.clone().unwrap_or_default(),
             uninstall_state: self.uninstall.0,
             uninstall_error: self.uninstall.1.clone(),
+            voice_setup: self.voice.0,
+            voice_line: match self.voice.0 {
+                VoiceSetup::Unknown => String::new(),
+                VoiceSetup::Absent => "Set up".into(),
+                VoiceSetup::Working => "Setting up…".into(),
+                VoiceSetup::Ready => "On".into(),
+                VoiceSetup::Failed => "Failed · try again".into(),
+            },
             fw_installed: fw.installed.clone(),
             fw_state: fw.check.state(fw.offer.is_some()),
             fw_status: fw.check.line(now, fw.offer.is_some(), &new_fw),
@@ -572,6 +619,8 @@ pub(crate) struct View {
     pub(crate) r3_error: String,
     pub(crate) uninstall_state: UninstallState,
     pub(crate) uninstall_error: String,
+    pub(crate) voice_setup: VoiceSetup,
+    pub(crate) voice_line: String,
     pub(crate) fw_installed: String,
     pub(crate) fw_state: UpdateState,
     pub(crate) fw_status: String,
@@ -647,6 +696,12 @@ pub(crate) fn run(commands: Vec<Command>, link: &Link, later: &UnboundedSender<L
                         tell(Event::UninstallFailed(e));
                     }
                 });
+            }
+            Command::ReadVoice => {
+                tokio::spawn(async move { tell(Event::VoiceRead(link.voice_ready().await)) });
+            }
+            Command::InstallVoice { access } => {
+                tokio::spawn(async move { tell(Event::VoiceInstalled(link.install_voice(access).await)) });
             }
         }
     }

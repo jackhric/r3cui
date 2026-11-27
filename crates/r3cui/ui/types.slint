@@ -67,6 +67,16 @@ export enum UninstallState {
     failed,
 }
 
+// r3cui's voice integration on the remote: what the System page's voice tile shows.
+export enum VoiceSetup {
+    unknown,
+    // Not installed, or installed but not the remote's voice assistant.
+    absent,
+    working,
+    ready,
+    failed,
+}
+
 // Where Back leads: a page and the row to focus there.
 export struct Dest {
     page: PageId,

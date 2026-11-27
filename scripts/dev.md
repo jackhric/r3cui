@@ -46,7 +46,7 @@ A 480×800 window opens and authenticates with the core. The rest of the screen 
 - Device build: `scripts/build-device.sh` cross-compiles the `device` feature for aarch64 in a container and runs
   `packaging/pack.sh`; `scripts/test.sh` also clippy-checks that build. See docs/plan.md and docs/device-contract.md.
 - Voice relay: `scripts/build-relay.sh` builds the relay as a static aarch64 musl binary in the same container and runs
-  `packaging/voice-relay.sh`, writing `packaging/out/r3cui-voice.tar.gz`. See docs/voice.md.
+  `packaging/voice-relay.sh`, writing `packaging/out/relay/r3cui-voice.tar.gz`. See docs/voice.md.
 
 ## Simulating the hard keys
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Build the installable custom-integration archive: driver.json at root, the binary at bin/driver.
 # Usage: voice-relay.sh <path-to-static-aarch64-driver-binary>
-# Output: packaging/out/r3cui-voice.tar.gz
+# Output: packaging/out/relay/r3cui-voice.tar.gz, which pack.sh carries inside r3cui's own archive.
 set -euo pipefail
 
 BIN="${1:?usage: voice-relay.sh <path-to-driver-binary>}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
-OUT="$HERE/out"
+OUT="$HERE/out/relay"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 

@@ -4,7 +4,7 @@ import { Software } from "../../globals/software.slint";
 import { R3Wordmark } from "../../marks/brand.slint";
 import { Icons } from "../../marks/icons.slint";
 import { Theme, Layout, Type } from "../../theme.slint";
-import { Dot, PageId, UpdateState } from "../../types.slint";
+import { Dot, PageId, UpdateState, VoiceSetup } from "../../types.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageBody, Gap, Spring, Inset } from "../../widgets/page-body.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
@@ -92,6 +92,19 @@ export component SystemPage inherits Layer {
                     uc-mark: true;
                     focused: Nav.focus == Software.web-row;
                     tapped => { Nav.activate(Software.web-row); }
+                }
+                Tile {
+                    row: 2;
+                    col: 0;
+                    colspan: 2;
+                    wide: true;
+                    title: "Voice assistant";
+                    value: Software.voice-line;
+                    r3-mark: true;
+                    dot: Software.voice-setup == VoiceSetup.ready ? Dot.up : Software.voice-setup == VoiceSetup.failed ? Dot.down : Dot.none;
+                    accent: Software.voice-setup == VoiceSetup.absent;
+                    focused: Nav.focus == Software.voice-row;
+                    tapped => { Nav.activate(Software.voice-row); }
                 }
             }
         }

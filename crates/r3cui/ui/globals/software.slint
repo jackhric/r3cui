@@ -1,15 +1,17 @@
-import { InstallPhase, UninstallState, UpdateState } from "../types.slint";
+import { InstallPhase, UninstallState, UpdateState, VoiceSetup } from "../types.slint";
 
 // The software on the remote: r3cui itself and the firmware under it, and the web configurator. Rust fills every `in`
 // property; the callbacks are what the System pages ask of it.
 export global Software {
-    // The System page's items: a grid of tiles, read left to right, then the uninstall pill.
+    // The System page's items: a grid of tiles, read left to right, the voice tile across the grid's width, then the
+    // uninstall pill.
     out property <int> action-row: 0;
     out property <int> control-row: 1;
     out property <int> firmware-row: 2;
     out property <int> web-row: 3;
-    out property <int> uninstall-row: 4;
-    out property <int> system-rows: 5;
+    out property <int> voice-row: 4;
+    out property <int> uninstall-row: 5;
+    out property <int> system-rows: 6;
     out property <int> system-tiles: 4;
     out property <int> system-columns: 2;
 
@@ -32,6 +34,10 @@ export global Software {
     in property <InstallPhase> r3-phase: InstallPhase.idle;
     in property <int> r3-percent;
     in property <string> r3-error;
+
+    in property <VoiceSetup> voice-setup: VoiceSetup.unknown;
+    // Beside the voice tile's title: "Set up", "On", "Failed · try again".
+    in property <string> voice-line;
 
     in property <UninstallState> uninstall-state: UninstallState.idle;
     in property <string> uninstall-error;
@@ -74,4 +80,6 @@ export global Software {
     callback new-pin();
     callback web-off();
     callback uninstall();
+    // Install r3cui's voice integration, or bring it up to date, and make it the remote's voice assistant.
+    callback install-voice();
 }

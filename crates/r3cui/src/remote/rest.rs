@@ -1,7 +1,9 @@
-//! The core's REST API, for the two things the WebSocket cannot do: putting a new UI on the remote and taking this one
-//! off. Both need the web configurator's PIN (basic auth as `web-configurator`). Not yet tried on a real remote.
+//! The core's REST API, for what the WebSocket cannot do: putting a new UI on the remote and taking this one off, and
+//! installing and setting up r3cui's voice integration. All need the web configurator's PIN (basic auth as
+//! `web-configurator`).
 
 use base64::Engine as _;
+use serde::de::DeserializeOwned;
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
@@ -13,17 +15,20 @@ const INSTALL_UI_PATH: &str = "/api/system/install/ui";
 const BOUNDARY: &str = "r3cui-archive-boundary";
 const FILE_FIELD: &str = "file";
 /// Any name does: the remote reads the archive, not what it is called.
-const UPLOAD_NAME: &str = "r3cui.tar.gz";
+const UPLOAD_NAME: &str = "archive.tar.gz";
 /// The flag is already set on a remote that runs r3cui; the endpoint wants it spelled out all the same.
 const ACKNOWLEDGE_WARRANTY: (&str, &str) = ("void_warranty", "yes");
 const DISABLE: (&str, &str) = ("enable", "false");
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(300);
+const JSON: &str = "application/json";
 const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum RestError {
     /// Nothing answered at any address tried.
     Unreachable(String),
+    /// The answer was not what the API says it is.
+    Unexpected(String),
     /// The core answered, and said no.
     Refused { status: u16, what: String },
     Local(String),
@@ -36,6 +41,7 @@ impl fmt::Display for RestError {
             Self::Refused { status: 401, .. } => f.write_str("the remote did not accept the PIN"),
             Self::Refused { status: 403, .. } => f.write_str("the remote did not allow it (403)"),
             Self::Refused { status, what } => write!(f, "the remote refused it ({status} {what})"),
+            Self::Unexpected(why) => write!(f, "the remote answered unexpectedly: {why}"),
             Self::Local(why) => f.write_str(why),
         }
     }
@@ -67,52 +73,85 @@ impl Rest {
         Self::at(bases(socket_url), pin)
     }
 
-    fn at(bases: Vec<String>, pin: &str) -> Self {
+    pub(crate) fn at(bases: Vec<String>, pin: &str) -> Self {
         let auth = format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("{USER}:{pin}")));
         Self { bases, auth }
     }
 
     /// Whether the REST API answers and takes the PIN: asks after the installed UI.
     pub(crate) fn check(&self) -> Result<(), RestError> {
-        self.try_each(|base| ureq::get(&format!("{base}{INSTALL_UI_PATH}")).set("Authorization", &self.auth).timeout(CALL_TIMEOUT).call().map_err(Attempt::from))
+        self.try_each(|base| ureq::get(&format!("{base}{INSTALL_UI_PATH}")).set("Authorization", &self.auth).timeout(CALL_TIMEOUT).call().map_err(Attempt::from)).map(drop)
     }
 
     /// Installs the archive as the remote's UI. The core restarts the UI when it succeeds, so there may be no answer.
     pub(crate) fn install(&self, archive: &Path) -> Result<(), RestError> {
+        self.upload(INSTALL_UI_PATH, Some(ACKNOWLEDGE_WARRANTY), archive).map(drop)
+    }
+
+    /// Posts an archive as the form's one file.
+    pub(crate) fn upload(&self, path: &str, query: Option<(&str, &str)>, archive: &Path) -> Result<String, RestError> {
         let length = std::fs::metadata(archive).map_err(|e| RestError::Local(format!("{}: {e}", archive.display())))?.len();
         let (head, tail) = (multipart_head(), multipart_tail());
         let total = head.len() as u64 + length + tail.len() as u64;
-        self.try_each(|base| {
+        let answer = self.try_each(|base| {
             let file = File::open(archive).map_err(|e| Attempt::Local(format!("{}: {e}", archive.display())))?;
             let body = head.as_slice().chain(file).chain(tail.as_slice());
-            ureq::post(&format!("{base}{INSTALL_UI_PATH}"))
-                .query(ACKNOWLEDGE_WARRANTY.0, ACKNOWLEDGE_WARRANTY.1)
+            let mut request = ureq::post(&format!("{base}{path}"));
+            if let Some((k, v)) = query {
+                request = request.query(k, v);
+            }
+            request
                 .set("Authorization", &self.auth)
                 .set("Content-Type", &format!("multipart/form-data; boundary={BOUNDARY}"))
                 .set("Content-Length", &total.to_string())
                 .timeout(UPLOAD_TIMEOUT)
                 .send(body)
                 .map_err(Attempt::from)
-        })
+        })?;
+        text(answer)
+    }
+
+    /// `None` when the core answers 404: there is no such thing.
+    pub(crate) fn get<T: DeserializeOwned>(&self, path: &str) -> Result<Option<T>, RestError> {
+        match self.try_each(|base| ureq::get(&format!("{base}{path}")).set("Authorization", &self.auth).timeout(CALL_TIMEOUT).call().map_err(Attempt::from)) {
+            Err(RestError::Refused { status: 404, .. }) => Ok(None),
+            answer => parse(&text(answer?)?).map(Some),
+        }
+    }
+
+    pub(crate) fn post<T: DeserializeOwned>(&self, path: &str, body: &serde_json::Value) -> Result<T, RestError> {
+        self.send_json("POST", path, body)
+    }
+
+    pub(crate) fn put<T: DeserializeOwned>(&self, path: &str, body: &serde_json::Value) -> Result<T, RestError> {
+        self.send_json("PUT", path, body)
+    }
+
+    fn send_json<T: DeserializeOwned>(&self, method: &str, path: &str, body: &serde_json::Value) -> Result<T, RestError> {
+        let body = body.to_string();
+        let answer = self.try_each(|base| {
+            ureq::request(method, &format!("{base}{path}")).set("Authorization", &self.auth).set("Content-Type", JSON).timeout(CALL_TIMEOUT).send_string(&body).map_err(Attempt::from)
+        })?;
+        parse(&text(answer)?)
     }
 
     /// Removes the UI; when the core will not, switches to the stock one and leaves this one installed.
     pub(crate) fn uninstall(&self) -> Result<(), RestError> {
-        let removed = self.try_each(|base| ureq::delete(&format!("{base}{INSTALL_UI_PATH}")).set("Authorization", &self.auth).timeout(CALL_TIMEOUT).call().map_err(Attempt::from));
+        let removed = self.try_each(|base| ureq::delete(&format!("{base}{INSTALL_UI_PATH}")).set("Authorization", &self.auth).timeout(CALL_TIMEOUT).call().map_err(Attempt::from)).map(drop);
         match removed {
             Err(RestError::Refused { status, what }) if status != 401 => {
                 tracing::warn!("removing the UI failed ({status} {what}); switching to the stock one");
-                self.try_each(|base| ureq::put(&format!("{base}{INSTALL_UI_PATH}")).query(DISABLE.0, DISABLE.1).set("Authorization", &self.auth).timeout(CALL_TIMEOUT).call().map_err(Attempt::from))
+                self.try_each(|base| ureq::put(&format!("{base}{INSTALL_UI_PATH}")).query(DISABLE.0, DISABLE.1).set("Authorization", &self.auth).timeout(CALL_TIMEOUT).call().map_err(Attempt::from)).map(drop)
             }
             other => other,
         }
     }
 
-    fn try_each(&self, send: impl Fn(&str) -> Result<ureq::Response, Attempt>) -> Result<(), RestError> {
+    fn try_each(&self, send: impl Fn(&str) -> Result<ureq::Response, Attempt>) -> Result<ureq::Response, RestError> {
         let mut last = RestError::Unreachable("no address to try".into());
         for base in &self.bases {
             match send(base) {
-                Ok(_) => return Ok(()),
+                Ok(answer) => return Ok(answer),
                 Err(Attempt::Local(why)) => return Err(RestError::Local(why)),
                 Err(Attempt::Net(e)) => match *e {
                     ureq::Error::Status(status, response) => return Err(RestError::Refused { status, what: response.status_text().to_string() }),
@@ -122,6 +161,15 @@ impl Rest {
         }
         Err(last)
     }
+}
+
+fn text(answer: ureq::Response) -> Result<String, RestError> {
+    answer.into_string().map_err(|e| RestError::Unexpected(e.to_string()))
+}
+
+fn parse<T: DeserializeOwned>(text: &str) -> Result<T, RestError> {
+    // Some calls answer with no body at all; to them, nothing is `null`.
+    serde_json::from_str(if text.trim().is_empty() { "null" } else { text }).map_err(|e| RestError::Unexpected(e.to_string()))
 }
 
 fn multipart_head() -> Vec<u8> {
@@ -151,7 +199,7 @@ fn bases(socket_url: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::fake_http::{Canned, FakeHttp};
+    use crate::remote::selfupdate::fake_http::{Canned, FakeHttp};
     use super::*;
 
     fn rest(http: &FakeHttp) -> Rest {
@@ -182,7 +230,7 @@ mod tests {
         assert_eq!(seen.header("authorization"), Some(expected.as_str()));
         assert!(seen.header("content-type").unwrap().starts_with("multipart/form-data; boundary="));
         let body = String::from_utf8_lossy(&seen.body);
-        assert!(body.contains("name=\"file\"; filename=\"r3cui.tar.gz\"") && body.contains("ARCHIVE-BYTES") && body.trim_end().ends_with("--"), "{body}");
+        assert!(body.contains("name=\"file\"; filename=\"archive.tar.gz\"") && body.contains("ARCHIVE-BYTES") && body.trim_end().ends_with("--"), "{body}");
         let _ = std::fs::remove_file(file);
     }
 

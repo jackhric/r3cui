@@ -155,6 +155,7 @@ fn main() -> anyhow::Result<()> {
         software.on_new_pin(act(|| Action::NewPin));
         software.on_web_off(act(|| Action::WebOff));
         software.on_uninstall(act(|| Action::Uninstall));
+        software.on_install_voice(act(|| Action::InstallVoice));
     }
     app.global::<Control>().on_power_action({
         let tx = act_tx.clone();

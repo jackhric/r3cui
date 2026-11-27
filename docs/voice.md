@@ -85,7 +85,7 @@ The relay listens, r3cui connects and reconnects; a new connection replaces the 
 `scripts/build-relay.sh` builds `-p voice-relay --bin driver` for `aarch64-unknown-linux-musl` in the same container
 as `scripts/build-device.sh`, linked with the toolchain's `rust-lld` (the dependencies are pure Rust, so no cross gcc
 or SDK is needed), and gives a fully static binary, which a custom integration must be (the SDK's glibc build of
-r3cui is dynamic). It then runs `packaging/voice-relay.sh`, which writes `packaging/out/r3cui-voice.tar.gz`
+r3cui is dynamic). It then runs `packaging/voice-relay.sh`, which writes `packaging/out/relay/r3cui-voice.tar.gz`
 (`driver.json` at the root, `bin/driver`).
 
 ### Assist API (`crates/homeassistant`)

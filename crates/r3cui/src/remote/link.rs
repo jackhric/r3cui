@@ -7,6 +7,7 @@ use crate::remote::selfupdate::Release;
 use crate::remote::software::{self, Progress};
 use crate::remote::system;
 use crate::remote::voice;
+use crate::remote::voicesetup;
 use crate::remote::wifi::{self, Network, Wifi};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
@@ -150,6 +151,23 @@ impl Link {
             Self::Core(core) => software::uninstall(core, access).await,
             #[cfg(feature = "demo")]
             Self::Demo(_) => crate::app::demo::software::uninstall().await,
+        }
+    }
+
+    /// Whether r3cui's voice integration is the remote's voice assistant, with the microphone on.
+    pub(crate) async fn voice_ready(&self) -> Result<bool, String> {
+        match self {
+            Self::Core(core) => voicesetup::state(core).await.map(|s| s == voicesetup::State::Ready),
+            #[cfg(feature = "demo")]
+            Self::Demo(remote) => Ok(remote.updates().voice_ready()),
+        }
+    }
+
+    pub(crate) async fn install_voice(&self, access: Access) -> Result<(), String> {
+        match self {
+            Self::Core(core) => voicesetup::install(core, access).await,
+            #[cfg(feature = "demo")]
+            Self::Demo(remote) => crate::app::demo::software::install_voice(remote.updates()).await,
         }
     }
 
