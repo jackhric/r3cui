@@ -1,16 +1,8 @@
-//! The health of each link the remote depends on, for the status page and the home screen's warning.
+//! The health of each link the remote depends on, for the home screen's warning.
 
-use crate::Dot;
 use r3cui_sdk::api::{Health, Status};
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct StatusLine {
-    pub label: String,
-    pub value: String,
-    pub dot: Dot,
-}
-
-/// A driver as the status page lists it.
+/// A driver and how it is doing.
 pub struct Link {
     pub name: String,
     pub status: Status,
@@ -18,37 +10,17 @@ pub struct Link {
     pub in_use: bool,
 }
 
-/// The status page's rows, and the one-line warning for the home screen (empty when all is well).
-pub fn health(wifi_ssid: &str, links: &[Link]) -> (Vec<StatusLine>, String) {
-    let wifi_up = !wifi_ssid.is_empty();
-    let mut rows = vec![StatusLine {
-        label: "Wi-Fi".into(),
-        value: if wifi_up { wifi_ssid.into() } else { "Disconnected".into() },
-        dot: if wifi_up { Dot::Up } else { Dot::Down },
-    }];
-    for l in links {
-        rows.push(if !wifi_up {
-            StatusLine { label: l.name.clone(), value: "Unknown".into(), dot: Dot::Unknown }
-        } else {
-            let dot = match l.status.health {
-                Health::Up => Dot::Up,
-                Health::Down | Health::NotPaired => Dot::Down,
-                Health::Connecting | Health::NotSetUp => Dot::Unknown,
-            };
-            StatusLine { label: l.name.clone(), value: l.status.word().into(), dot }
-        });
+/// The one-line warning for the home screen, empty when all is well. The first broken link in the chain is the
+/// cause; the rest are consequences.
+pub fn warning(wifi_ssid: &str, links: &[Link]) -> String {
+    if wifi_ssid.is_empty() {
+        return "Wi-Fi disconnected".into();
     }
-    // The first broken link in the chain is the cause; the rest are consequences.
-    let warning = if !wifi_up {
-        "Wi-Fi disconnected".to_string()
-    } else {
-        links
-            .iter()
-            .find(|l| l.in_use && l.status.health == Health::Down)
-            .map(|l| if l.status.detail.is_empty() { format!("{} unreachable", l.name) } else { format!("{}: {}", l.name, l.status.detail) })
-            .unwrap_or_default()
-    };
-    (rows, warning)
+    links
+        .iter()
+        .find(|l| l.in_use && l.status.health == Health::Down)
+        .map(|l| if l.status.detail.is_empty() { format!("{} unreachable", l.name) } else { format!("{}: {}", l.name, l.status.detail) })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -61,23 +33,19 @@ mod tests {
 
     #[test]
     fn healthy_has_no_warning() {
-        let (rows, warning) = health("home", &[link("Home Assistant", Health::Up, true), link("Kodi", Health::Up, true)]);
-        assert!(rows.iter().all(|r| r.dot == Dot::Up));
-        assert_eq!((rows.len(), warning.as_str()), (3, ""));
+        assert_eq!(warning("home", &[link("Home Assistant", Health::Up, true), link("Kodi", Health::Up, true)]), "");
     }
 
     #[test]
-    fn no_wifi_greys_every_driver() {
-        let (rows, warning) = health("", &[link("Kodi", Health::Down, true)]);
-        assert_eq!((rows[0].dot, rows[1].dot, rows[1].value.as_str()), (Dot::Down, Dot::Unknown, "Unknown"));
-        assert_eq!(warning, "Wi-Fi disconnected");
+    fn no_wifi_is_the_cause() {
+        assert_eq!(warning("", &[link("Kodi", Health::Down, true)]), "Wi-Fi disconnected");
     }
 
     #[test]
     fn trouble_only_matters_where_it_is_used() {
-        assert_eq!(health("home", &[link("Kodi", Health::Down, true)]).1, "Kodi unreachable");
-        assert_eq!(health("home", &[link("Kodi", Health::Down, false)]).1, "");
+        assert_eq!(warning("home", &[link("Kodi", Health::Down, true)]), "Kodi unreachable");
+        assert_eq!(warning("home", &[link("Kodi", Health::Down, false)]), "");
         let rejected = Link { name: "Home Assistant".into(), status: Status::with(Health::Down, "Token rejected"), in_use: true };
-        assert_eq!(health("home", &[rejected]).1, "Home Assistant: Token rejected");
+        assert_eq!(warning("home", &[rejected]), "Home Assistant: Token rejected");
     }
 }

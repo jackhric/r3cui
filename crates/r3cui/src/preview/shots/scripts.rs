@@ -43,7 +43,7 @@ pub(super) fn hold_script() -> Vec<(u64, Act)> {
 }
 
 /// Menu → Wi-Fi → pick a network → type its password with the d-pad → a failed join, a retry
-/// that works, then the status page with Home Assistant down and the warning on the home screen.
+/// that works, then Home Assistant going down and the warning on the home screen.
 pub(super) fn wifi_script() -> Vec<(u64, Act)> {
     let mut steps: Vec<(u64, Act)> = vec![
         (1200, ui(|a| a.go_to(PageId::Menu, 0))),
@@ -60,11 +60,10 @@ pub(super) fn wifi_script() -> Vec<(u64, Act)> {
         (3400, ui(|a| a.global::<Nav>().invoke_activate(0))),
         (1100, ui(|a| a.global::<Kb>().invoke_tap(30))),
         (3600, ui(|a| a.global::<Nav>().invoke_back())),
-        (700, ui(|a| a.global::<Nav>().invoke_activate(4))),
-        (1800, key("x")),
-        (2200, ui(|a| a.global::<Nav>().invoke_back())),
+        (700, ui(|a| a.global::<Nav>().invoke_back())),
         (600, ui(|a| a.global::<Nav>().invoke_back())),
-        (2600, ui(|_| {})),
+        (1800, key("x")),
+        (5400, ui(|_| {})),
     ]);
     steps
 }
@@ -362,17 +361,19 @@ pub(super) fn script(name: Option<&str>) -> Vec<(u64, Act)> {
         // Stop (browsing), then play again.
         (2600, button(Button::Stop)),
         (2000, button(Button::Play)),
-        // Menu → Display → brightness → back → Power → back out.
+        // Menu → Hardware → brightness → back → up to the power button → its overlay → back out.
         (2000, ui(|a| a.go_to(PageId::Menu, 0))),
         (700, ui(|a| a.global::<Nav>().invoke_move(1))),
-        (600, ui(|a| a.global::<Nav>().invoke_activate(1))),
+        (320, ui(|a| a.global::<Nav>().invoke_move(1))),
+        (600, ui(|a| a.global::<Nav>().invoke_activate(a.global::<Nav>().get_focus()))),
         (900, ui(|a| a.global::<Prefs>().set_brightness(70))),
         (600, ui(|a| a.global::<Prefs>().set_brightness(45))),
         (700, ui(|a| a.global::<Prefs>().set_brightness(90))),
         (900, ui(|a| a.global::<Nav>().invoke_back())),
-        (600, ui(|a| a.global::<Nav>().invoke_move(1))),
-        (320, ui(|a| a.global::<Nav>().invoke_move(1))),
-        (600, ui(|a| a.global::<Nav>().invoke_activate(3))),
+        (600, ui(|a| a.global::<Nav>().invoke_move(-1))),
+        (320, ui(|a| a.global::<Nav>().invoke_move(-1))),
+        (320, ui(|a| a.global::<Nav>().invoke_move(-1))),
+        (600, ui(|a| a.global::<Nav>().invoke_activate(a.global::<Nav>().get_focus()))),
         (1200, ui(|a| a.global::<Nav>().invoke_back())),
         (700, ui(|a| a.global::<Nav>().invoke_back())),
         // Switching input changes the interface colour, and the keys follow.

@@ -108,7 +108,7 @@ Every port is the same shape: state out on a `watch`, intents in on an unbounded
 pub struct Port<View, Intent> { pub view: watch::Receiver<View>, pub tx: mpsc::UnboundedSender<Intent> }
 
 pub trait Driver: Send + Sync {
-    fn status(&self) -> watch::Receiver<Status>;           // one row on the status page
+    fn status(&self) -> watch::Receiver<Status>;           // its dot in Integrations, and the home screen's warning
     fn volume(&self, target: &str) -> Option<Port<Option<Volume>, VolumeIntent>> { None }
     fn source(&self, target: &str) -> Option<Port<Option<Sources>, SourceIntent>> { None }
     fn power(&self, target: &str) -> Option<Port<Option<Power>, PowerIntent>> { None }
@@ -231,10 +231,12 @@ Integrations pages change something.
 
 No per-input remapping.
 
-## Status page
+## Status
 
-One row per configured driver (Connected, Connecting, Unreachable, Not set up), plus Wi-Fi.
-A driver's status may name what is wrong ("Token rejected", "media_player.x not found").
+Each driver's status (Connected, Connecting, Unreachable, Not set up) shows as its dot in Settings → Integrations.
+When the Wi-Fi is down, or a driver global control or the current input relies on is unreachable, the home screen
+shows one warning row, which opens Integrations. A driver's status may name what is wrong ("Token rejected",
+"media_player.x not found").
 
 ## Testing
 

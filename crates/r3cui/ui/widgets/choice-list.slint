@@ -13,8 +13,12 @@ export component ChoiceList inherits Rectangle {
     in property <string> empty;
     // Off for a list that needs no introduction (the inputs): the rows start under the navbar.
     in property <bool> show-title: true;
+    // The header's round button (`PageHeader.action`).
+    in property <string> action;
+    in property <bool> action-focused;
     callback pick(int);
     callback back();
+    callback act();
 
     property <length> top: root.show-title ? Layout.list-top : 68px;
     property <length> room: Layout.screen-h - Layout.bottom-inset - root.top;
@@ -37,7 +41,10 @@ export component ChoiceList inherits Rectangle {
 
     if root.show-title: PageHeader {
         title: root.title;
+        action: root.action;
+        action-focused: root.action-focused;
         back => { root.back(); }
+        act => { root.act(); }
     }
     if root.rows.length == 0: Text {
         y: root.top + 52px;

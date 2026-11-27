@@ -275,11 +275,6 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     if app.global::<Wifi>().get_choices().iter().ne(networks.iter().cloned()) {
         app.global::<Wifi>().set_choices(ModelRc::new(VecModel::from(networks)));
     }
-    let status_rows: Vec<Choice> =
-        m.status.iter().map(|s| Choice { label: (&s.label).into(), value: (&s.value).into(), dot: s.dot, ..Default::default() }).collect();
-    if app.global::<Health>().get_choices().iter().ne(status_rows.iter().cloned()) {
-        app.global::<Health>().set_choices(ModelRc::new(VecModel::from(status_rows)));
-    }
     app.global::<Health>().set_warning(m.warning.as_str().into());
 
     app.global::<Playback>().set_staged(m.staged);

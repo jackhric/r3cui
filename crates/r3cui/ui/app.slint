@@ -9,6 +9,7 @@ import { Home } from "globals/home.slint";
 import { Kb } from "globals/kb.slint";
 import { KeyChars } from "globals/keys.slint";
 import { Nav } from "globals/nav.slint";
+import { Power } from "globals/power.slint";
 import { Prefs } from "globals/prefs.slint";
 import { Software } from "globals/software.slint";
 import { Voice } from "globals/voice.slint";
@@ -17,16 +18,15 @@ import { Wifi } from "globals/wifi.slint";
 import { ChargeCard } from "overlays/charge-card.slint";
 import { HoldOverlay } from "overlays/hold.slint";
 import { NavBar } from "overlays/navbar.slint";
+import { PowerOverlay } from "overlays/power.slint";
 import { VoiceOverlay } from "overlays/voice.slint";
 import { VolumeOverlay } from "overlays/volume.slint";
-import { DisplayPage } from "pages/display.slint";
+import { HardwarePage } from "pages/hardware.slint";
 import { InputsPage } from "pages/inputs.slint";
 import { IntegrationsPage } from "pages/integrations.slint";
 import { KeyboardPage } from "pages/keyboard.slint";
 import { LabPage } from "pages/lab.slint";
 import { MenuPage } from "pages/menu.slint";
-import { PowerPage } from "pages/power.slint";
-import { StatusPage } from "pages/status.slint";
 import { FwInstallingPage } from "pages/system/fw-installing.slint";
 import { FwUpdatePage } from "pages/system/fw-update.slint";
 import { R3InstallingPage } from "pages/system/r3-installing.slint";
@@ -87,7 +87,7 @@ export component AppWindow inherits Window {
     property <float> recede: Nav.page != PageId.home ? 1 : 0;
     animate recede { duration: Motion.recede; easing: Theme.page-easing; }
     // The deepest open overlay: the screen behind recedes by it as the stage does behind a list.
-    property <float> overlay-depth: max(max(volume.depth, voice.depth), max(hold.depth, charge.depth));
+    property <float> overlay-depth: max(max(max(volume.depth, voice.depth), max(hold.depth, charge.depth)), power.depth);
     public function hold-swap() { stage.hold-swap(); }
     public function run-swap() { stage.run-swap(); }
 
@@ -161,6 +161,16 @@ export component AppWindow inherits Window {
                 }
                 return accept;
             }
+            if (Power.shown) {
+                if (event.text == Key.UpArrow || event.text == Key.DownArrow) {
+                    Power.move(event.text == Key.UpArrow ? -1 : 1);
+                } else if (event.text == Key.Return) {
+                    Power.pick(Power.focus);
+                } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.LeftArrow) {
+                    Power.close();
+                }
+                return accept;
+            }
             if (Nav.page != PageId.home) {
                 if (event.text == Key.Escape || event.text == Key.Backspace) {
                     Nav.back();
@@ -180,7 +190,7 @@ export component AppWindow inherits Window {
                 }
                 if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
                     if (Nav.sideways(event.text == Key.LeftArrow ? -1 : 1)) {
-                    } else if (Nav.page == PageId.display && Nav.focus == Prefs.brightness-row) {
+                    } else if (Nav.page == PageId.hardware && Nav.focus == Prefs.brightness-row) {
                         if (!Prefs.auto-brightness) {
                             Prefs.brightness = max(5, min(100, Prefs.brightness + (event.text == Key.LeftArrow ? -5 : 5)));
                             Prefs.changed();
@@ -244,11 +254,9 @@ export component AppWindow inherits Window {
 
                 InputsPage { }
                 MenuPage { }
-                DisplayPage { }
-                PowerPage { }
+                HardwarePage { }
                 WifiPage { }
                 KeyboardPage { }
-                StatusPage { }
                 IntegrationsPage { }
                 SystemPage { }
                 R3UpdatePage { }
@@ -283,6 +291,7 @@ export component AppWindow inherits Window {
         // Volume overlay, over everything.
         volume := VolumeOverlay { }
         voice := VoiceOverlay { }
+        power := PowerOverlay { }
     }
 
     hold := HoldOverlay { }

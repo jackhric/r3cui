@@ -1,14 +1,29 @@
-import { Choice } from "../types.slint";
-import { Prefs } from "prefs.slint";
+import { Haptic, PowerAction } from "../types.slint";
+import { Control } from "control.slint";
+import { Fx } from "fx.slint";
 
+// The power overlay, opened from the menu's header: restart or shut the remote down.
 export global Power {
-    out property <int> standby: 0;
-    out property <int> restart: 1;
-    out property <int> power-off: 2;
-    out property <[Choice]> rows: [
-        { label: "Standby" },
-        { label: "Restart" },
-        { label: "Power off" },
-        { label: "Sleep after", value: Prefs.sleep-after, chevron: true },
-    ];
+    out property <bool> shown;
+    in-out property <int> focus;
+    out property <int> restart-row: 0;
+    out property <int> shut-down-row: 1;
+    out property <int> rows: 2;
+
+    public function open() {
+        Fx.haptic(Haptic.page);
+        Power.focus = Power.restart-row;
+        Power.shown = true;
+    }
+    public function close() {
+        Power.shown = false;
+    }
+    public function move(d: int) {
+        Power.focus = max(0, min(Power.rows - 1, Power.focus + d));
+    }
+    public function pick(i: int) {
+        Fx.haptic(Haptic.select);
+        Power.shown = false;
+        Control.power-action(i == Power.restart-row ? PowerAction.restart : PowerAction.power-off);
+    }
 }

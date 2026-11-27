@@ -82,7 +82,7 @@ pub(crate) async fn load_settings(weak: &slint::Weak<AppWindow>, core: &crate::c
     let brightness = display.as_ref().and_then(|v| v.get("brightness")).and_then(Value::as_i64);
     let auto = display.as_ref().and_then(|v| v.get("auto_brightness")).and_then(Value::as_bool);
     let haptics = haptic.as_ref().and_then(|v| v.get("enabled")).and_then(Value::as_bool);
-    let (screen_off, sleep) = (secs(&power, "display_off_sec"), secs(&power, "standby_sec"));
+    let screen_off = secs(&power, "display_off_sec");
     ui(weak, move |app| {
         if let Some(b) = brightness {
             app.global::<Prefs>().set_brightness(b as i32);
@@ -92,7 +92,6 @@ pub(crate) async fn load_settings(weak: &slint::Weak<AppWindow>, core: &crate::c
         }
         app.global::<Prefs>().set_haptics(haptics.map_or("", |on| if on { "On" } else { "Off" }).into());
         app.global::<Prefs>().set_screen_off_after(screen_off.unwrap_or_default().into());
-        app.global::<Prefs>().set_sleep_after(sleep.unwrap_or_default().into());
     });
 }
 

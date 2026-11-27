@@ -24,11 +24,9 @@ pub(crate) fn page_name(page: PageId) -> &'static str {
         PageId::Home => "home",
         PageId::Inputs => "inputs",
         PageId::Menu => "menu",
-        PageId::Display => "display",
-        PageId::Power => "power",
+        PageId::Hardware => "hardware",
         PageId::Wifi => "wifi",
         PageId::Keyboard => "keyboard",
-        PageId::Status => "status",
         PageId::JoinFailed => "join-failed",
         PageId::Tracks => "tracks",
         PageId::FeedbackLab => "feedback-lab",
@@ -45,15 +43,13 @@ pub(crate) fn page_name(page: PageId) -> &'static str {
     }
 }
 
-const PAGES: [PageId; 21] = [
+const PAGES: [PageId; 19] = [
     PageId::Home,
     PageId::Inputs,
     PageId::Menu,
-    PageId::Display,
-    PageId::Power,
+    PageId::Hardware,
     PageId::Wifi,
     PageId::Keyboard,
-    PageId::Status,
     PageId::JoinFailed,
     PageId::Tracks,
     PageId::FeedbackLab,

@@ -362,7 +362,7 @@ impl Session<'_> {
             .into_iter()
             .map(|(id, name, status)| health::Link { in_use: host.in_use(&id, current), name, status: if self.links_down { Status::new(Health::Down) } else { status } })
             .collect();
-        let (status, warning) = health::health(&self.wifi.ssid, &links);
+        let warning = health::warning(&self.wifi.ssid, &links);
         // Without a source, the one Default input is only worth listing when something fills its slots.
         let inputs: Vec<InputEntry> = host
             .inputs()
@@ -393,7 +393,6 @@ impl Session<'_> {
             wifi: self.wifi.networks.clone(),
             wifi_band: self.wifi.band.clone(),
             scanning: self.wifi.scanning,
-            status,
             warning,
             volume: g.volume,
             has_volume: host.has_volume(),

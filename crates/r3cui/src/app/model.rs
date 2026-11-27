@@ -1,7 +1,7 @@
 //! Everything the screen shows, independent of where it came from.
 
 use r3cui_sdk::api::{KeyLight, Status};
-use crate::remote::{health, wifi};
+use crate::remote::wifi;
 
 /// Everything the screen shows, independent of where it came from.
 #[derive(Clone, Debug, Default)]
@@ -44,7 +44,6 @@ pub(crate) struct Model {
     /// The preferred Wi-Fi band as the core names it: "a" 5 GHz, "b" 2.4 GHz; empty when unknown.
     pub wifi_band: String,
     pub scanning: bool,
-    pub status: Vec<health::StatusLine>,
     pub warning: String,
     pub key_light: KeyLight,
 }

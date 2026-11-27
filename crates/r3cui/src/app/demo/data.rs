@@ -48,7 +48,7 @@ pub const SHELF: [(&str, &str); 6] = [
 /// The shelf is laid out this many to a row.
 pub const COLUMNS: usize = 3;
 
-/// What the status page lists besides Wi-Fi, in the stills, where no driver reports it.
+/// The links the stills' warning is worked out from, where no driver reports them.
 pub const LINKS: [&str; 2] = ["Home Assistant", "Kodi"];
 
 pub const BATTERY: i32 = 81;

@@ -1,3 +1,4 @@
+import { Cfg } from "../globals/cfg.slint";
 import { Control } from "../globals/control.slint";
 import { Fx } from "../globals/fx.slint";
 import { Health } from "../globals/health.slint";
@@ -74,7 +75,10 @@ export component MarkView inherits Rectangle {
     if Health.warning != "": WarningRow {
         y: 540px;
         message: Health.warning;
-        tapped => { Nav.go(PageId.status, 0); }
+        tapped => {
+            Cfg.open();
+            Nav.go(PageId.integrations, 0);
+        }
     }
     if Control.has-volume: VolumeChip {
         y: 700px;

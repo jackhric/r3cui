@@ -37,7 +37,6 @@ pub(crate) fn apply_demo_settings(app: &AppWindow) {
     }
     app.global::<Prefs>().set_haptics("On".into());
     app.global::<Prefs>().set_screen_off_after("60 s".into());
-    app.global::<Prefs>().set_sleep_after("3 min".into());
 }
 
 /// The made-up remote: its Wi-Fi, and the software it has updates waiting for.

@@ -1,0 +1,39 @@
+import { Power } from "../globals/power.slint";
+import { Theme, Layout } from "../theme.slint";
+import { Caption } from "../widgets/caption.slint";
+import { Gap } from "../widgets/page-body.slint";
+import { Overlay } from "../widgets/overlay.slint";
+import { Row } from "../widgets/row.slint";
+
+// What the menu's power button opens. A tap anywhere else, or Back, closes it.
+export component PowerOverlay inherits Overlay {
+    shown: Power.shown;
+    TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { Power.close(); }
+    }
+    VerticalLayout {
+        alignment: center;
+        Caption {
+            horizontal-alignment: center;
+            text: "POWER";
+        }
+        Gap { size: Layout.gap-m; }
+        Row {
+            height: Layout.row-max;
+            top-line: true;
+            choice: { label: "Restart" };
+            focused: Power.focus == Power.restart-row;
+            tapped => { Power.pick(Power.restart-row); }
+        }
+        Row {
+            height: Layout.row-max;
+            top-line: true;
+            bottom-line: true;
+            danger: true;
+            choice: { label: "Shut down" };
+            focused: Power.focus == Power.shut-down-row;
+            tapped => { Power.pick(Power.shut-down-row); }
+        }
+    }
+}

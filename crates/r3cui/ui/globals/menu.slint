@@ -1,5 +1,4 @@
 import { Choice, MenuItem } from "../types.slint";
-import { Prefs } from "prefs.slint";
 import { Software } from "software.slint";
 import { Wifi } from "wifi.slint";
 
@@ -8,20 +7,14 @@ export global Menu {
     pure public function row(item: MenuItem) -> int {
         item == MenuItem.wifi ? 0
             : item == MenuItem.integrations ? 1
-            : item == MenuItem.display ? 2
-            : item == MenuItem.sound ? 3
-            : item == MenuItem.power ? 4
-            : item == MenuItem.status ? 5
-            : item == MenuItem.system ? 6
-            : 7
+            : item == MenuItem.hardware ? 2
+            : item == MenuItem.system ? 3
+            : 4
     }
     out property <[Choice]> rows: [
         { label: "Wi-Fi", value: Wifi.name, chevron: true },
         { label: "Integrations", chevron: true },
-        { label: "Display", value: Prefs.auto-brightness ? "Auto" : Prefs.brightness + "%", chevron: true },
-        { label: "Sound & haptics", value: Prefs.haptics, chevron: true },
-        { label: "Power", chevron: true },
-        { label: "Status", chevron: true },
+        { label: "Hardware", chevron: true },
         { label: "System", value: "r3cui " + Software.r3-version, chevron: true, tag: Software.any-update ? "NEW" : "" },
         { label: "Feedback lab", chevron: true },
     ];

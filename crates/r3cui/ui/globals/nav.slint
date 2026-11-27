@@ -1,4 +1,4 @@
-import { Capture, Dest, Haptic, JoinState, KbPurpose, MenuItem, PageId, PowerAction, UpdateState } from "../types.slint";
+import { Capture, Dest, Haptic, JoinState, KbPurpose, MenuItem, PageId, UpdateState } from "../types.slint";
 import { Cfg } from "cfg.slint";
 import { Control } from "control.slint";
 import { Fx } from "fx.slint";
@@ -38,6 +38,11 @@ export global Nav {
     // its content on them as a page change slides the pages.
     out property <int> inner-moves;
     out property <bool> inner-deeper;
+    // The focus on a page header's round button (the menu's power), above the first row.
+    out property <int> header-action: -1;
+    pure function has-header-action() -> bool {
+        Nav.page == PageId.menu
+    }
 
     public function inner(deeper: bool) {
         Nav.inner-deeper = deeper;
@@ -51,22 +56,17 @@ export global Nav {
         if (Nav.page == PageId.home && p != PageId.home) {
             Fx.capture(Capture.stage);
         }
+        Power.close();
         Nav.focus = f;
         Nav.page = p;
     }
 
     pure function back-to(p: PageId) -> Dest {
-        if (p == PageId.display) {
-            return { page: PageId.menu, focus: Menu.row(MenuItem.display) };
-        }
-        if (p == PageId.power) {
-            return { page: PageId.menu, focus: Menu.row(MenuItem.power) };
+        if (p == PageId.hardware) {
+            return { page: PageId.menu, focus: Menu.row(MenuItem.hardware) };
         }
         if (p == PageId.wifi) {
             return { page: PageId.menu, focus: Menu.row(MenuItem.wifi) };
-        }
-        if (p == PageId.status) {
-            return { page: PageId.menu, focus: Menu.row(MenuItem.status) };
         }
         if (p == PageId.system) {
             return { page: PageId.menu, focus: Menu.row(MenuItem.system) };
@@ -90,7 +90,9 @@ export global Nav {
     }
 
     public function back() {
-        if (Nav.page == PageId.feedback-lab) {
+        if (Power.shown) {
+            Power.close();
+        } else if (Nav.page == PageId.feedback-lab) {
             let focus = Lab.back();
             if (focus < 0) {
                 Nav.go(PageId.menu, Menu.row(MenuItem.lab));
@@ -115,8 +117,7 @@ export global Nav {
         Nav.page == PageId.inputs ? max(Control.inputs.length, 1)
             : Nav.page == PageId.integrations ? Cfg.rows.length
             : Nav.page == PageId.menu ? Menu.rows.length
-            : Nav.page == PageId.display ? Prefs.rows
-            : Nav.page == PageId.power ? Power.rows.length
+            : Nav.page == PageId.hardware ? Prefs.rows
             : Nav.page == PageId.wifi ? Wifi.count
             : Nav.page == PageId.join-failed ? Wifi.stay-row + 1
             : Nav.page == PageId.tracks ? Tracks.rows.length
@@ -138,7 +139,9 @@ export global Nav {
 
     // Up and down: through a list a row at a time; in a grid, a row of tiles at a time, then on to what is under it.
     public function move(d: int) {
-        if (Nav.focus < Nav.tiles()) {
+        if (Nav.has-header-action() && (Nav.focus == Nav.header-action || (Nav.focus == 0 && d < 0))) {
+            Nav.focus = d < 0 ? Nav.header-action : 0;
+        } else if (Nav.focus < Nav.tiles()) {
             Nav.focus = Nav.focus + d * Nav.columns() < 0 ? Nav.focus : min(Nav.focus + d * Nav.columns(), Nav.tiles());
         } else if (Nav.focus == Nav.tiles() && d < 0 && Nav.tiles() > 0) {
             Nav.focus = Nav.tiles() - Nav.columns();
@@ -167,12 +170,8 @@ export global Nav {
         } else if (i == Menu.row(MenuItem.integrations)) {
             Cfg.open();
             Nav.go(PageId.integrations, 0);
-        } else if (i == Menu.row(MenuItem.display)) {
-            Nav.go(PageId.display, 0);
-        } else if (i == Menu.row(MenuItem.power)) {
-            Nav.go(PageId.power, 0);
-        } else if (i == Menu.row(MenuItem.status)) {
-            Nav.go(PageId.status, 0);
+        } else if (i == Menu.row(MenuItem.hardware)) {
+            Nav.go(PageId.hardware, 0);
         } else if (i == Menu.row(MenuItem.system)) {
             Software.opened();
             Nav.go(PageId.system, 0);
@@ -228,6 +227,8 @@ export global Nav {
         } else if (Nav.page == PageId.inputs) {
             Control.select-input(Control.inputs[i].id);
             Nav.go(PageId.home, 0);
+        } else if (Nav.page == PageId.menu && i == Nav.header-action) {
+            Power.open();
         } else if (Nav.page == PageId.menu) {
             Nav.activate-menu(i);
         } else if (Nav.page == PageId.tracks) {
@@ -247,7 +248,7 @@ export global Nav {
         } else {
             // Opening a page gets the page's own haptic; a pick that stays on one gets this.
             Fx.haptic(Haptic.select);
-            if (Nav.page == PageId.display) {
+            if (Nav.page == PageId.hardware) {
                 if (i == Prefs.auto-row) {
                     Prefs.auto-brightness = !Prefs.auto-brightness;
                     Prefs.changed();
@@ -293,14 +294,6 @@ export global Nav {
             } else if (Nav.page == PageId.join-failed) {
                 Wifi.join-state = JoinState.idle;
                 Nav.go(i == Wifi.retry-row ? PageId.keyboard : PageId.wifi, 0);
-            } else if (Nav.page == PageId.power) {
-                if (i == Power.standby) {
-                    Control.power-action(PowerAction.standby);
-                } else if (i == Power.restart) {
-                    Control.power-action(PowerAction.restart);
-                } else if (i == Power.power-off) {
-                    Control.power-action(PowerAction.power-off);
-                }
             }
         }
     }

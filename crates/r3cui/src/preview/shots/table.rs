@@ -4,7 +4,7 @@ use super::acts::open_picker;
 use super::scene::Scene;
 use crate::view::screen::Screen;
 use crate::NavKey as N;
-use crate::{AppWindow, Capture, Control, Fx, JoinState, Kb, PageId, Picker, Sys, Wifi};
+use crate::{AppWindow, Capture, Control, Fx, JoinState, Kb, PageId, Picker, Power, Sys, Wifi};
 use crate::app::demo::data::{ANDROID_TV, KODI, PLAYSTATION, START_INPUT, XBOX};
 use slint::{ComponentHandle, Model as _};
 use std::time::Duration;
@@ -63,8 +63,11 @@ pub(super) const STEPS: &[Step] = &[
     ("07b-menu-playstation", |_, m| m.input = PLAYSTATION.into()),
     ("07c-menu-xbox", |_, m| m.input = XBOX.into()),
     ("07d-menu-kodi", |_, m| m.input = KODI.into()),
-    ("08-menu-display", |app, _| app.go_to(PageId::Display, 0)),
-    ("09-menu-power", |app, _| app.go_to(PageId::Power, 0)),
+    ("08-menu-hardware", |app, _| app.go_to(PageId::Hardware, 0)),
+    ("09-menu-power", |app, _| {
+        app.go_to(PageId::Menu, 0);
+        app.global::<Power>().invoke_open();
+    }),
     ("10-playstation", |app, m| {
         app.go_to(PageId::Home, 0);
         m.input = START_INPUT.into();
@@ -92,11 +95,10 @@ pub(super) const STEPS: &[Step] = &[
         app.global::<Wifi>().set_join_state(JoinState::Failed);
         app.go_to(PageId::JoinFailed, 0);
     }),
-    ("18-status", |app, _| {
+    ("19-ha-down", |app, m| {
         app.global::<Wifi>().set_join_state(JoinState::Idle);
-        app.go_to(PageId::Status, 0);
+        m.links_down = true;
     }),
-    ("19-status-ha-down", |_, m| m.links_down = true),
     ("20-home-warning", |app, _| app.go_to(PageId::Home, 0)),
     ("21-charging", |_, m| {
         m.links_down = false;

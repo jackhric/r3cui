@@ -58,13 +58,13 @@ impl Scene {
         self.model.title = Self::new().model.title;
     }
 
-    /// The model with the status rows and the stage worked out from the rest, as the session does.
+    /// The model with the warning and the stage worked out from the rest, as the session does.
     pub(super) fn shown(&self) -> Model {
         let health_now = if self.links_down { Health::Down } else { Health::Up };
         let links: Vec<Link> = LINKS.iter().map(|name| Link { name: (*name).into(), status: Status::new(health_now), in_use: true }).collect();
         let mut m = self.model.clone();
         m.staged = m.input.eq_ignore_ascii_case(KODI);
-        (m.status, m.warning) = health::health(&m.wifi_ssid, &links);
+        m.warning = health::warning(&m.wifi_ssid, &links);
         m
     }
 }
