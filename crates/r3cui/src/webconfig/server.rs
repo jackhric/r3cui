@@ -17,6 +17,8 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, oneshot, watch, Mutex};
 
 const PAGE: &str = include_str!("page.html");
+/// Shaping the voice warm-up live on the remote: a tool for tuning, behind the same PIN.
+const TUNE_PAGE: &str = include_str!("tune.html");
 const FONTS: [(&str, &[u8]); 3] = [
     ("/fonts/Inter-400.ttf", include_bytes!("../../ui/assets/fonts/Inter-400.ttf")),
     ("/fonts/Inter-500.ttf", include_bytes!("../../ui/assets/fonts/Inter-500.ttf")),
@@ -189,8 +191,9 @@ async fn read(stream: &mut TcpStream) -> anyhow::Result<Option<Request>> {
 }
 
 async fn route(r: Request, sitting: &Shared, actions: &mpsc::UnboundedSender<UiAction>) -> Response {
-    if r.method == "GET" && r.path == "/" {
-        return Response { status: 200, kind: "text/html; charset=utf-8", body: PAGE.as_bytes().to_vec() };
+    if r.method == "GET" && (r.path == "/" || r.path == "/tune") {
+        let page = if r.path == "/" { PAGE } else { TUNE_PAGE };
+        return Response { status: 200, kind: "text/html; charset=utf-8", body: page.as_bytes().to_vec() };
     }
     if r.method == "GET" {
         if let Some((_, font)) = FONTS.iter().find(|(path, _)| *path == r.path) {
@@ -214,6 +217,11 @@ async fn route(r: Request, sitting: &Shared, actions: &mpsc::UnboundedSender<UiA
     let body = || serde_json::from_slice::<Value>(&r.body).unwrap_or(Value::Null);
     match (r.method.as_str(), segments.as_slice()) {
         ("GET", ["config"]) => ask(actions, Call::Config).await,
+        ("GET", ["tune"]) => Response::json(200, &crate::view::voice::tuning()),
+        ("PUT", ["tune"]) => match serde_json::from_slice(&r.body).map_err(|e| e.to_string()).and_then(crate::view::voice::tune) {
+            Ok(t) => Response::json(200, &t),
+            Err(why) => Response::error(400, why),
+        },
         ("GET", ["targets"]) => targets(&r.query, actions).await,
         ("POST", ["integrations"]) => match body()["kind"].as_str() {
             Some(kind) => ask(actions, Call::Add(kind.to_string())).await,

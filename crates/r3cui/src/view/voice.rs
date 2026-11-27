@@ -15,12 +15,40 @@ const FRAME: Duration = Duration::from_millis(33);
 /// behind recedes, each slowly at first and fast at the end, arriving as the microphone comes on (`HOLD`). Until then
 /// it is muted; once the first audio is in, it blooms into its colours.
 const WARM: Duration = crate::app::voice::HOLD;
-const WARM_CURVE: Bezier = Bezier([0.64, 0.0, 0.78, 0.0]);
+const WARM_CURVE: [f32; 4] = [0.64, 0.0, 0.78, 0.0];
 /// The light is one front on one curve: along the bottom from the centre, then up the sides. Each leg gets the share
 /// of the warm-up its distance on screen takes (about 240 px across, 320 px up), so the front keeps its pace round the
 /// corner; the climb starts as it rounds it. Eased separately, the legs would stop at the corner.
 const SPREAD_UNTIL: f32 = 0.45;
 const CLIMB_FROM: f32 = 0.38;
+
+/// The warm-up's shape: the constants above, or what the web configurator's tuning page set until r3cui restarts.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct WarmTuning {
+    pub(crate) curve: [f32; 4],
+    pub(crate) spread_until: f32,
+    pub(crate) climb_from: f32,
+}
+
+const DEFAULT_TUNING: WarmTuning = WarmTuning { curve: WARM_CURVE, spread_until: SPREAD_UNTIL, climb_from: CLIMB_FROM };
+static TUNING: std::sync::RwLock<WarmTuning> = std::sync::RwLock::new(DEFAULT_TUNING);
+
+pub(crate) fn tuning() -> WarmTuning {
+    *TUNING.read().unwrap()
+}
+
+/// A curve's x handles stay within the warm-up; the climb starts before the spread ends, both inside it.
+pub(crate) fn tune(t: WarmTuning) -> Result<WarmTuning, String> {
+    let [x1, y1, x2, y2] = t.curve;
+    if !t.curve.iter().all(|v| v.is_finite()) || !(0.0..=1.0).contains(&x1) || !(0.0..=1.0).contains(&x2) || y1.abs() > 2.0 || y2.abs() > 2.0 {
+        return Err("The curve's x handles go from 0 to 1".into());
+    }
+    if !(0.05..=1.0).contains(&t.spread_until) || !(0.0..0.95).contains(&t.climb_from) {
+        return Err("The spread ends and the climb starts within the warm-up".into());
+    }
+    *TUNING.write().unwrap() = t;
+    Ok(t)
+}
 /// A glint even before the light has spread.
 const SPREAD_FIRST: f32 = 0.02;
 const BLOOM: Duration = Duration::from_millis(250);
@@ -209,7 +237,8 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
         s.bloom = follow(s.bloom, if live { 1.0 } else { 0.0 }, dt, BLOOM, BLOOM);
         let since = now.duration_since(s.began);
         let part = |of: Duration| since.as_secs_f32() / of.as_secs_f32();
-        let warm = WARM_CURVE.at(part(WARM));
+        let tn = tuning();
+        let warm = Bezier(tn.curve).at(part(WARM));
         s.depth = warm;
         app.global::<Shown>().set_depth(s.depth);
         let l = &mut s.look;
@@ -219,8 +248,8 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
         }
         let settled = follow(l.dim, if listening { 0.0 } else { 1.0 }, dt, SETTLE, SETTLE);
         l.dim = settled.max(MUTED_DIM * (1.0 - s.bloom));
-        l.spread = (warm / SPREAD_UNTIL).clamp(SPREAD_FIRST, 1.0);
-        l.reach = ((warm - CLIMB_FROM) / (1.0 - CLIMB_FROM)).clamp(0.0, 1.0);
+        l.spread = (warm / tn.spread_until).clamp(SPREAD_FIRST, 1.0);
+        l.reach = ((warm - tn.climb_from) / (1.0 - tn.climb_from)).clamp(0.0, 1.0);
         l.spike = 0.0;
         l.wheel += dt * (WHEEL_START + (WHEEL_REST - WHEEL_START) * WHEEL_CURVE.at(part(WHEEL_EASE)) + WHEEL_TALK * l.level);
         l.flow += dt * (1.0 + 3.0 * l.level) * (1.0 - 0.6 * l.dim);

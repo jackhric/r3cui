@@ -14,6 +14,10 @@ request, or when r3cui restarts. Off, nothing listens.
 
 ## The page
 
+`GET /tune` is a tuning page for the voice warm-up: its curve and stage points (`view::voice::WarmTuning`), read
+with `GET /api/tune` and set with `PUT /api/tune` (`{"curve": [x1, y1, x2, y2], "spread_until", "climb_from"}`),
+applied at once and kept until r3cui restarts. It shows the lines to paste into `view/voice.rs` to keep a curve.
+
 `GET /` is the page (`crates/r3cui/src/webconfig/page.html`, one file: HTML, CSS and script). `GET /fonts/<name>.ttf`
 serves the app's own Inter and JetBrains Mono, so the page needs nothing from the internet.
 
