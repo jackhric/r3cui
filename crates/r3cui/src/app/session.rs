@@ -177,6 +177,12 @@ struct Session<'a> {
     links_down: bool,
 }
 
+/// The microphone is live for `session`: the haptic cue to talk, and the aurora blooms.
+fn live(session: u32) {
+    feedback::play(feedback::VOICE_LIVE);
+    crate::view::voice::live(session);
+}
+
 impl Session<'_> {
     /// Put everything on screen, and tell the UI slot whether it is showing.
     fn show(&mut self, weak: &slint::Weak<AppWindow>) {
@@ -200,20 +206,28 @@ impl Session<'_> {
         for d in todo {
             match d {
                 voice_key::Do::Driver(intent) => {
-                    if let r3cui_sdk::api::VoiceIntent::Audio { pcm, .. } = &intent {
-                        crate::app::meter::hear(crate::app::meter::measure(pcm, voice_key::SAMPLE_RATE));
+                    match &intent {
+                        r3cui_sdk::api::VoiceIntent::Audio { pcm, .. } => crate::app::meter::hear(crate::app::meter::measure(pcm, voice_key::SAMPLE_RATE)),
+                        r3cui_sdk::api::VoiceIntent::Cancel { .. } => feedback::stop(),
+                        _ => {}
                     }
                     self.front.host.send_voice(intent);
                 }
                 voice_key::Do::CoreStart(s) => {
                     let link = link.clone();
                     tokio::spawn(async move { link.voice_start(s).await });
+                    // The demo has no microphone to wait for: its made-up voice starts at once.
+                    if self.bridge.is_none() {
+                        live(s);
+                    }
                 }
+                voice_key::Do::Live(s) => live(s),
                 voice_key::Do::CoreEnd(s) => {
                     let link = link.clone();
                     tokio::spawn(async move { link.voice_end(s).await });
                 }
                 voice_key::Do::StartAfter(s, wait) => {
+                    feedback::play(feedback::VOICE_WARMING);
                     let later = later.clone();
                     tokio::spawn(async move {
                         tokio::time::sleep(wait).await;

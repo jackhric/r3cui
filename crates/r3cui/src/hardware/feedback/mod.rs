@@ -16,12 +16,15 @@ use crate::Haptic;
 use cue::{cue_for, Cue};
 
 pub(crate) use lab::Lab;
-pub(crate) use worker::{play, set_core_config};
+pub(crate) use worker::{play, set_core_config, stop};
 
 pub(crate) const SLIDER_MUTE: Cue = Cue::Select;
 /// Every volume change, from the keys or the slider.
 pub(crate) const VOLUME: Cue = Cue::Volume;
 pub(crate) const SLIDER_LIMIT: Cue = Cue::Limit;
+/// The voice key held, as the Home key's hold: a ramp while the microphone powers up, then the cue to talk.
+pub(crate) const VOICE_WARMING: Cue = Cue::HoldRamp;
+pub(crate) const VOICE_LIVE: Cue = Cue::HoldComplete;
 
 /// Run an event from the screen.
 pub(crate) fn ui_event(event: Haptic) {

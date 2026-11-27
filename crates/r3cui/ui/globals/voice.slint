@@ -12,6 +12,9 @@ export global Voice {
     in property <image> aurora;
     // The session ended without an answer (the key was only tapped): it goes at once instead of fading slowly.
     in property <bool> cut-short;
+    // How far the screen behind has receded, 0 to 1: Rust drives it with the key's hold, so the blur and push-back
+    // arrive as the microphone comes on, and eases it back once the overlay closes.
+    in property <float> depth;
     callback press();
     callback release();
     callback dismiss();

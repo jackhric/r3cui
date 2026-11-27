@@ -27,6 +27,8 @@ pub(crate) enum Do {
     EndAfter(u32, Duration),
     /// Tell the bridge how the session ended, so it can tell the core.
     Report(UiMsg),
+    /// The microphone is live: the first of the session's audio is in. The cue to start talking.
+    Live(u32),
 }
 
 #[derive(Debug)]
@@ -37,6 +39,8 @@ struct Active {
     reported: bool,
     /// The core was asked to record: the key was held past `HOLD`.
     recording: bool,
+    /// Its audio has begun to arrive.
+    live: bool,
     /// Audio bytes the bridge brought, for the log.
     heard: usize,
 }
@@ -60,7 +64,7 @@ impl VoiceKey {
         }
         self.last += 1;
         let session = self.last;
-        self.active = Some(Active { session, pressed: now, ended: false, reported: false, recording: false, heard: 0 });
+        self.active = Some(Active { session, pressed: now, ended: false, reported: false, recording: false, live: false, heard: 0 });
         vec![Do::Driver(VoiceIntent::Start { session, sample_rate: SAMPLE_RATE }), Do::StartAfter(session, HOLD)]
     }
 
@@ -98,10 +102,16 @@ impl VoiceKey {
     pub(crate) fn bridge(&mut self, event: LinkEvent) -> Vec<Do> {
         match event {
             LinkEvent::Audio { session_id, pcm } if self.listening(session_id) => {
+                let mut out = Vec::new();
                 if let Some(a) = self.active.as_mut() {
                     a.heard += pcm.len();
+                    if !a.live {
+                        a.live = true;
+                        out.push(Do::Live(session_id));
+                    }
                 }
-                vec![Do::Driver(VoiceIntent::Audio { session: session_id, pcm: pcm.to_vec() })]
+                out.push(Do::Driver(VoiceIntent::Audio { session: session_id, pcm: pcm.to_vec() }));
+                out
             }
             LinkEvent::Audio { session_id, pcm } => {
                 tracing::debug!("voice: {} bytes for session {session_id}, which is not listening", pcm.len());
@@ -180,7 +190,7 @@ mod tests {
         assert_eq!(key.press(t, None), [Do::Driver(VoiceIntent::Start { session: 1, sample_rate: SAMPLE_RATE }), Do::StartAfter(1, HOLD)]);
         assert_eq!(key.start_due(1), [Do::CoreStart(1)], "held past HOLD: the core records");
         assert!(key.start_due(1).is_empty(), "asked once");
-        assert_eq!(key.bridge(audio(1, &[1, 2])), [Do::Driver(VoiceIntent::Audio { session: 1, pcm: vec![1, 2] })]);
+        assert_eq!(key.bridge(audio(1, &[1, 2])), [Do::Live(1), Do::Driver(VoiceIntent::Audio { session: 1, pcm: vec![1, 2] })], "the first audio is the cue to talk");
         assert!(key.bridge(audio(9, &[9])).is_empty(), "another session's audio");
         assert_eq!(key.release(t + Duration::from_secs(2), END_GRACE), [Do::CoreEnd(1), Do::EndAfter(1, END_GRACE)]);
         assert_eq!(key.bridge(audio(1, &[3])), [Do::Driver(VoiceIntent::Audio { session: 1, pcm: vec![3] })], "late audio still counts");
