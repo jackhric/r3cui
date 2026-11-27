@@ -12,10 +12,11 @@ use std::time::{Duration, Instant};
 
 const FRAME: Duration = Duration::from_millis(33);
 /// The warm-up: from the press the light spreads out from the bottom centre, then climbs the sides, while the screen
-/// behind recedes, each slowly at first and fast at the end, arriving as the microphone comes on (`HOLD`). Until then
+/// behind recedes: a quick hop as the key goes down, a coast, then a rush, arriving as the microphone comes on
+/// (`HOLD`); tuned live on the web configurator's /tune page. Until then
 /// it is muted; once the first audio is in, it blooms into its colours.
 const WARM: Duration = crate::app::voice::HOLD;
-const WARM_CURVE: [f32; 4] = [0.64, 0.0, 0.78, 0.0];
+const WARM_CURVE: [f32; 4] = [0.09, 0.12, 0.93, -0.03];
 /// The light is one front on one curve: along the bottom from the centre, then up the sides. Each leg gets the share
 /// of the warm-up its distance on screen takes (about 240 px across, 320 px up), so the front keeps its pace round the
 /// corner; the climb starts as it rounds it. Eased separately, the legs would stop at the corner.
