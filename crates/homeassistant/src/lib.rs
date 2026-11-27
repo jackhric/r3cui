@@ -3,7 +3,7 @@
 //! `HaHandle::run_voice`: audio goes into a `VoiceRun`, what was heard and the answer come out as `AssistEvent`s).
 //!
 //! Layers, bottom up: `ids` and `wire` (HA's values and frames), `protocol` (its vocabulary), `client` (calls over one
-//! `wsclient` connection, matched to replies), `engine` (all the logic, no IO), `state` and `views` (what the UI reads) and
+//! `r3cui_sdk::ws` connection, matched to replies), `engine` (all the logic, no IO), `state` and `views` (what the UI reads) and
 //! `service`/`handle` (running it).
 //!
 //! With the default `driver` feature it is also the r3cui integration: `driver` holds its spec and its driver, on

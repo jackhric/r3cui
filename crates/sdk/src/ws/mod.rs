@@ -1,4 +1,4 @@
-//! The WebSocket plumbing shared by r3cui's driver crates: a connection that is pinged while idle and given up on
+//! The WebSocket plumbing shared by r3cui's integrations: a connection that is pinged while idle and given up on
 //! when silent (`connect`), the backoff between attempts (`Backoff`), a reconnect loop that reports each attempt and
 //! outcome (`reconnect`), and the table matching replies to the calls waiting for them (`Pending`).
 //!

@@ -6,7 +6,7 @@ use kodi::testing::FakeKodi;
 use kodi::{KodiHandle, KodiService, KodiState, Link, Media, Nav, StartAt, SubtitleChoice};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
-use wsclient::testing::{eventually, until};
+use r3cui_sdk::ws::testing::{eventually, until};
 
 async fn until_state(handle: &KodiHandle, what: &str, ok: impl Fn(&KodiState) -> bool) -> KodiState {
     until(&mut handle.state(), what, ok).await

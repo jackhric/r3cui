@@ -3,7 +3,7 @@
 use homeassistant::testing::FakeHa;
 use homeassistant::{EntityId, Error, HaConfig, HaHandle, HaService, HaState, Link, MediaPlayer};
 use serde_json::json;
-use wsclient::testing::until;
+use r3cui_sdk::ws::testing::until;
 
 const RECEIVER: &str = "media_player.theater_receiver";
 const TOKEN: &str = "llat-secret";
@@ -160,7 +160,7 @@ mod assist {
     use homeassistant::protocol::assist::EventType;
     use homeassistant::{AssistEvent, EndStage, VoiceError};
     use std::time::Duration;
-    use wsclient::testing::eventually;
+    use r3cui_sdk::ws::testing::eventually;
 
     const TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -177,7 +177,7 @@ mod assist {
     }
 
     async fn next(run: &mut homeassistant::VoiceRun) -> AssistEvent {
-        tokio::time::timeout(wsclient::testing::WAIT, run.next()).await.expect("an event in time").expect("the run is still going")
+        tokio::time::timeout(r3cui_sdk::ws::testing::WAIT, run.next()).await.expect("an event in time").expect("the run is still going")
     }
 
     #[tokio::test]
@@ -229,7 +229,7 @@ mod assist {
         ha.run_event(EventType::TtsEnd, json!({"tts_output": {"url": "/api/tts_proxy/a.mp3", "mime_type": "audio/mpeg"}}));
         ha.run_event(EventType::RunEnd, json!({}));
         let mut got = Vec::new();
-        while let Some(event) = tokio::time::timeout(wsclient::testing::WAIT, run.next()).await.expect("events in time") {
+        while let Some(event) = tokio::time::timeout(r3cui_sdk::ws::testing::WAIT, run.next()).await.expect("events in time") {
             got.push(event);
         }
         assert_eq!(
@@ -290,7 +290,7 @@ mod assist {
         let (ha, handle) = connected().await;
         let mut run = handle.run_voice(None, 16_000, EndStage::Intent, TIMEOUT).await.unwrap();
         ha.kick();
-        assert_eq!(tokio::time::timeout(wsclient::testing::WAIT, run.next()).await, Ok(None));
+        assert_eq!(tokio::time::timeout(r3cui_sdk::ws::testing::WAIT, run.next()).await, Ok(None));
     }
 
     #[tokio::test]

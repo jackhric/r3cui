@@ -11,8 +11,8 @@ use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio_rustls::client::TlsStream;
 use tokio_rustls::TlsConnector;
-pub use wsclient::tls::provider;
-use wsclient::tls::AcceptAnyServer;
+pub use r3cui_sdk::ws::tls::provider;
+use r3cui_sdk::ws::tls::AcceptAnyServer;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 

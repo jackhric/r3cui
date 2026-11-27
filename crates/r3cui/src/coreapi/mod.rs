@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use wsclient::{Connection, Pending};
+use r3cui_sdk::ws::{Connection, Pending};
 
 const SOCKET_URL_ENV: &str = "UC_SOCKET_URL";
 const DEFAULT_SOCKET_URL: &str = "ws://127.0.0.1:8080/ws";
@@ -103,7 +103,7 @@ impl Response {
 /// the last handle is dropped.
 #[derive(Clone)]
 pub struct Core {
-    out: wsclient::Outbox,
+    out: r3cui_sdk::ws::Outbox,
     pending: Pending<u64, Response>,
     next_id: Arc<AtomicU64>,
 }
@@ -143,7 +143,7 @@ pub async fn connect(cfg: Config) -> Result<(Core, mpsc::Receiver<Event>)> {
         let value = format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(basic));
         request.headers_mut().insert("Authorization", value.parse().context("auth header")?);
     }
-    let mut conn = wsclient::connect(request).await.map_err(|e| anyhow!("ws connect {}: {}", cfg.url, e.reason))?;
+    let mut conn = r3cui_sdk::ws::connect(request).await.map_err(|e| anyhow!("ws connect {}: {}", cfg.url, e.reason))?;
 
     authenticate(&mut conn, &cfg.token).await?;
     tracing::info!("core authenticated at {}", cfg.url);
@@ -224,7 +224,7 @@ async fn authenticate(conn: &mut Connection, token: &str) -> Result<()> {
 mod tests {
     use super::*;
     use crate::coreapi::testing::{FakeCore, Shared};
-    use wsclient::testing::FakeServer;
+    use r3cui_sdk::ws::testing::FakeServer;
 
     async fn fake_core() -> (FakeServer<Value>, Shared) {
         FakeCore::start("t").await

@@ -13,7 +13,7 @@ serde.workspace = true
 serde_json.workspace = true
 bytes.workspace = true
 tracing.workspace = true
-wsclient = { path = "../wsclient" }
+r3cui-sdk = { path = "../sdk" }
 
 [features]
 # FakeRelay: an in-process relay that scripts a session and captures what r3cui sends back.

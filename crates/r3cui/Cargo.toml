@@ -9,7 +9,6 @@ name = "remote-ui"
 path = "src/main.rs"
 
 [dependencies]
-wsclient = { path = "../wsclient" }
 tokio.workspace = true
 r3cui-sdk = { path = "../sdk" }
 # The integrations this build carries: each is listed once, in src/app/registry.rs.
@@ -58,7 +57,6 @@ demo = []
 
 [dev-dependencies]
 r3cui-sdk = { path = "../sdk", features = ["testing"] }
-wsclient = { path = "../wsclient", features = ["testing"] }
 tokio = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]

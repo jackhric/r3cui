@@ -5,6 +5,7 @@
 pub mod api;
 mod entry;
 pub mod run;
+pub mod ws;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 

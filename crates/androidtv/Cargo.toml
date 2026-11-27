@@ -6,7 +6,7 @@ license.workspace = true
 description = "r3cui's own Android TV client: the Android TV Remote protocol v2 (pairing and remote) over TLS."
 
 [dependencies]
-r3cui-sdk = { path = "../sdk", optional = true }
+r3cui-sdk = { path = "../sdk", features = ["tls"] }
 tokio = { workspace = true, features = ["io-util"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 rustls.workspace = true
@@ -19,7 +19,6 @@ prost = "0.14"
 serde.workspace = true
 tracing.workspace = true
 thiserror = "2"
-wsclient = { path = "../wsclient", features = ["tls"] }
 
 [dev-dependencies]
 androidtv = { path = ".", features = ["testing"] }
@@ -30,8 +29,8 @@ serde_json.workspace = true
 
 [features]
 default = ["driver"]
-# The r3cui integration: its spec and its driver, on r3cui-sdk. Without it, only the client.
-driver = ["dep:r3cui-sdk"]
+# The r3cui integration: its spec and its driver. Without it, only the client.
+driver = []
 # FakeTv: an in-process Android TV (pairing and remote channels) for tests and the desktop app.
 testing = []
 

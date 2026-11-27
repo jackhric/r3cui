@@ -1,5 +1,5 @@
-use crate::backoff::Backoff;
-use crate::connection::Connection;
+use crate::ws::backoff::Backoff;
+use crate::ws::connection::Connection;
 use std::fmt::Display;
 use std::future::Future;
 use std::time::{Duration, Instant};
@@ -52,7 +52,7 @@ pub async fn reconnect<S: Session>(session: &mut S) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{FakeServer, Peer, Reply};
+    use crate::ws::testing::{FakeServer, Peer, Reply};
     use std::sync::Arc;
 
     struct Echo;
@@ -80,7 +80,7 @@ mod tests {
         }
 
         async fn connect(&mut self) -> Result<Connection, String> {
-            crate::connect(self.url.as_str()).await.map_err(|e| e.to_string())
+            crate::ws::connect(self.url.as_str()).await.map_err(|e| e.to_string())
         }
 
         async fn serve(&mut self, mut connection: Connection) -> String {

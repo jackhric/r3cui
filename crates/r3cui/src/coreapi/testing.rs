@@ -4,7 +4,7 @@
 use crate::coreapi::messages;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
-use wsclient::testing::{FakeServer, Peer, Reply};
+use r3cui_sdk::ws::testing::{FakeServer, Peer, Reply};
 
 pub struct FakeState {
     pub token: String,

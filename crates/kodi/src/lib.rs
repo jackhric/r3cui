@@ -2,7 +2,7 @@
 //! than what a core integration passes on. The design, and where each feature lives, is in docs/kodi-client.md.
 //!
 //! Layers, bottom up: `ids` and `wire` (Kodi's values), `rpc` (the envelope and the `Method` trait), `methods` (one
-//! typed struct per call), `notification` (Kodi's events); then `client` (calls over one `wsclient` connection, matched
+//! typed struct per call), `notification` (Kodi's events); then `client` (calls over one `r3cui_sdk::ws` connection, matched
 //! to replies), `engine` (all the logic, no IO), `state` (what the UI reads) and `service`/`handle` (running it).
 //!
 //! With the default `driver` feature it is also the r3cui integration: `driver` holds its spec and its driver, on

@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use wsclient::testing::{Broadcaster, FakeServer, Peer, Reply};
+use r3cui_sdk::ws::testing::{Broadcaster, FakeServer, Peer, Reply};
 
 const HA_VERSION: &str = "2024.11.3";
 const FAKE_CONTEXT: &str = "01FAKE";

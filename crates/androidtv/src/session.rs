@@ -13,7 +13,7 @@ use rustls::ClientConfig;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
-use wsclient::Backoff;
+use r3cui_sdk::ws::Backoff;
 
 /// The TV pings every 5 s when nothing else is said; three missed pings and it hangs up, so we do the same.
 const IDLE: Duration = Duration::from_secs(16);

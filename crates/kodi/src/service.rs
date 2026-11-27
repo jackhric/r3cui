@@ -14,7 +14,7 @@ use crate::state::{KodiState, Link};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
-use wsclient::{Connection, Session};
+use r3cui_sdk::ws::{Connection, Session};
 
 const READ: Duration = Duration::from_secs(4);
 const ITEM_FIELDS: &[ItemField] = &[ItemField::Title, ItemField::ShowTitle, ItemField::Season, ItemField::Episode, ItemField::Year, ItemField::Runtime, ItemField::Art, ItemField::File];
@@ -38,7 +38,7 @@ impl KodiService {
 }
 
 async fn run(cfg: KodiConfig, state: watch::Sender<KodiState>, slot: Arc<Mutex<Option<Client>>>, refresh: mpsc::UnboundedReceiver<Query>) {
-    wsclient::reconnect(&mut Following { cfg, engine: Engine::default(), state, slot, refresh }).await;
+    r3cui_sdk::ws::reconnect(&mut Following { cfg, engine: Engine::default(), state, slot, refresh }).await;
 }
 
 struct Following {
@@ -122,7 +122,7 @@ impl Session for Following {
     }
 
     async fn connect(&mut self) -> Result<Connection, Error> {
-        Ok(wsclient::connect(self.cfg.ws_url()).await?)
+        Ok(r3cui_sdk::ws::connect(self.cfg.ws_url()).await?)
     }
 
     async fn serve(&mut self, conn: Connection) -> Error {

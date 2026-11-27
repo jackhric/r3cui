@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::Instant;
-use wsclient::testing::{Broadcaster, FakeServer, Peer, Reply as Frames};
+use r3cui_sdk::ws::testing::{Broadcaster, FakeServer, Peer, Reply as Frames};
 
 use crate::browse::MOVIES;
 use crate::config::KodiConfig;

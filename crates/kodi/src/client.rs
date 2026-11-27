@@ -8,19 +8,19 @@ use serde_json::value::RawValue;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use wsclient::{Pending, Unanswered};
+use r3cui_sdk::ws::{Pending, Unanswered};
 
 type Reply = std::result::Result<Box<RawValue>, RpcError>;
 
 #[derive(Clone)]
 pub(crate) struct Client {
-    out: wsclient::Outbox,
+    out: r3cui_sdk::ws::Outbox,
     pending: Pending<RequestId, Reply>,
     next: Arc<AtomicU32>,
 }
 
 impl Client {
-    pub(crate) fn new(out: wsclient::Outbox) -> Self {
+    pub(crate) fn new(out: r3cui_sdk::ws::Outbox) -> Self {
         Self { out, pending: Pending::new(), next: Arc::new(AtomicU32::new(1)) }
     }
 

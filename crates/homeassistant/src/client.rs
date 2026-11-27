@@ -11,13 +11,13 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::oneshot;
-use wsclient::{Pending, Unanswered};
+use r3cui_sdk::ws::{Pending, Unanswered};
 
 type Outcome = Result<Value>;
 
 #[derive(Clone)]
 pub(crate) struct Client {
-    out: wsclient::Outbox,
+    out: r3cui_sdk::ws::Outbox,
     pending: Pending<u32, Outcome>,
     next: Arc<AtomicU32>,
     routes: Arc<Mutex<HashMap<u32, mpsc::UnboundedSender<Value>>>>,
@@ -33,7 +33,7 @@ pub(crate) struct Reply {
 }
 
 impl Client {
-    pub(crate) fn new(out: wsclient::Outbox) -> Self {
+    pub(crate) fn new(out: r3cui_sdk::ws::Outbox) -> Self {
         Self { out, pending: Pending::new(), next: Arc::new(AtomicU32::new(1)), routes: Arc::default(), voice_run: Arc::default() }
     }
 

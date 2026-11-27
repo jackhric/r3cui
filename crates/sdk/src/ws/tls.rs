@@ -54,7 +54,7 @@ impl ServerCertVerifier for AcceptAnyServer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connect_trusting;
+    use crate::ws::connect_trusting;
     use tokio::net::TcpListener;
     use tokio_rustls::TlsAcceptor;
 

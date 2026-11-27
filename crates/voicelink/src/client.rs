@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, Instant};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
-use wsclient::Backoff;
+use r3cui_sdk::ws::Backoff;
 
 const EVENT_BACKLOG: usize = 256;
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);

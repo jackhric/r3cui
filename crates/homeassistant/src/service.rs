@@ -14,7 +14,7 @@ use serde_json::json;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::watch;
-use wsclient::{Connection, Session};
+use r3cui_sdk::ws::{Connection, Session};
 
 const READ: Duration = Duration::from_secs(5);
 const AUTH: Duration = Duration::from_secs(5);
@@ -41,13 +41,13 @@ async fn run(cfg: HaConfig, state: watch::Sender<HaState>, slot: Arc<Mutex<Optio
         Err(e) => Err(e),
     };
     let trust = cfg.trust();
-    wsclient::reconnect(&mut Following { token: cfg.token, url, trust, engine: Engine::default(), state, slot, watched }).await;
+    r3cui_sdk::ws::reconnect(&mut Following { token: cfg.token, url, trust, engine: Engine::default(), state, slot, watched }).await;
 }
 
 struct Following {
     token: String,
     url: Result<String>,
-    trust: wsclient::Trust,
+    trust: r3cui_sdk::ws::Trust,
     engine: Engine,
     state: watch::Sender<HaState>,
     slot: Arc<Mutex<Option<Client>>>,
@@ -122,7 +122,7 @@ impl Session for Following {
 
     async fn connect(&mut self) -> Result<Connection> {
         match &self.url {
-            Ok(url) => Ok(wsclient::connect_trusting(url.as_str(), self.trust).await?),
+            Ok(url) => Ok(r3cui_sdk::ws::connect_trusting(url.as_str(), self.trust).await?),
             Err(e) => Err(e.clone()),
         }
     }

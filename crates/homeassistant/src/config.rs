@@ -29,8 +29,8 @@ impl HaConfig {
         Self { self_signed, ..self }
     }
 
-    pub fn trust(&self) -> wsclient::Trust {
-        if self.self_signed { wsclient::Trust::AnyCertificate } else { wsclient::Trust::Verified }
+    pub fn trust(&self) -> r3cui_sdk::ws::Trust {
+        if self.self_signed { r3cui_sdk::ws::Trust::AnyCertificate } else { r3cui_sdk::ws::Trust::Verified }
     }
 
     pub fn is_configured(&self) -> bool {

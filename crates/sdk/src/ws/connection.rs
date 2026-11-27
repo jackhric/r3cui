@@ -5,7 +5,7 @@ use tokio::time::{interval, sleep, Instant};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
 #[cfg(feature = "tls")]
-use crate::tls::{self, Trust};
+use crate::ws::tls::{self, Trust};
 
 const PING_EVERY: Duration = Duration::from_secs(10);
 const SILENT_FOR: Duration = Duration::from_secs(25);
@@ -122,7 +122,7 @@ async fn open(
                     }
                 }
                 _ = &mut silence => {
-                    tracing::info!("wsclient: no frame for {:?}, closing", timing.silent_for);
+                    tracing::info!("ws: no frame for {:?}, closing", timing.silent_for);
                     break;
                 }
             }
