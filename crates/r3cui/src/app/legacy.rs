@@ -1,7 +1,7 @@
 //! What `settings.json` held before drivers were set up in `modules.json`, and the first `modules.json` made from it.
 //! The one place that knows Kodi's old settings, so it lives with the app, which lists Kodi anyway.
 
-use host::{Modules, Slot, DEFAULT_INPUT};
+use crate::host::{Modules, Slot, DEFAULT_INPUT};
 use kodi::driver::{field, SPEC as KODI};
 
 /// The old hardwired input Kodi was tied to, before inputs were configurable.

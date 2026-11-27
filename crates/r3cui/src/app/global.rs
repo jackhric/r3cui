@@ -3,7 +3,7 @@
 
 use crate::app::optimistic::Optimistic;
 use r3cui_sdk::api::{PowerIntent, SourceIntent, Sources, Volume, VolumeIntent};
-use host::Host;
+use crate::host::Host;
 use std::time::Duration;
 
 /// How long the slider's level wins outright, and the longest it is shown while the device hasn't reported it.

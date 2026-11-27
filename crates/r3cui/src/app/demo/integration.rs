@@ -1,15 +1,15 @@
 //! The demo driver: a receiver with four inputs, a film to play and a shelf of titles, all made up, so the real
 //! frontend can be tried with nothing to connect to. The app carries it in its `demo` feature only.
 
-use host::{Binding, Modules, Role, Slot};
+use crate::host::{Binding, Modules, Role, Slot};
 use r3cui_sdk::api::*;
 use r3cui_sdk::{DriverEntry, Integration};
-use data::{COLUMNS, INPUTS, KODI, LEVEL_LIMIT, RECEIVER, SHELF, START_INPUT, START_LEVEL, SWITCH};
+use super::data;
+use super::data::{COLUMNS, INPUTS, KODI, LEVEL_LIMIT, RECEIVER, SHELF, START_INPUT, START_LEVEL, SWITCH};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
 
-pub mod data;
 
 pub static SPEC: Spec = Spec {
     id: "demo",

@@ -1,7 +1,7 @@
 //! The integrations this build of r3cui carries: the one list of them. An integration is its own crate on
 //! `r3cui-sdk`; carrying another is a dependency in Cargo.toml and a line here.
 
-use host::Registry;
+use crate::host::Registry;
 use r3cui_sdk::Integration;
 
 const CARRIED: &[Integration] = &[
@@ -9,7 +9,7 @@ const CARRIED: &[Integration] = &[
     kodi::driver::INTEGRATION,
     androidtv::driver::INTEGRATION,
     #[cfg(feature = "demo")]
-    demo::INTEGRATION,
+    crate::app::demo::integration::INTEGRATION,
 ];
 
 pub(crate) fn registry() -> Registry {

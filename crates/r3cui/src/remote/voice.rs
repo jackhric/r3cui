@@ -1,7 +1,7 @@
 //! Starting and ending a recording through the core: it records only for the voice assistant set on the remote,
 //! which must be r3cui's relay for the audio to reach r3cui.
 
-use coreapi::{Core, EntityId, VoiceStart};
+use crate::coreapi::{Core, EntityId, VoiceStart};
 
 async fn assistant(core: &Core) -> Option<EntityId> {
     match core.get_voice_control_cfg().await {

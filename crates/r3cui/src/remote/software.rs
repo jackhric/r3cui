@@ -5,7 +5,7 @@ use crate::app::software::Access;
 use crate::remote::rest::Rest;
 use crate::remote::selfupdate::{self, Release};
 use crate::InstallPhase;
-use coreapi::{CheckSystemUpdate, Core, GetVersion, SystemUpdateInfo, UpdateRefusal, UpdateStart};
+use crate::coreapi::{CheckSystemUpdate, Core, GetVersion, SystemUpdateInfo, UpdateRefusal, UpdateStart};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -71,7 +71,7 @@ fn data_folder() -> PathBuf {
 }
 
 pub(crate) fn rest(access: &Access) -> Rest {
-    Rest::new(&coreapi::Config::url_from_env(), &access.pin)
+    Rest::new(&crate::coreapi::Config::url_from_env(), &access.pin)
 }
 
 pub(crate) async fn grant(core: &Core, access: &Access) -> Result<(), String> {

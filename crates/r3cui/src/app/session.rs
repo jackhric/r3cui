@@ -27,9 +27,9 @@ use crate::{Menu, MenuItem, PageId};
 use crate::{KbPurpose, Picker};
 use crate::view::software::show as show_software;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
-use coreapi::CoreEvent;
+use crate::coreapi::CoreEvent;
 use r3cui_sdk::api::{Health, Media, PairError, Pairer, Stage, Status, UiIntent, VolumeIntent};
-use host::{Host, Input, KnownTargets, Modules, Store, DEFAULT_INPUT};
+use crate::host::{Host, Input, KnownTargets, Modules, Store, DEFAULT_INPUT};
 
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -87,7 +87,7 @@ impl Frontend {
     /// The demo's drivers, set up in memory. Within a tokio runtime.
     #[cfg(feature = "demo")]
     pub(crate) fn demo(weak: slint::Weak<AppWindow>) -> Self {
-        let modules = demo::modules();
+        let modules = crate::app::demo::integration::modules();
         Self { host: Host::new(crate::app::registry::registry(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new(), software: Software::new(crate::remote::selfupdate::current_version(), demo_pins()) }
     }
 
@@ -143,7 +143,7 @@ impl Frontend {
 /// The made-up core's PINs, in turn.
 #[cfg(feature = "demo")]
 fn demo_pins() -> impl FnMut() -> String + Send + 'static {
-    let mut next = demo::data::WEB_PINS.iter().cycle();
+    let mut next = crate::app::demo::data::WEB_PINS.iter().cycle();
     move || next.next().map(|p| p.to_string()).unwrap_or_default()
 }
 
@@ -445,9 +445,9 @@ fn tracks(media: Option<&Media>, picker: Picker) -> (Vec<(String, String)>, usiz
 }
 
 pub(crate) async fn run(weak: &slint::Weak<AppWindow>, actions: &mut mpsc::UnboundedReceiver<UiAction>, front: &mut Frontend) -> anyhow::Result<()> {
-    let cfg = coreapi::Config::from_env()?;
+    let cfg = crate::coreapi::Config::from_env()?;
     set_status(weak, false, format!("Connecting to {}…", cfg.url));
-    let (core, events) = coreapi::connect(cfg).await?;
+    let (core, events) = crate::coreapi::connect(cfg).await?;
     let (system, wifi) = tokio::join!(System::load(&core), Wifi::load(&core));
     load_settings(weak, &core).await;
     if let Err(e) = core.announce_ui(&crate::remote::selfupdate::current_version().to_string()).await {
@@ -465,7 +465,7 @@ pub(crate) async fn serve(
     actions: &mut mpsc::UnboundedReceiver<UiAction>,
     front: &mut Frontend,
     link: Link,
-    mut events: mpsc::Receiver<coreapi::Event>,
+    mut events: mpsc::Receiver<crate::coreapi::Event>,
     system: System,
     wifi: Wifi,
 ) -> anyhow::Result<()> {

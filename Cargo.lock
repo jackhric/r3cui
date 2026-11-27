@@ -792,20 +792,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "coreapi"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "serde",
- "serde_json",
- "tokio",
- "tokio-tungstenite",
- "tracing",
- "wsclient",
-]
-
-[[package]]
 name = "countme"
 version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -911,16 +897,6 @@ name = "data-url"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
-
-[[package]]
-name = "demo"
-version = "0.1.0"
-dependencies = [
- "host",
- "kodi",
- "r3cui-sdk",
- "tokio",
-]
 
 [[package]]
 name = "der"
@@ -1750,17 +1726,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wsclient",
-]
-
-[[package]]
-name = "host"
-version = "0.1.0"
-dependencies = [
- "r3cui-sdk",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -3726,13 +3691,10 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "chrono",
- "coreapi",
- "demo",
  "evdev",
  "futures-util",
  "getrandom 0.2.17",
  "homeassistant",
- "host",
  "image",
  "kodi",
  "qrcode",
@@ -3750,6 +3712,7 @@ dependencies = [
  "tracing-subscriber",
  "ureq",
  "voicelink",
+ "wsclient",
 ]
 
 [[package]]

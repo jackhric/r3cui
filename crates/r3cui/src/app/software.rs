@@ -10,7 +10,7 @@ use crate::view::format::{ago, release_date, size_label};
 use crate::view::screen::Screen;
 use crate::view::ui;
 use crate::{AppWindow, InstallPhase, PageId, UninstallState, UpdateState, VoiceSetup};
-use coreapi::{DownloadState, SoftwareUpdate, SystemUpdateInfo, UpdateEventType, UpdateRefusal, UpdateRunState, UpdateStart};
+use crate::coreapi::{DownloadState, SoftwareUpdate, SystemUpdateInfo, UpdateEventType, UpdateRefusal, UpdateRunState, UpdateStart};
 use semver::Version;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -404,7 +404,7 @@ impl Software {
             .into_iter()
             .find(|u| u.version != fw.installed)
             .map(|u| Offer {
-                notes: [coreapi::localized(&u.title, NOTES_LANGUAGE), coreapi::localized(&u.description, NOTES_LANGUAGE)].into_iter().flatten().collect::<Vec<_>>().join("\n"),
+                notes: [crate::coreapi::localized(&u.title, NOTES_LANGUAGE), crate::coreapi::localized(&u.description, NOTES_LANGUAGE)].into_iter().flatten().collect::<Vec<_>>().join("\n"),
                 id: u.id,
                 version: u.version,
                 release_date: u.release_date,
@@ -721,7 +721,7 @@ mod tests {
         let view = Software::new(v("0.2.0-rc.1+g1eb1474"), || "0000".into()).view(Instant::now(), 100);
         assert_eq!((view.r3_version.as_str(), view.r3_build.commit.as_str()), ("0.2.0-rc.1", crate::remote::selfupdate::COMMIT));
     }
-    use coreapi::{AvailableUpdate, UpdateProgress};
+    use crate::coreapi::{AvailableUpdate, UpdateProgress};
 
     fn software() -> Software {
         let mut n = 0;

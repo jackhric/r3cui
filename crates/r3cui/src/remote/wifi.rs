@@ -1,7 +1,7 @@
 //! The remote's Wi-Fi: the network it's on, what a scan finds, the preferred band, and joining a network. The core
 //! does the work; this keeps what it last said and turns its events into what the screen shows.
 
-use coreapi::{WifiChange, WifiEvent};
+use crate::coreapi::{WifiChange, WifiEvent};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -31,7 +31,7 @@ pub(crate) struct Response {
 }
 
 impl Wifi {
-    pub(crate) async fn load(core: &coreapi::Core) -> Self {
+    pub(crate) async fn load(core: &crate::coreapi::Core) -> Self {
         let ((ssid, networks), band) = tokio::join!(scan(core), band(core));
         Self::new(ssid, networks, band)
     }
@@ -67,7 +67,7 @@ impl Wifi {
     }
 
     /// Ask the core to join a network: by its raw name from a scan when there is one. Whether the core took it.
-    pub(crate) async fn join(&mut self, core: &coreapi::Core, ssid: &str, hex: &str, password: &str) -> bool {
+    pub(crate) async fn join(&mut self, core: &crate::coreapi::Core, ssid: &str, hex: &str, password: &str) -> bool {
         let mut network = if hex.is_empty() { json!({ "ssid": ssid }) } else { json!({ "ssid_hex": hex }) };
         if !password.is_empty() {
             network["password"] = json!(password);
@@ -90,7 +90,7 @@ impl Wifi {
     }
 
     /// Switch the preferred band to the other one.
-    pub(crate) async fn toggle_band(&mut self, core: &coreapi::Core) {
+    pub(crate) async fn toggle_band(&mut self, core: &crate::coreapi::Core) {
         let next = match self.band.as_str() {
             "a" => "b",
             "b" => "a",
@@ -105,7 +105,7 @@ impl Wifi {
         }
     }
 
-    pub(crate) fn start_scan(&mut self, core: &coreapi::Core) {
+    pub(crate) fn start_scan(&mut self, core: &crate::coreapi::Core) {
         self.scanning = true;
         let core = core.clone();
         tokio::spawn(async move {
@@ -138,7 +138,7 @@ fn bars(dbm: i64) -> i32 {
 }
 
 /// The connected network's name (empty when disconnected) and what the last scan found.
-pub(crate) async fn scan(core: &coreapi::Core) -> (String, Vec<Network>) {
+pub(crate) async fn scan(core: &crate::coreapi::Core) -> (String, Vec<Network>) {
     // The simulator has no Wi-Fi; previews of it can name a network to show as joined.
     #[cfg(feature = "preview")]
     if let Ok(ssid) = std::env::var("UC_PREVIEW_WIFI") {
@@ -175,7 +175,7 @@ pub(crate) async fn scan(core: &coreapi::Core) -> (String, Vec<Network>) {
 
 #[cfg(feature = "demo")]
 pub fn demo_networks(connected: &str) -> Vec<Network> {
-    let mut found: Vec<Network> = demo::data::WIFI
+    let mut found: Vec<Network> = crate::app::demo::data::WIFI
         .into_iter()
         .map(|(ssid, bars)| Network { ssid: ssid.into(), hex: String::new(), secured: true, bars, connected: ssid == connected })
         .collect();
@@ -184,7 +184,7 @@ pub fn demo_networks(connected: &str) -> Vec<Network> {
 }
 
 /// The preferred Wi-Fi band ("a" or "b"), or empty when the core does not say.
-async fn band(core: &coreapi::Core) -> String {
+async fn band(core: &crate::coreapi::Core) -> String {
     core.request("get_network_cfg", json!({}))
         .await
         .ok()

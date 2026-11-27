@@ -2,11 +2,13 @@
 //! token file, receive its events (typed in `events`) and make requests. Other programs are r3cui's drivers, not the
 //! core's integrations, so entities and their commands aren't here. See `docs/core-ws-protocol.md`.
 
+#![allow(dead_code)] // the whole client surface, not only what the app calls today
+
 mod events;
 pub mod messages;
 mod system;
 mod voice;
-#[cfg(any(test, feature = "testing"))]
+#[cfg(test)]
 pub mod testing;
 
 pub use events::*;
@@ -221,7 +223,7 @@ async fn authenticate(conn: &mut Connection, token: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{FakeCore, Shared};
+    use crate::coreapi::testing::{FakeCore, Shared};
     use wsclient::testing::FakeServer;
 
     async fn fake_core() -> (FakeServer<Value>, Shared) {

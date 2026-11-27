@@ -2,9 +2,9 @@
 //! bindings, keys and the stage to the current input's slots. The frontend sees ports and inputs, never a driver.
 
 use r3cui_sdk::api::{Driver, KeyLight, Power, PowerIntent, PowerPort, RemoteKey, SourceIntent, SourcePort, Sources, Stage, Status, UiIntent, Voice, VoiceIntent, VoicePort, Volume, VolumeIntent, VolumePort};
-use crate::config::{Binding, DriverEntry, Modules};
-use crate::inputs::{self, Input};
-use crate::registry::Registry;
+use crate::host::config::{Binding, DriverEntry, Modules};
+use crate::host::inputs::{self, Input};
+use crate::host::registry::Registry;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::sync::watch;
@@ -298,9 +298,9 @@ fn forward<T: Send + Sync + 'static>(mut rx: watch::Receiver<T>, changed: watch:
 mod tests {
     use super::*;
     use r3cui_sdk::api::{Health, Media};
-    use crate::config::{Role, Slot};
-    use crate::inputs::DEFAULT_INPUT;
-    use crate::testing::{FakeDriver, Fakes, FAKE_GLOBAL, FAKE_HOST, FAKE_PLAYER};
+    use crate::host::config::{Role, Slot};
+    use crate::host::inputs::DEFAULT_INPUT;
+    use crate::host::testing::{FakeDriver, Fakes, FAKE_GLOBAL, FAKE_HOST, FAKE_PLAYER};
     use std::time::{Duration, Instant};
 
     fn setup() -> (Host, Fakes) {

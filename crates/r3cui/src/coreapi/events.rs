@@ -4,9 +4,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::system::SoftwareUpdate;
-use crate::voice::EntityId;
-use crate::{messages, Event};
+use crate::coreapi::system::SoftwareUpdate;
+use crate::coreapi::voice::EntityId;
+use crate::coreapi::{messages, Event};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CoreEvent {

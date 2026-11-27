@@ -4,7 +4,7 @@ use crate::app::model::{InputEntry, Model};
 use crate::remote::health::{self, Link};
 use crate::remote::wifi::demo_networks;
 use r3cui_sdk::api::{Health, Status};
-use demo::data::{self, AUDIO, FILM_LENGTH, FILM_TITLE, INPUTS, KODI, LEVEL_LIMIT, LINKS, RESUME_AT, START_INPUT, START_LEVEL, WIFI_BAND, WIFI_HOME};
+use crate::app::demo::data::{self, AUDIO, FILM_LENGTH, FILM_TITLE, INPUTS, KODI, LEVEL_LIMIT, LINKS, RESUME_AT, START_INPUT, START_LEVEL, WIFI_BAND, WIFI_HOME};
 use std::ops::{Deref, DerefMut};
 
 /// The model a still shows, and the one thing the session derives from drivers that a still sets by hand.

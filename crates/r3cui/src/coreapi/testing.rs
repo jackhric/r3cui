@@ -1,7 +1,7 @@
 //! A fake core for tests: it signs a client in by its token and answers the requests the UI makes, from state the
 //! test can read and change.
 
-use crate::messages;
+use crate::coreapi::messages;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 use wsclient::testing::{FakeServer, Peer, Reply};

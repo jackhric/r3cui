@@ -3,9 +3,9 @@
 //! session answers the server with these.
 
 use crate::app::integrations::{addable, global_driver, name_of, power_providers, role_kind, set_field, short, slot_drivers, spec_of, GLOBAL_ROLES};
-use host::config::{Binding, Modules, Role, Slot};
-use host::known::KnownTargets;
-use host::Host;
+use crate::host::config::{Binding, Modules, Role, Slot};
+use crate::host::known::KnownTargets;
+use crate::host::Host;
 use r3cui_sdk::api::{Driver, FieldKind, Health, Paired, Target, TargetKind};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -387,7 +387,7 @@ fn known_driver(host: &Host, id: &str) -> Result<&'static r3cui_sdk::api::Spec, 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use host::testing::{Fakes, FAKE_HOST, FAKE_PAIRABLE_CREDENTIAL};
+    use crate::host::testing::{Fakes, FAKE_HOST, FAKE_PAIRABLE_CREDENTIAL};
     use serde_json::json;
 
     fn host() -> (Host, Fakes) {

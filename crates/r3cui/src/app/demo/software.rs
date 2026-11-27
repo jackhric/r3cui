@@ -1,13 +1,13 @@
 //! The demo's software: a firmware update and an r3cui update waiting, and installs that advance on a clock. Nothing
-//! touches the network or the REST API; the made-up values are `demo::data`.
+//! touches the network or the REST API; the made-up values are `data`.
 
 use crate::app::software::Event;
 use crate::app::Later;
 use crate::remote::selfupdate::Release;
 use crate::remote::software::Progress;
 use crate::InstallPhase;
-use coreapi::{AvailableUpdate, DownloadState, SoftwareUpdate, SystemUpdateInfo, UpdateEventType, UpdateProgress, UpdateRefusal, UpdateRunState, UpdateStart};
-use demo::data::*;
+use crate::coreapi::{AvailableUpdate, DownloadState, SoftwareUpdate, SystemUpdateInfo, UpdateEventType, UpdateProgress, UpdateRefusal, UpdateRunState, UpdateStart};
+use crate::app::demo::data::*;
 use semver::Version;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;

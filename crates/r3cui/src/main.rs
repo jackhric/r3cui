@@ -5,7 +5,9 @@
 
 mod app;
 mod art;
+mod coreapi;
 mod hardware;
+mod host;
 mod input;
 #[cfg(feature = "preview")]
 mod preview;

@@ -2,8 +2,8 @@
 //! `core-api`'s AsyncAPI spec and `doc/entities/entity_voice_assistant.md`. A session starts with `voice_start`,
 //! then `assistant_event`s (in `events`) report it; `voice_end` stops the audio.
 
-use crate::system::{CallError, LangMap, Request};
-use crate::{messages, Core};
+use crate::coreapi::system::{CallError, LangMap, Request};
+use crate::coreapi::{messages, Core};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 

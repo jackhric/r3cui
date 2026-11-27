@@ -14,7 +14,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Clone)]
 pub(crate) enum Link {
-    Core(coreapi::Core),
+    Core(crate::coreapi::Core),
     #[cfg(feature = "demo")]
     Demo(crate::app::demo::Remote),
 }
@@ -84,7 +84,7 @@ impl Link {
         }
     }
 
-    pub(crate) async fn firmware_info(&self, force: bool) -> Result<coreapi::SystemUpdateInfo, String> {
+    pub(crate) async fn firmware_info(&self, force: bool) -> Result<crate::coreapi::SystemUpdateInfo, String> {
         match self {
             Self::Core(core) => software::firmware_info(core, force).await,
             #[cfg(feature = "demo")]
@@ -93,7 +93,7 @@ impl Link {
     }
 
     #[cfg_attr(not(feature = "demo"), allow(unused_variables))]
-    pub(crate) async fn start_firmware(&self, id: &str, later: &UnboundedSender<Later>) -> Result<coreapi::UpdateStart, coreapi::UpdateRefusal> {
+    pub(crate) async fn start_firmware(&self, id: &str, later: &UnboundedSender<Later>) -> Result<crate::coreapi::UpdateStart, crate::coreapi::UpdateRefusal> {
         match self {
             Self::Core(core) => software::start_firmware(core, id).await,
             #[cfg(feature = "demo")]
@@ -125,7 +125,7 @@ impl Link {
         match self {
             Self::Core(core) => software::address(core).await,
             #[cfg(feature = "demo")]
-            Self::Demo(_) => demo::data::REMOTE_ADDRESS.into(),
+            Self::Demo(_) => crate::app::demo::data::REMOTE_ADDRESS.into(),
         }
     }
 
@@ -211,7 +211,7 @@ impl Link {
             Self::Core(core) => {
                 let core = core.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = core.set_power_mode(coreapi::PowerMode::Normal).await {
+                    if let Err(e) = core.set_power_mode(crate::coreapi::PowerMode::Normal).await {
                         tracing::warn!("waking the remote: {e}");
                     }
                 });

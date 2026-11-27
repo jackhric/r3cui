@@ -80,7 +80,7 @@ impl Keys {
 pub struct Backlight(Arc<watch::Sender<(Keys, u64)>>);
 
 impl Backlight {
-    pub fn start(core: coreapi::Core) -> Self {
+    pub fn start(core: crate::coreapi::Core) -> Self {
         let (tx, mut wanted) = watch::channel((Keys::OFF, 0u64));
         tokio::spawn(async move {
             // Nothing is known about the keys at first, so the first request paints both groups.
@@ -126,7 +126,7 @@ impl Backlight {
 }
 
 /// Paints the groups whose colour differs from `shown` (all of them when it is unknown).
-async fn paint_keys(core: &coreapi::Core, shown: Option<Keys>, keys: Keys) -> bool {
+async fn paint_keys(core: &crate::coreapi::Core, shown: Option<Keys>, keys: Keys) -> bool {
     let paint = |colour: Rgb, zones: Vec<u8>| {
         let names: Vec<String> = zones.iter().map(|z| format!("ZONE_{z}")).collect();
         let cfg = json!({ "static_color": { "rgb": [colour.0, colour.1, colour.2], "zones": names } });

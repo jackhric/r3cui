@@ -3,11 +3,12 @@
 //! its own crate on `r3cui-sdk`, listed by the app; nothing here names one. See `docs/drivers.md`.
 
 pub mod config;
+#[allow(clippy::module_inception)]
 pub mod host;
 pub mod inputs;
 pub mod known;
 pub mod registry;
-#[cfg(any(test, feature = "testing"))]
+#[cfg(test)]
 pub mod testing;
 
 pub use config::{Binding, Modules, Role, Slot, Store};

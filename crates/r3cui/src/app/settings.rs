@@ -59,7 +59,7 @@ impl Settings {
 
     /// A first `modules.json` from what `settings.json` used to hold. Home Assistant has to be set up anew: the old
     /// settings never said where it was.
-    pub fn legacy_modules(&self) -> Option<host::Modules> {
+    pub fn legacy_modules(&self) -> Option<crate::host::Modules> {
         self.legacy.modules()
     }
 }

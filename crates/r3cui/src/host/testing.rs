@@ -3,7 +3,7 @@
 
 use r3cui_sdk::api::*;
 use r3cui_sdk::DriverEntry;
-use crate::registry::Registry;
+use crate::host::registry::Registry;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
@@ -34,8 +34,6 @@ pub static FAKE_PAIRABLE: Spec = Spec {
     address: None,
     pairing: Some(CodePairing { code_len: 6 }),
 };
-
-pub use r3cui_sdk::testing::{entry, until};
 
 #[derive(Clone)]
 pub struct FakeDriver(Arc<Inner>);
@@ -160,7 +158,7 @@ pub struct Fakes(Arc<Mutex<HashMap<String, (FakeDriver, usize)>>>);
 
 impl Fakes {
     pub fn registry(&self) -> Registry {
-        let start = |fakes: Fakes| -> crate::registry::Start {
+        let start = |fakes: Fakes| -> crate::host::registry::Start {
             Box::new(move |e: &DriverEntry| {
                 let spec = match e.kind.as_str() {
                     k if k == FAKE_GLOBAL.id => &FAKE_GLOBAL,

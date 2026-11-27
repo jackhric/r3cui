@@ -1,6 +1,8 @@
-//! The demo: the real session, with the Demo driver (`crates/demo`) in every slot and a made-up remote in place of
-//! the core, so there is nothing to connect to. The made-up data itself is `demo::data`.
+//! The demo: the real session, with the Demo driver (`integration`) in every slot and a made-up remote in place of
+//! the core, so there is nothing to connect to. The made-up data itself is `data`.
 
+pub(crate) mod data;
+pub(crate) mod integration;
 pub(crate) mod software;
 pub(crate) mod voice;
 
@@ -12,7 +14,7 @@ use crate::remote::system::System;
 use crate::remote::wifi::{demo_networks, Network, Wifi};
 use crate::view::set_poster_accent;
 use crate::{AppWindow, Playback, Prefs};
-use demo::data::{WIFI_BAND, WIFI_HOME};
+use crate::app::demo::data::{WIFI_BAND, WIFI_HOME};
 use slint::ComponentHandle;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;

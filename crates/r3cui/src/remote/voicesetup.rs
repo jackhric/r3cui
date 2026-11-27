@@ -5,7 +5,7 @@
 use crate::app::software::Access;
 use crate::remote::rest::{Rest, RestError};
 use crate::remote::software::{grant, revoke, rest};
-use coreapi::{Core, VoiceAssistantUpdate, VoiceControlUpdate};
+use crate::coreapi::{Core, VoiceAssistantUpdate, VoiceControlUpdate};
 use serde::Deserialize;
 use serde_json::json;
 use std::path::PathBuf;

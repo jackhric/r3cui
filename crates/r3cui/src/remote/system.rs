@@ -7,7 +7,7 @@ use crate::view::format::duration_label;
 use crate::view::ui;
 use crate::hardware::feedback;
 use crate::AppWindow;
-use coreapi::{BatteryStatus, PowerMode, PowerModeChange};
+use crate::coreapi::{BatteryStatus, PowerMode, PowerModeChange};
 use serde_json::{json, Value};
 
 pub(crate) struct System {
@@ -20,7 +20,7 @@ pub(crate) struct System {
 }
 
 impl System {
-    pub(crate) async fn load(core: &coreapi::Core) -> Self {
+    pub(crate) async fn load(core: &crate::coreapi::Core) -> Self {
         let (power, charger) = tokio::join!(core.fetch("get_power_mode"), core.fetch("get_battery_charger"));
         let (power, charger) = (power.unwrap_or(Value::Null), charger.unwrap_or(Value::Null));
         tracing::info!(%power, %charger, "power");
@@ -34,7 +34,7 @@ impl System {
 
     #[cfg(feature = "demo")]
     pub(crate) fn demo() -> Self {
-        Self { battery: demo::data::BATTERY, charging: false, awake: true, follow_power: true }
+        Self { battery: crate::app::demo::data::BATTERY, charging: false, awake: true, follow_power: true }
     }
 
     // IDLE only dims the display; treating it as asleep would black out a screen still in use.
@@ -70,7 +70,7 @@ fn on_charger(reported: Option<bool>) -> Option<bool> {
 }
 
 /// The menu's current values. Each is optional: a core that lacks a message just leaves a blank.
-pub(crate) async fn load_settings(weak: &slint::Weak<AppWindow>, core: &coreapi::Core) {
+pub(crate) async fn load_settings(weak: &slint::Weak<AppWindow>, core: &crate::coreapi::Core) {
     let (display, haptic, power, sound) =
         tokio::join!(core.fetch("get_display_cfg"), core.fetch("get_haptic_cfg"), core.fetch("get_power_saving_cfg"), core.fetch("get_sound_cfg"));
     feedback::set_core_config(
@@ -96,7 +96,7 @@ pub(crate) async fn load_settings(weak: &slint::Weak<AppWindow>, core: &coreapi:
     });
 }
 
-pub(crate) fn set_display(core: &coreapi::Core, brightness: i32, auto: bool) {
+pub(crate) fn set_display(core: &crate::coreapi::Core, brightness: i32, auto: bool) {
     let core = core.clone();
     tokio::spawn(async move {
         let cfg = json!({ "brightness": brightness, "auto_brightness": auto });

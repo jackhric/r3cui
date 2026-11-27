@@ -1,7 +1,7 @@
 //! The remote's software: its version, firmware updates and web-configurator access, typed after `core-api`'s AsyncAPI
 //! spec. A request is a struct that says which message it is and what comes back (`Request`); `Core::call` sends it.
 
-use crate::{messages, Core, Response};
+use crate::coreapi::{messages, Core, Response};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -50,7 +50,7 @@ impl Core {
     }
 
     /// `Normal` wakes the remote, as a key press would.
-    pub async fn set_power_mode(&self, mode: crate::PowerMode) -> Result<(), CallError> {
+    pub async fn set_power_mode(&self, mode: crate::coreapi::PowerMode) -> Result<(), CallError> {
         self.call(&SetPowerMode { mode }).await.map(drop)
     }
 }
@@ -58,7 +58,7 @@ impl Core {
 /// `set_power_mode`: experimental in the Core-API.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SetPowerMode {
-    pub mode: crate::PowerMode,
+    pub mode: crate::coreapi::PowerMode,
 }
 
 impl Request for SetPowerMode {
@@ -372,12 +372,12 @@ mod tests {
 
     #[test]
     fn software_update_events_parse() {
-        let e = crate::Event {
+        let e = crate::coreapi::Event {
             msg: messages::SOFTWARE_UPDATE.into(),
             cat: None,
             data: json!({"event_type": "PROGRESS", "update_id": "u1", "progress": {"state": "RUN", "total_steps": 4, "current_step": 2, "current_percent": 62}}),
         };
-        let crate::CoreEvent::SoftwareUpdate(u) = e.typed() else { panic!("not an update event") };
+        let crate::coreapi::CoreEvent::SoftwareUpdate(u) = e.typed() else { panic!("not an update event") };
         assert_eq!(u.event_type, UpdateEventType::Progress);
         let p = u.progress.unwrap();
         assert_eq!((p.state, p.current_step, p.total_steps, p.current_percent), (UpdateRunState::Run, Some(2), Some(4), Some(62)));

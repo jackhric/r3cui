@@ -9,15 +9,13 @@ name = "remote-ui"
 path = "src/main.rs"
 
 [dependencies]
-coreapi = { path = "../coreapi" }
+wsclient = { path = "../wsclient" }
 tokio.workspace = true
 r3cui-sdk = { path = "../sdk" }
-host = { path = "../host" }
 # The integrations this build carries: each is listed once, in src/app/registry.rs.
 homeassistant = { path = "../homeassistant" }
 kodi = { path = "../kodi" }
 androidtv = { path = "../androidtv" }
-demo = { path = "../demo", optional = true }
 voicelink = { path = "../voicelink" }
 serde.workspace = true
 serde_json.workspace = true
@@ -56,10 +54,11 @@ device = ["slint/backend-linuxkms", "slint/renderer-femtovg", "slint/renderer-so
 # Screenshot, recording and remote-photo framing tools (--shots, --snap, --record, --frame).
 preview = ["demo"]
 # A made-up receiver and player behind the real session (--demo), and the data the preview stills share with it.
-demo = ["dep:demo"]
+demo = []
 
 [dev-dependencies]
-host = { path = "../host", features = ["testing"] }
+r3cui-sdk = { path = "../sdk", features = ["testing"] }
+wsclient = { path = "../wsclient", features = ["testing"] }
 tokio = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]

@@ -4,7 +4,7 @@
 
 use crate::Dot;
 use r3cui_sdk::api::{Field, FieldKind, Health, PairError, Paired, Spec, Target, TargetKind};
-use host::{Binding, Host, Input, KnownTargets, Modules, Role, Slot};
+use crate::host::{Binding, Host, Input, KnownTargets, Modules, Role, Slot};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Screen {
@@ -687,7 +687,7 @@ mod tests {
     use super::*;
     use r3cui_sdk::api::Sources;
     use r3cui_sdk::api::PairError;
-    use host::testing::{Fakes, FAKE_PAIRABLE, FAKE_PAIRABLE_CREDENTIAL};
+    use crate::host::testing::{Fakes, FAKE_PAIRABLE, FAKE_PAIRABLE_CREDENTIAL};
 
     fn setup() -> (Host, Fakes, Integrations) {
         let fakes = Fakes::default();

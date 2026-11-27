@@ -3,7 +3,7 @@
 use crate::input::Button;
 use crate::view::screen::Screen;
 use crate::{AppWindow, Lib, PageId, Picker, Tracks, UiAction};
-use demo::data::{AUDIO, SUBTITLES, SUBTITLE_SHOWING};
+use crate::app::demo::data::{AUDIO, SUBTITLES, SUBTITLE_SHOWING};
 use slint::{ComponentHandle, SharedString};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::UnboundedSender;
