@@ -116,12 +116,14 @@ Behind it, the screen shrinks, dims and blurs, as the stage does under a menu (`
 Let
 go and it settles behind a `Spinner`; the answer shows, then everything fades. A tap goes at once. The demo feeds a made-up voice (`app/demo/voice.rs`); `scripts/voice.steps` films it.
 
-## Setting it up on the remote (once, the user's call)
+## Setting it up on the remote
 
-1. Install the relay package.
-2. Add its voice entity, turn the microphone on and make the relay the voice assistant
-   (`PATCH /api/cfg/voice_control`).
-3. Global control → Voice → Home Assistant, and pick the pipeline.
+System → **Voice assistant** does it in one tap (`crates/r3cui/src/remote/voicesetup.rs`): r3cui's archive carries the
+relay's (`bin/r3cui-voice.tar.gz`), which it installs over REST (`POST /api/intg/install`, `?update=true` when an older
+one is there), sets up (`POST /api/intg/setup`), adds its entity (`POST /api/intg/instances/<id>/entities`), then turns
+the microphone on and makes `r3cui_voice.main.voice` the voice assistant over the WebSocket (`set_voice_control_cfg`).
+Each step is skipped when already done. Then Global control → Voice → Home Assistant, and pick the pipeline (none is
+Home Assistant's preferred one).
 
 ## To check on the device first
 
