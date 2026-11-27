@@ -51,7 +51,7 @@ pub(super) fn shelf(kind: &str) -> Shelf {
             Err(_) => slint::Image::default(),
         };
         let item: ::kodi::methods::library::FileItem = serde_json::from_value(it.clone()).unwrap_or_default();
-        items.push(crate::view::library::item(&drivers::kodi::library_item(&item, shows, String::new()), poster));
+        items.push(crate::view::library::item(&kodi::driver::library_item(&item, shows, String::new()), poster));
     }
     let count = if shows { format!("{} shows", list.len()) } else { format!("{} films", list.len()) };
     Shelf { posters, items, count }

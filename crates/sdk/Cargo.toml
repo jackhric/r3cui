@@ -1,0 +1,16 @@
+[package]
+name = "r3cui-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Write an r3cui integration: the contract a driver implements, its setup, and helpers for running and testing it."
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[features]
+# Helpers for an integration's own tests.
+testing = []

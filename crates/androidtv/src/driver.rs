@@ -1,10 +1,10 @@
 //! The Android TV driver, on r3cui's own client (`crates/androidtv`): the box's keys in an input's remote slot, the
 //! app in front on its screen slot, and its power key as global power.
 
-use crate::api::*;
-use crate::config::DriverEntry;
-use crate::run::follow;
-use ::androidtv::{connect, AndroidTvHandle, Credentials, Endpoint, KeyCode, Link, TvState};
+use r3cui_sdk::api::*;
+use r3cui_sdk::DriverEntry;
+use r3cui_sdk::run::follow;
+use crate::{connect, AndroidTvHandle, Credentials, Endpoint, KeyCode, Link, TvState};
 use std::future::Future;
 use std::pin::Pin;
 use tokio::sync::{mpsc, watch};
@@ -34,6 +34,9 @@ pub static SPEC: Spec = Spec {
     address: Some(field::HOST),
     pairing: Some(CodePairing { code_len: CODE_LEN }),
 };
+
+/// What the app lists to carry this integration.
+pub const INTEGRATION: r3cui_sdk::Integration = r3cui_sdk::Integration { spec: &SPEC, start: |e| std::sync::Arc::new(AndroidTv::start(e)) };
 
 pub struct AndroidTv {
     status: watch::Receiver<Status>,
@@ -117,14 +120,14 @@ impl Driver for AndroidTv {
                 Some(c) => c,
                 None => tokio::task::spawn_blocking(Credentials::generate).await.map_err(|e| failed(&e))?.map_err(|e| failed(&e))?,
             };
-            let pairing = ::androidtv::pair(endpoint, &credentials, CLIENT_NAME).await.map_err(|e| failed(&e))?;
+            let pairing = crate::pair(endpoint, &credentials, CLIENT_NAME).await.map_err(|e| failed(&e))?;
             Ok(Box::new(Pairing { pairing, credentials }) as Box<dyn Pairer>)
         }))
     }
 }
 
 struct Pairing {
-    pairing: ::androidtv::Pairing,
+    pairing: crate::Pairing,
     credentials: Credentials,
 }
 
@@ -133,7 +136,7 @@ impl Pairer for Pairing {
         Box::pin(async move {
             match self.pairing.finish(code).await {
                 Ok(()) => Ok(vec![(field::CERT_PEM, self.credentials.cert_pem.clone()), (field::KEY_PEM, self.credentials.key_pem.clone())]),
-                Err(::androidtv::Error::WrongCode | ::androidtv::Error::InvalidCode) => Err(PairError::WrongCode),
+                Err(crate::Error::WrongCode | crate::Error::InvalidCode) => Err(PairError::WrongCode),
                 Err(e) => Err(failed(&e)),
             }
         })
@@ -214,15 +217,15 @@ fn app_name(package: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::until;
-    use ::androidtv::testing::FakeTv;
-    use ::androidtv::Direction;
+    use r3cui_sdk::testing::until;
+    use crate::testing::FakeTv;
+    use crate::Direction;
     use std::time::Duration;
 
     async fn paired() -> (FakeTv, Credentials) {
         let tv = FakeTv::start().await;
         let credentials = tokio::task::spawn_blocking(Credentials::generate).await.unwrap().unwrap();
-        let mut pairing = ::androidtv::pair(tv.endpoint(), &credentials, CLIENT_NAME).await.unwrap();
+        let mut pairing = crate::pair(tv.endpoint(), &credentials, CLIENT_NAME).await.unwrap();
         let shown = tv.code().wait_for(Option::is_some).await.unwrap().clone().unwrap();
         pairing.finish(&shown).await.unwrap();
         (tv, credentials)

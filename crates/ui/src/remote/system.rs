@@ -34,7 +34,7 @@ impl System {
 
     #[cfg(feature = "demo")]
     pub(crate) fn demo() -> Self {
-        Self { battery: drivers::demo::data::BATTERY, charging: false, awake: true, follow_power: true }
+        Self { battery: demo::data::BATTERY, charging: false, awake: true, follow_power: true }
     }
 
     // IDLE only dims the display; treating it as asleep would black out a screen still in use.

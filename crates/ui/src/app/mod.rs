@@ -5,9 +5,11 @@
 pub(crate) mod demo;
 pub(crate) mod global;
 pub(crate) mod integrations;
+pub(crate) mod legacy;
 pub(crate) mod meter;
 pub(crate) mod model;
 pub(crate) mod optimistic;
+pub(crate) mod registry;
 pub(crate) mod session;
 pub(crate) mod settings;
 pub(crate) mod software;
@@ -66,11 +68,11 @@ pub(crate) enum Later {
     /// The slider's throttled volume command is due.
     SendVolume,
     /// What an Integrations picker offers, as its driver answered.
-    Targets { driver: String, kind: drivers::api::TargetKind, targets: Vec<drivers::api::Target> },
+    Targets { driver: String, kind: r3cui_sdk::api::TargetKind, targets: Vec<r3cui_sdk::api::Target> },
     /// The device answered a pairing's start: it shows its code, or it did not.
-    PairStarted(Result<Box<dyn drivers::api::Pairer>, drivers::api::PairError>),
+    PairStarted(Result<Box<dyn r3cui_sdk::api::Pairer>, r3cui_sdk::api::PairError>),
     /// The pairing's verdict on a code, with the pairing handed back for another try.
-    PairChecked(Result<drivers::api::Paired, drivers::api::PairError>, Box<dyn drivers::api::Pairer>),
+    PairChecked(Result<r3cui_sdk::api::Paired, r3cui_sdk::api::PairError>, Box<dyn r3cui_sdk::api::Pairer>),
     /// What the System pages asked the remote or the net for.
     Software(software::Event),
     /// The relay did not end a session's audio in time after the key was let go.

@@ -5,7 +5,12 @@
 //! Layers, bottom up: `ids` and `wire` (HA's values and frames), `protocol` (its vocabulary), `client` (calls over one
 //! `wsclient` connection, matched to replies), `engine` (all the logic, no IO), `state` and `views` (what the UI reads) and
 //! `service`/`handle` (running it).
+//!
+//! With the default `driver` feature it is also the r3cui integration: `driver` holds its spec and its driver, on
+//! `r3cui-sdk`, and `driver::INTEGRATION` is what the app lists. See docs/drivers.md.
 
+#[cfg(feature = "driver")]
+pub mod driver;
 pub mod assist;
 mod client;
 pub mod config;

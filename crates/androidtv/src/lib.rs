@@ -7,7 +7,12 @@
 //! The protobuf field numbers in `protocol` come from `polo.proto` and `remotemessage.proto` of androidtvremote2
 //! (github.com/tronikos/androidtvremote2, Apache-2.0), which in turn derive from Google's pairing protocol and the
 //! louis49/androidtv-remote project. The flow follows that library's `pairing.py` and `remote.py`.
+//!
+//! With the default `driver` feature it is also the r3cui integration: `driver` holds its spec and its driver, on
+//! `r3cui-sdk`, and `driver::INTEGRATION` is what the app lists. See docs/drivers.md.
 
+#[cfg(feature = "driver")]
+pub mod driver;
 mod channel;
 mod credentials;
 mod endpoint;

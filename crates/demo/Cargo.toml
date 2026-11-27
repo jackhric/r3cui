@@ -1,0 +1,16 @@
+[package]
+name = "demo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "r3cui's demo integration: a made-up receiver, film and shelf, to try the frontend with nothing to connect to."
+
+[dependencies]
+r3cui-sdk = { path = "../sdk" }
+host = { path = "../host" }
+kodi = { path = "../kodi" }
+tokio.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+r3cui-sdk = { path = "../sdk", features = ["testing"] }

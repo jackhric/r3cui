@@ -2,8 +2,8 @@
 //! until the device confirms it (it can take seconds, and a minute to come on), and the volume scale.
 
 use crate::app::optimistic::Optimistic;
-use drivers::api::{PowerIntent, SourceIntent, Sources, Volume, VolumeIntent};
-use drivers::Host;
+use r3cui_sdk::api::{PowerIntent, SourceIntent, Sources, Volume, VolumeIntent};
+use host::Host;
 use std::time::Duration;
 
 /// How long the slider's level wins outright, and the longest it is shown while the device hasn't reported it.

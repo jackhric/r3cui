@@ -9,7 +9,7 @@ use crate::Wifi;
 use crate::Kb;
 use crate::{AppWindow, JoinState, KeyGlyph, KbPurpose, KeyCell};
 use crate::app::UiAction;
-use drivers::api::RemoteKey;
+use r3cui_sdk::api::RemoteKey;
 use crate::view::keyboard;
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;

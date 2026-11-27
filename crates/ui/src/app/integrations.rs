@@ -3,8 +3,8 @@
 //! says what to show and what to do, and the session does it.
 
 use crate::Dot;
-use drivers::api::{Field, FieldKind, Health, PairError, Paired, Spec, Target, TargetKind};
-use drivers::{Binding, Host, Input, KnownTargets, Modules, Role, Slot};
+use r3cui_sdk::api::{Field, FieldKind, Health, PairError, Paired, Spec, Target, TargetKind};
+use host::{Binding, Host, Input, KnownTargets, Modules, Role, Slot};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Screen {
@@ -108,6 +108,14 @@ fn row(label: impl Into<String>) -> Row {
 
 fn spec_of(host: &Host, driver: &str) -> Option<&'static Spec> {
     host.registry().spec(&host.modules().drivers.get(driver)?.kind)
+}
+
+/// Sets one of a driver's fields as its spec types it; a key its spec doesn't have is left alone.
+fn set_field(m: &mut Modules, host: &Host, driver: &str, key: &str, value: &str) {
+    let spec = m.drivers.get(driver).and_then(|d| host.registry().spec(&d.kind));
+    if let Some(field) = spec.and_then(|s| s.field(key)) {
+        m.set_field(driver, field, value);
+    }
 }
 
 fn icon_of(host: &Host, driver: &str) -> &'static str {
@@ -465,7 +473,7 @@ impl Integrations {
             }
             Screen::PickField { driver, key } => {
                 let Some(target) = self.picked_target(at) else { return Effect::Stay };
-                m.set_field(&driver, key, target.as_deref().unwrap_or(""));
+                set_field(&mut m, host, &driver, key, target.as_deref().unwrap_or(""));
                 self.pop();
                 Effect::Apply(m)
             }
@@ -555,7 +563,7 @@ impl Integrations {
             }
             Some(Editing::Name(input)) => m.rename(&input, text),
             Some(Editing::Field { driver, key }) => {
-                m.set_field(&driver, key, text);
+                set_field(&mut m, host, &driver, key, text);
                 if needs_pairing(&m, &driver, host) {
                     return self.start_pairing(driver, Some(m));
                 }
@@ -591,7 +599,7 @@ impl Integrations {
             Ok(fields) => {
                 let mut m = host.modules().clone();
                 for (key, value) in fields {
-                    m.set_field(&driver, key, &value);
+                    set_field(&mut m, host, &driver, key, &value);
                 }
                 self.pop();
                 Effect::Apply(m)
@@ -650,9 +658,9 @@ fn capitalise(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use drivers::api::Sources;
-    use drivers::api::PairError;
-    use drivers::testing::{Fakes, FAKE_PAIRABLE, FAKE_PAIRABLE_CREDENTIAL};
+    use r3cui_sdk::api::Sources;
+    use r3cui_sdk::api::PairError;
+    use host::testing::{Fakes, FAKE_PAIRABLE, FAKE_PAIRABLE_CREDENTIAL};
 
     fn setup() -> (Host, Fakes, Integrations) {
         let fakes = Fakes::default();
@@ -764,7 +772,7 @@ mod tests {
         ui.open();
         tap(&mut ui, &mut host, "Global control");
         assert_eq!(ui.page(&host).rows[1].value, "Receiver", "named as the driver last named it");
-        fakes.get("fake-global").set_status(drivers::api::Status::new(Health::Down));
+        fakes.get("fake-global").set_status(r3cui_sdk::api::Status::new(Health::Down));
         tap(&mut ui, &mut host, "Inputs");
         ui.loading("fake-global", TargetKind::MediaPlayer);
         assert!(!ui.targets_loaded("fake-global", TargetKind::MediaPlayer, Vec::new()), "nothing new to keep");
@@ -880,7 +888,7 @@ mod tests {
         assert_eq!(ui.page(&host).title, "Pairable");
 
         let mut m = host.modules().clone();
-        m.set_field(FAKE_PAIRABLE.id, FAKE_PAIRABLE_CREDENTIAL, "secret");
+        m.set_field(FAKE_PAIRABLE.id, FAKE_PAIRABLE.field(FAKE_PAIRABLE_CREDENTIAL).unwrap(), "secret");
         host.apply(m);
         tap(&mut ui, &mut host, "Host");
         assert!(matches!(ui.text_entered("10.0.0.6", &host), Effect::Apply(_)), "already paired: just saved");

@@ -1,7 +1,7 @@
 //! Runs the drivers `modules.json` sets up and routes between them and the frontend: global control to its
 //! bindings, keys and the stage to the current input's slots. The frontend sees ports and inputs, never a driver.
 
-use crate::api::{Driver, KeyLight, Power, PowerIntent, PowerPort, RemoteKey, SourceIntent, SourcePort, Sources, Stage, Status, UiIntent, Voice, VoiceIntent, VoicePort, Volume, VolumeIntent, VolumePort};
+use r3cui_sdk::api::{Driver, KeyLight, Power, PowerIntent, PowerPort, RemoteKey, SourceIntent, SourcePort, Sources, Stage, Status, UiIntent, Voice, VoiceIntent, VoicePort, Volume, VolumeIntent, VolumePort};
 use crate::config::{Binding, DriverEntry, Modules};
 use crate::inputs::{self, Input};
 use crate::registry::Registry;
@@ -205,7 +205,7 @@ impl Host {
         inputs::current(&all, source).cloned()
     }
 
-    fn ui_of(&self, input: Option<&Input>) -> Option<crate::api::UiPort> {
+    fn ui_of(&self, input: Option<&Input>) -> Option<r3cui_sdk::api::UiPort> {
         self.running.get(input?.ui.as_deref()?)?.driver.ui()
     }
 
@@ -297,7 +297,7 @@ fn forward<T: Send + Sync + 'static>(mut rx: watch::Receiver<T>, changed: watch:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::{Health, Media};
+    use r3cui_sdk::api::{Health, Media};
     use crate::config::{Role, Slot};
     use crate::inputs::DEFAULT_INPUT;
     use crate::testing::{FakeDriver, Fakes, FAKE_GLOBAL, FAKE_HOST, FAKE_PLAYER};
@@ -456,7 +456,7 @@ mod tests {
         assert!(!host.send_volume(VolumeIntent::Up));
         assert_eq!(fakes.started(FAKE_PLAYER.id), 1, "an unchanged driver keeps running");
         let mut m = host.modules().clone();
-        m.set_field(FAKE_PLAYER.id, FAKE_HOST, "elsewhere");
+        m.set_field(FAKE_PLAYER.id, FAKE_PLAYER.field(FAKE_HOST).unwrap(), "elsewhere");
         host.apply(m);
         assert_eq!(fakes.started(FAKE_PLAYER.id), 2, "a changed one restarts");
     }

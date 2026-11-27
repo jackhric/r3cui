@@ -1,7 +1,7 @@
 //! One title on the wall: Kodi's list item turned into what the details under the wall show.
 
-use crate::api::LibraryItem;
-use kodi::methods::library::FileItem;
+use r3cui_sdk::api::LibraryItem;
+use crate::methods::library::FileItem;
 
 /// `poster` is the artwork's full URL.
 pub fn entry(it: &FileItem, shows: bool, poster: String) -> LibraryItem {

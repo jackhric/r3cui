@@ -53,32 +53,49 @@ remote itself (power, battery, Wi-Fi, display, the key backlight hardware).
 ```
 crates/wsclient        Shared WebSocket plumbing: connection with keep-alive, backoff, pending calls, a reconnecting
                        `Session`. `testing` feature: the FakeServer scaffold the fakes are built on.
-crates/homeassistant   HA WebSocket client: auth, states, entity subscriptions, service calls. `protocol` holds its
-                       wire constants. Like crates/kodi: an engine with no IO, a service that reconnects, a handle.
-                       `testing` feature: FakeHa, an in-process HA server for tests.
-crates/kodi            Kodi JSON-RPC client. `testing` feature: FakeKodi.
-crates/androidtv       Android TV Remote v2 client (pairing, keys, state). `testing` feature: FakeTv.
-crates/drivers         The contract and the drivers. No Slint.
-  api.rs                 ports, views, intents, the setup schema (Field), Status
-  homeassistant.rs       the HA driver (global control, key backlight)
-  kodi/                  the Kodi driver (remote + UI slots, library wall)
-  androidtv.rs           the Android TV driver (remote, the app in front, power, pairing by code)
-  demo/                  made-up receiver, film and shelf, to try the frontend with nothing to connect to;
-                         demo/data.rs holds every made-up value, and `demo::modules()` the setup that binds it
-  registry.rs            every driver type, by id
+crates/sdk             r3cui-sdk: what an integration is written against. No Slint, no client.
+  api.rs                 the contract: ports, views, intents, the setup schema (Field), Status, Spec
+  entry.rs               DriverEntry: one driver's setup as modules.json holds it
+  run.rs                 helpers most drivers' tasks share (follow a watch, commands in order)
+  testing.rs             `testing` feature: `until`, `entry`, for an integration's own tests
+  lib.rs                 Integration: a spec and how to start one, what each integration crate exports
+crates/homeassistant   The Home Assistant integration. The client: auth, states, entity subscriptions, service
+                       calls, Assist; `protocol` holds its wire constants; an engine with no IO, a service that
+                       reconnects, a handle. `driver` (default feature): global control, voice, the key backlight.
+                       `testing` feature: FakeHa.
+crates/kodi            The Kodi integration. The JSON-RPC client; `driver/`: the remote and UI slots, the library
+                       wall. `testing` feature: FakeKodi.
+crates/androidtv       The Android TV integration. The Remote v2 client (pairing, keys, state); `driver`: the remote,
+                       the app in front, power, pairing by code. `testing` feature: FakeTv.
+crates/demo            The demo integration: a made-up receiver, film and shelf; data.rs holds every made-up
+                       value, and `modules()` the setup that binds it. Carried only by the app's `demo` feature.
+crates/host            r3cui's side. Names no integration.
+  registry.rs            the driver types a build can run, from the app's list
   config.rs              modules.json: instances, global bindings, inputs
   inputs.rs              the input list: the source's list with the user's order, names, hiding
+  known.rs               targets.json: what each driver last offered, for the pickers offline
   host.rs                runs the configured drivers and routes keys and views
   testing.rs             FakeDriver: records intents, publishes views on demand
 crates/ui              The frontend: renders the host's view, sends it intents, and draws
-                       Settings → Integrations from the driver specs.
+                       Settings → Integrations from the driver specs. `src/app/registry.rs` lists the
+                       integrations it carries.
 ```
 
-A driver module only uses `crate::api` and its own client crate. Nothing outside `registry.rs`
-names a driver type. Adding a driver: a client crate (if it needs one), a module under
-`crates/drivers/src/`, one line in the registry. See also `docs/conventions.md`.
+## Writing an integration
 
-## The contract (`drivers::api`)
+An integration is one crate, depending on `r3cui-sdk` and nothing else of r3cui's:
+
+1. Its own client for the device, built on `wsclient` if it speaks WebSocket, with its wire names in a `protocol`
+   module and a `testing` feature with a fake server.
+2. A `driver` module, behind a default `driver` feature so the client stays usable alone: a `Spec`, a `field`
+   module for its setup keys, a type implementing `api::Driver`, and
+   `pub const INTEGRATION: Integration = Integration { spec: &SPEC, start: ... }`.
+3. Its tests, against its own fake, with `r3cui_sdk::testing`.
+
+The app carries it with a dependency in `crates/ui/Cargo.toml` and one line in `src/app/registry.rs`. Nothing in
+`host` or `r3cui-sdk` changes, and the Integrations pages are drawn from the `Spec`, so no Slint either.
+
+## The contract (`r3cui_sdk::api`)
 
 Every port is the same shape: state out on a `watch`, intents in on an unbounded channel.
 
@@ -121,7 +138,7 @@ the device is: when the source has listed no inputs, the empty Inputs page shows
 asks whether that address is online.
 
 `Target(kind)` fields and global control are picked from the driver's `targets(kind)`. The last list each driver gave
-is kept in `targets.json` beside `modules.json` (`drivers::KnownTargets`): a picker opens on it at once, keeps it (its
+is kept in `targets.json` beside `modules.json` (`host::KnownTargets`): a picker opens on it at once, keeps it (its
 title marked "· offline") while the driver is down, and names what is bound as the driver last named it. Whatever is
 bound shows even with nothing to list.
 
@@ -151,7 +168,7 @@ and `Later::PairChecked`.
 ### Android TV
 
 Setup is the address alone; pairing stores `cert_pem` and `key_pem` (a self-signed client certificate generated at the
-first pairing). Remote: every `RemoteKey` is an Android key code (`key_code` in `drivers/src/androidtv.rs`). UI: the
+first pairing). Remote: every `RemoteKey` is an Android key code (`key_code` in `crates/androidtv/src/driver.rs`). UI: the
 app in front while the box is on, named from a small table of package names, otherwise by the last part of the
 package. Power: `Power { on }` from the box's state; `Set(x)` presses the power key only when the state differs.
 Status: Connected, Connecting, Unreachable, or "Needs pairing" (`Health::NotPaired`) when the box turns the

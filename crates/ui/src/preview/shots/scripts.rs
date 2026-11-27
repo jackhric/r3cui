@@ -7,7 +7,7 @@ use super::table::TYPING;
 use crate::input::{keys, Button};
 use crate::view::screen::Screen;
 use crate::{AppWindow, Control, Kb, Lib, LibMode, Nav, PageId, Picker, Prefs, UiAction, WallStyle};
-use drivers::demo::data::{ANDROID_TV, KODI, PLAYSTATION, XBOX};
+use demo::data::{ANDROID_TV, KODI, PLAYSTATION, XBOX};
 use slint::ComponentHandle;
 use std::rc::Rc;
 use std::time::Duration;

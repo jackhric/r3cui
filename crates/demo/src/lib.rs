@@ -1,8 +1,9 @@
 //! The demo driver: a receiver with four inputs, a film to play and a shelf of titles, all made up, so the real
-//! frontend can be tried with nothing to connect to. Desktop builds only (the `demo` feature).
+//! frontend can be tried with nothing to connect to. The app carries it in its `demo` feature only.
 
-use crate::api::*;
-use crate::config::{Binding, DriverEntry, Modules, Role, Slot};
+use host::{Binding, Modules, Role, Slot};
+use r3cui_sdk::api::*;
+use r3cui_sdk::{DriverEntry, Integration};
 use data::{COLUMNS, INPUTS, KODI, LEVEL_LIMIT, RECEIVER, SHELF, START_INPUT, START_LEVEL, SWITCH};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -42,6 +43,8 @@ pub struct Demo {
 
 /// A setup that points everything at the demo driver: global volume and source, every input's remote, and the screen of
 /// the one input that plays (the others show their idle logo, as an input with nothing to show does).
+pub const INTEGRATION: Integration = Integration { spec: &SPEC, start: |e| Arc::new(Demo::start(e)) };
+
 pub fn modules() -> Modules {
     let mut m = Modules::default();
     let id = m.add_driver(SPEC.id, Default::default());
@@ -243,7 +246,7 @@ impl Driver for Demo {
 
     fn mark(&self, input: &str) -> &'static str {
         if input == KODI {
-            crate::kodi::SPEC.icon
+            kodi::driver::SPEC.icon
         } else {
             ""
         }
@@ -266,7 +269,7 @@ impl Driver for Demo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{entry, until};
+    use r3cui_sdk::testing::{entry, until};
 
     fn demo() -> Demo {
         Demo::start(&entry(&SPEC, &[]))

@@ -94,10 +94,10 @@ and use `type-file <path>` in the steps, which types the file's text when the st
 ## The demo
 
 `cargo run -p remote-ui -- --demo` (or `UC_DEMO=1`, or `--record` without `--live`) runs the real session with nothing
-to connect to: an in-memory setup (`drivers::demo::modules()`) puts the Demo driver behind global volume and source
+to connect to: an in-memory setup (`demo::modules()`) puts the Demo driver behind global volume and source
 and every input's remote, and behind Kodi's screen, and a made-up remote stands in for the core (battery, Wi-Fi to
 join; keys `c` charger, `z` asleep, `x` every driver down). Nothing is written to `config/`. All the made-up values
-are in `crates/drivers/src/demo/data.rs`; the `--shots` stills read the same ones.
+are in `crates/demo/src/data.rs`; the `--shots` stills read the same ones.
 
 ## Driving the live app
 
@@ -116,7 +116,7 @@ cargo run -p remote-ui -- --demo --steps scripts/tour.steps --out <dir>
 `scripts/system.steps` walks the System pages in the demo (Menu, System, Update r3cui and its install, Firmware and its install,
 Web configurator, Uninstall mid-hold); it also films with `--record <file.mp4> --frame <remote photo> --script steps:scripts/system.steps`.
 The demo's firmware 2.8.4 → 2.9.0 and r3cui 0.1.0 → 0.2.0 updates, their made-up installs and the web configurator's PINs are in
-`crates/drivers/src/demo/data.rs`; the demo never touches the network or the REST API. Outside the demo, `UC_RELEASES_URL` points
+`crates/demo/src/data.rs`; the demo never touches the network or the REST API. Outside the demo, `UC_RELEASES_URL` points
 the r3cui update check at a stand-in for GitHub's `releases/latest`.
 
 Other preview flags (the default desktop build has the `preview` feature): `--shots <dir>` saves a still per screen

@@ -1,7 +1,7 @@
 //! The last list each driver gave for each kind of target, kept so its pickers open at once and still show what is
 //! bound while the driver is offline. Written to `targets.json` beside `modules.json`.
 
-use crate::api::{Target, TargetKind};
+use r3cui_sdk::api::{Target, TargetKind};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 

@@ -2,8 +2,7 @@
 //! Every edit the Integrations pages make is a method here, so the rules (removing a driver clears its slots, an
 //! input moved keeps the rest in order) are tested without a screen.
 
-use crate::api::FieldKind;
-use crate::kodi;
+use r3cui_sdk::api::Field;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -19,24 +18,7 @@ pub struct Modules {
     pub inputs: Vec<InputEntry>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct DriverEntry {
-    #[serde(rename = "type")]
-    pub kind: String,
-    #[serde(flatten)]
-    pub fields: Map<String, Value>,
-}
-
-impl DriverEntry {
-    /// A field as text, whether it was written as a string or a number.
-    pub fn text(&self, key: &str) -> Option<String> {
-        match self.fields.get(key)? {
-            Value::String(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
-            Value::Number(n) => Some(n.to_string()),
-            _ => None,
-        }
-    }
-}
+pub use r3cui_sdk::DriverEntry;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -96,44 +78,7 @@ pub enum Role {
     Voice,
 }
 
-/// The old hardwired input Kodi was tied to, before inputs were configurable.
-pub const LEGACY_KODI_INPUT: &str = "KODI";
-
-/// What `settings.json` held before drivers were set up in `modules.json`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Legacy {
-    pub kodi_host: Option<String>,
-    pub kodi_http_port: Option<u16>,
-    pub kodi_ws_port: Option<u16>,
-    pub hidden_inputs: Vec<String>,
-}
-
 impl Modules {
-    /// A first `modules.json` from the old settings: Kodi in the remote and UI slots of its input (and of Default,
-    /// for a setup with no source yet), and the hidden inputs. `None` when the old settings held neither.
-    pub fn from_legacy(old: &Legacy) -> Option<Self> {
-        if old.kodi_host.is_none() && old.hidden_inputs.is_empty() {
-            return None;
-        }
-        let mut m = Self::default();
-        if let Some(host) = &old.kodi_host {
-            let id = kodi::SPEC.id;
-            m.add_driver(id, Default::default());
-            let port = |p: Option<u16>| p.map(|p| p.to_string()).unwrap_or_default();
-            for (key, value) in [(kodi::field::HOST, host.clone()), (kodi::field::HTTP_PORT, port(old.kodi_http_port)), (kodi::field::WS_PORT, port(old.kodi_ws_port))] {
-                m.set_field(id, key, &value);
-            }
-            for input in [LEGACY_KODI_INPUT, crate::inputs::DEFAULT_INPUT] {
-                m.set_slot(input, Slot::Remote, Some(id.into()));
-                m.set_slot(input, Slot::Ui, Some(id.into()));
-            }
-        }
-        for h in &old.hidden_inputs {
-            m.set_hidden(h, true);
-        }
-        Some(m)
-    }
-
     pub fn parse(text: &str) -> Result<Self, String> {
         serde_json::from_str(text).map_err(|e| e.to_string())
     }
@@ -191,15 +136,9 @@ impl Modules {
     }
 
     /// An empty value clears the field.
-    pub fn set_field(&mut self, driver: &str, key: &str, value: &str) {
-        let Some(d) = self.drivers.get_mut(driver) else { return };
-        let value = value.trim();
-        if value.is_empty() {
-            d.fields.remove(key);
-        } else if let Some(port) = value.parse::<u16>().ok().filter(|_| crate::registry::field_kind(&d.kind, key) == Some(FieldKind::Port)) {
-            d.fields.insert(key.to_string(), Value::from(port));
-        } else {
-            d.fields.insert(key.to_string(), Value::String(value.to_string()));
+    pub fn set_field(&mut self, driver: &str, field: &Field, value: &str) {
+        if let Some(d) = self.drivers.get_mut(driver) {
+            d.set(field, value);
         }
     }
 
@@ -367,13 +306,11 @@ mod tests {
     #[test]
     fn fields_are_set_and_cleared() {
         let mut m = sample();
-        let kodi = kodi::SPEC.id;
-        m.set_field(kodi, kodi::field::HTTP_PORT, "8081");
-        m.set_field(kodi, kodi::field::HOST, " theater.local ");
-        assert_eq!(m.drivers[kodi].fields[kodi::field::HTTP_PORT], Value::from(8081));
-        assert_eq!(m.drivers[kodi].fields[kodi::field::HOST], Value::from("theater.local"));
-        m.set_field(kodi, kodi::field::HOST, "");
-        assert!(!m.drivers[kodi].fields.contains_key(kodi::field::HOST));
+        let host = Field { key: "host", label: "Host", kind: r3cui_sdk::api::FieldKind::Text, required: true, default: None };
+        m.set_field("kodi", &host, " theater.local ");
+        assert_eq!(m.drivers["kodi"].fields["host"], Value::from("theater.local"));
+        m.set_field("kodi", &host, "");
+        assert!(!m.drivers["kodi"].fields.contains_key("host"));
     }
 
     #[test]
@@ -400,21 +337,6 @@ mod tests {
         assert_eq!(m.inputs.len(), 3, "can't move past the top");
         m.reset_input("A");
         assert_eq!(m.input("A"), None);
-    }
-
-    #[test]
-    fn old_settings_fill_a_first_modules_json() {
-        let old = Legacy { kodi_host: Some("theater".into()), kodi_ws_port: Some(9091), hidden_inputs: vec!["NET".into()], ..Default::default() };
-        let m = Modules::from_legacy(&old).unwrap();
-        let kodi = &m.drivers[kodi::SPEC.id];
-        assert_eq!(kodi.text(kodi::field::HOST).as_deref(), Some("theater"));
-        assert_eq!(kodi.text(kodi::field::WS_PORT).as_deref(), Some("9091"));
-        assert_eq!(kodi.fields[kodi::field::WS_PORT], Value::from(9091), "ports are numbers");
-        assert_eq!(kodi.text(kodi::field::HTTP_PORT), None);
-        assert_eq!(m.input(LEGACY_KODI_INPUT).unwrap().ui.as_deref(), Some(kodi::SPEC.id));
-        assert_eq!(m.input(crate::inputs::DEFAULT_INPUT).unwrap().remote.as_deref(), Some(kodi::SPEC.id));
-        assert!(m.input("NET").unwrap().hidden);
-        assert_eq!(Modules::from_legacy(&Legacy::default()), None);
     }
 
     #[test]

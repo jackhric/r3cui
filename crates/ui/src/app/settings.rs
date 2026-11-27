@@ -32,7 +32,7 @@ pub struct Settings {
     /// How the poster wall shows the highlighted title: 1 sheet, 2 overlay (the default), 3 inline.
     pub wall_style: Option<i32>,
     /// Read only to fill a first `modules.json`; drivers are set up there now.
-    legacy: drivers::config::Legacy,
+    legacy: crate::app::legacy::Legacy,
 }
 
 impl crate::WallStyle {
@@ -59,8 +59,8 @@ impl Settings {
 
     /// A first `modules.json` from what `settings.json` used to hold. Home Assistant has to be set up anew: the old
     /// settings never said where it was.
-    pub fn legacy_modules(&self) -> Option<drivers::Modules> {
-        drivers::Modules::from_legacy(&self.legacy)
+    pub fn legacy_modules(&self) -> Option<host::Modules> {
+        self.legacy.modules()
     }
 }
 
@@ -126,7 +126,7 @@ fn parse(text: &str) -> Result<Settings, String> {
         sound_enabled: f.sound_enabled,
         sound_volume: unit(f.sound_volume),
         wall_style: f.wall_style.map(|x| x.clamp(1, 3)),
-        legacy: drivers::config::Legacy {
+        legacy: crate::app::legacy::Legacy {
             kodi_host: kodi.host,
             kodi_http_port: kodi.http_port,
             kodi_ws_port: kodi.ws_port,
@@ -142,8 +142,8 @@ mod tests {
     #[test]
     fn old_settings_are_read_for_a_first_modules_json() {
         let s = parse(r#"{"hidden_sources": ["NET"], "kodi": {"host": "theater", "ws_port": 9091}}"#).unwrap();
-        let old = drivers::config::Legacy { kodi_host: Some("theater".into()), kodi_ws_port: Some(9091), hidden_inputs: vec!["NET".into()], ..Default::default() };
-        assert_eq!(s.legacy_modules(), drivers::Modules::from_legacy(&old));
+        let old = crate::app::legacy::Legacy { kodi_host: Some("theater".into()), kodi_ws_port: Some(9091), hidden_inputs: vec!["NET".into()], ..Default::default() };
+        assert_eq!(s.legacy_modules(), old.modules());
         assert_eq!(parse("{}").unwrap().legacy_modules(), None);
     }
 

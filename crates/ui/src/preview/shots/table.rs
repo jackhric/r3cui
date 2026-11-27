@@ -5,7 +5,7 @@ use super::scene::Scene;
 use crate::view::screen::Screen;
 use crate::NavKey as N;
 use crate::{AppWindow, Capture, Control, Fx, JoinState, Kb, PageId, Picker, Sys, Wifi};
-use drivers::demo::data::{ANDROID_TV, KODI, PLAYSTATION, START_INPUT, XBOX};
+use demo::data::{ANDROID_TV, KODI, PLAYSTATION, START_INPUT, XBOX};
 use slint::{ComponentHandle, Model as _};
 use std::time::Duration;
 

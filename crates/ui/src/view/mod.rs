@@ -27,7 +27,7 @@ use crate::{AppWindow, Capture, Choice, Dot, JoinState, Logos, InputRow, NoInput
 
 use crate::app::settings;
 use crate::app::model::{Model, NoInputs};
-use drivers::api::Health as DriverHealth;
+use r3cui_sdk::api::Health as DriverHealth;
 use crate::hardware::backlight;
 use crate::app::global::{volume_db, volume_percent};
 use crate::view::format::{address_label, band_label, clock, codec_badge, codec_logo, input_logo};

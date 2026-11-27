@@ -1,7 +1,7 @@
 //! Hold the voice key to talk: the session the key starts, the audio the relay brings to it, the answer reported
 //! back. Pure logic: each step returns what to do, and the session does it.
 
-use drivers::api::{Voice, VoiceFailure, VoiceIntent, VoicePhase};
+use r3cui_sdk::api::{Voice, VoiceFailure, VoiceIntent, VoicePhase};
 use std::time::{Duration, Instant};
 use voicelink::{ErrorCode, LinkEvent, UiMsg};
 

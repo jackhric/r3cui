@@ -124,7 +124,7 @@ impl Link {
         match self {
             Self::Core(core) => software::address(core).await,
             #[cfg(feature = "demo")]
-            Self::Demo(_) => drivers::demo::data::REMOTE_ADDRESS.into(),
+            Self::Demo(_) => demo::data::REMOTE_ADDRESS.into(),
         }
     }
 

@@ -5,7 +5,7 @@ use crate::view::aurora::{self, Look};
 use crate::view::ease::Bezier;
 use crate::view::stage::capture;
 use crate::{AppWindow, Capture, Theme, Voice as Shown, VoiceStage};
-use drivers::api::{Voice, VoiceFailure, VoicePhase};
+use r3cui_sdk::api::{Voice, VoiceFailure, VoicePhase};
 use slint::ComponentHandle;
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicU32, Ordering};

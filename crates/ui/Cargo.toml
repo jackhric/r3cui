@@ -11,9 +11,13 @@ path = "src/main.rs"
 [dependencies]
 coreapi = { path = "../coreapi" }
 tokio.workspace = true
-# Only the previews read Kodi's own types (a saved library); the app reaches Kodi through `drivers`.
-kodi = { path = "../kodi", optional = true }
-drivers = { path = "../drivers" }
+r3cui-sdk = { path = "../sdk" }
+host = { path = "../host" }
+# The integrations this build carries: each is listed once, in src/app/registry.rs.
+homeassistant = { path = "../homeassistant" }
+kodi = { path = "../kodi" }
+androidtv = { path = "../androidtv" }
+demo = { path = "../demo", optional = true }
 voicelink = { path = "../voicelink" }
 serde.workspace = true
 serde_json.workspace = true
@@ -50,12 +54,12 @@ default = ["desktop"]
 desktop = ["slint/backend-winit", "slint/renderer-femtovg", "preview", "demo"]
 device = ["slint/backend-linuxkms", "slint/renderer-femtovg", "slint/renderer-software", "slint/software-renderer-path", "dep:evdev"]
 # Screenshot, recording and remote-photo framing tools (--shots, --snap, --record, --frame).
-preview = ["dep:kodi", "demo"]
+preview = ["demo"]
 # A made-up receiver and player behind the real session (--demo), and the data the preview stills share with it.
-demo = ["drivers/demo"]
+demo = ["dep:demo"]
 
 [dev-dependencies]
-drivers = { path = "../drivers", features = ["testing"] }
+host = { path = "../host", features = ["testing"] }
 tokio = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]

@@ -6,7 +6,7 @@ use crate::Lib;
 use crate::view::stage::{library_stage, reveal_library};
 use crate::view::ui;
 use crate::{AppWindow, LibItem, LibMode, WallStyle};
-use drivers::api::{Library, LibraryItem, LibraryList};
+use r3cui_sdk::api::{Library, LibraryItem, LibraryList};
 use slint::Model as _;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};

@@ -4,10 +4,10 @@
 
 use super::cursor::{Cursor, Report};
 use super::entry::entry;
-use crate::api::{Library, LibraryList, RemoteKey, MOVIES_HEADING, TV_SHOWS_HEADING};
-use kodi::browse::Content;
-use kodi::methods::library::FileItem;
-use kodi::KodiHandle;
+use r3cui_sdk::api::{Library, LibraryList, RemoteKey, MOVIES_HEADING, TV_SHOWS_HEADING};
+use crate::browse::Content;
+use crate::methods::library::FileItem;
+use crate::KodiHandle;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};

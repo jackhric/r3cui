@@ -27,8 +27,8 @@ use crate::{KbPurpose, Picker};
 use crate::view::software::show as show_software;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
 use coreapi::CoreEvent;
-use drivers::api::{Health, Media, PairError, Pairer, Stage, Status, UiIntent, VolumeIntent};
-use drivers::{Host, Input, KnownTargets, Modules, Registry, Store, DEFAULT_INPUT};
+use r3cui_sdk::api::{Health, Media, PairError, Pairer, Stage, Status, UiIntent, VolumeIntent};
+use host::{Host, Input, KnownTargets, Modules, Store, DEFAULT_INPUT};
 
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -80,14 +80,14 @@ impl Frontend {
         };
         tracing::info!(drivers = ?modules.drivers.keys().collect::<Vec<_>>(), "modules from {}", store.path.display());
         let known = KnownTargets::load(&store.known_path());
-        Self { host: Host::new(Registry::builtin(), modules), store: Some(store), global: Global::default(), wall: Wall::new(weak), settings: Integrations::with_known(known), pairer: None, poster_url: String::new(), software: Software::new(crate::remote::selfupdate::current_version(), software::random_pin) }
+        Self { host: Host::new(crate::app::registry::registry(), modules), store: Some(store), global: Global::default(), wall: Wall::new(weak), settings: Integrations::with_known(known), pairer: None, poster_url: String::new(), software: Software::new(crate::remote::selfupdate::current_version(), software::random_pin) }
     }
 
     /// The demo's drivers, set up in memory. Within a tokio runtime.
     #[cfg(feature = "demo")]
     pub(crate) fn demo(weak: slint::Weak<AppWindow>) -> Self {
-        let modules = drivers::demo::modules();
-        Self { host: Host::new(Registry::builtin(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new(), software: Software::new(semver::Version::parse(drivers::demo::data::R3_RUNNING).expect("the demo's version is semver"), demo_pins()) }
+        let modules = demo::modules();
+        Self { host: Host::new(crate::app::registry::registry(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new(), software: Software::new(semver::Version::parse(demo::data::R3_RUNNING).expect("the demo's version is semver"), demo_pins()) }
     }
 
     /// Changes from the Integrations pages: saved, then applied.
@@ -112,7 +112,7 @@ impl Frontend {
 /// The made-up core's PINs, in turn.
 #[cfg(feature = "demo")]
 fn demo_pins() -> impl FnMut() -> String + Send + 'static {
-    let mut next = drivers::demo::data::WEB_PINS.iter().cycle();
+    let mut next = demo::data::WEB_PINS.iter().cycle();
     move || next.next().map(|p| p.to_string()).unwrap_or_default()
 }
 
@@ -169,7 +169,7 @@ impl Session<'_> {
         for d in todo {
             match d {
                 voice_key::Do::Driver(intent) => {
-                    if let drivers::api::VoiceIntent::Audio { pcm, .. } = &intent {
+                    if let r3cui_sdk::api::VoiceIntent::Audio { pcm, .. } = &intent {
                         crate::app::meter::hear(crate::app::meter::measure(pcm, voice_key::SAMPLE_RATE));
                     }
                     self.front.host.send_voice(intent);
@@ -389,7 +389,7 @@ impl Session<'_> {
 /// The picker's rows (label, detail) and the one on now; subtitles start with Off.
 fn tracks(media: Option<&Media>, picker: Picker) -> (Vec<(String, String)>, usize) {
     let Some(m) = media else { return (vec![], usize::MAX) };
-    let rows = |list: &[drivers::api::Track]| list.iter().map(|t| (t.label.clone(), t.detail.clone())).collect::<Vec<_>>();
+    let rows = |list: &[r3cui_sdk::api::Track]| list.iter().map(|t| (t.label.clone(), t.detail.clone())).collect::<Vec<_>>();
     match picker {
         Picker::Audio => (rows(&m.audio), m.audio_current.unwrap_or(usize::MAX)),
         Picker::Subtitles => {

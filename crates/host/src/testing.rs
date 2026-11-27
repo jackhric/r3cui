@@ -1,12 +1,11 @@
 //! `FakeDriver`: a driver with every port, for testing routing with no program behind it. Tests set what it shows
 //! and read back what it was sent.
 
-use crate::api::*;
-use crate::config::{DriverEntry, Modules};
+use r3cui_sdk::api::*;
+use r3cui_sdk::DriverEntry;
 use crate::registry::Registry;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use tokio::sync::{mpsc, watch};
 
 pub const FAKE_HOST: &str = "host";
@@ -36,20 +35,7 @@ pub static FAKE_PAIRABLE: Spec = Spec {
     pairing: Some(CodePairing { code_len: 6 }),
 };
 
-/// Waits up to five seconds for a watched value to satisfy `ok`, and returns it.
-pub async fn until<T: Clone>(rx: &mut watch::Receiver<T>, ok: impl Fn(&T) -> bool) -> T {
-    tokio::time::timeout(Duration::from_secs(5), rx.wait_for(|v| ok(v))).await.expect("in time").expect("open").clone()
-}
-
-/// The setup of one driver of type `spec`, as `modules.json` would hold it, with `fields` set.
-pub fn entry(spec: &Spec, fields: &[(&str, &str)]) -> DriverEntry {
-    let mut m = Modules::default();
-    m.add_driver(spec.id, Default::default());
-    for (key, value) in fields {
-        m.set_field(spec.id, key, value);
-    }
-    m.drivers.remove(spec.id).expect("added above")
-}
+pub use r3cui_sdk::testing::{entry, until};
 
 #[derive(Clone)]
 pub struct FakeDriver(Arc<Inner>);

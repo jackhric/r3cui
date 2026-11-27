@@ -36,11 +36,11 @@ the software renderer if the GPU path won't start (`select_device_renderer` in `
 | Input | On the device, `crates/ui/src/input/evdev.rs` reads the touchscreen, the hard keys and the capacitive slider itself and hands them to the window (libinput is left out of the device build). On the desktop the keyboard stands in |
 | WebSocket | `tokio` + `tokio-tungstenite`. `crates/wsclient` is the shared connection, backoff, pending-call table and reconnecting `Session`; `coreapi`, `kodi` and `homeassistant` each run on it and keep their own protocol. Bridged to Slint via `invoke_from_event_loop` |
 | Remote's own state | `crates/coreapi`: auth by reading `UC_TOKEN_PATH`, the `kind/id/msg/msg_data` envelope, typed power, battery and Wi-Fi events. No entities: see `docs/core-ws-protocol.md` |
-| Other programs | `crates/drivers`: the driver contract, `modules.json`, the input list, the host that routes keys and views, and the Home Assistant, Kodi and Demo drivers. Clients: `crates/homeassistant`, `crates/kodi` |
+| Other programs | Integrations, each one crate with its client and driver on `crates/sdk` (`r3cui-sdk`): `homeassistant`, `kodi`, `androidtv`, `demo`. `crates/host`: `modules.json`, the input list, the host that routes keys and views. The app lists what it carries in `crates/ui/src/app/registry.rs` |
 | Packaging | `scripts/build-device.sh` cross-compiles aarch64 in a container against the manufacturer's SDK, `packaging/pack.sh` makes the `.tar.gz` (`release.json`, `bin/remote-ui`, `config/`); CI builds it and release-please publishes it. Install via `POST /system/install/ui?void_warranty=yes`, or `install.sh` / `install.bat` |
 
 The `crates/ui` binary is the only crate that knows Slint. `coreapi`, `wsclient`, `kodi`,
-`homeassistant` and `drivers` have no UI dependency and are tested on their own, against the fakes
+`homeassistant`, `androidtv`, `r3cui-sdk` and `host` have no UI dependency and are tested on their own, against the fakes
 described in `docs/conventions.md`.
 
 ## Milestones

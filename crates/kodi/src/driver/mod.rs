@@ -7,13 +7,13 @@ mod library;
 
 pub use entry::entry as library_item;
 
-use crate::api::*;
-use crate::config::DriverEntry;
-use crate::run::follow;
-use ::kodi::ids::{AudioStreamIndex, SubtitleIndex};
-use ::kodi::labels::{audio_format, audio_label, subtitle_label};
-use ::kodi::methods::input::InputAction;
-use ::kodi::{KodiConfig, KodiHandle, KodiService, KodiState, Link, Nav, SubtitleChoice};
+use r3cui_sdk::api::*;
+use r3cui_sdk::DriverEntry;
+use r3cui_sdk::run::follow;
+use crate::ids::{AudioStreamIndex, SubtitleIndex};
+use crate::labels::{audio_format, audio_label, subtitle_label};
+use crate::methods::input::InputAction;
+use crate::{KodiConfig, KodiHandle, KodiService, KodiState, Link, Nav, SubtitleChoice};
 use library::Wall;
 use std::time::Instant;
 use tokio::sync::{mpsc, watch};
@@ -38,6 +38,9 @@ pub static SPEC: Spec = Spec {
     address: Some(field::HOST),
     pairing: None,
 };
+
+/// What the app lists to carry this integration.
+pub const INTEGRATION: r3cui_sdk::Integration = r3cui_sdk::Integration { spec: &SPEC, start: |e| std::sync::Arc::new(Kodi::start(e)) };
 
 pub struct Kodi {
     status: watch::Receiver<Status>,
@@ -136,7 +139,7 @@ fn media_of(kodi: &KodiHandle, state: &KodiState) -> Option<Media> {
     let p = state.playback.as_ref()?;
     let audio = p.audio_current.and_then(|i| p.audio.iter().find(|a| a.index == i));
     let a = &p.item.art;
-    let url = |r: Option<&::kodi::wire::ArtRef>| r.map(|r| kodi.config().image_url(r)).unwrap_or_default();
+    let url = |r: Option<&crate::wire::ArtRef>| r.map(|r| kodi.config().image_url(r)).unwrap_or_default();
     Some(Media {
         title: p.item.title.clone(),
         subtitle: p.item.show.as_ref().map(|s| format!("Season {} · Episode {}", s.season, s.episode)).unwrap_or_default(),
@@ -178,7 +181,7 @@ fn press(kodi: &KodiHandle, key: RemoteKey) {
 
 fn spawn_logged<F>(what: &'static str, f: F)
 where
-    F: std::future::Future<Output = ::kodi::Result<()>> + Send + 'static,
+    F: std::future::Future<Output = crate::Result<()>> + Send + 'static,
 {
     tokio::spawn(async move {
         if let Err(e) = f.await {
@@ -210,8 +213,8 @@ fn pick_subtitle(kodi: &KodiHandle, row: Option<usize>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{entry, until};
-    use ::kodi::testing::FakeKodi;
+    use r3cui_sdk::testing::{entry, until};
+    use crate::testing::FakeKodi;
 
     async fn driver(fake: &FakeKodi) -> Kodi {
         let cfg = fake.config();

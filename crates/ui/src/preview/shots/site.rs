@@ -3,7 +3,7 @@ use super::shelf::shelf;
 use crate::input::Button;
 use crate::view::screen::Screen;
 use crate::{AppWindow, Control, Lib, LibMode, Nav, PageId, Prefs, UiAction};
-use drivers::demo::data::KODI;
+use demo::data::KODI;
 use slint::ComponentHandle;
 use std::rc::Rc;
 

@@ -175,7 +175,7 @@ pub(crate) async fn scan(core: &coreapi::Core) -> (String, Vec<Network>) {
 
 #[cfg(feature = "demo")]
 pub fn demo_networks(connected: &str) -> Vec<Network> {
-    let mut found: Vec<Network> = drivers::demo::data::WIFI
+    let mut found: Vec<Network> = demo::data::WIFI
         .into_iter()
         .map(|(ssid, bars)| Network { ssid: ssid.into(), hex: String::new(), secured: true, bars, connected: ssid == connected })
         .collect();

@@ -1,7 +1,7 @@
 //! The health of each link the remote depends on, for the status page and the home screen's warning.
 
 use crate::Dot;
-use drivers::api::{Health, Status};
+use r3cui_sdk::api::{Health, Status};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatusLine {

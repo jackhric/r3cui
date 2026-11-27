@@ -1,7 +1,7 @@
 //! Kodi's highlight on the wall, as last reported or as a d-pad press will move it, so the wall moves on the press
 //! rather than when Kodi next answers. Kodi's panel stops at the end of a row and moves a whole row up or down.
 
-use crate::api::RemoteKey;
+use r3cui_sdk::api::RemoteKey;
 use std::time::{Duration, Instant};
 
 /// How long a predicted move stands against Kodi's answers, which may predate the key press.

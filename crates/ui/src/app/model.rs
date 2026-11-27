@@ -1,6 +1,6 @@
 //! Everything the screen shows, independent of where it came from.
 
-use drivers::api::{KeyLight, Status};
+use r3cui_sdk::api::{KeyLight, Status};
 use crate::remote::{health, wifi};
 
 /// Everything the screen shows, independent of where it came from.
@@ -19,7 +19,7 @@ pub(crate) struct Model {
     /// Something takes voice: the voice key talks instead of opening the inputs.
     pub has_voice: bool,
     /// The voice session on screen.
-    pub voice: Option<drivers::api::Voice>,
+    pub voice: Option<r3cui_sdk::api::Voice>,
     /// The input on now has something in its UI slot: the home page is its stage.
     pub staged: bool,
     /// The input was just picked here and the source has not confirmed it yet.

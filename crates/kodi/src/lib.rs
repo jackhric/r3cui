@@ -4,7 +4,12 @@
 //! Layers, bottom up: `ids` and `wire` (Kodi's values), `rpc` (the envelope and the `Method` trait), `methods` (one
 //! typed struct per call), `notification` (Kodi's events); then `client` (calls over one `wsclient` connection, matched
 //! to replies), `engine` (all the logic, no IO), `state` (what the UI reads) and `service`/`handle` (running it).
+//!
+//! With the default `driver` feature it is also the r3cui integration: `driver` holds its spec and its driver, on
+//! `r3cui-sdk`, and `driver::INTEGRATION` is what the app lists. See docs/drivers.md.
 
+#[cfg(feature = "driver")]
+pub mod driver;
 pub mod art;
 pub mod browse;
 mod client;

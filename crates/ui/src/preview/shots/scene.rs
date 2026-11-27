@@ -3,8 +3,8 @@
 use crate::app::model::{InputEntry, Model};
 use crate::remote::health::{self, Link};
 use crate::remote::wifi::demo_networks;
-use drivers::api::{Health, Status};
-use drivers::demo::data::{self, AUDIO, FILM_LENGTH, FILM_TITLE, INPUTS, KODI, LEVEL_LIMIT, LINKS, RESUME_AT, START_INPUT, START_LEVEL, WIFI_BAND, WIFI_HOME};
+use r3cui_sdk::api::{Health, Status};
+use demo::data::{self, AUDIO, FILM_LENGTH, FILM_TITLE, INPUTS, KODI, LEVEL_LIMIT, LINKS, RESUME_AT, START_INPUT, START_LEVEL, WIFI_BAND, WIFI_HOME};
 use std::ops::{Deref, DerefMut};
 
 /// The model a still shows, and the one thing the session derives from drivers that a still sets by hand.
@@ -36,7 +36,7 @@ impl Scene {
             input: var("UC_DEMO_SOURCE").unwrap_or_else(|| START_INPUT.into()),
             inputs: INPUTS
                 .into_iter()
-                .map(|s| InputEntry { id: s.into(), name: s.into(), icon: (s == KODI).then_some(drivers::kodi::SPEC.icon) })
+                .map(|s| InputEntry { id: s.into(), name: s.into(), icon: (s == KODI).then_some(kodi::driver::SPEC.icon) })
                 .collect(),
             title: var("UC_DEMO_TITLE").unwrap_or_else(|| FILM_TITLE.into()),
             duration: FILM_LENGTH.as_secs_f64(),

@@ -1,10 +1,10 @@
 //! The Home Assistant driver, on r3cui's own client: a media player as global volume and source, and the helper
 //! entities that steer the key backlight and cap the volume.
 
-use crate::api::*;
-use crate::config::DriverEntry;
-use crate::run::{follow, in_order};
-use homeassistant::{AssistEvent, EndStage, EntityId, EntityState, HaConfig, HaHandle, HaService, HaState, Light, Link, MediaPlayer, VoiceError, VoiceRun};
+use r3cui_sdk::api::*;
+use r3cui_sdk::DriverEntry;
+use r3cui_sdk::run::{follow, in_order};
+use crate::{AssistEvent, EndStage, EntityId, EntityState, HaConfig, HaHandle, HaService, HaState, Light, Link, MediaPlayer, VoiceError, VoiceRun};
 use std::time::Duration;
 use std::collections::BTreeSet;
 use std::sync::Mutex;
@@ -34,6 +34,9 @@ pub static SPEC: Spec = Spec {
     address: Some(field::URL),
     pairing: None,
 };
+
+/// What the app lists to carry this integration.
+pub const INTEGRATION: r3cui_sdk::Integration = r3cui_sdk::Integration { spec: &SPEC, start: |e| std::sync::Arc::new(HomeAssistant::start(e)) };
 
 /// Full scale when there is no volume-limit sensor.
 const FULL: i32 = 100;
@@ -77,7 +80,7 @@ impl HomeAssistant {
 
 /// The entity domains a target field of this kind lists.
 fn domains(kind: TargetKind) -> &'static [&'static str] {
-    use homeassistant::protocol::domain::*;
+    use crate::protocol::domain::*;
     match kind {
         TargetKind::MediaPlayer => &[MEDIA_PLAYER],
         TargetKind::Light => &[LIGHT],
@@ -354,8 +357,8 @@ impl Driver for HomeAssistant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::{entry, until};
-    use homeassistant::testing::FakeHa;
+    use r3cui_sdk::testing::{entry, until};
+    use crate::testing::FakeHa;
     use serde_json::json;
 
     fn receiver() -> serde_json::Value {
@@ -400,7 +403,7 @@ mod tests {
 
     #[tokio::test]
     async fn voice_goes_to_the_assist_pipeline_and_the_answer_comes_back() {
-        use homeassistant::protocol::assist::EventType;
+        use crate::protocol::assist::EventType;
         let fake = FakeHa::start("token").await;
         fake.set_pipelines(&[("p1", "Home", "en")], Some("p1"));
         let ha = driver(&fake).await;

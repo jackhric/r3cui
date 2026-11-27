@@ -2,7 +2,7 @@
 
 r3cui's own client for the **Android TV Remote protocol v2**: the one Google's phone remote app speaks to
 Android TV and Google TV boxes. No developer options, no ADB; the box only needs to be on the network and
-paired once. The crate has no UI dependency; the driver is `crates/drivers/src/androidtv.rs` (see docs/drivers.md).
+paired once. The crate has no UI dependency; its driver is `src/driver.rs`, behind the default `driver` feature (see docs/drivers.md).
 
 ## The protocol
 

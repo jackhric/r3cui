@@ -45,7 +45,7 @@ Audio is what the core sends by default: PCM, 16 kHz, mono, signed 16-bit, in ch
 | Voice link | `crates/voicelink` | The localhost protocol between the relay and r3cui, defined once and used by both (see below). |
 | Relay | `crates/voice-relay` | The integration: answers the Integration-API (driver version, device state, the one `voice_assistant` entity, entity states, subscribe, `entity_command`), decodes the core's protobuf audio frames, serves the voice link to r3cui, reports `ready`/`finished`/`error` back to the core. A static aarch64 binary plus `driver.json`, packed as a `.tar.gz`. |
 | Assist | `crates/homeassistant` | `assist_pipeline/pipeline/list` and `assist_pipeline/run`, the binary audio frames, typed pipeline events. Needs binary frames in `crates/wsclient`. |
-| Voice port | `crates/drivers` | A driver can take voice (`Provides.voice`, `Driver::voice()`): start a session, push chunks, end, and report what was heard and the answer. Global control gains **Voice**, bound like Volume and Inputs. Home Assistant provides it, one target per Assist pipeline. |
+| Voice port | `crates/sdk` | A driver can take voice (`Provides.voice`, `Driver::voice()`): start a session, push chunks, end, and report what was heard and the answer. Global control gains **Voice**, bound like Volume and Inputs. Home Assistant provides it, one target per Assist pipeline. |
 | Core | `crates/coreapi` | `execute_entity_command` (`voice_start`, `voice_end`) and the `assistant_event` stream. |
 | UI | `crates/ui` | The voice key held starts a session, released ends it (a tap sends nothing; the inputs are Home's, held); the voice overlay: listening, what was heard, the answer or an error. |
 

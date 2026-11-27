@@ -1,11 +1,11 @@
-//! Small pieces every driver's tasks share.
+//! Small pieces most drivers' tasks share.
 
 use std::future::Future;
 use std::time::Duration;
 use tokio::sync::watch;
 
 /// Keeps `view` as `f` of `source` until nobody watches the view or the source ends.
-pub(crate) fn follow<S, V>(mut source: watch::Receiver<S>, view: watch::Sender<V>, f: impl Fn(&S) -> V + Send + 'static)
+pub fn follow<S, V>(mut source: watch::Receiver<S>, view: watch::Sender<V>, f: impl Fn(&S) -> V + Send + 'static)
 where
     S: Send + Sync + 'static,
     V: PartialEq + Send + Sync + 'static,
@@ -27,11 +27,11 @@ where
 }
 
 /// The longest one command waits for the previous one's answer before going out anyway.
-pub(crate) const PRESS_GAP: Duration = Duration::from_millis(40);
+pub const PRESS_GAP: Duration = Duration::from_millis(40);
 
 /// Runs a command in the order made: the next waits for this one's answer, but no longer than `PRESS_GAP`, so a
 /// slow device never holds up the next press. Failures are logged.
-pub(crate) async fn in_order<E: std::fmt::Display + Send + 'static>(what: String, call: impl Future<Output = Result<(), E>> + Send + 'static) {
+pub async fn in_order<E: std::fmt::Display + Send + 'static>(what: String, call: impl Future<Output = Result<(), E>> + Send + 'static) {
     let mut call = Box::pin(call);
     let log = move |r: Result<(), E>| {
         if let Err(e) = r {

@@ -1,7 +1,7 @@
 //! Everything the demo shows, made up, in one place: the driver plays it through the real frontend, and the
 //! preview stills read the same values.
 
-use crate::api::*;
+use r3cui_sdk::api::*;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
