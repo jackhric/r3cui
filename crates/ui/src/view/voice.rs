@@ -2,6 +2,7 @@
 
 use crate::app::meter;
 use crate::view::aurora::{self, Look};
+use crate::view::ease::Bezier;
 use crate::view::stage::capture;
 use crate::{AppWindow, Capture, Theme, Voice as Shown, VoiceStage};
 use drivers::api::{Voice, VoiceFailure, VoicePhase};
@@ -11,11 +12,26 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 const FRAME: Duration = Duration::from_millis(33);
-/// The aurora's entrance, each part easing out: it spreads from the bottom centre along the edge, and from a moment
-/// after it begins, climbs the sides.
+/// The aurora's entrance: a spike shoots up from the bottom centre, sinks as the light spreads along the edge, and
+/// from a moment after it begins, the light climbs the sides, a little past its height and back.
+const SPIKE_HEIGHT: f32 = 0.1;
+const SPIKE_GROW: Duration = Duration::from_millis(90);
+const SPIKE_CURVE: Bezier = Bezier([0.0, 1.6, 0.64, 1.0]);
+/// How quickly the spike sinks as the spread comes in.
+const SPIKE_SINK: f32 = 1.6;
 const SPREAD: Duration = Duration::from_millis(450);
+const SPREAD_CURVE: Bezier = Bezier([0.215, 0.61, 0.355, 1.0]);
+/// A glint even before the spread has begun.
+const SPREAD_FIRST: f32 = 0.02;
 const CLIMB_AFTER: Duration = Duration::from_millis(250);
 const CLIMB: Duration = Duration::from_millis(650);
+const CLIMB_CURVE: Bezier = Bezier([0.0, 1.21, 0.64, 1.0]);
+/// The colours run along the edge, in turns a second: fast as it opens, slowing to rest, quicker with the voice.
+const WHEEL_START: f32 = 2.35;
+const WHEEL_REST: f32 = 0.03;
+const WHEEL_EASE: Duration = Duration::from_millis(500);
+const WHEEL_CURVE: Bezier = Bezier([0.215, 0.61, 0.355, 1.0]);
+const WHEEL_TALK: f32 = 0.65;
 /// How quickly it follows the voice getting louder, and quieter.
 const ATTACK: Duration = Duration::from_millis(50);
 const RELEASE: Duration = Duration::from_millis(280);
@@ -113,7 +129,7 @@ pub(crate) fn bench_aurora() {
         let (mut total, mut longest) = (Duration::ZERO, Duration::ZERO);
         for i in 0..BENCH_FRAMES {
             let x = i as f32 / BENCH_FRAMES as f32;
-            let look = Look { seed: 7, flow: x * 4.0, spread: 1.0, reach: 1.0, level: 0.5 + 0.5 * (x * 20.0).sin(), bands: [0.5; 4], dim: 0.0 };
+            let look = Look { seed: 7, flow: x * 4.0, spread: 1.0, reach: 1.0, level: 0.5 + 0.5 * (x * 20.0).sin(), bands: [0.5; 4], dim: 0.0, spike: 0.0, wheel: x };
             let start = Instant::now();
             std::hint::black_box(aurora::render(&look, &palette));
             let took = start.elapsed();
@@ -153,7 +169,7 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
             let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_nanos()).max(1);
             SHOWING.store(seed, Ordering::SeqCst);
             app.global::<Shown>().set_aurora(slint::Image::default());
-            *scene = Some(Scene { session, look: Look { seed, flow: 0.0, spread: 0.0, reach: 0.0, level: 0.0, bands: [0.0; 4], dim: 0.0 }, began: now, last: now });
+            *scene = Some(Scene { session, look: Look { seed, flow: 0.0, spread: 0.0, reach: 0.0, level: 0.0, bands: [0.0; 4], dim: 0.0, spike: 0.0, wheel: 0.0 }, began: now, last: now });
         }
         let Some(s) = scene.as_mut() else { return };
         let dt = now.duration_since(s.last).as_secs_f32();
@@ -167,9 +183,12 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
         }
         l.dim = follow(l.dim, if listening { 0.0 } else { 1.0 }, dt, SETTLE, SETTLE);
         let since = now.duration_since(s.began);
-        let ease_out = |part: f32| 1.0 - (1.0 - part.clamp(0.0, 1.0)).powi(3);
-        l.spread = ease_out(since.as_secs_f32() / SPREAD.as_secs_f32());
-        l.reach = ease_out(since.saturating_sub(CLIMB_AFTER).as_secs_f32() / CLIMB.as_secs_f32());
+        let part = |of: Duration| since.as_secs_f32() / of.as_secs_f32();
+        let spread = SPREAD_CURVE.at(part(SPREAD));
+        l.spread = spread.max(SPREAD_FIRST);
+        l.spike = SPIKE_HEIGHT * SPIKE_CURVE.at(part(SPIKE_GROW)) * (1.0 - spread.min(1.0)).powf(SPIKE_SINK);
+        l.reach = CLIMB_CURVE.at(since.saturating_sub(CLIMB_AFTER).as_secs_f32() / CLIMB.as_secs_f32());
+        l.wheel += dt * (WHEEL_START + (WHEEL_REST - WHEEL_START) * WHEEL_CURVE.at(part(WHEEL_EASE)) + WHEEL_TALK * l.level);
         l.flow += dt * (1.0 + 3.0 * l.level) * (1.0 - 0.6 * l.dim);
         let a = app.global::<Theme>().get_accent();
         let _ = paint.send((*l, aurora::palette((a.red(), a.green(), a.blue()))));

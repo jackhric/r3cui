@@ -111,7 +111,12 @@ aarch64-unknown-linux-musl`. Not implemented or tried yet. Then `packaging/voice
 Holding the key brings up an aurora: light along the bottom edge and up the sides, fading as it climbs, coloured from
 the input's accent and seeded per session (`view/aurora.rs`, drawn on the CPU at 120×200 and scaled up smooth). It
 follows the voice: `app/meter.rs` measures each chunk's loudness and four bands (Goertzel), and the frame loop in
-`view/voice.rs` (30 Hz, only while the overlay is up) eases toward them, quick up and slow down, so it breathes. Let
+`view/voice.rs` (30 Hz, only while the overlay is up) eases toward them, quick up and slow down, so it breathes. It
+enters with a short spike at the bottom centre that sinks as the light spreads along the edge, then climbs the sides a
+little past its height and back; the colours run along the edge fast at first and slow to rest, quicker while the voice
+is loud. The intro's curves are cubic Béziers (`view/ease.rs`), tuned in a browser prototype and copied as they are.
+Behind it, the screen shrinks, dims and blurs, as the stage does under a menu (`Motion.recede-scale`, `recede-dim`).
+Let
 go and it settles behind a `Spinner`; the answer shows, then everything fades. A tap goes at once. The demo feeds a made-up voice (`app/demo/voice.rs`); `scripts/voice.steps` films it.
 
 ## Setting it up on the remote (once, the user's call)

@@ -14,6 +14,9 @@ const REACH_OUT: f32 = 6.0;
 /// The most the noise widens the light, and the most a band's lobe adds.
 const SHAPE_MAX: f32 = 1.4;
 const LOBE: f32 = 0.045;
+/// The intro's spike, its half-width as a share of the width; past this many of them it is clear.
+const SPIKE_WIDTH: f32 = 0.04;
+const SPIKE_OUT: f32 = 2.4;
 /// Hue steps from the accent, in degrees: a neighbour, a cool counterpoint, a warm tint.
 const HUES: [f32; 4] = [0.0, 35.0, 190.0, -40.0];
 
@@ -31,6 +34,10 @@ pub struct Look {
     pub bands: [f32; 4],
     /// 0 to 1: settling while the answer is worked out.
     pub dim: f32,
+    /// How tall the intro's spike at the bottom centre stands, as a share of the height; 0 once it has spread.
+    pub spike: f32,
+    /// Turns the colours have run along the edge so far.
+    pub wheel: f32,
 }
 
 /// Four colours around the accent, as sRGB 0..1, bright enough to glow on black.
@@ -51,6 +58,7 @@ pub fn render(look: &Look, palette: &[[f32; 3]; 4]) -> SharedPixelBuffer<Rgba8Pi
     let bottom_most = look.spread * (0.04 + 0.05 * look.level + LOBE * loudest_band) * SHAPE_MAX * REACH_OUT;
     // How far from the centre the light has spread: a bloom at first, past the corners when it is in.
     let half_width = 0.06 + 0.56 * look.spread;
+    let spike_most = look.spike * 1.2 * REACH_OUT;
     let side_most = look.reach * (0.022 + 0.028 * look.level) * SHAPE_MAX * REACH_OUT;
     // The band lobes depend only on the column.
     let lobes: Vec<f32> = (0..W)
@@ -67,7 +75,8 @@ pub fn render(look: &Look, palette: &[[f32; 3]; 4]) -> SharedPixelBuffer<Rgba8Pi
         for i in 0..W {
             let u = (i as f32 + 0.5) / W as f32;
             // Most of the screen is far from every edge: left clear, without the noise.
-            if up > bottom_most && (climb <= 0.0 || u.min(1.0 - u) * aspect > side_most) {
+            let off_spike = up > spike_most || (u - 0.5).abs() > SPIKE_WIDTH * SPIKE_OUT;
+            if up > bottom_most && off_spike && (climb <= 0.0 || u.min(1.0 - u) * aspect > side_most) {
                 continue;
             }
             let (x, y) = (u * aspect, v);
@@ -80,14 +89,16 @@ pub fn render(look: &Look, palette: &[[f32; 3]; 4]) -> SharedPixelBuffer<Rgba8Pi
             let edge = |d: f32, thick: f32| if thick > 1e-4 { (-d / thick).exp() } else { 0.0 };
             let fb = edge(up, bottom);
             let fs = edge(u.min(1.0 - u) * aspect, side);
+            let spike = look.spike * (0.6 + 0.6 * n);
+            let fk = if spike > 1e-4 { (-up / spike).exp() * (-((u - 0.5) / SPIKE_WIDTH).powi(2)).exp() } else { 0.0 };
             // Screen-blended, so the corners join instead of doubling.
-            let field = 1.0 - (1.0 - fb) * (1.0 - fs);
+            let field = 1.0 - (1.0 - fb) * (1.0 - fs) * (1.0 - fk);
             let core = field.powi(4);
             let alpha = ((0.9 * field + 0.5 * core) * strength).clamp(0.0, 1.0);
 
             // Colour runs along the edge, round the corners and up, and drifts, warped by the same flow.
             let along = u + (2.0 * u - 1.0) * up * 0.6;
-            let p = (along * 0.85 + n * 0.45 + t * 0.025 + (seed % 97) as f32 / 97.0).rem_euclid(1.0) * 4.0;
+            let p = (along * 0.85 + n * 0.45 + look.wheel + (seed % 97) as f32 / 97.0).rem_euclid(1.0) * 4.0;
             let (k, f) = (p.floor() as usize % 4, smoothstep(0.0, 1.0, p.fract()));
             let (a, b) = (palette[k], palette[(k + 1) % 4]);
             let hot = core * (0.2 + 0.55 * look.level);
@@ -181,10 +192,14 @@ mod tests {
     fn the_accent_survives_the_round_trip_and_the_middle_stays_clear() {
         let red = palette((0xE8, 0x34, 0x3A))[0];
         assert!(red[0] > red[1] && red[0] > red[2], "{red:?}");
-        let look = Look { seed: 7, flow: 1.0, spread: 1.0, reach: 1.0, level: 0.6, bands: [0.4; 4], dim: 0.0 };
+        let look = Look { seed: 7, flow: 1.0, spread: 1.0, reach: 1.0, level: 0.6, bands: [0.4; 4], dim: 0.0, spike: 0.0, wheel: 0.0 };
         let buf = render(&look, &palette((0xE8, 0x34, 0x3A)));
         let at = |u: u32, v: u32| buf.as_slice()[(v * W + u) as usize].a;
         assert!(at(W / 2, H - 1) > 150, "bright along the bottom");
         assert!(at(W / 2, H / 3) < 8, "clear in the middle");
+        let spike = render(&Look { spread: 0.02, reach: 0.0, spike: 0.1, ..look }, &palette((0xE8, 0x34, 0x3A)));
+        let at = |u: u32, v: u32| spike.as_slice()[(v * W + u) as usize].a;
+        assert!(at(W / 2, H * 9 / 10) > 60, "the spike stands at the bottom centre");
+        assert!(at(W / 4, H * 9 / 10) < 8, "and nowhere else");
     }
 }

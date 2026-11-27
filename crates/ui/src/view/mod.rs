@@ -1,6 +1,7 @@
 //! Putting the model on screen, and the screen-side helpers the session and the demo share.
 
 pub(crate) mod aurora;
+pub(crate) mod ease;
 pub(crate) mod format;
 pub(crate) mod idle;
 pub(crate) mod keyboard;
