@@ -82,14 +82,11 @@ The relay listens, r3cui connects and reconnects; a new connection replaces the 
 
 ### Building it
 
-The device build container (`scripts/build-device.sh`) builds `-p r3cui` for `aarch64-unknown-linux-gnu`
-against the SDK's glibc 2.33, dynamically linked. A custom integration must be a **statically linked** aarch64
-binary, so the relay cannot simply be built the same way. Its dependencies are pure Rust (no C, no TLS), so the
-proposal is `aarch64-unknown-linux-musl`:
-`cargo build --release -p voice-relay --bin driver --target aarch64-unknown-linux-musl`, linked with the SDK's
-`aarch64-none-linux-gnu-gcc` (or `rust-lld`), in the same container after `rustup target add
-aarch64-unknown-linux-musl`. Not implemented or tried yet. Then `packaging/voice-relay.sh <driver binary>` writes
-`packaging/out/r3cui-voice.tar.gz` (`driver.json` at the root, `bin/driver`).
+`scripts/build-relay.sh` builds `-p voice-relay --bin driver` for `aarch64-unknown-linux-musl` in the same container
+as `scripts/build-device.sh`, linked with the toolchain's `rust-lld` (the dependencies are pure Rust, so no cross gcc
+or SDK is needed), and gives a fully static binary, which a custom integration must be (the SDK's glibc build of
+r3cui is dynamic). It then runs `packaging/voice-relay.sh`, which writes `packaging/out/r3cui-voice.tar.gz`
+(`driver.json` at the root, `bin/driver`).
 
 ### Assist API (`crates/homeassistant`)
 
