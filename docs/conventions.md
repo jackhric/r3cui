@@ -48,6 +48,18 @@ Conventional commits: `type(scope): subject`, for example `refactor(ui): ...` or
 `feat(drivers): ...`. CI checks pull request titles (`.github/workflows/pr-title.yml`), and
 release-please builds the releases from them.
 
+## Versions
+
+Semver, one version for the workspace. release-please bumps it on `main` from the commits (`fix` a patch, `feat` a
+minor, `!` a major; before 1.0 a break is a minor) and tags `vX.Y.Z`, which `release.yml` builds and publishes.
+
+Every build knows what it is: `scripts/version.sh` gives the release's own version for the tagged commit, and
+otherwise adds the commit as build metadata (`0.2.0+g1eb1474`; a device build with extra features adds them,
+`0.2.0+g1eb1474.demo`). The app shows and reports that (`env!("R3CUI_VERSION")`, set by its build script),
+`pack.sh` names the archive for it (`r3cui-0.2.0+g1eb1474.tar.gz`) and writes it into the archive's
+`release.json`. A release's archive is `r3cui-<version>.tar.gz`, the name the self-update and the installers look
+for; build metadata never counts as newer.
+
 ## Adding an integration
 
 An integration is one crate on `r3cui-sdk`: its client, its `Spec` and `field` keys, its `Driver`, its fake, its

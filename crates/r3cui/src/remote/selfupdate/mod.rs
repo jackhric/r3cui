@@ -12,8 +12,10 @@ use std::path::Path;
 use std::time::Duration;
 
 pub(crate) const REPO_PATH: &str = "github.com/jackhric/r3cui";
-/// The file in a release that the remote installs.
-pub(crate) const ASSET_NAME: &str = "r3cui.tar.gz";
+/// The file in a release that the remote installs: `r3cui-<version>.tar.gz`, as `packaging/pack.sh` names it.
+pub(crate) fn asset_name(version: &Version) -> String {
+    format!("r3cui-{version}.tar.gz")
+}
 /// Overrides `LATEST_URL`: a stand-in for GitHub's API in tests and on the desktop.
 pub(crate) const LATEST_URL_ENV: &str = "UC_RELEASES_URL";
 const LATEST_URL: &str = "https://api.github.com/repos/jackhric/r3cui/releases/latest";
@@ -69,23 +71,27 @@ pub(crate) fn parse_release(json: &str) -> Result<Release> {
     if r.draft || r.prerelease {
         bail!("the latest release is a {}", if r.draft { "draft" } else { "prerelease" });
     }
-    let asset = r.assets.into_iter().find(|a| a.name == ASSET_NAME).ok_or_else(|| anyhow!("the release has no {ASSET_NAME}"))?;
+    let version = tag_version(&r.tag_name)?;
+    let name = asset_name(&version);
+    let asset = r.assets.into_iter().find(|a| a.name == name).ok_or_else(|| anyhow!("the release has no {name}"))?;
     let sha256 = asset
         .digest
         .as_deref()
         .and_then(|d| d.strip_prefix(DIGEST_PREFIX))
-        .ok_or_else(|| anyhow!("{ASSET_NAME} has no checksum to check it against"))?
+        .ok_or_else(|| anyhow!("{name} has no checksum to check it against"))?
         .to_ascii_lowercase();
-    Ok(Release { version: tag_version(&r.tag_name)?, page_url: r.html_url, published_at: r.published_at, size: asset.size, download_url: asset.browser_download_url, sha256 })
+    Ok(Release { version, page_url: r.html_url, published_at: r.published_at, size: asset.size, download_url: asset.browser_download_url, sha256 })
 }
 
+/// The version this build is, from `scripts/version.sh`: a release's own, or one with the commit after a `+`.
 pub(crate) fn current_version() -> Version {
-    Version::parse(env!("CARGO_PKG_VERSION")).expect("the crate's version is semver")
+    Version::parse(env!("R3CUI_VERSION")).expect("scripts/version.sh gives semver")
 }
 
-/// The latest release, and whether it is newer than `running`.
+/// The latest release, and whether it is newer than `running`. The commit after a `+` doesn't count: a build of a
+/// release's own version is not behind it.
 pub(crate) fn newer(release: Release, running: &Version) -> Option<Release> {
-    (release.version > *running).then_some(release)
+    release.version.cmp_precedence(running).is_gt().then_some(release)
 }
 
 fn latest_url() -> String {
@@ -178,7 +184,7 @@ mod tests {
             "tag_name": tag, "html_url": format!("https://github.com/jackhric/r3cui/releases/tag/{tag}"), "published_at": "2026-11-20T09:00:00Z",
             "assets": [
                 {"name": "other.zip", "size": 1, "browser_download_url": "https://example.invalid/other.zip"},
-                {"name": ASSET_NAME, "size": 11, "browser_download_url": download, "digest": digest},
+                {"name": asset_name(&tag_version(tag).unwrap()), "size": 11, "browser_download_url": download, "digest": digest},
             ],
         })
         .to_string()
@@ -198,18 +204,26 @@ mod tests {
 
     #[test]
     fn a_release_is_read_for_its_archive_and_checksum() {
-        let r = parse_release(&release_json("v0.2.0", Some(&format!("sha256:{}", HELLO_SHA.to_uppercase())), "https://x/r3cui.tar.gz")).unwrap();
+        let r = parse_release(&release_json("v0.2.0", Some(&format!("sha256:{}", HELLO_SHA.to_uppercase())), "https://x/r3cui-0.2.0.tar.gz")).unwrap();
         assert_eq!((r.version.to_string().as_str(), r.size, r.sha256.as_str()), ("0.2.0", 11, HELLO_SHA));
         assert_eq!(r.page_url, "https://github.com/jackhric/r3cui/releases/tag/v0.2.0");
         assert!(newer(r.clone(), &Version::new(0, 1, 0)).is_some());
         assert!(newer(r.clone(), &Version::new(0, 2, 0)).is_none());
-        assert!(newer(r, &Version::new(0, 3, 0)).is_none());
+        assert!(newer(r.clone(), &Version::new(0, 3, 0)).is_none());
+        assert!(newer(r.clone(), &Version::parse("0.2.0+g1eb1474").unwrap()).is_none(), "a build of the release itself");
+        assert!(newer(r, &Version::parse("0.1.0+g1eb1474").unwrap()).is_some());
+    }
+
+    #[test]
+    fn this_build_knows_its_version_and_the_archive_is_named_for_it() {
+        assert_eq!(current_version().to_string(), env!("R3CUI_VERSION"));
+        assert_eq!(asset_name(&Version::new(0, 2, 0)), "r3cui-0.2.0.tar.gz");
     }
 
     #[test]
     fn a_release_that_cannot_be_installed_is_an_error() {
         assert!(parse_release(&release_json("v0.2.0", None, "u")).unwrap_err().to_string().contains("checksum"));
-        assert!(parse_release(r#"{"tag_name":"v1.0.0","html_url":"u","assets":[]}"#).unwrap_err().to_string().contains(ASSET_NAME));
+        assert!(parse_release(r#"{"tag_name":"v1.0.0","html_url":"u","assets":[]}"#).unwrap_err().to_string().contains("r3cui-1.0.0.tar.gz"));
         assert!(parse_release(r#"{"tag_name":"v1.0.0","html_url":"u","prerelease":true,"assets":[]}"#).is_err());
         assert!(parse_release("not json").is_err());
     }

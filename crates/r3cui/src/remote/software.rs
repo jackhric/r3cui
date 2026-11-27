@@ -2,7 +2,7 @@
 //! the remote or taking r3cui off. What to show of it is `app::software`.
 
 use crate::app::software::Access;
-use crate::remote::selfupdate::{self, rest::Rest, Release, ASSET_NAME};
+use crate::remote::selfupdate::{self, rest::Rest, Release};
 use crate::InstallPhase;
 use coreapi::{CheckSystemUpdate, Core, GetVersion, SystemUpdateInfo, UpdateRefusal, UpdateStart};
 use std::path::{Path, PathBuf};
@@ -110,7 +110,7 @@ pub(crate) async fn finish_pending_revoke(core: &Core) {
 /// function: when it works, the core stops this process.
 pub(crate) async fn install_r3(core: &Core, release: Release, access: Access, progress: Progress) -> Result<(), String> {
     grant(core, &access).await?;
-    let archive = data_folder().join(UPDATE_FOLDER).join(ASSET_NAME);
+    let archive = data_folder().join(UPDATE_FOLDER).join(selfupdate::asset_name(&release.version));
     let sent = send_archive(&release, &archive, &access, &progress).await;
     let _ = std::fs::remove_file(&archive);
     revoke(core, &access).await;

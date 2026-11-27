@@ -484,7 +484,8 @@ impl Software {
         let web_shown = self.web.enabled.then(|| self.web.pin.clone()).flatten();
         let configurator = (!self.web.address.is_empty()).then(|| format!("{}{CONFIGURATOR_PATH}", self.web.address));
         View {
-            r3_version: self.running.to_string(),
+            r3_version: Version::new(self.running.major, self.running.minor, self.running.patch).to_string() + &prerelease(&self.running),
+            r3_build: build_line(&self.running),
             r3_repo: REPO_PATH.to_string(),
             r3_state: r3.check.state(has_r3),
             r3_status: r3.check.line(now, has_r3, &new_r3),
@@ -520,10 +521,22 @@ fn release_line(date: &str, size: u64) -> String {
     [release_date(date), (size > 0).then(|| size_label(size))].into_iter().flatten().collect::<Vec<_>>().join(" · ")
 }
 
+fn prerelease(v: &Version) -> String {
+    if v.pre.is_empty() { String::new() } else { format!("-{}", v.pre) }
+}
+
+/// A build that is not a release, as the System page names it under the version: `Build g1eb1474 · demo`.
+fn build_line(v: &Version) -> String {
+    if v.build.is_empty() { String::new() } else { format!("Build {}", v.build.as_str().replace('.', " · ")) }
+}
+
 /// Everything the System pages show, as plain values for `view::software::show`.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct View {
+    /// The release it is (or is built from), without the build after a `+`.
     pub(crate) r3_version: String,
+    /// Empty for a release.
+    pub(crate) r3_build: String,
     pub(crate) r3_repo: String,
     pub(crate) r3_state: UpdateState,
     pub(crate) r3_status: String,
@@ -618,6 +631,15 @@ pub(crate) fn run(commands: Vec<Command>, link: &Link, later: &UnboundedSender<L
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_build_shows_its_release_large_and_the_build_under_it() {
+        let v = |s| Version::parse(s).unwrap();
+        assert_eq!(build_line(&v("0.2.0+g1eb1474.demo")), "Build g1eb1474 · demo");
+        assert_eq!(build_line(&v("0.2.0")), "");
+        let view = Software::new(v("0.2.0-rc.1+g1eb1474"), || "0000".into()).view(Instant::now(), 100);
+        assert_eq!((view.r3_version.as_str(), view.r3_build.as_str()), ("0.2.0-rc.1", "Build g1eb1474"));
+    }
     use coreapi::{AvailableUpdate, UpdateProgress};
 
     fn software() -> Software {
@@ -634,7 +656,7 @@ mod tests {
             page_url: format!("https://github.com/jackhric/r3cui/releases/tag/v{version}"),
             published_at: "2026-11-20T09:00:00Z".into(),
             size: 6_800_000,
-            download_url: "https://example.invalid/r3cui.tar.gz".into(),
+            download_url: "https://example.invalid/r3cui-0.2.0.tar.gz".into(),
             sha256: "ab".into(),
         }
     }

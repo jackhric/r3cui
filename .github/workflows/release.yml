@@ -54,7 +54,10 @@ jobs:
 
   ci:
     name: CI
+    needs: check
     uses: ./.github/workflows/ci.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
 
   release:
     name: GitHub Release
@@ -83,6 +86,8 @@ jobs:
           VERSION: ${{ needs.check.outputs.version }}
         run: |
           tag="$TAG"
+          # The self-update and the installers look for exactly this name.
+          [ -f "release/r3cui-$VERSION.tar.gz" ] || { echo "::error::no release/r3cui-$VERSION.tar.gz to publish"; ls release; exit 1; }
           title="r3cui $VERSION"
           prerelease=false
           if [[ "$VERSION" == *-* ]]; then prerelease=true; fi

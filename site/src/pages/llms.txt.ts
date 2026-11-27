@@ -17,7 +17,7 @@ export const GET: APIRoute = async ({ site }) => {
     '## Project',
     '',
     '- [Source code on GitHub](https://github.com/jackhric/r3cui): Rust, Slint; README with install steps',
-    '- [Releases](https://github.com/jackhric/r3cui/releases): installable r3cui.tar.gz and install scripts',
+    '- [Releases](https://github.com/jackhric/r3cui/releases): installable r3cui-<version>.tar.gz and install scripts',
     `- [Full text](${new URL('llms-full.txt', base)}): every docs page in one file`,
     '',
   ];

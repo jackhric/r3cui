@@ -8,7 +8,8 @@
 set -eu
 
 REPO=jackhric/r3cui
-URL="https://github.com/$REPO/releases/latest/download/r3cui.tar.gz"
+# The archive is named for its version, so the latest release is asked which one it has.
+LATEST="https://api.github.com/repos/$REPO/releases/latest"
 ip=${1:-${R3_IP:-}}
 pin=${2:-${R3_PIN:-}}
 file=${3:-}
@@ -51,9 +52,12 @@ read -r answer
 if [ -z "$file" ]; then
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
-  file="$tmp/r3cui.tar.gz"
-  echo "Downloading the latest r3cui release..."
-  curl -fL --progress-bar -o "$file" "$URL" || { echo "The download failed. Try again, or pass a r3cui.tar.gz you downloaded." >&2; exit 1; }
+  echo "Finding the latest r3cui release..."
+  url=$(curl -fsSL "$LATEST" | grep -o '"browser_download_url": *"[^"]*/r3cui-[^"/]*\.tar\.gz"' | head -n 1 | sed 's/.*"\(https:[^"]*\)"$/\1/' || true)
+  [ -n "$url" ] || { echo "Couldn't find the latest r3cui release. Try again, or pass an r3cui-<version>.tar.gz you downloaded." >&2; exit 1; }
+  file="$tmp/${url##*/}"
+  echo "Downloading ${url##*/}..."
+  curl -fL --progress-bar -o "$file" "$url" || { echo "The download failed. Try again, or pass an r3cui-<version>.tar.gz you downloaded." >&2; exit 1; }
 fi
 [ -f "$file" ] || { echo "No file at $file." >&2; exit 1; }
 

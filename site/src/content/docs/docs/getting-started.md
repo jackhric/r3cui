@@ -19,7 +19,7 @@ That record stays even if you go back to the Normal UI.
 
 ## 1. Download
 
-Download `r3cui.tar.gz` from the [latest release](https://github.com/jackhric/r3cui/releases/latest).
+Download `r3cui-<version>.tar.gz` from the [latest release](https://github.com/jackhric/r3cui/releases/latest).
 
 ## 2. Install
 
@@ -29,7 +29,7 @@ and `<IP>`.
 ```sh
 curl -u 'web-configurator:<PIN>' \
   'http://<IP>/api/system/install/ui?void_warranty=yes' \
-  --form 'file=@r3cui.tar.gz'
+  --form 'file=@r3cui-<version>.tar.gz'
 ```
 
 ## 3. Wait

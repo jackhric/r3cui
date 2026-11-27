@@ -12,7 +12,8 @@ const USER: &str = "web-configurator";
 const INSTALL_UI_PATH: &str = "/api/system/install/ui";
 const BOUNDARY: &str = "r3cui-archive-boundary";
 const FILE_FIELD: &str = "file";
-const UPLOAD_NAME: &str = super::ASSET_NAME;
+/// Any name does: the remote reads the archive, not what it is called.
+const UPLOAD_NAME: &str = "r3cui.tar.gz";
 /// The flag is already set on a remote that runs r3cui; the endpoint wants it spelled out all the same.
 const ACKNOWLEDGE_WARRANTY: (&str, &str) = ("void_warranty", "yes");
 const DISABLE: (&str, &str) = ("enable", "false");

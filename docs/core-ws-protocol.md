@@ -91,7 +91,7 @@ DONE, then `check_system_update` says DOWNLOADED), `update_system` again (instal
 read from the spec and the stock UI and has not been watched on a remote.
 
 r3cui's own updates are not the core's: `GET https://api.github.com/repos/jackhric/r3cui/releases/latest` (override with
-`UC_RELEASES_URL`), the `r3cui.tar.gz` asset checked against its `digest`, then REST `POST /api/system/install/ui`
+`UC_RELEASES_URL`), the `r3cui-<version>.tar.gz` asset checked against its `digest`, then REST `POST /api/system/install/ui`
 (multipart `file`, `?void_warranty=yes`) with basic auth `web-configurator:<PIN>`, on `UC_SOCKET_URL`'s host and port, or
 port 80 if that does not answer. Uninstalling empties `UC_CONFIG_HOME` and `UC_DATA_HOME` (never `UC_STATE_HOME`), then
 `DELETE /api/system/install/ui`, or `PUT ...?enable=false` if that is refused. Both turn the web configurator on with a PIN

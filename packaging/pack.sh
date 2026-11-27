@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # Build the installable custom-UI archive: release.json at root, the binary at bin/remote-ui, settings in config/.
 # Usage: pack.sh <path-to-aarch64-remote-ui-binary>
-# Output: packaging/out/r3cui.tar.gz
+# Output: packaging/out/r3cui-<version>.tar.gz, the version from scripts/version.sh (R3CUI_VERSION wins), also written
+# into the archive's release.json.
 set -euo pipefail
 
 BIN="${1:?usage: pack.sh <path-to-remote-ui-binary>}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 OUT="$HERE/out"
+VERSION="$("$HERE/../scripts/version.sh")"
+ARCHIVE="$OUT/r3cui-$VERSION.tar.gz"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
 mkdir -p "$STAGE/bin" "$OUT"
-cp "$HERE/release.json" "$STAGE/release.json"
+sed -e "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" -e "s/\"release_date\": \"[^\"]*\"/\"release_date\": \"$(date -u +%F)\"/" "$HERE/release.json" > "$STAGE/release.json"
+grep -q "\"version\": \"$VERSION\"" "$STAGE/release.json" || { echo "release.json has no version to set" >&2; exit 1; }
 cp "$BIN" "$STAGE/bin/remote-ui"
 chmod +x "$STAGE/bin/remote-ui"
 
@@ -22,10 +26,12 @@ cp -r "$HERE/../config" "$STAGE/config"
 [ -f "$STAGE/config/modules.json" ] && echo "including config/modules.json: it may hold tokens, keep the archive private"
 
 # No symlinks (the installer strips them); keep it a plain tar.
-tar -C "$STAGE" -czf "$OUT/r3cui.tar.gz" release.json bin/remote-ui config
-echo "wrote $OUT/r3cui.tar.gz"
+# One archive in out/ at a time, so the newest is the only one to pick up.
+rm -f "$OUT"/r3cui-*.tar.gz
+tar -C "$STAGE" -czf "$ARCHIVE" release.json bin/remote-ui config
+echo "wrote $ARCHIVE"
 echo
 echo "Install (⚠ writes permanent void_warranty flag):"
 echo "  curl -u 'web-configurator:<PIN>' \\"
 echo "    'http://<IP>/api/system/install/ui?void_warranty=yes' \\"
-echo "    --form 'file=@\"$OUT/r3cui.tar.gz\"'"
+echo "    --form 'file=@\"$ARCHIVE\"'"

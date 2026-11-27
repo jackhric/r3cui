@@ -32,6 +32,12 @@ export component SystemPage inherits Layer {
             font-weight: Type.display-weight;
             color: Theme.text;
         }
+        if Software.r3-build != "": Text {
+            horizontal-alignment: center;
+            text: Software.r3-build;
+            font-size: Type.detail;
+            color: Theme.t3;
+        }
         HorizontalLayout {
             alignment: center;
             spacing: Layout.gap-s;

@@ -8,7 +8,8 @@ rem Installing a custom UI voids the remote's warranty (the remote keeps a perma
 setlocal EnableExtensions
 
 set "REPO=jackhric/r3cui"
-set "URL=https://github.com/%REPO%/releases/latest/download/r3cui.tar.gz"
+rem The archive is named for its version, so the latest release is asked which one it has.
+set "LATEST=https://api.github.com/repos/%REPO%/releases/latest"
 set "PAUSE="
 if "%~1"=="" set "PAUSE=1"
 set "IP=%~1"
@@ -39,11 +40,16 @@ set "ANSWER="
 set /p "ANSWER=Type yes to install r3cui: "
 if /i not "%ANSWER%"=="yes" (echo Nothing was installed. & goto fail)
 
-if "%FILE%"=="" (
-  set "FILE=%TEMP%\r3cui.tar.gz"
-  echo Downloading the latest r3cui release...
-  curl.exe -fL --progress-bar -o "%TEMP%\r3cui.tar.gz" "%URL%" || (echo The download failed. Try again, or pass a r3cui.tar.gz you downloaded. & goto fail)
-)
+if not "%FILE%"=="" goto have_file
+echo Finding the latest r3cui release...
+set "URL="
+for /f "usebackq delims=" %%u in (`powershell -NoProfile -Command "(Invoke-RestMethod '%LATEST%').assets | Where-Object name -like 'r3cui-*.tar.gz' | Select-Object -First 1 -ExpandProperty browser_download_url"`) do set "URL=%%u"
+if "%URL%"=="" (echo Couldn't find the latest r3cui release. Try again, or pass an r3cui-version.tar.gz you downloaded. & goto fail)
+set "FILE=%TEMP%\r3cui-latest.tar.gz"
+echo Downloading %URL%...
+curl.exe -fL --progress-bar -o "%FILE%" "%URL%" || (echo The download failed. Try again, or pass an r3cui-version.tar.gz you downloaded. & goto fail)
+
+:have_file
 if not exist "%FILE%" (echo No file at %FILE%. & goto fail)
 
 echo Installing. This can take a minute...
