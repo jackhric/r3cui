@@ -8,7 +8,7 @@ A string or number that means something is named once, and everything else uses 
 |---|---|
 | Home Assistant's wire vocabulary: message types, frame fields, domains, services, states, attributes | `crates/homeassistant/src/protocol.rs` (`MessageType`, the `field` module, ...) |
 | Kodi's methods, parameters and shared value types | `crates/kodi/src/methods/` (one struct per method, checked against the vendored schema by `tests/schema.rs`) and `crates/kodi/src/wire.rs` |
-| Core-API message names and the events the UI acts on | `crates/coreapi/src/messages.rs`, `crates/coreapi/src/events.rs`; the System page's requests are typed in `system.rs` |
+| Core-API message names and the events the UI acts on | `crates/r3cui/src/coreapi/messages.rs`, `crates/r3cui/src/coreapi/events.rs`; the System page's requests are typed in `system.rs` |
 | A driver's setup field keys | the integration's own `driver::field` module: `crates/homeassistant/src/driver.rs`, `crates/kodi/src/driver/mod.rs` |
 | The characters hard keys arrive as | `keys` in `crates/r3cui/src/input/mod.rs`; the window gets the same values through `KeyChars` in `crates/r3cui/ui/globals/keys.slint` |
 | Anything Slint and Rust both know about (pages, haptic events, library modes, ...) | a Slint `enum` in `crates/r3cui/ui/types.slint`, matched exhaustively in Rust |
@@ -78,12 +78,12 @@ the desktop and the device build.
 
 | Fake | Where | Used by |
 |---|---|---|
-| `FakeServer` | `crates/wsclient/src/testing.rs` (feature `testing`) | the scaffold under every fake below, and `coreapi`'s tests |
-| `FakeCore` | `crates/coreapi/src/testing.rs` (feature `testing`) | `coreapi`'s tests: sign-in, `version`, firmware updates, API access |
+| `FakeServer` | `crates/sdk/src/ws/testing.rs` (sdk feature `testing`) | the scaffold under every fake below, and `coreapi`'s tests |
+| `FakeCore` | `crates/r3cui/src/coreapi/testing.rs` (tests only) | `coreapi`'s tests: sign-in, `version`, firmware updates, API access |
 | `FakeKodi` | `crates/kodi/src/testing.rs` | `crates/kodi/tests/fake.rs`, its driver |
 | `FakeHa` | `crates/homeassistant/src/testing.rs` | `crates/homeassistant/tests/fake.rs`, its driver |
 | `FakeTv` | `crates/androidtv/src/testing.rs` | `crates/androidtv/tests/fake.rs`, its driver (also `examples/fake-androidtv.rs`) |
-| `FakeDriver` and its specs | `crates/host/src/testing.rs` (feature `testing`) | host routing and the Integrations screens, with no network |
+| `FakeDriver` and its specs | `crates/r3cui/src/host/testing.rs` (tests only) | host routing and the Integrations screens, with no network |
 
 `FakeKodi` and `FakeHa` also run as stand-alone servers for the desktop app (`examples/fake-kodi.rs`,
 `examples/fake-ha.rs`). See `scripts/dev.md`.

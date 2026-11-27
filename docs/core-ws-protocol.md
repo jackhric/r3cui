@@ -1,7 +1,7 @@
 # Core-API WebSocket protocol
 
 This is reference for the Core-API, not a description of what r3cui sends. The UI uses the core only for
-the remote's own state (`crates/coreapi`). It no longer reads entities, entity commands or activities from
+the remote's own state (`crates/r3cui/src/coreapi`). It no longer reads entities, entity commands or activities from
 the core: the receiver, Kodi and the hard keys' targets are drivers (`docs/drivers.md`), and the entity,
 activity and button-mapping rows below are kept as spec notes only.
 
@@ -11,7 +11,7 @@ Requests the UI sends today (`crates/r3cui/src/remote/`, `hardware/backlight.rs`
 `wifi_scan_start`, `add_wifi_network`, `set_button_cfg`, and for the System page `version`, `set_ui_info` (after every sign-in, as
 the stock UI does), `check_system_update`, `update_system`, `get_api_access`, `set_api_access`, and for voice the requests under Voice below. Events it acts on
 (`coreapi::events`): `power_mode_change`, `battery_status`, `wifi_change`, `software_update`, `assistant_event`. Message names are the
-constants in `crates/coreapi/src/messages.rs`; the System page's requests are typed in `crates/coreapi/src/system.rs`. The connection runs on `crates/wsclient`.
+constants in `crates/r3cui/src/coreapi/src/messages.rs`; the System page's requests are typed in `crates/r3cui/src/coreapi/src/system.rs`. The connection runs on `r3cui_sdk::ws`.
 
 Authoritative spec: `unfoldedcircle/core-api`, `core-api/websocket/UCR-core-asyncapi.yaml`
 (AsyncAPI 2.6, v0.50.5). Reference implementation: `unfoldedcircle/remote-ui`, `src/core/core.cpp`.
@@ -75,8 +75,8 @@ The stock UI fetches the activity's button mappings and sends the mapped `execut
 
 ## Software: firmware updates, the web configurator, r3cui's own updates
 
-`crates/coreapi/src/system.rs` types these, `crates/r3cui/src/app/software.rs` holds the state, `crates/r3cui/src/remote/software.rs`
-does the work. `coreapi::testing::FakeCore` answers all of them.
+`crates/r3cui/src/coreapi/src/system.rs` types these, `crates/r3cui/src/app/software.rs` holds the state, `crates/r3cui/src/remote/software.rs`
+does the work. `coreapi::testing::FakeCore` (in the app) answers all of them.
 
 | Message | Notes |
 |---|---|
@@ -100,7 +100,7 @@ finish that). The REST calls are tested against a local fake server (`crates/r3c
 
 ## Voice: control settings, sessions, assistant events
 
-`crates/coreapi/src/voice.rs` types the requests, `events.rs` the event. `FakeCore` answers all of them and records
+`crates/r3cui/src/coreapi/src/voice.rs` types the requests, `events.rs` the event. `FakeCore` answers all of them and records
 the entity commands. The session design is in `docs/voice.md`.
 
 | Message | Notes |

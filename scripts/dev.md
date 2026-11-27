@@ -45,8 +45,8 @@ A 480×800 window opens and authenticates with the core. The rest of the screen 
   `env` turns it on, to try made-up devices and voice on the real remote.
 - Device build: `scripts/build-device.sh` cross-compiles the `device` feature for aarch64 in a container and runs
   `packaging/pack.sh`; `scripts/test.sh` also clippy-checks that build. See docs/plan.md and docs/device-contract.md.
-- Voice relay: `scripts/build-relay.sh` builds the relay as a static aarch64 musl binary in the same container and runs
-  `packaging/voice-relay.sh`, writing `packaging/out/relay/r3cui-voice.tar.gz`. See docs/voice.md.
+- r3cui bridge: `scripts/build-bridge.sh` builds it as a static aarch64 musl binary in the same container and runs
+  `packaging/bridge.sh`, writing `packaging/out/bridge/r3cui-bridge.tar.gz`. See docs/voice.md.
 
 ## Simulating the hard keys
 
@@ -96,10 +96,10 @@ and use `type-file <path>` in the steps, which types the file's text when the st
 ## The demo
 
 `cargo run -p r3cui -- --demo` (or `UC_DEMO=1`, or `--record` without `--live`) runs the real session with nothing
-to connect to: an in-memory setup (`demo::modules()`) puts the Demo driver behind global volume and source
+to connect to: an in-memory setup (`app::demo::integration::modules()`) puts the Demo driver behind global volume and source
 and every input's remote, and behind Kodi's screen, and a made-up remote stands in for the core (battery, Wi-Fi to
 join; keys `c` charger, `z` asleep, `x` every driver down). Nothing is written to `config/`. All the made-up values
-are in `crates/demo/src/data.rs`; the `--shots` stills read the same ones.
+are in `crates/r3cui/src/app/demo/data.rs`; the `--shots` stills read the same ones.
 
 ## Driving the live app
 
@@ -118,7 +118,7 @@ cargo run -p r3cui -- --demo --steps scripts/tour.steps --out <dir>
 `scripts/system.steps` walks the System pages in the demo (Menu, System, Update r3cui and its install, Firmware and its install,
 Web configurator, Uninstall mid-hold); it also films with `--record <file.mp4> --frame <remote photo> --script steps:scripts/system.steps`.
 The demo's firmware 2.8.4 → 2.9.0 and r3cui 0.1.0 → 0.2.0 updates, their made-up installs and the web configurator's PINs are in
-`crates/demo/src/data.rs`; the demo never touches the network or the REST API. Outside the demo, `UC_RELEASES_URL` points
+`crates/r3cui/src/app/demo/data.rs`; the demo never touches the network or the REST API. Outside the demo, `UC_RELEASES_URL` points
 the r3cui update check at a stand-in for GitHub's `releases/latest`.
 
 Other preview flags (the default desktop build has the `preview` feature): `--shots <dir>` saves a still per screen

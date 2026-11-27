@@ -70,16 +70,16 @@ let state = tv.watch();                                   // watch::Receiver<TvS
   but `link` resets when the connection drops, so a stale "on" never lingers.
 - `send_key`/`launch` fail with `Error::NotConnected` until `Link::Up`; a stale key is never replayed after a
   reconnect.
-- Reconnecting uses `wsclient::Backoff` (0.5, 1, 2, 4, 8, then 15 s). `wsclient`'s `Session` and `reconnect` are
+- Reconnecting uses `r3cui_sdk::ws::Backoff` (0.5, 1, 2, 4, 8, then 15 s). `r3cui_sdk::ws`'s `Session` and `reconnect` are
   WebSocket-shaped (they hand out a `Connection`) so they are not used; only `Backoff` is generic. Depending on
-  `wsclient` also pulls in tungstenite; moving `Backoff` to a tiny shared crate would avoid that.
+  `r3cui_sdk::ws` also pulls in tungstenite.
 - `protocol::KeyCode` carries Android's `KeyEvent` numbers (d-pad, back, home, menu, media, channel, volume,
   power, digits, colour keys, ...). `KEYCODE_MUTE` (91) is the microphone, so it is `MicMute`; speaker mute is
   `VolumeMute` (164).
 
 Dependencies: `tokio-rustls` + `rustls` with the `ring` provider (no OpenSSL, no aws-lc), `rcgen` (certificate),
 `rsa` (RSA key generation: ring cannot generate RSA keys), `x509-parser` (read the RSA numbers out of a
-certificate), `sha2`, `prost` (hand-written derive structs, no protoc), `thiserror`, `serde`, `tracing`, `wsclient`.
+certificate), `sha2`, `prost` (hand-written derive structs, no protoc), `thiserror`, `serde`, `tracing`, `r3cui-sdk`.
 
 ## Testing
 

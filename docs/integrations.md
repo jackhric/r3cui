@@ -7,7 +7,7 @@ messages the UI does use (the remote's own state), see `docs/core-ws-protocol.md
 
 The first plan was to read the core's entities (`get_entities`, `entity_change`,
 `execute_entity_command`) and map the volume keys to a Home Assistant `media_player` through the
-core. That path is gone: `crates/coreapi` has no entity calls, and the core's receiver path and Kodi
+core. That path is gone: `crates/r3cui/src/coreapi` has no entity calls, and the core's receiver path and Kodi
 fallback were removed when the drivers landed. The core-side entity notes that used to be here are in
 the git history.
 

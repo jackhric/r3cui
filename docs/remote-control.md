@@ -24,7 +24,7 @@ without the simulator. Off by default.
 
 ## How it works
 
-- `crates/remotewire`: the protocol, named once for both ends: hard keys (`HardKey`; no power key: switching the
+- `crates/r3ctl` (the library): the protocol, named once for both ends: hard keys (`HardKey`; no power key: switching the
   remote off stays physical), requests, replies, and the key proof (HMAC-SHA256 of a fresh nonce; the key never
   crosses the network).
 - `crates/r3cui/src/remote_control/`: the server. It listens on port 10780 only while switched on, answers only

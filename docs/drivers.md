@@ -51,9 +51,10 @@ remote itself (power, battery, Wi-Fi, display, the key backlight hardware).
 ## Crates
 
 ```
-crates/wsclient        Shared WebSocket plumbing: connection with keep-alive, backoff, pending calls, a reconnecting
-                       `Session`. `testing` feature: the FakeServer scaffold the fakes are built on.
 crates/sdk             r3cui-sdk: what an integration is written against. No Slint, no client.
+  ws/                    shared WebSocket plumbing: connection with keep-alive, backoff, pending calls, a reconnecting
+                         `Session`; `tls` feature: wss:// (rustls on ring, which the bridge's static build leaves out);
+                         `testing` feature: `ws::testing`, the FakeServer scaffold the fakes are built on.
   api.rs                 the contract: ports, views, intents, the setup schema (Field), Status, Spec
   entry.rs               DriverEntry: one driver's setup as modules.json holds it
   run.rs                 helpers most drivers' tasks share (follow a watch, commands in order)
@@ -67,25 +68,29 @@ crates/kodi            The Kodi integration. The JSON-RPC client; `driver/`: the
                        wall. `testing` feature: FakeKodi.
 crates/androidtv       The Android TV integration. The Remote v2 client (pairing, keys, state); `driver`: the remote,
                        the app in front, power, pairing by code. `testing` feature: FakeTv.
-crates/demo            The demo integration: a made-up receiver, film and shelf; data.rs holds every made-up
-                       value, and `modules()` the setup that binds it. Carried only by the app's `demo` feature.
-crates/host            r3cui's side. Names no integration.
-  registry.rs            the driver types a build can run, from the app's list
-  config.rs              modules.json: instances, global bindings, inputs
-  inputs.rs              the input list: the source's list with the user's order, names, hiding
-  known.rs               targets.json: what each driver last offered, for the pickers offline
-  host.rs                runs the configured drivers and routes keys and views
-  testing.rs             FakeDriver: records intents, publishes views on demand
+crates/bridge          r3cui-bridge: r3cui's own Unfolded Circle integration (binary `driver`), which reaches what only
+                       integrations can (today the microphone), and the bridge link to r3cui. See docs/voice.md.
+crates/r3ctl           The wire protocol for remote control of r3cui (the library) and the r3ctl CLI.
 crates/r3cui           The app (binary remote-ui): renders the host's view, sends it intents, and draws
                        Settings → Integrations from the driver specs. `src/app/registry.rs` lists the
                        integrations it carries.
+  src/host/              r3cui's side of the drivers. Names no integration.
+    registry.rs            the driver types a build can run, from the app's list
+    config.rs              modules.json: instances, global bindings, inputs
+    inputs.rs              the input list: the source's list with the user's order, names, hiding
+    known.rs               targets.json: what each driver last offered, for the pickers offline
+    host.rs                runs the configured drivers and routes keys and views
+    testing.rs             (tests) FakeDriver: records intents, publishes views on demand
+  src/coreapi/           the Core-API client for the remote's own state
+  src/app/demo/          the demo: `integration.rs` is the Demo integration (a made-up receiver, film and shelf;
+                         `modules()` is the setup that binds it), `data.rs` holds every made-up value. `demo` feature.
 ```
 
 ## Writing an integration
 
 An integration is one crate, depending on `r3cui-sdk` and nothing else of r3cui's:
 
-1. Its own client for the device, built on `wsclient` if it speaks WebSocket, with its wire names in a `protocol`
+1. Its own client for the device, built on `r3cui_sdk::ws` if it speaks WebSocket, with its wire names in a `protocol`
    module and a `testing` feature with a fake server.
 2. A `driver` module, behind a default `driver` feature so the client stays usable alone: a `Spec`, a `field`
    module for its setup keys, a type implementing `api::Driver`, and
@@ -93,7 +98,7 @@ An integration is one crate, depending on `r3cui-sdk` and nothing else of r3cui'
 3. Its tests, against its own fake, with `r3cui_sdk::testing`.
 
 The app carries it with a dependency in `crates/r3cui/Cargo.toml` and one line in `src/app/registry.rs`. Nothing in
-`host` or `r3cui-sdk` changes, and the Integrations pages (and the web configurator's forms) are drawn from the `Spec`, so no Slint or HTML either.
+`src/host` or `r3cui-sdk` changes, and the Integrations pages (and the web configurator's forms) are drawn from the `Spec`, so no Slint or HTML either.
 
 ## The contract (`r3cui_sdk::api`)
 
@@ -138,7 +143,7 @@ the device is: when the source has listed no inputs, the empty Inputs page shows
 asks whether that address is online.
 
 `Target(kind)` fields and global control are picked from the driver's `targets(kind)`. The last list each driver gave
-is kept in `targets.json` beside `modules.json` (`host::KnownTargets`): a picker opens on it at once, keeps it (its
+is kept in `targets.json` beside `modules.json` (`host::KnownTargets` in the app): a picker opens on it at once, keeps it (its
 title marked "· offline") while the driver is down, and names what is bound as the driver last named it. Whatever is
 bound shows even with nothing to list.
 
@@ -234,7 +239,7 @@ A driver's status may name what is wrong ("Token rejected", "media_player.x not 
 ## Testing
 
 - Every engine (HA, Kodi, the input list, the host's routing) is plain logic with unit tests.
-- `FakeHa` and `FakeKodi` are real WebSocket servers in-process, built on `wsclient::testing`: the clients are
+- `FakeHa` and `FakeKodi` are real WebSocket servers in-process, built on `r3cui_sdk::ws::testing`: the clients are
   tested end to end, including reconnects.
 - `FakeDriver` lets host tests check routing without any network. `FAKE_PAIRABLE` is its spec with a code pairing.
 - `FakeTv` (crates/androidtv) is a TLS Android TV with both ports; the Android TV driver's tests pair with it and

@@ -1,7 +1,7 @@
 # Voice: hold to talk, sent where r3cui says
 
 Status (2026-11-26): built end to end and tested against fakes; the demo answers made-up speech
-(`scripts/voice.steps`). Nothing has run on the remote yet: the relay is not installed, the microphone is off and
+(`scripts/voice.steps`). Nothing has run on the remote yet: the bridge is not installed, the microphone is off and
 no voice assistant is set (see "Setting it up on the remote").
 
 Hold the voice key, talk, let go. r3cui shows that it is listening the moment the key goes down, sends the audio
@@ -13,10 +13,10 @@ to wherever Global control → Voice points (Home Assistant Assist first), and s
 place only: the integration whose `voice_assistant` entity is the active voice assistant, over the
 Integration-API, while a session runs. r3cui is the UI, not an integration, so it cannot receive it directly.
 
-So r3cui ships its own small custom integration, **r3cui-voice** (`crates/voice-relay`), installed on the remote
+So r3cui ships its own small custom integration, **r3cui bridge** (`crates/bridge`), installed on the remote
 the supported way (`POST /api/intg/install`; custom integrations do not set the warranty flag). It does one
-thing: it receives the core's audio and hands it straight to r3cui. Where the audio goes, and everything after,
-is decided in r3cui, which already holds the Home Assistant connection. The relay has no settings of its own.
+thing today: it receives the core's audio and hands it straight to r3cui. Where the audio goes, and everything after,
+is decided in r3cui, which already holds the Home Assistant connection. The bridge has no settings of its own.
 
 ## The path
 
@@ -26,15 +26,15 @@ voice key down (evdev)
   r3cui → HA: assist_pipeline/run (stt → intent), so HA is ready before the first chunk
   key held 800 ms (the microphone powers up ~650 ms into a press; voice-core refuses a stream asked for sooner)
   r3cui → core: execute_entity_command voice_start {session_id, timeout}   (Core-API)
-      core → relay: entity_command voice_start      relay: OK at once, then assistant_event ready
-      core → relay: binary frames voice_begin, voice_data..., (Integration-API, protobuf)
-      relay → r3cui: begin, PCM chunks                (voice link, localhost)
+      core → bridge: entity_command voice_start      bridge: OK at once, then assistant_event ready
+      core → bridge: binary frames voice_begin, voice_data..., (Integration-API, protobuf)
+      bridge → r3cui: begin, PCM chunks                (bridge link, localhost)
   r3cui → HA: [stt_binary_handler_id] + PCM per chunk
 voice key up
-  r3cui → core: voice_end;  core → relay: binary voice_end (no entity_command);  relay → r3cui: end
+  r3cui → core: voice_end;  core → bridge: binary voice_end (no entity_command);  bridge → r3cui: end
   r3cui → HA: [stt_binary_handler_id] alone (end of audio)
   HA → r3cui: stt-end (what was heard), intent-end (the answer), run-end
-  r3cui → relay: finished (or error);  relay → core: assistant_event finished (or error)
+  r3cui → bridge: finished (or error);  bridge → core: assistant_event finished (or error)
 ```
 
 Audio is what the core sends by default: PCM, 16 kHz, mono, signed 16-bit, in chunks every 100-200 ms.
@@ -43,50 +43,50 @@ Audio is what the core sends by default: PCM, 16 kHz, mono, signed 16-bit, in ch
 
 | Piece | Where | What |
 |---|---|---|
-| Voice link | `crates/voicelink` | The localhost protocol between the relay and r3cui, defined once and used by both (see below). |
-| Relay | `crates/voice-relay` | The integration: answers the Integration-API (driver version, device state, the one `voice_assistant` entity, entity states, subscribe, `entity_command`), decodes the core's protobuf audio frames, serves the voice link to r3cui, reports `ready`/`finished`/`error` back to the core. A static aarch64 binary plus `driver.json`, packed as a `.tar.gz`. |
-| Assist | `crates/homeassistant` | `assist_pipeline/pipeline/list` and `assist_pipeline/run`, the binary audio frames, typed pipeline events. Needs binary frames in `crates/wsclient`. |
+| Bridge link | `crates/bridge/src/link/` | The localhost protocol between the bridge and r3cui, its frames and r3cui's client defined once and used by both (see below). |
+| Bridge | `crates/bridge` | The integration: answers the Integration-API (driver version, device state, the one `voice_assistant` entity, entity states, subscribe, `entity_command`), decodes the core's protobuf audio frames, serves the bridge link to r3cui, reports `ready`/`finished`/`error` back to the core. A static aarch64 binary plus `driver.json`, packed as a `.tar.gz`. |
+| Assist | `crates/homeassistant` | `assist_pipeline/pipeline/list` and `assist_pipeline/run`, the binary audio frames, typed pipeline events. Needs binary frames in `r3cui_sdk::ws`. |
 | Voice port | `crates/sdk` | A driver can take voice (`Provides.voice`, `Driver::voice()`): start a session, push chunks, end, and report what was heard and the answer. Global control gains **Voice**, bound like Volume and Inputs. Home Assistant provides it, one target per Assist pipeline. |
-| Core | `crates/coreapi` | `execute_entity_command` (`voice_start`, `voice_end`) and the `assistant_event` stream. |
+| Core | `crates/r3cui/src/coreapi` | `execute_entity_command` (`voice_start`, `voice_end`) and the `assistant_event` stream. |
 | UI | `crates/r3cui` | The voice key held starts a session, released ends it (a press shorter than 800 ms sends nothing to the core; the inputs are Home's, held); the voice overlay: listening, what was heard, the answer or an error. |
 
-## The voice link
+## The bridge link
 
-A WebSocket on `127.0.0.1:10790` (`voicelink::PORT`; custom integrations may not use ports below 1024 or 8000-9200).
-The relay listens, r3cui connects and reconnects; a new connection replaces the old one.
+A WebSocket on `127.0.0.1:10790` (`r3cui_bridge::link::PORT`; custom integrations may not use ports below 1024 or 8000-9200).
+The bridge listens, r3cui connects and reconnects; a new connection replaces the old one.
 
 | Direction | Frame | Meaning |
 |---|---|---|
-| relay → r3cui | text `{"type":"begin","session_id":7,"sample_rate":16000,"channels":1,"format":"i16"}` | audio for session 7 starts |
-| relay → r3cui | binary | PCM samples of the session that began |
-| relay → r3cui | text `{"type":"end","session_id":7}` | the user let go: no more audio |
-| r3cui → relay | text `{"type":"finished","session_id":7}` | done; the relay tells the core |
-| r3cui → relay | text `{"type":"error","session_id":7,"code":"NO_TEXT_RECOGNIZED","message":"..."}` | failed; `code` is one of the core's: `TIMEOUT`, `NO_TEXT_RECOGNIZED`, `INVALID_AUDIO`, `SERVICE_UNAVAILABLE`, `INTENT_FAILED`, `TTS_FAILED`, `UNEXPECTED_ERROR` |
+| bridge → r3cui | text `{"type":"begin","session_id":7,"sample_rate":16000,"channels":1,"format":"i16"}` | audio for session 7 starts |
+| bridge → r3cui | binary | PCM samples of the session that began |
+| bridge → r3cui | text `{"type":"end","session_id":7}` | the user let go: no more audio |
+| r3cui → bridge | text `{"type":"finished","session_id":7}` | done; the bridge tells the core |
+| r3cui → bridge | text `{"type":"error","session_id":7,"code":"NO_TEXT_RECOGNIZED","message":"..."}` | failed; `code` is one of the core's: `TIMEOUT`, `NO_TEXT_RECOGNIZED`, `INVALID_AUDIO`, `SERVICE_UNAVAILABLE`, `INTENT_FAILED`, `TTS_FAILED`, `UNEXPECTED_ERROR` |
 
-`session_id` is the one r3cui chose for `voice_start`; the relay passes it through.
+`session_id` is the one r3cui chose for `voice_start`; the bridge passes it through.
 
-## The relay
+## The bridge
 
 - The Integration-API server listens on `$UC_INTEGRATION_INTERFACE:$UC_INTEGRATION_HTTP_PORT` (127.0.0.1:10791 when
-  unset, for desktop runs) and the voice link on 127.0.0.1:10790. Logs go to stdout.
+  unset, for desktop runs) and the bridge link on 127.0.0.1:10790. Logs go to stdout.
 - One entity: id `voice`, type `voice_assistant`, name "r3cui", features `transcription` and `response_text`,
   default `audio_cfg` (16 kHz, 1 channel, `I16`) and one profile. The core may show it prefixed with the driver id
-  (`r3cui_voice`); that is unverified.
+  (`r3cui_bridge`); that is unverified.
 - `voice_start` is answered `200` at once, then `assistant_event` `ready`. With no r3cui on the link it is still
   answered `200`, followed by `assistant_event` `error` `SERVICE_UNAVAILABLE` ("r3cui is not listening"). If the
   link drops mid-session the core gets the same error ("r3cui disconnected").
 - `setup_driver` finishes at once (`driver_setup_change` `STOP`/`OK`): there is nothing to set up.
-- `driver.json` is `crates/voice-relay/driver.json`; a test keeps its version equal to the crate's. `min_core_api`
+- `driver.json` is `crates/bridge/driver.json`; a test keeps its version equal to the crate's. `min_core_api`
   `0.20.0` is copied from the manufacturer's example and is not enforced by the core yet.
-- The core's frames are decoded with prost structs written out in `crates/voice-relay/src/proto.rs` (no protoc in the
+- The core's frames are decoded with prost structs written out in `crates/bridge/src/proto.rs` (no protoc in the
   build), checked against bytes encoded by hand from the vendored `proto/ucr_integration_voice.proto` (CC BY-SA 4.0).
 
 ### Building it
 
-`scripts/build-relay.sh` builds `-p voice-relay --bin driver` for `aarch64-unknown-linux-musl` in the same container
+`scripts/build-bridge.sh` builds `-p r3cui-bridge --bin driver` for `aarch64-unknown-linux-musl` in the same container
 as `scripts/build-device.sh`, linked with the toolchain's `rust-lld` (the dependencies are pure Rust, so no cross gcc
 or SDK is needed), and gives a fully static binary, which a custom integration must be (the SDK's glibc build of
-r3cui is dynamic). It then runs `packaging/voice-relay.sh`, which writes `packaging/out/relay/r3cui-voice.tar.gz`
+r3cui is dynamic). It then runs `packaging/bridge.sh`, which writes `packaging/out/bridge/r3cui-bridge.tar.gz`
 (`driver.json` at the root, `bin/driver`).
 
 ### Assist API (`crates/homeassistant`)
@@ -101,7 +101,7 @@ r3cui is dynamic). It then runs `packaging/voice-relay.sh`, which writes `packag
   then `None` (also `None` when the connection is lost first). Dropping a run that has not finished cancels it in HA.
 - `VoiceError` (`Timeout`, `NoTextRecognized`, `InvalidAudio`, `ServiceUnavailable`, `Unexpected`) mirrors the core's
   codes; the HA strings are mapped in one place (`assist.rs`), named in `protocol::assist::error_code`.
-- `crates/wsclient` sends binary frames through `Connection::out` (`Outbox::send_binary`), in order with text.
+- `r3cui_sdk::ws` sends binary frames through `Connection::out` (`Outbox::send_binary`), in order with text.
 - `FakeHa` answers the list and runs, records binary frames (`audio_frames()`), and scripts events (`run_event`).
 
 ## On screen
@@ -120,15 +120,16 @@ go and it settles behind a `Spinner`; the answer shows, then everything fades. A
 ## Setting it up on the remote
 
 System → **Voice assistant** does it in one tap (`crates/r3cui/src/remote/voicesetup.rs`): r3cui's archive carries the
-relay's (`bin/r3cui-voice.tar.gz`), which it installs over REST (`POST /api/intg/install`, `?update=true` when an older
+bridge's (`bin/r3cui-bridge.tar.gz`), which it installs over REST (`POST /api/intg/install`, `?update=true` when an older
 one is there), sets up (`POST /api/intg/setup`), adds its entity (`POST /api/intg/instances/<id>/entities`), then turns
-the microphone on and makes `r3cui_voice.main.voice` the voice assistant over the WebSocket (`set_voice_control_cfg`).
-Each step is skipped when already done. Then Global control → Voice → Home Assistant, and pick the pipeline (none is
+the microphone on and makes `r3cui_bridge.main.voice` the voice assistant over the WebSocket (`set_voice_control_cfg`).
+Each step is skipped when already done. A remote set up when the bridge was still called `r3cui_voice` has that driver and its
+instance removed first. Then Global control → Voice → Home Assistant, and pick the pipeline (none is
 Home Assistant's preferred one).
 
 ## To check on the device first
 
-- The relay and r3cui are separate sandboxes. The relay must be able to listen on localhost and r3cui to connect
+- The bridge and r3cui are separate sandboxes. The bridge must be able to listen on localhost and r3cui to connect
   to it. Custom integrations share the remote's network (the Kodi integration reaches Kodi), so this should hold.
 - The core streams for a `voice_start` that r3cui sends, not only for its own voice-key handling.
 
