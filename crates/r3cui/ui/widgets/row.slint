@@ -25,7 +25,7 @@ export component Row inherits Rectangle {
     property <bool> compact: root.size == RowSize.compact;
     property <length> mark-w: root.choice.icon != "" ? 32px : root.uc-mark ? 27px : root.glyph != "" ? 24px : root.choice.dot != Dot.none ? Layout.dot-size : 0px;
     property <length> lead: root.mark-w > 0 ? Layout.margin + root.mark-w + Layout.lead-gap : Layout.margin;
-    property <length> edge: (root.choice.checked || root.choice.chevron || root.choice.bars > 0 ? Layout.value-edge-trailing : Layout.value-edge) - (root.choice.locked ? 44px : 0px) - root.trailing;
+    property <length> edge: (root.choice.bars > 0 ? (root.choice.locked ? Layout.lock-x : Layout.bars-x) - Layout.lead-gap : root.choice.checked || root.choice.chevron ? Layout.value-edge-trailing : Layout.value-edge) - root.trailing;
     // The focused or hovered row lifts very slightly; the others settle back.
     property <float> lift: (root.focused || ta.has-hover) && !root.dimmed ? Motion.lift-scale : 1;
     animate lift { duration: Motion.lift; easing: ease-out; }
@@ -133,17 +133,17 @@ export component Row inherits Rectangle {
         color: Theme.t2;
     }
     if root.choice.locked: Glyph {
-        x: Layout.value-edge-trailing - 38px;
+        x: Layout.lock-x;
         commands: Icons.lock;
         tint: Theme.t3;
     }
     if root.choice.bars > 0: Rectangle {
         for n in 4: Rectangle {
-            x: Layout.value-edge-trailing + 6px + n * 8px;
-            y: parent.height / 2 + 11px - self.height;
-            width: 5px;
-            height: 7px + n * 5px;
-            border-radius: 2px;
+            x: Layout.bars-x + n * Layout.bar-pitch;
+            y: parent.height / 2 + Layout.bars-drop - self.height;
+            width: Layout.bar-w;
+            height: Layout.bar-base + n * Layout.bar-step;
+            border-radius: Layout.bar-radius;
             background: n < root.choice.bars ? Theme.t2 : Theme.track;
         }
     }

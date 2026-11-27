@@ -269,7 +269,7 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
         .iter()
         .map(|n| Choice {
             label: (&n.ssid).into(),
-            value: if n.connected { "Connected".into() } else { SharedString::new() },
+            checked: n.connected,
             locked: n.secured && !n.connected,
             bars: n.bars,
             ..Default::default()
