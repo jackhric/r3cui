@@ -10,7 +10,7 @@
 
 use anyhow::{anyhow, bail, Context};
 use futures_util::{SinkExt, StreamExt};
-use remotewire::{Challenge, Envelope, HardKey, Hello, KeyAction, Point, Reply, Request};
+use r3ctl::{Challenge, Envelope, HardKey, Hello, KeyAction, Point, Reply, Request};
 use tokio_tungstenite::tungstenite::Message;
 
 const HOST_ENV: &str = "R3CTL_HOST";
@@ -62,13 +62,13 @@ async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let (request, out) = parse(&args)?;
     let host = std::env::var(HOST_ENV).unwrap_or_else(|_| "127.0.0.1".into());
-    let host = if host.contains(':') { host } else { format!("{host}:{}", remotewire::PORT) };
+    let host = if host.contains(':') { host } else { format!("{host}:{}", r3ctl::PORT) };
     let key = std::env::var(KEY_ENV).with_context(|| format!("set {KEY_ENV} to the key shown on the remote"))?;
 
-    let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{host}{}", remotewire::PATH)).await.with_context(|| format!("connecting to {host}"))?;
+    let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://{host}{}", r3ctl::PATH)).await.with_context(|| format!("connecting to {host}"))?;
     let first = ws.next().await.ok_or_else(|| anyhow!("closed before the challenge"))??;
     let Challenge::Challenge { nonce } = serde_json::from_str(first.to_text()?)?;
-    ws.send(Message::text(serde_json::to_string(&Hello::Hello { proof: remotewire::proof(&key, &nonce) })?)).await?;
+    ws.send(Message::text(serde_json::to_string(&Hello::Hello { proof: r3ctl::proof(&key, &nonce) })?)).await?;
     ws.send(Message::text(serde_json::to_string(&Envelope { id: 1, body: request })?)).await?;
 
     let reply = loop {

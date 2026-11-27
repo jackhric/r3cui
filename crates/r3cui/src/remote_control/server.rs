@@ -4,7 +4,7 @@ use super::act;
 use crate::app::UiAction;
 use crate::AppWindow;
 use futures_util::{SinkExt, StreamExt};
-use remotewire::{Challenge, Envelope, Hello, Reply, Request};
+use r3ctl::{Challenge, Envelope, Hello, Reply, Request};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
@@ -27,7 +27,7 @@ static LOCKED_UNTIL: Mutex<Option<Instant>> = Mutex::new(None);
 
 /// This remote's address on the network as `ip:port`.
 pub(super) fn address() -> String {
-    format!("{}:{}", lan_ip(), remotewire::PORT)
+    format!("{}:{}", lan_ip(), r3ctl::PORT)
 }
 
 /// This remote's address on the network: the route out picks it, without sending anything.
@@ -47,7 +47,7 @@ pub(super) async fn run(mut listen: watch::Receiver<Option<String>>, weak: slint
             }
             continue;
         };
-        let addr = SocketAddr::from(([0, 0, 0, 0], remotewire::PORT));
+        let addr = SocketAddr::from(([0, 0, 0, 0], r3ctl::PORT));
         let listener = match TcpListener::bind(addr).await {
             Ok(l) => l,
             Err(e) => {
@@ -126,7 +126,7 @@ async fn connection(mut stream: TcpStream, key: &str, weak: slint::Weak<AppWindo
     ws.send(Message::text(serde_json::to_string(&Challenge::Challenge { nonce: nonce.clone() })?)).await?;
     let hello = tokio::time::timeout(HELLO_WAIT, ws.next()).await?.ok_or_else(|| anyhow::anyhow!("gone before hello"))??;
     let Hello::Hello { proof } = serde_json::from_str(hello.to_text()?)?;
-    if !remotewire::same(&proof, &remotewire::proof(key, &nonce)) {
+    if !r3ctl::same(&proof, &r3ctl::proof(key, &nonce)) {
         missed();
         anyhow::bail!("wrong key");
     }

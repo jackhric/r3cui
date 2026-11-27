@@ -3,12 +3,23 @@ name = "r3ctl"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Drive and watch r3cui on a remote (or the desktop demo) over the network: keys, touches, pages, state, screenshots."
+description = "Drive and watch r3cui on a remote (or the desktop demo) over the network: keys, touches, pages, state, screenshots. The library is the wire protocol r3cui serves; the r3ctl binary is the CLI."
 
 [dependencies]
-remotewire = { path = "../remotewire" }
-tokio.workspace = true
-tokio-tungstenite.workspace = true
-futures-util.workspace = true
+serde.workspace = true
 serde_json.workspace = true
-anyhow.workspace = true
+sha2 = "0.10"
+tokio = { workspace = true, optional = true }
+tokio-tungstenite = { workspace = true, optional = true }
+futures-util = { workspace = true, optional = true }
+anyhow = { workspace = true, optional = true }
+
+[features]
+default = ["cli"]
+# The r3ctl binary; r3cui takes the protocol alone.
+cli = ["dep:tokio", "dep:tokio-tungstenite", "dep:futures-util", "dep:anyhow"]
+
+[[bin]]
+name = "r3ctl"
+path = "src/main.rs"
+required-features = ["cli"]

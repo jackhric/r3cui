@@ -8,7 +8,7 @@ use crate::view::screen::page_by_name;
 use crate::view::screen::Screen as _;
 use crate::{AppWindow, Control, Nav, RemoteControl, Sys, Voice};
 use image::ImageEncoder;
-use remotewire::{HardKey, KeyAction, Point, Reply, Request, State};
+use r3ctl::{HardKey, KeyAction, Point, Reply, Request, State};
 use slint::platform::{PointerEventButton, WindowEvent};
 use slint::{ComponentHandle, LogicalPosition, SharedString};
 use std::sync::atomic::{AtomicI32, Ordering};

@@ -1,5 +1,5 @@
 //! Remote control: a small server inside r3cui so the remote can be watched and driven from the local network
-//! (`crates/remotewire` is the protocol, `r3ctl` a client). Switched on and off in Settings → System → Remote
+//! (`crates/r3ctl` is the protocol, `r3ctl` a client). Switched on and off in Settings → System → Remote
 //! control, with an access key shown there; a client proves it holds the key without sending it. While off nothing
 //! listens; while on it waits on its socket and works only when asked, so a remote on battery pays only for use.
 
