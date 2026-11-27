@@ -23,7 +23,7 @@ use crate::Cfg;
 use crate::Wifi;
 use crate::view::screen::Screen;
 use crate::PageId;
-use crate::{AppWindow, Capture, Choice, Dot, JoinState, Logos, InputRow, NoInputs as NoInputsView, Theme, WifiRow};
+use crate::{AppWindow, Choice, Dot, JoinState, Logos, InputRow, NoInputs as NoInputsView, Theme, WifiRow};
 
 use crate::app::settings;
 use crate::app::model::{Model, NoInputs};
@@ -32,7 +32,7 @@ use crate::hardware::backlight;
 use crate::app::global::{volume_db, volume_percent};
 use crate::view::format::{address_label, band_label, clock, codec_badge, codec_logo, input_logo};
 use crate::view::idle::poke;
-use crate::view::stage::{capture, stage_change};
+use crate::view::stage::stage_change;
 #[cfg(feature = "device")]
 use crate::hardware::frames;
 
@@ -140,12 +140,7 @@ pub(crate) fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
 /// Show the volume overlay and hide it again once the keys have been quiet for a moment.
 pub(crate) fn flash_volume(weak: &slint::Weak<AppWindow>, generation: &Arc<AtomicU64>) {
     let mine = generation.fetch_add(1, Ordering::SeqCst) + 1;
-    ui(weak, |app| {
-        if !app.global::<Control>().get_volume_overlay() {
-            capture(&app, Capture::World);
-        }
-        app.global::<Control>().set_volume_overlay(true);
-    });
+    ui(weak, |app| app.global::<Control>().set_volume_overlay(true));
     let (weak, generation) = (weak.clone(), generation.clone());
     tokio::spawn(async move {
         tokio::time::sleep(VOLUME_OVERLAY).await;
@@ -210,9 +205,6 @@ pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
     app.global::<Sys>().set_battery(m.battery);
     if m.charging != app.global::<Sys>().get_charging() {
         // Put on the charger: show the battery, and start counting down to dark from now.
-        if m.charging {
-            capture(app, Capture::World);
-        }
         app.global::<Sys>().set_charge_card(m.charging);
         if m.charging {
             poke();

@@ -1,27 +1,19 @@
-import { Fx } from "../globals/fx.slint";
 import { Voice } from "../globals/voice.slint";
 import { Theme, Layout, Type, Motion } from "../theme.slint";
-import { Capture, VoiceStage } from "../types.slint";
+import { VoiceStage } from "../types.slint";
 import { Spinner } from "../widgets/spinner.slint";
+import { Overlay } from "../widgets/overlay.slint";
 
 // Hold the voice key: light rises round the edges and moves with the voice; let go, a spinner while the answer is
 // worked out; then the answer, and everything fades.
-export component VoiceOverlay inherits Rectangle {
-    property <bool> shown: Voice.stage != VoiceStage.off;
+export component VoiceOverlay inherits Overlay {
+    shown: Voice.stage != VoiceStage.off;
+    driven: Voice.depth;
+    fade-out: Voice.cut-short ? Motion.lift : Motion.voice-fade;
     property <bool> listening: Voice.stage == VoiceStage.listening;
     property <bool> thinking: Voice.stage == VoiceStage.thinking;
     property <bool> failed: Voice.stage == VoiceStage.failed;
     property <bool> done: Voice.stage == VoiceStage.answered || root.failed;
-    opacity: self.shown ? 1 : 0;
-    visible: self.opacity > 0 && Fx.capturing == Capture.none;
-    animate opacity { duration: root.shown || Voice.cut-short ? Motion.lift : Motion.voice-fade; easing: ease-in-out; }
-
-    // Words need a quiet ground; the light alone does not.
-    Rectangle {
-        background: Theme.scrim;
-        opacity: root.listening ? 0 : 1;
-        animate opacity { duration: Motion.voice-fade; easing: ease-in-out; }
-    }
     Image {
         width: Layout.screen-w;
         height: Layout.screen-h;

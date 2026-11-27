@@ -1,16 +1,11 @@
-import { Theme, Layout } from "../theme.slint";
+import { Layout } from "../theme.slint";
 import { Control } from "../globals/control.slint";
-import { Fx } from "../globals/fx.slint";
 import { Glyph, Icons } from "../marks/icons.slint";
-import { Capture } from "../types.slint";
 import { VolumeReadout } from "volume-readout.slint";
+import { Overlay } from "../widgets/overlay.slint";
 
-export component VolumeOverlay inherits Rectangle {
-    property <bool> shown: Control.volume-overlay && Control.power-on;
-    background: Theme.scrim;
-    opacity: self.shown ? 1 : 0;
-    visible: self.opacity > 0 && Fx.capturing == Capture.none;
-    animate opacity { duration: 180ms; easing: ease-out; }
+export component VolumeOverlay inherits Overlay {
+    shown: Control.volume-overlay && Control.power-on;
 
     Glyph {
         y: 198px;

@@ -25,8 +25,8 @@ export global Theme {
     out property <easing> page-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
     // How far a page sits to the side before it slides in.
     out property <length> page-offset: 56px;
-    // Behind an overlay: what is under it stays faintly there.
-    out property <color> scrim: #000000A6;
+    // Under whatever opens over the screen, a list or an overlay: the receded screen shows faintly through.
+    out property <color> veil: #000000B8;
 }
 
 // The screen and the grid every page and row is laid out on.
@@ -134,9 +134,9 @@ export global Motion {
     out property <duration> voice-fade: 1000ms;
     // One turn of a spinner.
     out property <duration> spin: 1100ms;
-    // How long whatever is under an overlay takes to step back, and to return.
-    out property <duration> under: 380ms;
-    // The stage stepping back behind a menu or the voice overlay: how much it shrinks and dims.
+    // How long the screen takes to step back behind a list or an overlay, and to return.
+    out property <duration> recede: 460ms;
+    // The screen stepping back behind a list or an overlay: how much it shrinks and dims.
     out property <float> recede-scale: 0.08;
     out property <float> recede-dim: 0.55;
 }

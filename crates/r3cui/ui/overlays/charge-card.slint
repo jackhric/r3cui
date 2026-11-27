@@ -1,14 +1,10 @@
-import { Fx } from "../globals/fx.slint";
 import { Sys } from "../globals/sys.slint";
 import { Marks } from "../marks/icons.slint";
 import { Theme, Layout, Type } from "../theme.slint";
-import { Capture } from "../types.slint";
+import { Overlay } from "../widgets/overlay.slint";
 
-export component ChargeCard inherits Rectangle {
-    background: #000000C0;
-    opacity: Sys.charge-card && Sys.lit ? 1 : 0;
-    visible: self.opacity > 0 && Fx.capturing == Capture.none;
-    animate opacity { duration: 300ms; easing: ease-in-out; }
+export component ChargeCard inherits Overlay {
+    shown: Sys.charge-card && Sys.lit;
     Rectangle {
         x: 122px;
         y: 300px;

@@ -3,8 +3,7 @@
 use crate::app::meter;
 use crate::view::aurora::{self, Look};
 use crate::view::ease::Bezier;
-use crate::view::stage::capture;
-use crate::{AppWindow, Capture, Motion, Theme, Voice as Shown, VoiceStage};
+use crate::{AppWindow, Motion, Theme, Voice as Shown, VoiceStage};
 use r3cui_sdk::api::{Voice, VoiceFailure, VoicePhase};
 use slint::ComponentHandle;
 use std::cell::RefCell;
@@ -58,10 +57,6 @@ pub(crate) fn show(app: &AppWindow, voice: Option<&Voice>) {
         VoicePhase::Answered { .. } => (VoiceStage::Answered, voice.answer.clone()),
         VoicePhase::Failed(f) => (VoiceStage::Failed, failure(f).to_string()),
     };
-    // Opening, the screen under it is blurred as it is for every overlay.
-    if v.get_stage() == VoiceStage::Off {
-        capture(app, Capture::World);
-    }
     v.set_stage(stage);
     v.set_session(voice.session as i32);
     v.set_heard(voice.heard.as_str().into());
@@ -182,8 +177,8 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
             let Some(s) = scene.as_mut() else { return };
             let dt = now.duration_since(s.last).as_secs_f32();
             s.last = now;
-            let under = Duration::from_millis(app.global::<Motion>().get_under() as u64);
-            s.depth = follow(s.depth, 0.0, dt, under, under);
+            let recede = Duration::from_millis(app.global::<Motion>().get_recede() as u64);
+            s.depth = follow(s.depth, 0.0, dt, recede, recede);
             app.global::<Shown>().set_depth(s.depth);
             if s.depth < DEPTH_GONE {
                 app.global::<Shown>().set_depth(0.0);

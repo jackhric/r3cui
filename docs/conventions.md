@@ -25,7 +25,11 @@ left out. Slint contracts are checked when the crate compiles.
 ## One primitive per look
 
 Every page inherits `Layer` (`widgets/layer.slint`), which slides it in and out and slides its own nested screens
-(`Nav.inner`). A page is either a list or unique:
+(`Nav.inner`). Every overlay (volume, the holds, charging, voice) inherits `Overlay` (`widgets/overlay.slint`): it
+fades in over `Theme.veil`, takes the blurred snapshot as it opens, and the screen behind recedes by the deepest
+open overlay's `depth` exactly as the stage does behind a list (`Motion.recede`, `recede-scale`, `recede-dim`). An
+overlay that times its own recede sets `driven` (the voice overlay, by the key's hold). A page is either a list or
+unique:
 
 - A **list** hands its rows to `ChoiceList`.
 - A **unique** page (System, an update, the web configurator) puts its parts in a `PageBody`

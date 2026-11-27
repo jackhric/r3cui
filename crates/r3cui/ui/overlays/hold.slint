@@ -4,8 +4,9 @@ import { KeyChars } from "../globals/keys.slint";
 import { Nav } from "../globals/nav.slint";
 import { Glyph, Icons, Logo } from "../marks/icons.slint";
 import { Theme, Layout } from "../theme.slint";
-import { Capture, Haptic, PageId } from "../types.slint";
+import { Haptic, PageId } from "../types.slint";
 import { Ring } from "../widgets/ring.slint";
+import { Overlay } from "../widgets/overlay.slint";
 
 enum HoldKind {
     home,
@@ -15,7 +16,7 @@ enum HoldKind {
 
 // Holding power, Home or the menu key: one overlay. A ring fills around a mark placed exactly where the home
 // screen's mark sits. Progress runs from the clock, so every hold starts from an empty ring.
-export component HoldOverlay inherits Rectangle {
+export component HoldOverlay inherits Overlay {
     out property <bool> power-overlay: root.power-holding || root.power-latched;
     out property <bool> power-turning-off: true;
     out property <bool> key-holding: root.key-down && root.key-rumbling && !root.key-used;
@@ -47,7 +48,6 @@ export component HoldOverlay inherits Rectangle {
         if (!root.power-latched) {
             root.power-turning-off = Control.power-on;
             root.power-completed = false;
-            Fx.capture(Capture.world);
             root.hold-look = HoldKind.power;
             root.power-hold-start = animation-tick();
             root.power-holding = true;
@@ -98,10 +98,7 @@ export component HoldOverlay inherits Rectangle {
         root.release-key(HoldKind.menu);
     }
 
-    background: #000000A6;
-    opacity: root.hold-shown ? 1 : 0;
-    visible: self.opacity > 0 && Fx.capturing == Capture.none;
-    animate opacity { duration: 160ms; easing: ease-out; }
+    shown: root.hold-shown;
 
     Timer {
         interval: 1200ms;
@@ -119,7 +116,6 @@ export component HoldOverlay inherits Rectangle {
         interval: 160ms;
         running: root.key-down && !root.key-used && !root.key-rumbling;
         triggered => {
-            Fx.capture(Capture.world);
             root.hold-look = root.key-held;
             root.key-hold-start = animation-tick();
             root.key-rumbling = true;

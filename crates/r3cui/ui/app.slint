@@ -85,10 +85,9 @@ export component AppWindow inherits Window {
     out property <bool> power-turning-off: hold.power-turning-off;
 
     property <float> recede: Nav.page != PageId.home ? 1 : 0;
-    animate recede { duration: 460ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
-    property <bool> overlay-open: (Control.volume-overlay && Control.power-on) || hold.power-overlay || hold.key-holding || (Sys.charge-card && Sys.lit);
-    property <float> under: root.overlay-open ? 1 : 0;
-    animate under { duration: Motion.under; easing: Theme.page-easing; }
+    animate recede { duration: Motion.recede; easing: Theme.page-easing; }
+    // The deepest open overlay: the screen behind recedes by it as the stage does behind a list.
+    property <float> overlay-depth: max(max(volume.depth, voice.depth), max(hold.depth, charge.depth));
     public function hold-swap() { stage.hold-swap(); }
     public function run-swap() { stage.run-swap(); }
 
@@ -230,7 +229,7 @@ export component AppWindow inherits Window {
         // since Slint cannot blur live content.
         world := Rectangle {
             transform-origin: { x: self.width / 2, y: self.height / 2 };
-            transform-scale: Fx.capturing != Capture.none ? 1 : (1 - 0.05 * root.under) * (1 - Motion.recede-scale * Voice.depth);
+            transform-scale: Fx.capturing != Capture.none ? 1 : 1 - Motion.recede-scale * root.overlay-depth;
 
             stage := Stage { recede: root.recede; }
 
@@ -239,7 +238,7 @@ export component AppWindow inherits Window {
                 opacity: root.recede;
                 transform-origin: { x: self.width / 2, y: self.height / 2 };
                 transform-scale: 1.04 - 0.04 * root.recede;
-                background: #000000B8;
+                background: Theme.veil;
                 // The stage behind is only scenery while a list is open.
                 TouchArea { mouse-cursor: Theme.cursor; }
 
@@ -270,26 +269,26 @@ export component AppWindow inherits Window {
                 height: Layout.screen-h;
                 source: Fx.world-blur;
                 image-fit: fill;
-                opacity: max(root.under, Voice.depth);
+                opacity: root.overlay-depth;
                 visible: self.opacity > 0 && Fx.capturing == Capture.none;
             }
 
             Rectangle {
                 background: Theme.bg;
-                opacity: Motion.recede-dim * Voice.depth;
+                opacity: Motion.recede-dim * root.overlay-depth;
                 visible: self.opacity > 0 && Fx.capturing == Capture.none;
             }
         }
 
         // Volume overlay, over everything.
-        VolumeOverlay { }
-        VoiceOverlay { }
+        volume := VolumeOverlay { }
+        voice := VoiceOverlay { }
     }
 
     hold := HoldOverlay { }
 
     // Charging: the battery, full screen, until the first touch or key.
-    ChargeCard { }
+    charge := ChargeCard { }
 
     // The navbar belongs to no layer: it stays put through every transition, fading only with
     // sleep, and is kept out of the snapshots so no blurred copy of it shows behind it.

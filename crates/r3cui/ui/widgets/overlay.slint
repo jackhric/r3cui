@@ -1,0 +1,33 @@
+import { Fx } from "../globals/fx.slint";
+import { Theme, Layout, Motion } from "../theme.slint";
+import { Capture } from "../types.slint";
+
+// What every overlay (volume, holds, charging, voice) is built on, as pages are on `Layer`: it fades in over the
+// veil, and the screen behind recedes exactly as the stage does behind a list (shrunk, dimmed, a blurred snapshot of
+// it over the top), by the deepest overlay's `depth` (app.slint). The snapshot is taken as it opens, since Slint
+// cannot blur live content, and it is never in a snapshot itself.
+export component Overlay inherits Rectangle {
+    in property <bool> shown;
+    // An overlay that times its own recede (the voice overlay, by the key's hold) sets this to 0..1; otherwise the
+    // recede follows `shown`.
+    in property <float> driven: -1;
+    // How it goes: the voice overlay lingers on its answer, then fades slowly.
+    in property <duration> fade-out: Motion.lift;
+    out property <float> depth: root.driven >= 0 ? root.driven : root.eased;
+    property <float> eased: root.shown ? 1 : 0;
+    animate eased { duration: Motion.recede; easing: Theme.page-easing; }
+
+    width: Layout.screen-w;
+    height: Layout.screen-h;
+    background: Theme.veil;
+    opacity: root.shown ? 1 : 0;
+    visible: self.opacity > 0 && Fx.capturing == Capture.none;
+    animate opacity { duration: root.shown ? Motion.lift : root.fade-out; easing: ease-out; }
+
+    changed shown => {
+        if (root.shown) {
+            Fx.capture(Capture.world);
+        }
+    }
+    @children
+}
