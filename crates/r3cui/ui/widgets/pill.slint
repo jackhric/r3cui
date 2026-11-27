@@ -12,7 +12,7 @@ export component Pill inherits Rectangle {
     x: Layout.margin;
     width: Layout.content-w;
     height: Layout.row-compact;
-    border-radius: self.height / 2;
+    border-radius: Layout.card-radius;
     background: Theme.raised;
     border-width: root.focused ? Layout.focus-ring : root.danger ? Layout.hairline : 0px;
     border-color: root.focused ? Theme.accent : Theme.off;
