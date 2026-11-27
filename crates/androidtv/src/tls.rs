@@ -4,42 +4,17 @@
 use crate::credentials::Credentials;
 use crate::endpoint::Endpoint;
 use crate::error::{Error, Result};
-use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerifier};
-use rustls::crypto::{ring, verify_tls12_signature, verify_tls13_signature, CryptoProvider};
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use rustls::{ClientConfig, DigitallySignedStruct, SignatureScheme};
+use rustls::pki_types::ServerName;
+use rustls::ClientConfig;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio_rustls::client::TlsStream;
 use tokio_rustls::TlsConnector;
+pub use wsclient::tls::provider;
+use wsclient::tls::AcceptAnyServer;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-
-pub fn provider() -> Arc<CryptoProvider> {
-    Arc::new(ring::default_provider())
-}
-
-#[derive(Debug)]
-struct AcceptAnyServer(Arc<CryptoProvider>);
-
-impl ServerCertVerifier for AcceptAnyServer {
-    fn verify_server_cert(&self, _: &CertificateDer<'_>, _: &[CertificateDer<'_>], _: &ServerName<'_>, _: &[u8], _: UnixTime) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
-        Ok(rustls::client::danger::ServerCertVerified::assertion())
-    }
-
-    fn verify_tls12_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, rustls::Error> {
-        verify_tls12_signature(message, cert, dss, &self.0.signature_verification_algorithms)
-    }
-
-    fn verify_tls13_signature(&self, message: &[u8], cert: &CertificateDer<'_>, dss: &DigitallySignedStruct) -> Result<HandshakeSignatureValid, rustls::Error> {
-        verify_tls13_signature(message, cert, dss, &self.0.signature_verification_algorithms)
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.0.signature_verification_algorithms.supported_schemes()
-    }
-}
 
 pub fn client_config(credentials: &Credentials) -> Result<Arc<ClientConfig>> {
     let provider = provider();

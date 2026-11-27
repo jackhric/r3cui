@@ -4,6 +4,9 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, sleep, Instant};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::Connector;
+
+use crate::tls::{self, Trust};
 
 const PING_EVERY: Duration = Duration::from_secs(10);
 const SILENT_FOR: Duration = Duration::from_secs(25);
@@ -63,11 +66,21 @@ pub async fn connect(request: impl IntoClientRequest) -> Result<Connection, Conn
     connect_with(request, Timing::default()).await
 }
 
+pub async fn connect_trusting(request: impl IntoClientRequest, trust: Trust) -> Result<Connection, ConnectError> {
+    open(request, Timing::default(), trust).await
+}
+
 pub async fn connect_with(request: impl IntoClientRequest, timing: Timing) -> Result<Connection, ConnectError> {
+    open(request, timing, Trust::Verified).await
+}
+
+async fn open(request: impl IntoClientRequest, timing: Timing, trust: Trust) -> Result<Connection, ConnectError> {
     let request = request.into_client_request().map_err(|e| ConnectError { url: String::new(), reason: e.to_string() })?;
     let url = request.uri().to_string();
     let failed = |reason: String| ConnectError { url: url.clone(), reason };
-    let (socket, _) = tokio::time::timeout(timing.connect_within, tokio_tungstenite::connect_async(request))
+    let connector = Connector::Rustls(tls::client_config(trust).map_err(|e| failed(e.to_string()))?);
+    let connecting = tokio_tungstenite::connect_async_tls_with_config(request, None, false, Some(connector));
+    let (socket, _) = tokio::time::timeout(timing.connect_within, connecting)
         .await
         .map_err(|_| failed(format!("no answer in {:?}", timing.connect_within)))?
         .map_err(|e| failed(e.to_string()))?;

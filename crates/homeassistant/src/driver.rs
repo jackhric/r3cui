@@ -13,6 +13,7 @@ use tokio::sync::watch;
 pub mod field {
     pub const URL: &str = "url";
     pub const TOKEN: &str = "token";
+    pub const SELF_SIGNED: &str = "self_signed";
     pub const VOLUME_LIMIT: &str = "volume_limit";
     pub const KEYS_LIGHT: &str = "keys_light";
     pub const KEYS_MODE: &str = "keys_mode";
@@ -26,6 +27,7 @@ pub static SPEC: Spec = Spec {
     fields: &[
         Field { key: field::URL, label: "Address", kind: FieldKind::Url, required: true, default: Some("http://homeassistant.local:8123") },
         Field { key: field::TOKEN, label: "Access token", kind: FieldKind::Secret, required: true, default: None },
+        Field { key: field::SELF_SIGNED, label: "Allow self-signed certificate", kind: FieldKind::Toggle, required: false, default: None },
         Field { key: field::VOLUME_LIMIT, label: "Volume limit", kind: FieldKind::Target(TargetKind::Sensor), required: false, default: None },
         Field { key: field::KEYS_LIGHT, label: "Key light", kind: FieldKind::Target(TargetKind::Light), required: false, default: None },
         Field { key: field::KEYS_MODE, label: "Key light mode", kind: FieldKind::Target(TargetKind::Select), required: false, default: None },
@@ -57,7 +59,7 @@ impl HomeAssistant {
         let id = |key| entry.text(key).map(EntityId::new);
         let (limit, light, mode) = (id(field::VOLUME_LIMIT), id(field::KEYS_LIGHT), id(field::KEYS_MODE));
         let watched: BTreeSet<EntityId> = [&limit, &light, &mode].into_iter().flatten().cloned().collect();
-        let cfg = HaConfig::new(entry.text(field::URL).unwrap_or_default(), entry.text(field::TOKEN).unwrap_or_default());
+        let cfg = HaConfig::new(entry.text(field::URL).unwrap_or_default(), entry.text(field::TOKEN).unwrap_or_default()).self_signed(entry.flag(field::SELF_SIGNED));
         let ha = HaService::start(cfg, watched.iter().cloned().collect());
 
         let (status_tx, status) = watch::channel(Status::new(Health::Connecting));

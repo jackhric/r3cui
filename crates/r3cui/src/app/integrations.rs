@@ -272,6 +272,9 @@ impl Integrations {
                     .into_iter()
                     .flat_map(|s| s.visible_fields())
                     .map(|f| {
+                        if f.kind == FieldKind::Toggle {
+                            return Row { value: if entry.flag(f.key) { "On" } else { "Off" }.into(), ..row(f.label) };
+                        }
                         let value = match (f.kind, entry.text(f.key)) {
                             (FieldKind::Secret, Some(_)) => "Set".to_string(),
                             (FieldKind::Secret, None) | (_, None) if f.required => "Not set".to_string(),
@@ -455,6 +458,11 @@ impl Integrations {
                 }
                 match fields.get(at).copied() {
                     Some(f) => match f.kind {
+                        FieldKind::Toggle => {
+                            let on = m.drivers.get(&id).is_some_and(|d| d.flag(f.key));
+                            m.set_flag(&id, f, !on);
+                            Effect::Apply(m)
+                        }
                         FieldKind::Target(kind) => {
                             self.push(Screen::PickField { driver: id.clone(), key: f.key });
                             Effect::Load { driver: id, kind }

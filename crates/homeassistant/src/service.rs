@@ -40,12 +40,14 @@ async fn run(cfg: HaConfig, state: watch::Sender<HaState>, slot: Arc<Mutex<Optio
         Err(Error::NotConfigured) => return,
         Err(e) => Err(e),
     };
-    wsclient::reconnect(&mut Following { token: cfg.token, url, engine: Engine::default(), state, slot, watched }).await;
+    let trust = cfg.trust();
+    wsclient::reconnect(&mut Following { token: cfg.token, url, trust, engine: Engine::default(), state, slot, watched }).await;
 }
 
 struct Following {
     token: String,
     url: Result<String>,
+    trust: wsclient::Trust,
     engine: Engine,
     state: watch::Sender<HaState>,
     slot: Arc<Mutex<Option<Client>>>,
@@ -120,7 +122,7 @@ impl Session for Following {
 
     async fn connect(&mut self) -> Result<Connection> {
         match &self.url {
-            Ok(url) => Ok(wsclient::connect(url.as_str()).await?),
+            Ok(url) => Ok(wsclient::connect_trusting(url.as_str(), self.trust).await?),
             Err(e) => Err(e.clone()),
         }
     }

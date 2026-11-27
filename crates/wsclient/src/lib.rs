@@ -9,10 +9,12 @@ mod backoff;
 mod connection;
 mod pending;
 mod reconnect;
+pub mod tls;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
 pub use backoff::{delay_for, Backoff, STABLE_AFTER};
-pub use connection::{connect, connect_with, Closed, ConnectError, Connection, Outbox, Timing};
+pub use connection::{connect, connect_trusting, connect_with, Closed, ConnectError, Connection, Outbox, Timing};
 pub use pending::{Pending, Unanswered};
 pub use reconnect::{reconnect, Session};
+pub use tls::Trust;

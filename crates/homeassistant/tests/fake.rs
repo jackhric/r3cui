@@ -53,8 +53,8 @@ async fn a_bad_token_is_rejected() {
 }
 
 #[tokio::test]
-async fn https_is_not_supported_yet() {
-    let handle = HaService::start(HaConfig::new("https://ha.example.org", "t"), vec![]);
+async fn an_unknown_scheme_is_unsupported() {
+    let handle = HaService::start(HaConfig::new("ftp://ha.example.org", "t"), vec![]);
     let s = until_state(&handle, "the error", |s| matches!(s.link, Link::Down { .. })).await;
     assert!(matches!(s.link, Link::Down { error: Error::Unsupported(_), .. }));
 }

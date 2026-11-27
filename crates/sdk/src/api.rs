@@ -312,6 +312,8 @@ pub enum FieldKind {
     /// Written by pairing and by nothing else: not listed, never typed.
     Credential,
     Target(TargetKind),
+    /// On or off; off unless set. A default is written `"true"`.
+    Toggle,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -10,6 +10,8 @@ license = "GPL-3.0-only"
 [workspace.dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "fs"] }
 tokio-tungstenite = "0.24"
+# ring, not aws-lc: no C toolchain to cross-compile for the remote.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 futures-util = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

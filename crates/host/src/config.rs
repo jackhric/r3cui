@@ -142,6 +142,12 @@ impl Modules {
         }
     }
 
+    pub fn set_flag(&mut self, driver: &str, field: &Field, on: bool) {
+        if let Some(d) = self.drivers.get_mut(driver) {
+            d.set_flag(field, on);
+        }
+    }
+
     pub fn bind(&mut self, role: Role, binding: Option<Binding>) {
         match role {
             Role::Volume => self.global.volume = binding,

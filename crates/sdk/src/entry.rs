@@ -26,10 +26,25 @@ impl DriverEntry {
         }
     }
 
-    /// Sets a field as typed in: trimmed, a port kept as a number, and empty clears it.
+    pub fn flag(&self, key: &str) -> bool {
+        self.fields.get(key) == Some(&Value::Bool(true))
+    }
+
+    /// Off is kept as nothing, so an untouched entry and one switched back off read the same.
+    pub fn set_flag(&mut self, field: &Field, on: bool) {
+        if on {
+            self.fields.insert(field.key.to_string(), Value::Bool(true));
+        } else {
+            self.fields.remove(field.key);
+        }
+    }
+
+    /// Sets a field as typed in: trimmed, a port kept as a number, a toggle as a bool, and empty clears it.
     pub fn set(&mut self, field: &Field, value: &str) {
         let value = value.trim();
-        if value.is_empty() {
+        if field.kind == FieldKind::Toggle {
+            self.set_flag(field, value.parse().unwrap_or(false));
+        } else if value.is_empty() {
             self.fields.remove(field.key);
         } else if let Some(port) = value.parse::<u16>().ok().filter(|_| field.kind == FieldKind::Port) {
             self.fields.insert(field.key.to_string(), Value::from(port));
@@ -62,5 +77,17 @@ mod tests {
         assert_eq!(e.fields["host"], Value::from("theater.local"));
         e.set(&host, "");
         assert!(!e.fields.contains_key("host"));
+    }
+
+    #[test]
+    fn a_toggle_is_a_bool_and_off_is_nothing() {
+        let tls = Field { key: "self_signed", label: "Self-signed", kind: FieldKind::Toggle, required: false, default: Some("true") };
+        let mut e = DriverEntry::new("x");
+        assert!(!e.flag("self_signed"));
+        e.set_default(&tls);
+        assert_eq!(e.fields["self_signed"], Value::Bool(true));
+        assert!(e.flag("self_signed"));
+        e.set_flag(&tls, false);
+        assert!(!e.fields.contains_key("self_signed"));
     }
 }
