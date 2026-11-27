@@ -87,7 +87,7 @@ impl Hub {
             let mut h = self.heard.lock().unwrap();
             h.frames += 1;
             h.bytes += pcm.len() as u64;
-            let loudest = pcm.chunks_exact(2).map(|s| i16::from_le_bytes([s[0], s[1]]).unsigned_abs()).max().unwrap_or(0);
+            let loudest = pcm.as_chunks::<2>().0.iter().map(|s| i16::from_le_bytes(*s).unsigned_abs()).max().unwrap_or(0);
             h.peak = h.peak.max(loudest);
         }
         self.send_ui(Message::Binary(pcm));
