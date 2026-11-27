@@ -224,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn without_a_relay_the_audio_ends_with_the_key_and_failures_are_reported() {
+    fn without_a_bridge_the_audio_ends_with_the_key_and_failures_are_reported() {
         let (mut key, t) = (VoiceKey::default(), Instant::now());
         key.press(t, None);
         key.start_due(1);

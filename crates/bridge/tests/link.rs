@@ -69,7 +69,7 @@ async fn audio_outside_a_session_is_dropped() {
 }
 
 #[tokio::test]
-async fn reconnects_after_the_relay_hangs_up() {
+async fn reconnects_after_the_bridge_hangs_up() {
     let mut bridge = FakeBridge::start().await;
     let mut link = connect_to(bridge.addr());
     assert_eq!(next(&mut link).await, LinkEvent::Connected);
@@ -80,7 +80,7 @@ async fn reconnects_after_the_relay_hangs_up() {
 }
 
 #[tokio::test]
-async fn connects_when_the_relay_starts_late() {
+async fn connects_when_the_bridge_starts_late() {
     let probe = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = probe.local_addr().unwrap();
     drop(probe);
