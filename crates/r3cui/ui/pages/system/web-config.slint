@@ -6,6 +6,7 @@ import { Caption } from "../../widgets/caption.slint";
 import { Layer } from "../../widgets/layer.slint";
 import { PageBody, Gap, Spring } from "../../widgets/page-body.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
+import { PinDigits } from "../../widgets/pin-digits.slint";
 import { Row } from "../../widgets/row.slint";
 
 export component WebConfigPage inherits Layer {
@@ -23,28 +24,10 @@ export component WebConfigPage inherits Layer {
             text: "PIN";
         }
         Gap { size: Layout.gap-s; }
-        HorizontalLayout {
-            alignment: center;
-            spacing: Layout.gap-m;
-            for n in 4: Rectangle {
-                width: 72px;
-                height: 88px;
-                border-radius: Layout.card-radius;
-                border-width: Layout.hairline;
-                border-color: Theme.track;
-                Text {
-                    text: Software.web-pin.length > n ? Software.web-pin[n] : "";
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                    font-size: Type.display;
-                    font-weight: Type.value-weight;
-                    color: Theme.text;
-                }
-            }
-        }
+        PinDigits { digits: Software.web-pin; }
         Gap { size: Layout.gap-xl; }
         Rectangle {
-            height: 176px;
+            height: Layout.qr;
             HorizontalLayout {
                 alignment: center;
                 VerticalLayout {

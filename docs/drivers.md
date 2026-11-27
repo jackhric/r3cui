@@ -1,6 +1,6 @@
 # Drivers: how r3cui connects to other software
 
-Status: implemented (2026-11-25). Settings → Integrations edits everything below except tokens, which are pasted into `modules.json` for now.
+Status: implemented (2026-11-25). Settings → Integrations edits everything below; so does r3cui's web configurator from a browser (`docs/web-configurator.md`), where a token is pasted.
 
 r3cui talks to other software through **drivers**. A driver is one connection to one program
 (Home Assistant, Kodi, ...). The frontend never names a program: it talks to the *ports* a driver
@@ -93,7 +93,7 @@ An integration is one crate, depending on `r3cui-sdk` and nothing else of r3cui'
 3. Its tests, against its own fake, with `r3cui_sdk::testing`.
 
 The app carries it with a dependency in `crates/r3cui/Cargo.toml` and one line in `src/app/registry.rs`. Nothing in
-`host` or `r3cui-sdk` changes, and the Integrations pages are drawn from the `Spec`, so no Slint either.
+`host` or `r3cui-sdk` changes, and the Integrations pages (and the web configurator's forms) are drawn from the `Spec`, so no Slint or HTML either.
 
 ## The contract (`r3cui_sdk::api`)
 

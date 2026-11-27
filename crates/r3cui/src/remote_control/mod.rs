@@ -4,7 +4,7 @@
 //! listens; while on it waits on its socket and works only when asked, so a remote on battery pays only for use.
 
 mod act;
-mod server;
+pub(crate) mod server;
 
 use crate::app::session::data_dir;
 use crate::app::UiAction;

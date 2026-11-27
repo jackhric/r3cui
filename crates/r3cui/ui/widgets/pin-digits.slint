@@ -1,0 +1,24 @@
+import { Theme, Layout, Type } from "../theme.slint";
+
+// A PIN to read off the screen, a box per digit.
+export component PinDigits inherits HorizontalLayout {
+    in property <[string]> digits;
+    in property <int> length: 4;
+    alignment: center;
+    spacing: Layout.gap-m;
+    for n in root.length: Rectangle {
+        width: Layout.pin-w;
+        height: Layout.pin-h;
+        border-radius: Layout.card-radius;
+        border-width: Layout.hairline;
+        border-color: Theme.track;
+        Text {
+            text: root.digits.length > n ? root.digits[n] : "";
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            font-size: Type.display;
+            font-weight: Type.value-weight;
+            color: Theme.text;
+        }
+    }
+}

@@ -35,6 +35,7 @@ import { SystemPage } from "pages/system/system.slint";
 import { UninstallPage } from "pages/system/uninstall.slint";
 import { RemoteControlPage } from "pages/system/remote-control.slint";
 import { WebConfigPage } from "pages/system/web-config.slint";
+import { R3WebPage } from "pages/system/r3-web.slint";
 import { TracksPage } from "pages/tracks.slint";
 import { JoinFailedPage } from "pages/wifi/join-failed.slint";
 import { WifiPage } from "pages/wifi/wifi.slint";
@@ -50,6 +51,7 @@ export { Logos } from "marks/logos.slint";
 export { Codecs } from "marks/codecs.slint";
 export { KeyChars } from "globals/keys.slint";
 export { Cfg } from "globals/cfg.slint";
+export { R3Web } from "globals/r3-web.slint";
 export { Control } from "globals/control.slint";
 export { Fx } from "globals/fx.slint";
 export { Health } from "globals/health.slint";
@@ -260,6 +262,7 @@ export component AppWindow inherits Window {
                 FwInstallingPage { }
                 WebConfigPage { }
                 RemoteControlPage { }
+                R3WebPage { }
                 LabPage { }
                 JoinFailedPage { }
                 TracksPage { }

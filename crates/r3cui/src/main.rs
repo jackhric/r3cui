@@ -11,6 +11,7 @@ mod input;
 mod preview;
 mod remote;
 mod remote_control;
+mod webconfig;
 mod view;
 
 use crate::app::{UiAction, settings};
@@ -329,6 +330,12 @@ fn main() -> anyhow::Result<()> {
         move || remote.toggle()
     });
     app.global::<RemoteControl>().on_new_key(move || remote.new_key());
+    let web = webconfig::start(app.as_weak(), act_tx.clone());
+    app.global::<R3Web>().on_new_pin({
+        let web = web.clone();
+        move || web.new_pin()
+    });
+    app.global::<R3Web>().on_turn_off(move || web.off());
     #[cfg(feature = "preview")]
     let _recording = match record {
         Some(out) => {

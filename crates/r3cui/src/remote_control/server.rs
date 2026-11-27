@@ -15,7 +15,7 @@ use tokio::sync::{mpsc, watch};
 use tokio_tungstenite::tungstenite::Message;
 
 /// The QR code on the settings page, in pixels a side at most.
-pub(super) const QR_SIZE: u32 = 176;
+pub(crate) const QR_SIZE: u32 = 176;
 const HELLO_WAIT: Duration = Duration::from_secs(10);
 const HEALTH: &[u8] = b"GET /health";
 /// After this many wrong proofs, nobody gets in for a while.
@@ -25,12 +25,16 @@ const LOCKOUT: Duration = Duration::from_secs(60);
 static MISSES: AtomicU32 = AtomicU32::new(0);
 static LOCKED_UNTIL: Mutex<Option<Instant>> = Mutex::new(None);
 
-/// This remote's address on the network as `ip:port`: the route out picks the address, without sending anything.
+/// This remote's address on the network as `ip:port`.
 pub(super) fn address() -> String {
-    let ip = std::net::UdpSocket::bind("0.0.0.0:0")
+    format!("{}:{}", lan_ip(), remotewire::PORT)
+}
+
+/// This remote's address on the network: the route out picks it, without sending anything.
+pub(crate) fn lan_ip() -> String {
+    std::net::UdpSocket::bind("0.0.0.0:0")
         .and_then(|s| s.connect("192.0.2.1:9").and_then(|()| s.local_addr()))
-        .map_or_else(|_| "127.0.0.1".to_string(), |a| a.ip().to_string());
-    format!("{ip}:{}", remotewire::PORT)
+        .map_or_else(|_| "127.0.0.1".to_string(), |a| a.ip().to_string())
 }
 
 /// Listens while there is a key, stops while there is none.
@@ -83,7 +87,7 @@ pub(super) async fn run(mut listen: watch::Receiver<Option<String>>, weak: slint
 }
 
 /// Loopback, link-local or a private range: never an address from the internet.
-fn local(ip: IpAddr) -> bool {
+pub(crate) fn local(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => v4.is_loopback() || v4.is_private() || v4.is_link_local(),
         IpAddr::V6(v6) => v6.is_loopback() || v6.is_unicast_link_local() || v6.to_ipv4_mapped().is_some_and(|v4| v4.is_private() || v4.is_loopback()),

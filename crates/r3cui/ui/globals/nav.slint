@@ -8,6 +8,7 @@ import { Menu } from "menu.slint";
 import { Power } from "power.slint";
 import { Prefs } from "prefs.slint";
 import { RemoteControl } from "remote-control.slint";
+import { R3Web } from "r3-web.slint";
 import { Software } from "software.slint";
 import { Tracks } from "tracks.slint";
 import { Wifi } from "wifi.slint";
@@ -22,7 +23,7 @@ export global Nav {
         p == PageId.home || p == PageId.inputs || p == PageId.menu || p == PageId.tracks ? 1
             : p == PageId.keyboard ? 3
             : p == PageId.join-failed || p == PageId.r3-installing || p == PageId.fw-installing ? 4
-            : p == PageId.r3-update || p == PageId.fw-update || p == PageId.web-config || p == PageId.uninstall || p == PageId.remote-control ? 3
+            : p == PageId.r3-update || p == PageId.fw-update || p == PageId.web-config || p == PageId.uninstall || p == PageId.remote-control || p == PageId.r3-web ? 3
             : 2
     }
     pure public function shows-menu(p: PageId) -> bool {
@@ -99,7 +100,7 @@ export global Nav {
             }
         } else if (Nav.page == PageId.integrations) {
             Cfg.back();
-        } else if (Nav.page == PageId.keyboard && Kb.purpose != KbPurpose.wifi-password) {
+        } else if ((Nav.page == PageId.keyboard && Kb.purpose != KbPurpose.wifi-password) || Nav.page == PageId.r3-web) {
             Nav.go(PageId.integrations, Cfg.focus);
         } else if (Nav.page == PageId.keyboard || Nav.page == PageId.join-failed) {
             Wifi.join-state = JoinState.idle;
@@ -122,7 +123,7 @@ export global Nav {
             : Nav.page == PageId.feedback-lab ? Lab.rows.length
             : Nav.page == PageId.system ? Software.system-rows
             : Nav.page == PageId.fw-update && Software.fw-state == UpdateState.available ? 2
-            : Nav.page == PageId.r3-update || Nav.page == PageId.web-config ? 2
+            : Nav.page == PageId.r3-update || Nav.page == PageId.web-config || Nav.page == PageId.r3-web ? 2
             : Nav.page == PageId.remote-control ? (RemoteControl.on ? 2 : 1)
             : 1
     }
@@ -278,6 +279,13 @@ export global Nav {
                     Software.new-pin();
                 } else {
                     Software.web-off();
+                    Nav.back();
+                }
+            } else if (Nav.page == PageId.r3-web) {
+                if (i == 0) {
+                    R3Web.new-pin();
+                } else {
+                    R3Web.turn-off();
                     Nav.back();
                 }
             } else if (Nav.page == PageId.wifi) {

@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>r3cui Web Configurator</title>
+<link rel="icon" href="data:,">
+<style>
+@font-face { font-family: "Inter"; font-weight: 400; font-display: swap; src: url(/fonts/Inter-400.ttf) format("truetype"); }
+@font-face { font-family: "Inter"; font-weight: 500; font-display: swap; src: url(/fonts/Inter-500.ttf) format("truetype"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 500; font-display: swap; src: url(/fonts/JetBrainsMono-500.ttf) format("truetype"); }
+:root {
+  color-scheme: dark;
+  --bg: #000000;
+  --raised: #131314;
+  --raised-2: #1b1c1d;
+  --text: #F1F3F3;
+  --t2: #8B9195;
+  --t3: #53595D;
+  --hair: #FFFFFF14;
+  --track: #FFFFFF24;
+  --accent: #F1F3F3;
+  --on: #3DDC84;
+  --off: #E8343A;
+  --warn: #F2B544;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 14px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 15px/1.45 var(--sans); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 80px; }
+.wrap { max-width: 720px; margin: 0 auto; }
+[hidden] { display: none !important; }
+header { position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; align-items: center; gap: 14px; padding-block: 18px 14px; flex-wrap: wrap; }
+header svg.wm { width: 74px; height: auto; display: block; fill: var(--text); }
+header .title { font-size: 20px; font-weight: 500; color: var(--t2); }
+.chip { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; background: var(--raised); border-radius: 999px; padding: 6px 12px 6px 10px; font-size: 13px; color: var(--t2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--on); flex: none; }
+.dot.down { background: var(--off); } .dot.wait { background: var(--warn); }
+.mono { font-family: var(--mono); font-weight: 500; font-size: 12.5px; color: var(--text); }
+nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--hair); margin-bottom: 24px; overflow-x: auto; }
+nav.tabs button { font: 500 15px var(--sans); color: var(--t2); background: none; border: 0; padding: 12px 14px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+nav.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.stack { display: flex; flex-direction: column; gap: 20px; }
+.caption { font-size: 12px; font-weight: 500; letter-spacing: .09em; text-transform: uppercase; color: var(--t3); margin: 8px 0 -8px 4px; }
+.card { background: var(--raised); border-radius: var(--radius); overflow: hidden; scroll-margin-top: 90px; }
+.card-head { display: flex; align-items: center; gap: 14px; padding: 18px 20px; flex-wrap: wrap; }
+.card-head svg.brand { width: 28px; height: 28px; fill: var(--text); flex: none; }
+.card-head h2 { font-size: 18px; font-weight: 500; margin: 0; text-wrap: balance; }
+.card-head .state { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--t2); }
+.row { display: grid; grid-template-columns: minmax(140px, 200px) 1fr; gap: 16px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--hair); }
+.row label, .row .label { color: var(--text); font-size: 15px; }
+.row .hint { display: block; color: var(--t3); font-size: 12.5px; margin-top: 2px; }
+.row .err { grid-column: 1 / -1; }
+input[type=text], input[type=password], select { width: 100%; font: 400 15px var(--sans); color: var(--text); background: var(--bg); border: 1px solid var(--track); border-radius: 10px; padding: 10px 12px; outline: none; }
+input.mono-in { font-family: var(--mono); font-weight: 500; font-size: 13.5px; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--t2) 50%), linear-gradient(135deg, var(--t2) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 34px; }
+.secret { display: flex; gap: 8px; } .secret input { flex: 1; min-width: 0; }
+.toggle { justify-self: start; position: relative; width: 50px; height: 30px; border-radius: 999px; background: var(--track); border: 0; cursor: pointer; transition: background .18s; }
+.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--t2); transition: transform .18s, background .18s; }
+.toggle[aria-checked="true"] { background: var(--on); } .toggle[aria-checked="true"]::after { transform: translateX(20px); background: var(--text); }
+.btn { font: 500 14px var(--sans); border-radius: 10px; padding: 10px 16px; cursor: pointer; border: 1px solid var(--track); background: none; color: var(--text); white-space: nowrap; }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.btn.danger { color: var(--off); border-color: color-mix(in srgb, var(--off) 45%, transparent); }
+.foot { display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap; padding: 14px 20px; border-top: 1px solid var(--hair); }
+.foot .ask { margin-right: auto; color: var(--t2); font-size: 14px; }
+.note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 20px; border-top: 1px solid var(--hair); font-size: 13.5px; color: var(--t2); }
+.note .dot { margin-top: 6px; }
+.err { color: var(--off); font-size: 13.5px; }
+.err.pad { padding: 10px 20px; border-top: 1px solid var(--hair); }
+.add { display: flex; gap: 10px; flex-wrap: wrap; }
+.bind .row { grid-template-columns: minmax(110px, 160px) 1fr; }
+.pin { display: flex; gap: 10px; justify-content: center; margin: 8px 0 4px; }
+.pin input { width: 58px; height: 70px; text-align: center; font: 400 34px var(--sans); color: var(--text); background: var(--raised); border: 1px solid var(--track); border-radius: 12px; padding: 0; }
+.signin { max-width: 420px; margin: 56px auto 0; text-align: center; display: flex; flex-direction: column; gap: 18px; align-items: center; }
+.signin svg { width: 120px; fill: var(--text); }
+.signin h1 { font-size: 26px; font-weight: 500; margin: 0; }
+.signin p { color: var(--t2); margin: 0; max-width: 36ch; }
+.saved { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--raised-2); border: 1px solid var(--hair); color: var(--text); border-radius: 999px; padding: 10px 18px; font-size: 14px; display: flex; gap: 10px; align-items: center; z-index: 20; }
+.banner { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--off) 16%, var(--raised)); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; }
+.banner span { flex: 1; min-width: 200px; }
+.empty { color: var(--t2); padding: 16px 20px; border-top: 1px solid var(--hair); }
+@media (max-width: 560px) { .row, .bind .row { grid-template-columns: 1fr; gap: 8px; } .chip { margin-left: 0; } .card-head .state { margin-left: 0; } .pin input { width: 52px; height: 64px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="banner" class="banner" role="alert" hidden><span>The remote isn't answering. Is the configurator still on?</span><button class="btn" id="retry">Retry</button></div>
+
+  <section id="v-signin" hidden>
+    <div class="signin">
+      <svg viewBox="72.428951 124.36614 32.495018 11.46385" aria-label="r3cui" role="img"><path d="m 78.728138,127.41414 -0.287866,2.30293 h -2.201329 q -0.778931,0 -0.880531,0.76199 l -0.372533,3.06493 -0.270933,2.286 h -2.285995 l 0.270933,-2.286 q 0.101599,-0.77893 0.186266,-1.54093 0.1016,-0.762 0.186266,-1.524 0.08467,-0.62653 0.389466,-1.18533 0.321733,-0.5588 0.778932,-0.98213 0.474132,-0.42333 1.049865,-0.6604 0.592665,-0.23706 1.23613,-0.23706 z m 7.145854,0.38946 q -0.08467,0.64347 -0.389466,1.23613 -0.287866,0.57574 -0.778931,1.04987 0.372532,0.49106 0.524932,1.08373 0.1524,0.57573 0.06773,1.2192 -0.08467,0.7112 -0.440266,1.33773 -0.338666,0.62653 -0.863598,1.10066 -0.507999,0.4572 -1.168398,0.72813 -0.660398,0.27094 -1.371597,0.27094 h -3.047994 l 0.270933,-2.286 h 3.047994 q 0.474132,0 0.846665,-0.33866 0.372532,-0.33867 0.423332,-0.8128 0.06773,-0.49107 -0.220133,-0.8128 -0.287866,-0.33867 -0.761998,-0.33867 h -0.118533 -1.236131 l 0.270933,-2.28599 h 1.236131 0.118533 q 0.474132,0 0.846665,-0.33867 0.372532,-0.33867 0.440266,-0.8128 0.0508,-0.47413 -0.237067,-0.8128 -0.287866,-0.33866 -0.761998,-0.33866 h -3.047994 l 0.287866,-2.286 h 3.047994 q 0.711199,0 1.303864,0.27094 0.592666,0.27093 0.999065,0.74506 0.406399,0.4572 0.592665,1.08373 0.2032,0.62653 0.118533,1.33773 z m 6.163735,5.74039 -0.270932,2.286 h -2.150529 -0.372533 -0.389466 q -0.643465,0 -1.168398,-0.23707 -0.524932,-0.23707 -0.897465,-0.6604 -0.372532,-0.42333 -0.541865,-0.9652 -0.169333,-0.5588 -0.08467,-1.20226 l 0.270933,-2.286 q 0.08467,-0.62653 0.389466,-1.18533 0.321733,-0.5588 0.778932,-0.98213 0.474132,-0.42333 1.049864,-0.6604 0.592666,-0.23706 1.236131,-0.23706 h 0.761999 2.150529 l -0.287866,2.30293 h -2.150529 -0.761999 q -0.321732,0 -0.575732,0.22013 -0.253999,0.22013 -0.287866,0.54186 l -0.270933,2.286 q -0.03387,0.32173 0.1524,0.5588 0.186266,0.22013 0.507999,0.22013 h 0.761998 z m 8.652923,-3.06493 -0.27094,2.30293 q -0.0847,0.64347 -0.38946,1.20227 -0.304801,0.54186 -0.778934,0.96519 -0.457199,0.4064 -1.049864,0.64347 -0.575733,0.23707 -1.202265,0.23707 H 95.72919 q -0.626532,0 -1.151465,-0.23707 -0.524932,-0.23707 -0.897465,-0.64347 -0.372532,-0.42333 -0.541865,-0.96519 -0.169333,-0.5588 -0.08467,-1.20227 l 0.270933,-2.30293 0.372533,-3.04799 h 2.285995 l -0.372532,3.04799 -0.270933,2.30293 q -0.03387,0.32174 0.1524,0.54187 0.186266,0.22013 0.507999,0.22013 h 1.269997 q 0.321733,0 0.575732,-0.22013 0.254,-0.22013 0.287866,-0.54187 l 0.270933,-2.30293 0.1016,-0.76199 0.270933,-2.286 h 2.285999 z m 3.86078,-3.06492 -1.03293,8.41585 h -2.28599 l 1.03293,-8.41585 z m 0.37254,-3.048 -0.28787,2.286 h -2.28599 l 0.28786,-2.286 z"/></svg>
+      <h1>Web configurator</h1>
+      <p>Type the PIN shown on the remote, under Settings → Integrations → Set up from a computer.</p>
+      <div class="pin" id="pin">
+        <input inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="PIN digit 1">
+        <input inputmode="numeric" maxlength="1" aria-label="PIN digit 2">
+        <input inputmode="numeric" maxlength="1" aria-label="PIN digit 3">
+        <input inputmode="numeric" maxlength="1" aria-label="PIN digit 4">
+      </div>
+      <div class="err" id="pin-err" role="alert"></div>
+      <button class="btn primary" id="go">Sign in</button>
+    </div>
+  </section>
+
+  <section id="v-app" hidden>
+    <header>
+      <svg class="wm" viewBox="72.428951 124.36614 32.495018 11.46385" aria-label="r3cui" role="img"><path d="m 78.728138,127.41414 -0.287866,2.30293 h -2.201329 q -0.778931,0 -0.880531,0.76199 l -0.372533,3.06493 -0.270933,2.286 h -2.285995 l 0.270933,-2.286 q 0.101599,-0.77893 0.186266,-1.54093 0.1016,-0.762 0.186266,-1.524 0.08467,-0.62653 0.389466,-1.18533 0.321733,-0.5588 0.778932,-0.98213 0.474132,-0.42333 1.049865,-0.6604 0.592665,-0.23706 1.23613,-0.23706 z m 7.145854,0.38946 q -0.08467,0.64347 -0.389466,1.23613 -0.287866,0.57574 -0.778931,1.04987 0.372532,0.49106 0.524932,1.08373 0.1524,0.57573 0.06773,1.2192 -0.08467,0.7112 -0.440266,1.33773 -0.338666,0.62653 -0.863598,1.10066 -0.507999,0.4572 -1.168398,0.72813 -0.660398,0.27094 -1.371597,0.27094 h -3.047994 l 0.270933,-2.286 h 3.047994 q 0.474132,0 0.846665,-0.33866 0.372532,-0.33867 0.423332,-0.8128 0.06773,-0.49107 -0.220133,-0.8128 -0.287866,-0.33867 -0.761998,-0.33867 h -0.118533 -1.236131 l 0.270933,-2.28599 h 1.236131 0.118533 q 0.474132,0 0.846665,-0.33867 0.372532,-0.33867 0.440266,-0.8128 0.0508,-0.47413 -0.237067,-0.8128 -0.287866,-0.33866 -0.761998,-0.33866 h -3.047994 l 0.287866,-2.286 h 3.047994 q 0.711199,0 1.303864,0.27094 0.592666,0.27093 0.999065,0.74506 0.406399,0.4572 0.592665,1.08373 0.2032,0.62653 0.118533,1.33773 z m 6.163735,5.74039 -0.270932,2.286 h -2.150529 -0.372533 -0.389466 q -0.643465,0 -1.168398,-0.23707 -0.524932,-0.23707 -0.897465,-0.6604 -0.372532,-0.42333 -0.541865,-0.9652 -0.169333,-0.5588 -0.08467,-1.20226 l 0.270933,-2.286 q 0.08467,-0.62653 0.389466,-1.18533 0.321733,-0.5588 0.778932,-0.98213 0.474132,-0.42333 1.049864,-0.6604 0.592666,-0.23706 1.236131,-0.23706 h 0.761999 2.150529 l -0.287866,2.30293 h -2.150529 -0.761999 q -0.321732,0 -0.575732,0.22013 -0.253999,0.22013 -0.287866,0.54186 l -0.270933,2.286 q -0.03387,0.32173 0.1524,0.5588 0.186266,0.22013 0.507999,0.22013 h 0.761998 z m 8.652923,-3.06493 -0.27094,2.30293 q -0.0847,0.64347 -0.38946,1.20227 -0.304801,0.54186 -0.778934,0.96519 -0.457199,0.4064 -1.049864,0.64347 -0.575733,0.23707 -1.202265,0.23707 H 95.72919 q -0.626532,0 -1.151465,-0.23707 -0.524932,-0.23707 -0.897465,-0.64347 -0.372532,-0.42333 -0.541865,-0.96519 -0.169333,-0.5588 -0.08467,-1.20227 l 0.270933,-2.30293 0.372533,-3.04799 h 2.285995 l -0.372532,3.04799 -0.270933,2.30293 q -0.03387,0.32174 0.1524,0.54187 0.186266,0.22013 0.507999,0.22013 h 1.269997 q 0.321733,0 0.575732,-0.22013 0.254,-0.22013 0.287866,-0.54187 l 0.270933,-2.30293 0.1016,-0.76199 0.270933,-2.286 h 2.285999 z m 3.86078,-3.06492 -1.03293,8.41585 h -2.28599 l 1.03293,-8.41585 z m 0.37254,-3.048 -0.28787,2.286 h -2.28599 l 0.28786,-2.286 z"/></svg>
+      <span class="title">Web configurator</span>
+      <span class="chip"><span class="dot"></span>Remote 3 <span class="mono" id="version"></span></span>
+    </header>
+    <nav class="tabs" role="tablist">
+      <button role="tab" id="tab-intg" aria-selected="true" aria-controls="p-intg" data-tab="intg">Integrations</button>
+      <button role="tab" id="tab-global" aria-selected="false" aria-controls="p-global" data-tab="global">Global control</button>
+      <button role="tab" id="tab-inputs" aria-selected="false" aria-controls="p-inputs" data-tab="inputs">Inputs</button>
+    </nav>
+    <div class="stack" id="p-intg" role="tabpanel" aria-labelledby="tab-intg"></div>
+    <div class="stack" id="p-global" role="tabpanel" aria-labelledby="tab-global" hidden></div>
+    <div class="stack" id="p-inputs" role="tabpanel" aria-labelledby="tab-inputs" hidden></div>
+  </section>
+</div>
+<div class="saved" id="toast" role="status" hidden><span class="dot"></span><span id="toast-text">Saved to the remote</span></div>
+
+<script>
+"use strict";
+const TOKEN_KEY = "r3cui-webcfg-token";
+const NONE = "";
+let token = null, cfg = null, tab = "intg";
+const drafts = new Map();
+const targetCache = new Map();
+const errors = new Map();
+const pairState = new Map();
+const confirmRemove = new Set();
+const revealed = new Set();
+const busy = new Set();
+
+const $ = (id) => document.getElementById(id);
+const store = {
+  get() { try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; } },
+  set(v) { try { v == null ? sessionStorage.removeItem(TOKEN_KEY) : sessionStorage.setItem(TOKEN_KEY, v); } catch {} },
+};
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "value") el.value = v;
+    else if (v === true) el.setAttribute(k, "");
+    else el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid);
+  return el;
+}
+function svgIcon(path) {
+  const ns = "http://www.w3.org/2000/svg";
+  const s = document.createElementNS(ns, "svg");
+  s.setAttribute("class", "brand"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("aria-hidden", "true");
+  const p = document.createElementNS(ns, "path"); p.setAttribute("d", path || ""); s.append(p);
+  return s;
+}
+
+class NetError extends Error {}
+class ApiError extends Error { constructor(msg, status) { super(msg); this.status = status; } }
+
+async function api(method, path, body) {
+  let res;
+  try {
+    res = await fetch(path, {
+      method,
+      headers: { ...(token ? { Authorization: "Bearer " + token } : {}), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch { $("banner").hidden = false; throw new NetError(); }
+  $("banner").hidden = true;
+  let data = null;
+  try { data = await res.json(); } catch {}
+  if (res.status === 401 && path !== "/api/login") { signOut(); throw new ApiError("Signed out", 401); }
+  if (!res.ok) throw new ApiError((data && data.error) || "Something went wrong (" + res.status + ")", res.status);
+  return data;
+}
+
+let toastTimer;
+function toast(text) {
+  $("toast-text").textContent = text || "Saved to the remote";
+  $("toast").hidden = false; clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $("toast").hidden = true; }, 1800);
+}
+
+function signOut() {
+  token = null; cfg = null; store.set(null);
+  $("v-app").hidden = true; $("v-signin").hidden = false;
+  const first = $("pin").querySelector("input"); first && first.focus();
+}
+
+function setConfig(c) { cfg = c; render(); }
+
+async function load() {
+  try { setConfig(await api("GET", "/api/config")); showApp(); }
+  catch (e) { if (!(e instanceof NetError) && !(e instanceof ApiError && e.status === 401)) signOut(); }
+}
+function showApp() { $("v-signin").hidden = true; $("v-app").hidden = false; }
+
+/* sign-in */
+const pinBoxes = [...$("pin").querySelectorAll("input")];
+pinBoxes.forEach((b, i) => {
+  b.addEventListener("input", () => {
+    b.value = b.value.replace(/\D/g, "").slice(-1);
+    if (b.value && i < 3) pinBoxes[i + 1].focus();
+  });
+  b.addEventListener("keydown", (e) => {
+    if (e.key === "Backspace" && !b.value && i > 0) { pinBoxes[i - 1].value = ""; pinBoxes[i - 1].focus(); }
+    else if (e.key === "Enter") submitPin();
+  });
+  b.addEventListener("paste", (e) => {
+    const d = (e.clipboardData.getData("text") || "").replace(/\D/g, "");
+    if (d.length >= 4) { e.preventDefault(); pinBoxes.forEach((x, j) => { x.value = d[j]; }); pinBoxes[3].focus(); }
+  });
+});
+async function submitPin() {
+  const pin = pinBoxes.map((b) => b.value).join("");
+  const err = $("pin-err");
+  if (pin.length !== 4) { err.textContent = "Type all four digits."; return; }
+  err.textContent = "";
+  try {
+    const r = await api("POST", "/api/login", { pin });
+    token = r.token; store.set(token);
+    pinBoxes.forEach((b) => { b.value = ""; });
+    await load();
+  } catch (e) {
+    if (e instanceof ApiError) {
+      err.textContent = e.status === 401 ? "That PIN isn't right." : e.message;
+      pinBoxes.forEach((b) => { b.value = ""; }); pinBoxes[0].focus();
+    }
+  }
+}
+$("go").addEventListener("click", submitPin);
+$("retry").addEventListener("click", () => { token ? load() : submitPin(); });
+
+/* tabs */
+document.querySelectorAll("nav.tabs button").forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.tab)));
+function selectTab(t) {
+  tab = t;
+  document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
+  for (const n of ["intg", "global", "inputs"]) $("p-" + n).hidden = n !== t;
+}
+
+/* drafts */
+const dkey = (...p) => p.join("|");
+function draftOr(key, orig) { return drafts.has(key) ? drafts.get(key) : orig; }
+function clearDrafts(prefix) { for (const k of [...drafts.keys()]) if (k.startsWith(prefix)) drafts.delete(k); }
+
+/* targets */
+function tkey(driver, kind) { return driver + "|" + kind; }
+function targetLabel(kind, t) {
+  if (t.name) return t.name;
+  if (kind === "pipeline" && t.id === "") return "Preferred pipeline";
+  return t.id;
+}
+async function ensureTargets(driver, kind) {
+  const k = tkey(driver, kind);
+  const c = targetCache.get(k);
+  if (c && (c.list || c.promise)) return c.promise || c.list;
+  const promise = api("GET", "/api/targets?driver=" + encodeURIComponent(driver) + "&kind=" + encodeURIComponent(kind))
+    .then((list) => { targetCache.set(k, { list }); return list; })
+    .catch((e) => { targetCache.delete(k); throw e; });
+  targetCache.set(k, { promise });
+  return promise;
+}
+/* a lazily filled select: `extra` are the fixed options before the targets */
+function fillSelect(sel, opts, current) {
+  const had = sel.value;
+  sel.replaceChildren(...opts.map((o) => h("option", { value: o.value }, o.label)));
+  const want = current !== undefined ? current : had;
+  sel.value = want;
+  if (sel.value !== want && opts.length) sel.value = opts[0].value;
+}
+function lazySelect(sel, driver, kind, build, current, onerr) {
+  let started = false;
+  const go = async () => {
+    if (started) return; started = true;
+    const c = targetCache.get(tkey(driver, kind));
+    if (c && c.list) { fillSelect(sel, build(c.list)); sel.value = sel.dataset.cur; return; }
+    fillSelect(sel, [{ value: "__loading", label: "Loading…" }].concat(build([]).filter((o) => o.value === sel.dataset.cur)), "__loading");
+    try {
+      const list = await ensureTargets(driver, kind);
+      fillSelect(sel, build(list)); sel.value = sel.dataset.cur;
+    } catch (e) {
+      started = false;
+      fillSelect(sel, build([]), sel.dataset.cur);
+      if (e instanceof ApiError) onerr(e.message);
+    }
+  };
+  sel.addEventListener("focus", go);
+  sel.addEventListener("mousedown", go);
+  if (targetCache.get(tkey(driver, kind))?.list) { fillSelect(sel, build(targetCache.get(tkey(driver, kind)).list)); sel.value = sel.dataset.cur; started = true; }
+}
+
+/* integrations */
+function healthDot(health) {
+  return health === "up" ? "dot" : health === "connecting" || health === "not_paired" ? "dot wait" : "dot down";
+}
+function fieldRow(card, f) {
+  const id = "f-" + card.id + "-" + f.key;
+  const dk = dkey("i", card.id, f.key);
+  const label = (hint) => h("label", { for: id }, f.label, hint && h("span", { class: "hint" }, hint));
+  const body = (() => {
+    switch (f.kind) {
+      case "toggle": {
+        const v = !!draftOr(dk, f.value);
+        const b = h("button", { class: "toggle", id, role: "switch", "aria-checked": String(v), "aria-label": f.label, type: "button",
+          onclick: () => { const n = b.getAttribute("aria-checked") !== "true"; b.setAttribute("aria-checked", String(n)); drafts.set(dk, n); } });
+        return b;
+      }
+      case "secret": {
+        const shown = revealed.has(dk);
+        const inp = h("input", { id, class: "mono-in", type: shown ? "text" : "password", autocomplete: "off", spellcheck: "false",
+          placeholder: f.set ? "Set" : "Paste the " + f.label.toLowerCase(), value: draftOr(dk, ""),
+          oninput: () => drafts.set(dk, inp.value) });
+        const btn = h("button", { class: "btn", type: "button", "aria-controls": id, onclick: () => {
+          const s = inp.type === "password"; inp.type = s ? "text" : "password"; btn.textContent = s ? "Hide" : "Show";
+          s ? revealed.add(dk) : revealed.delete(dk); } }, shown ? "Hide" : "Show");
+        return h("div", { class: "secret" }, inp, btn);
+      }
+      case "target": {
+        const cur = draftOr(dk, f.value);
+        const curKey = cur == null ? NONE : "t:" + cur;
+        const sel = h("select", { id, "data-cur": curKey });
+        const name = cur === f.value ? f.value_name : null;
+        const build = (list) => {
+          const o = [{ value: NONE, label: "None" }];
+          let seen = false;
+          for (const t of list) { if (t.id === cur) seen = true; o.push({ value: "t:" + t.id, label: targetLabel(f.target_kind, t) }); }
+          if (cur != null && !seen) o.push({ value: "t:" + cur, label: name || cur || "Preferred pipeline" });
+          return o;
+        };
+        fillSelect(sel, build([]), curKey);
+        lazySelect(sel, card.id, f.target_kind, build, curKey, (m) => setErr(card.id, m));
+        sel.addEventListener("change", () => { sel.dataset.cur = sel.value; drafts.set(dk, sel.value === NONE ? null : sel.value.slice(2)); });
+        return sel;
+      }
+      default: {
+        const inp = h("input", { id, type: "text", class: f.kind === "port" ? "mono-in" : null, inputmode: f.kind === "port" ? "numeric" : f.kind === "url" ? "url" : null,
+          autocomplete: "off", spellcheck: "false", value: draftOr(dk, f.value || ""), oninput: () => drafts.set(dk, inp.value) });
+        return inp;
+      }
+    }
+  })();
+  const empty = f.kind === "secret" ? !f.set && !draftOr(dk, "") : f.kind === "toggle" || f.kind === "target" ? false : !draftOr(dk, f.value || "");
+  const need = f.required && empty && f.kind !== "toggle" ? "Needed before it can connect" : null;
+  if (f.kind === "toggle") return h("div", { class: "row" }, h("label", { for: id }, f.label), body);
+  return h("div", { class: "row" }, label(need), body);
+}
+function setErr(key, msg) { msg ? errors.set(key, msg) : errors.delete(key); const el = document.querySelector('[data-err="' + CSS.escape(key) + '"]'); if (el) { el.textContent = msg || ""; el.hidden = !msg; } }
+function errBox(key, cls) { return h("div", { class: "err " + (cls || "pad"), role: "alert", "data-err": key, hidden: !errors.get(key) }, errors.get(key) || ""); }
+
+async function mutate(key, fn, okText) {
+  busy.add(key); setErr(key, null);
+  try { const c = await fn(); busy.delete(key); setConfig(c); toast(okText); return true; }
+  catch (e) { busy.delete(key); if (e instanceof ApiError && e.status !== 401) setErr(key, e.message); renderBusy(key); return false; }
+}
+function renderBusy() {}
+
+function changedFields(card) {
+  const out = {};
+  for (const f of card.fields) {
+    const dk = dkey("i", card.id, f.key);
+    if (!drafts.has(dk)) continue;
+    const v = drafts.get(dk);
+    if (f.kind === "secret") { if (v) out[f.key] = v; }
+    else if (f.kind === "toggle") { if (v !== !!f.value) out[f.key] = v; }
+    else if (f.kind === "target") { if (v !== (f.value ?? null)) out[f.key] = v; }
+    else if (v !== (f.value || "")) out[f.key] = v;
+  }
+  return out;
+}
+
+function pairRow(card) {
+  const st = pairState.get(card.id) || "idle";
+  const len = card.pairing.code_len;
+  const row = h("div", { class: "row" });
+  const pairBtn = h("button", { class: "btn", type: "button", disabled: st === "waiting", onclick: async () => {
+    pairState.set(card.id, "waiting"); setErr("pair:" + card.id, null); renderPanel("intg");
+    try { await api("POST", "/api/integrations/" + encodeURIComponent(card.id) + "/pair", {}); pairState.set(card.id, "code"); }
+    catch (e) { pairState.set(card.id, "idle"); if (e instanceof ApiError) setErr("pair:" + card.id, e.message); }
+    renderPanel("intg");
+    const c = document.getElementById("code-" + card.id); if (c) c.focus();
+  } }, st === "waiting" ? "Waiting for the TV…" : st === "code" ? "Pair again" : "Pair");
+  row.append(h("span", { class: "label" }, "Pairing", h("span", { class: "hint" }, st === "code" ? "Type the code the device shows" : "Shows a code on the device")), h("div", { class: "secret" }, pairBtn));
+  if (st === "code") {
+    const dk = dkey("code", card.id);
+    const inp = h("input", { id: "code-" + card.id, class: "mono-in", type: "text", maxlength: String(len), autocomplete: "off", spellcheck: "false", placeholder: len + " characters",
+      value: draftOr(dk, ""), oninput: () => drafts.set(dk, inp.value),
+      onkeydown: (e) => { if (e.key === "Enter") check.click(); } });
+    const check = h("button", { class: "btn primary", type: "button", onclick: async () => {
+      const code = (drafts.get(dk) || "").trim();
+      if (code.length !== len) { setErr("pair:" + card.id, "The code is " + len + " characters."); return; }
+      const ok = await mutate("pair:" + card.id, () => api("POST", "/api/integrations/" + encodeURIComponent(card.id) + "/pair/code", { code }), "Paired");
+      if (ok) { pairState.delete(card.id); drafts.delete(dk); renderPanel("intg"); }
+    } }, "Check");
+    return h("div", {}, row, h("div", { class: "row" }, h("label", { for: "code-" + card.id }, "Code"), h("div", { class: "secret" }, inp, check)), errBox("pair:" + card.id));
+  }
+  return h("div", {}, row, errBox("pair:" + card.id));
+}
+
+function integrationCard(card) {
+  const key = "i:" + card.id;
+  const foot = confirmRemove.has(card.id)
+    ? h("div", { class: "foot" }, h("span", { class: "ask" }, "Remove " + card.name + "?"),
+        h("button", { class: "btn", type: "button", onclick: () => { confirmRemove.delete(card.id); renderPanel("intg"); } }, "Cancel"),
+        h("button", { class: "btn danger", type: "button", onclick: async () => {
+          const ok = await mutate(key, () => api("DELETE", "/api/integrations/" + encodeURIComponent(card.id)), "Removed");
+          if (ok) { confirmRemove.delete(card.id); clearDrafts(dkey("i", card.id)); }
+        } }, "Yes, remove"))
+    : h("div", { class: "foot" },
+        h("button", { class: "btn danger", type: "button", onclick: () => { confirmRemove.add(card.id); renderPanel("intg"); } }, "Remove"),
+        h("button", { class: "btn primary", type: "button", onclick: async () => {
+          const fields = changedFields(card);
+          if (!Object.keys(fields).length) { toast("Nothing to change"); return; }
+          const ok = await mutate(key, () => api("PUT", "/api/integrations/" + encodeURIComponent(card.id), { fields }), "Saved to the remote");
+          if (ok) { clearDrafts(dkey("i", card.id)); renderPanel("intg"); }
+        } }, "Save"));
+  return h("section", { class: "card", id: "card-" + card.id, "aria-labelledby": "h-" + card.id },
+    h("div", { class: "card-head" }, svgIcon(card.icon), h("h2", { id: "h-" + card.id }, card.name),
+      h("span", { class: "state" }, h("span", { class: healthDot(card.status.health) }), card.status.text)),
+    card.fields.map((f) => fieldRow(card, f)),
+    card.pairing ? pairRow(card) : null,
+    errBox(key),
+    foot);
+}
+
+function renderIntegrations() {
+  const p = $("p-intg");
+  const kids = cfg.integrations.map(integrationCard);
+  if (!cfg.integrations.length) kids.push(h("div", { class: "card" }, h("div", { class: "empty", style: "border-top:0" }, "Nothing is set up yet. Add an integration below.")));
+  if (cfg.addable.length) {
+    kids.push(h("div", { class: "caption" }, "Add integration"));
+    kids.push(h("div", { class: "add" }, cfg.addable.map((a) => h("button", { class: "btn", type: "button", onclick: async () => {
+      const ok = await mutate("add", () => api("POST", "/api/integrations", { kind: a.kind }), a.name + " added");
+      if (ok) { const last = cfg.integrations[cfg.integrations.length - 1]; const el = last && $("card-" + last.id); if (el) { el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); const i = el.querySelector("input, select, button"); i && i.focus({ preventScroll: true }); } }
+    } }, "+ " + a.name))));
+    kids.push(errBox("add", "pad"));
+  }
+  p.replaceChildren(...kids);
+}
+
+/* global control */
+function roleValue(role) {
+  const b = role.bound;
+  if (!b) return NONE;
+  const isProvider = role.providers.some((p) => p.driver === b.driver) && (b.target == null || b.driver !== cfg.global.driver);
+  return isProvider ? "p:" + b.driver : "t:" + (b.target ?? "");
+}
+function renderGlobal() {
+  const p = $("p-global");
+  const g = cfg.global;
+  const card = h("section", { class: "card bind" }, h("div", { class: "card-head" }, h("h2", {}, "Global control"), h("span", { class: "state" }, "Who answers the remote's own keys")));
+  if (!g.driver) card.append(h("div", { class: "note" }, h("span", { class: "dot wait" }), "Add an integration that can be global control first (for example Home Assistant)."));
+  g.roles.forEach((role) => {
+    const id = "g-" + role.role;
+    const cur = roleValue(role);
+    const b = role.bound;
+    const sel = h("select", { id, "data-cur": cur });
+    const build = (list) => {
+      const o = [{ value: NONE, label: "Nothing" }];
+      let seen = cur === NONE || cur.startsWith("p:");
+      for (const t of list) { if ("t:" + t.id === cur) seen = true; o.push({ value: "t:" + t.id, label: targetLabel(role.target_kind, t) }); }
+      if (!seen) o.push({ value: cur, label: (b && b.name) || (role.target_kind === "pipeline" && cur === "t:" ? "Preferred pipeline" : cur.slice(2)) });
+      for (const pr of role.providers) o.push({ value: "p:" + pr.driver, label: pr.name });
+      return o;
+    };
+    fillSelect(sel, build([]), cur);
+    if (g.driver) lazySelect(sel, g.driver, role.target_kind, build, cur, (m) => setErr("g:" + role.role, m));
+    sel.addEventListener("change", async () => {
+      const v = sel.value; const prev = sel.dataset.cur;
+      const body = v === NONE ? { driver: null, target: "" } : v.startsWith("p:") ? { driver: v.slice(2), target: "" } : { driver: g.driver, target: v.slice(2) };
+      sel.dataset.cur = v;
+      const ok = await mutate("g:" + role.role, () => api("PUT", "/api/global/" + encodeURIComponent(role.role), body), "Saved to the remote");
+      if (!ok) { sel.dataset.cur = prev; sel.value = prev; }
+    });
+    card.append(h("div", { class: "row" }, h("label", { for: id }, role.label), sel), errBox("g:" + role.role, "pad"));
+  });
+  p.replaceChildren(card);
+}
+
+/* inputs */
+function inputCard(inp) {
+  const key = "n:" + inp.id;
+  const put = (body) => mutate(key, () => api("PUT", "/api/inputs/" + encodeURIComponent(inp.id), body), "Saved to the remote");
+  const nameDk = dkey("n", inp.id);
+  const name = h("input", { id: "in-" + inp.id + "-name", type: "text", autocomplete: "off", value: draftOr(nameDk, inp.name),
+    oninput: () => drafts.set(nameDk, name.value),
+    onchange: async () => { if (name.value === inp.name) return; const ok = await put({ name: name.value }); if (ok) drafts.delete(nameDk); },
+    onkeydown: (e) => { if (e.key === "Enter") name.blur(); } });
+  const vis = h("button", { class: "toggle", id: "in-" + inp.id + "-shown", role: "switch", type: "button", "aria-checked": String(!inp.hidden), "aria-label": "Show in the list",
+    onclick: () => { put({ hidden: vis.getAttribute("aria-checked") === "true" }); } });
+  const choice = (field, label, choices) => {
+    const id = "in-" + inp.id + "-" + field;
+    const sel = h("select", { id, onchange: () => put({ [field]: sel.value === NONE ? null : sel.value }) },
+      h("option", { value: NONE }, "Nothing"), choices.map((c) => h("option", { value: c.driver }, c.name)));
+    sel.value = inp[field] == null ? NONE : inp[field];
+    if (sel.value !== (inp[field] ?? NONE)) { sel.append(h("option", { value: inp[field] }, inp[field])); sel.value = inp[field]; }
+    return h("div", { class: "row" }, h("label", { for: id }, label), sel);
+  };
+  return h("section", { class: "card bind", "aria-labelledby": "h-in-" + inp.id },
+    h("div", { class: "card-head" }, h("h2", { id: "h-in-" + inp.id }, inp.id), h("span", { class: "state" }, inp.hidden ? "Hidden" : "Shown")),
+    h("div", { class: "row" }, h("label", { for: name.id }, "Name"), name),
+    h("div", { class: "row" }, h("label", { for: vis.id }, "Show in the list"), vis),
+    choice("remote", "Remote keys", inp.remote_choices),
+    choice("ui", "Screen", inp.ui_choices),
+    errBox(key, "pad"));
+}
+function renderInputs() { $("p-inputs").replaceChildren(...cfg.inputs.map(inputCard)); }
+
+function renderPanel(name) {
+  const y = scrollY, ae = document.activeElement, aid = ae && ae.id;
+  const start = ae && ae.selectionStart, end = ae && ae.selectionEnd;
+  ({ intg: renderIntegrations, global: renderGlobal, inputs: renderInputs })[name]();
+  if (aid) { const el = document.getElementById(aid); if (el && el !== ae) { el.focus({ preventScroll: true }); try { el.setSelectionRange(start, end); } catch {} } }
+  scrollTo(0, y);
+}
+function render() {
+  $("version").textContent = cfg.remote.version;
+  const y = scrollY;
+  ["intg", "global", "inputs"].forEach(renderPanel);
+  selectTab(tab); scrollTo(0, y);
+}
+
+token = store.get();
+if (token) load(); else signOut();
+</script>
+</body>
+</html>

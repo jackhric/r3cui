@@ -12,6 +12,7 @@ use crate::app::integrations::{Effect, Integrations};
 use crate::app::model::{InputEntry, Model, NoInputs};
 use crate::app::software::{self, Software};
 use crate::app::voice::{self as voice_key, VoiceKey};
+use crate::app::webconfig;
 use crate::app::{Later, Settings, UiAction, settings};
 use crate::art::{backdrop_pixels, fetch_image, poster_pixels, vibrant};
 use crate::hardware::feedback;
@@ -88,6 +89,36 @@ impl Frontend {
     pub(crate) fn demo(weak: slint::Weak<AppWindow>) -> Self {
         let modules = demo::modules();
         Self { host: Host::new(crate::app::registry::registry(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new(), software: Software::new(crate::remote::selfupdate::current_version(), demo_pins()) }
+    }
+
+    /// A browser's request to the web configurator.
+    fn web(&mut self, call: webconfig::Call) -> webconfig::Answer {
+        use webconfig::{Answer, Call};
+        match &call {
+            Call::Driver(id) => return self.host.driver(id).map_or_else(|| Answer::Failed(format!("{id} is not running")), Answer::Driver),
+            Call::Targets { driver, kind, targets } => {
+                if self.settings.targets_loaded(driver, *kind, targets.clone()) {
+                    self.save_known();
+                }
+                return Answer::Done;
+            }
+            _ => {}
+        }
+        match webconfig::change(&self.host, &call) {
+            Some(Err(why)) => return Answer::Failed(why),
+            Some(Ok(modules)) => self.apply(modules),
+            None => {}
+        }
+        Answer::Config(webconfig::config(&self.host, self.settings.known(), &crate::remote::selfupdate::current_version().to_string()))
+    }
+
+    fn save_known(&self) {
+        if let Some(store) = &self.store {
+            let path = store.known_path();
+            if let Err(e) = self.settings.known().save(&path) {
+                tracing::warn!("{}: {e}", path.display());
+            }
+        }
     }
 
     /// Changes from the Integrations pages: saved, then applied.
@@ -293,6 +324,12 @@ impl Session<'_> {
                 }
             },
             Effect::Leave => ui(weak, |app| app.go_to(PageId::Menu, app.global::<Menu>().invoke_row(MenuItem::Integrations))),
+            Effect::OpenWeb => {
+                if let Some(web) = crate::webconfig::handle() {
+                    web.open();
+                }
+                ui(weak, |app| app.go_to(PageId::R3Web, 0));
+            }
         }
     }
 
@@ -496,12 +533,7 @@ pub(crate) async fn serve(
                     Later::Targets { driver, kind, targets } => {
                         let front = &mut *session.front;
                         if front.settings.targets_loaded(&driver, kind, targets) {
-                            if let Some(store) = &front.store {
-                                let path = store.known_path();
-                                if let Err(e) = front.settings.known().save(&path) {
-                                    tracing::warn!("{}: {e}", path.display());
-                                }
-                            }
+                            front.save_known();
                         }
                     }
                     Later::PairStarted(started) => {
@@ -663,6 +695,14 @@ pub(crate) async fn serve(
                     }
                     UiAction::Integrations(action) => session.settings(weak, action, &later_tx),
                     UiAction::Software(action) => software::run(front.software.act(action, Instant::now()), &link, &later_tx, weak),
+                    UiAction::Web(call, reply) => {
+                        let _ = reply.send(front.web(call));
+                    }
+                    UiAction::WebOff => {
+                        if let Some(web) = crate::webconfig::handle() {
+                            web.off();
+                        }
+                    }
                     #[cfg(feature = "demo")]
                     UiAction::DemoKey(key) => crate::app::demo::toggle(key, &mut session.system, &mut session.links_down),
                     #[cfg(not(feature = "demo"))]

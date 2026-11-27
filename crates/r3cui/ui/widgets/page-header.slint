@@ -1,4 +1,4 @@
-import { UcMark } from "../marks/brand.slint";
+import { R3Wordmark, UcMark } from "../marks/brand.slint";
 import { Glyph, Icons } from "../marks/icons.slint";
 
 import { Theme, Layout, Type } from "../theme.slint";
@@ -7,6 +7,8 @@ export component PageHeader inherits Rectangle {
     in property <string> title;
     // The Unfolded Circle mark at the right: the page is about the remote itself.
     in property <bool> uc-mark;
+    // The r3cui wordmark there instead: the page is about r3cui.
+    in property <bool> r3-mark;
     callback back();
 
     x: 0;
@@ -31,6 +33,12 @@ export component PageHeader inherits Rectangle {
         x: root.width - Layout.margin - self.width;
         y: (root.height - self.height) / 2;
         wide: 36px;
+    }
+    if root.r3-mark: R3Wordmark {
+        x: root.width - Layout.margin - self.width;
+        y: (root.height - self.height) / 2;
+        wide: Layout.wordmark-mark;
+        tint: Theme.t2;
     }
     TouchArea {
         mouse-cursor: Theme.cursor;

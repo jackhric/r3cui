@@ -1,0 +1,11 @@
+// r3cui's own web configurator: on while this page's PIN is shown, the address a browser opens, and a QR code of it.
+export global R3Web {
+    in property <bool> on;
+    // The PIN a digit at a time; empty while off.
+    in property <[string]> pin;
+    // ip:port.
+    in property <string> address;
+    in property <image> qr;
+    callback new-pin();
+    callback turn-off();
+}

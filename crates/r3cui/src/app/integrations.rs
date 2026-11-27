@@ -72,6 +72,8 @@ pub(crate) enum Effect {
     /// Give the code to the pairing under way.
     Finish { code: String },
     Leave,
+    /// Switch the web configurator on and show its PIN.
+    OpenWeb,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -95,23 +97,24 @@ pub(crate) struct Integrations {
 }
 
 /// The rows of Global control, in order.
-const GLOBAL_ROLES: [Role; 4] = [Role::Volume, Role::Source, Role::Power, Role::Voice];
+pub(crate) const GLOBAL_ROLES: [Role; 4] = [Role::Volume, Role::Source, Role::Power, Role::Voice];
 
 /// The first screen's rows: Global control, Inputs, then one per driver.
 const ROOT_GLOBAL: usize = 0;
 const ROOT_INPUTS: usize = 1;
 const ROOT_DRIVERS: usize = 2;
+const WEB_ROW: &str = "Set up from a computer";
 
 fn row(label: impl Into<String>) -> Row {
     Row { label: label.into(), ..Default::default() }
 }
 
-fn spec_of(host: &Host, driver: &str) -> Option<&'static Spec> {
+pub(crate) fn spec_of(host: &Host, driver: &str) -> Option<&'static Spec> {
     host.registry().spec(&host.modules().drivers.get(driver)?.kind)
 }
 
 /// Sets one of a driver's fields as its spec types it; a key its spec doesn't have is left alone.
-fn set_field(m: &mut Modules, host: &Host, driver: &str, key: &str, value: &str) {
+pub(crate) fn set_field(m: &mut Modules, host: &Host, driver: &str, key: &str, value: &str) {
     let spec = m.drivers.get(driver).and_then(|d| host.registry().spec(&d.kind));
     if let Some(field) = spec.and_then(|s| s.field(key)) {
         m.set_field(driver, field, value);
@@ -122,17 +125,37 @@ fn icon_of(host: &Host, driver: &str) -> &'static str {
     spec_of(host, driver).map_or("", |s| s.icon)
 }
 
-fn name_of(host: &Host, driver: &str) -> String {
+pub(crate) fn name_of(host: &Host, driver: &str) -> String {
     spec_of(host, driver).map_or_else(|| driver.to_string(), |s| s.name.to_string())
 }
 
+/// The integrations not set up yet; one instance per type.
+pub(crate) fn addable(host: &Host) -> impl Iterator<Item = &'static Spec> + '_ {
+    host.registry().specs().filter(move |s| !host.modules().drivers.values().any(|d| d.kind == s.id))
+}
+
+/// The drivers that can fill an input's slot.
+pub(crate) fn slot_drivers(host: &Host, slot: Slot) -> Vec<String> {
+    host.modules()
+        .drivers
+        .keys()
+        .filter(|id| spec_of(host, id).is_some_and(|s| if slot == Slot::Remote { s.provides.remote } else { s.provides.ui }))
+        .cloned()
+        .collect()
+}
+
+/// What a global role is bound to: voice to a pipeline, the rest to a media player.
+pub(crate) fn role_kind(role: Role) -> TargetKind {
+    if role == Role::Voice { TargetKind::Pipeline } else { TargetKind::MediaPlayer }
+}
+
 /// The driver that can be global control. Home Assistant is the only one so far; one instance per type.
-fn global_driver(host: &Host) -> Option<String> {
+pub(crate) fn global_driver(host: &Host) -> Option<String> {
     host.modules().drivers.keys().find(|id| spec_of(host, id).is_some_and(|s| s.provides.global)).cloned()
 }
 
 /// The drivers that can be global power without being global control.
-fn power_providers(host: &Host) -> Vec<String> {
+pub(crate) fn power_providers(host: &Host) -> Vec<String> {
     host.modules().drivers.keys().filter(|id| spec_of(host, id).is_some_and(|s| s.provides.power && !s.provides.global)).cloned().collect()
 }
 
@@ -229,6 +252,7 @@ impl Integrations {
                 if self.addable(host).next().is_some() {
                     rows.push(Row { chevron: true, ..row("Add integration") });
                 }
+                rows.push(Row { chevron: true, detail: "From a browser on the same Wi-Fi".into(), ..row(WEB_ROW) });
                 ("Integrations".to_string(), rows)
             }
             Screen::Global => {
@@ -389,16 +413,11 @@ impl Integrations {
     }
 
     fn addable<'a>(&self, host: &'a Host) -> impl Iterator<Item = &'static Spec> + 'a {
-        host.registry().specs().filter(move |s| !host.modules().drivers.values().any(|d| d.kind == s.id))
+        addable(host)
     }
 
     fn slot_drivers(&self, host: &Host, slot: Slot) -> Vec<String> {
-        host.modules()
-            .drivers
-            .keys()
-            .filter(|id| spec_of(host, id).is_some_and(|s| if slot == Slot::Remote { s.provides.remote } else { s.provides.ui }))
-            .cloned()
-            .collect()
+        slot_drivers(host, slot)
     }
 
     /// The target a picker row stands for: `None` for the first row, the row's target after; nothing while loading.
@@ -421,15 +440,15 @@ impl Integrations {
                     ROOT_GLOBAL => self.push(Screen::Global),
                     ROOT_INPUTS => self.push(Screen::Inputs),
                     n if n - ROOT_DRIVERS < drivers.len() => self.push(Screen::Driver(drivers[n - ROOT_DRIVERS].clone())),
-                    _ if self.addable(host).next().is_some() => self.push(Screen::Add),
-                    _ => {}
+                    n if n - ROOT_DRIVERS == drivers.len() && self.addable(host).next().is_some() => self.push(Screen::Add),
+                    _ => return Effect::OpenWeb,
                 }
                 Effect::Stay
             }
             Screen::Global => {
                 let role = GLOBAL_ROLES[at.min(GLOBAL_ROLES.len() - 1)];
                 self.push(Screen::PickRole(role));
-                let kind = if role == Role::Voice { TargetKind::Pipeline } else { TargetKind::MediaPlayer };
+                let kind = role_kind(role);
                 match global_driver(host) {
                     Some(driver) => Effect::Load { driver, kind },
                     None => Effect::Stay,
@@ -654,7 +673,7 @@ fn pair_failure(e: PairError) -> String {
 }
 
 /// An entity id without its domain: `media_player.receiver` → `receiver`.
-fn short(target: &str) -> String {
+pub(crate) fn short(target: &str) -> String {
     target.split_once('.').map_or(target, |(_, name)| name).to_string()
 }
 
@@ -708,7 +727,8 @@ mod tests {
     #[tokio::test]
     async fn adding_a_driver_and_putting_it_in_an_inputs_slots() {
         let (mut host, _fakes, mut ui) = setup();
-        assert_eq!(labels(&ui.page(&host)), ["Global control", "Inputs", "Fake", "Add integration"]);
+        assert_eq!(labels(&ui.page(&host)), ["Global control", "Inputs", "Fake", "Add integration", WEB_ROW]);
+        assert_eq!(tap(&mut ui, &mut host, WEB_ROW), Effect::OpenWeb);
         tap(&mut ui, &mut host, "Add integration");
         assert!(matches!(tap(&mut ui, &mut host, "Fake"), Effect::Apply(_)));
         assert_eq!(labels(&ui.page(&host)), ["Host", "Remove Fake"], "straight into its setup");

@@ -14,6 +14,7 @@ pub(crate) mod session;
 pub(crate) mod settings;
 pub(crate) mod software;
 pub(crate) mod voice;
+pub(crate) mod webconfig;
 
 use crate::hardware::backlight;
 use crate::input::{slider, Button};
@@ -49,6 +50,10 @@ pub(crate) enum UiAction {
     VoiceKey { down: bool },
     VoiceDismiss,
     Software(software::Action),
+    /// A browser's request to the web configurator, answered on `reply`.
+    Web(webconfig::Call, tokio::sync::oneshot::Sender<webconfig::Answer>),
+    /// The web configurator went unused: switch it off.
+    WebOff,
 }
 #[derive(Debug)]
 pub(crate) enum Settings {
