@@ -31,6 +31,8 @@ struct Active {
     pressed: Instant,
     ended: bool,
     reported: bool,
+    /// Audio bytes the relay brought, for the log.
+    heard: usize,
 }
 
 #[derive(Debug, Default)]
@@ -52,7 +54,7 @@ impl VoiceKey {
         }
         self.last += 1;
         let session = self.last;
-        self.active = Some(Active { session, pressed: now, ended: false, reported: false });
+        self.active = Some(Active { session, pressed: now, ended: false, reported: false, heard: 0 });
         vec![Do::Driver(VoiceIntent::Start { session, sample_rate: SAMPLE_RATE }), Do::CoreStart(session)]
     }
 
@@ -79,7 +81,14 @@ impl VoiceKey {
     pub(crate) fn relay(&mut self, event: LinkEvent) -> Vec<Do> {
         match event {
             LinkEvent::Audio { session_id, pcm } if self.listening(session_id) => {
+                if let Some(a) = self.active.as_mut() {
+                    a.heard += pcm.len();
+                }
                 vec![Do::Driver(VoiceIntent::Audio { session: session_id, pcm: pcm.to_vec() })]
+            }
+            LinkEvent::Audio { session_id, pcm } => {
+                tracing::debug!("voice: {} bytes for session {session_id}, which is not listening", pcm.len());
+                Vec::new()
             }
             LinkEvent::End { session_id } => self.end(session_id),
             _ => Vec::new(),
@@ -122,6 +131,7 @@ impl VoiceKey {
         match self.active.as_mut().filter(|a| a.session == session && !a.ended) {
             Some(a) => {
                 a.ended = true;
+                tracing::info!("voice: session {session} ended with {} bytes of audio from the relay", a.heard);
                 vec![Do::Driver(VoiceIntent::End { session })]
             }
             None => Vec::new(),

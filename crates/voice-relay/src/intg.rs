@@ -141,7 +141,10 @@ fn entity_command(hub: &Hub, out: &Outbox, req_id: u64, data: Value) {
             };
             let _ = out.send(api::assistant_event(session_id, event));
         }
-        cmd::VOICE_END => reply(code::OK),
+        cmd::VOICE_END => {
+            tracing::info!("voice_end");
+            reply(code::OK)
+        }
         _ => reply(code::NOT_IMPLEMENTED),
     }
 }
@@ -157,6 +160,8 @@ fn handle_binary(hub: &Hub, bytes: &[u8]) {
     match frame {
         Voice::VoiceBegin(begin) => {
             let cfg = begin.configuration.unwrap_or_default();
+            tracing::info!("session {}: audio begins, {} Hz, {} channels, format {}", begin.session_id, cfg.sample_rate, cfg.channels, cfg.sample_format);
+            hub.audio_began();
             hub.to_ui(&RelayMsg::Begin {
                 session_id: begin.session_id,
                 sample_rate: if cfg.sample_rate == 0 {
@@ -173,9 +178,12 @@ fn handle_binary(hub: &Hub, bytes: &[u8]) {
             });
         }
         Voice::VoiceData(data) => hub.audio_to_ui(data.samples),
-        Voice::VoiceEnd(end) => hub.to_ui(&RelayMsg::End {
-            session_id: end.session_id,
-        }),
+        Voice::VoiceEnd(end) => {
+            hub.audio_ended(end.session_id);
+            hub.to_ui(&RelayMsg::End {
+                session_id: end.session_id,
+            })
+        }
     }
 }
 

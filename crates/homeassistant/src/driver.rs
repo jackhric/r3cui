@@ -170,7 +170,9 @@ async fn voice_intent(ha: &HaHandle, pipeline: Option<&str>, view: &watch::Sende
         }
         VoiceIntent::Audio { session, pcm } => {
             if let Some(r) = current(session, run) {
-                let _ = r.send_audio(&pcm);
+                if let Err(e) = r.send_audio(&pcm) {
+                    tracing::warn!("home assistant voice: sending audio: {e}");
+                }
             }
         }
         VoiceIntent::End { session } => {

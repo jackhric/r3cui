@@ -20,6 +20,16 @@ pub struct Hub {
     ui: Mutex<Option<Ui>>,
     sessions: Mutex<HashMap<SessionId, Outbox>>,
     next_ui: AtomicU64,
+    heard: Mutex<Heard>,
+}
+
+/// What the core sent of the session's audio, for the log: whether the microphone reached the relay at all.
+#[derive(Default)]
+struct Heard {
+    frames: u64,
+    bytes: u64,
+    /// Of 16-bit samples, the loudest.
+    peak: u16,
 }
 
 impl Hub {
@@ -58,12 +68,28 @@ impl Hub {
         self.sessions.lock().unwrap().insert(session_id, core);
     }
 
+    pub fn audio_began(&self) {
+        *self.heard.lock().unwrap() = Heard::default();
+    }
+
+    pub fn audio_ended(&self, session_id: SessionId) {
+        let h = std::mem::take(&mut *self.heard.lock().unwrap());
+        tracing::info!("session {session_id}: the core sent {} audio frames, {} bytes, peak {}", h.frames, h.bytes, h.peak);
+    }
+
     pub fn to_ui(&self, msg: &RelayMsg) {
         let text = serde_json::to_string(msg).expect("frame serialises");
         self.send_ui(Message::Text(text));
     }
 
     pub fn audio_to_ui(&self, pcm: Vec<u8>) {
+        {
+            let mut h = self.heard.lock().unwrap();
+            h.frames += 1;
+            h.bytes += pcm.len() as u64;
+            let loudest = pcm.chunks_exact(2).map(|s| i16::from_le_bytes([s[0], s[1]]).unsigned_abs()).max().unwrap_or(0);
+            h.peak = h.peak.max(loudest);
+        }
         self.send_ui(Message::Binary(pcm));
     }
 
