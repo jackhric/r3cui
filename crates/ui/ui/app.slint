@@ -38,7 +38,7 @@ import { TracksPage } from "pages/tracks.slint";
 import { JoinFailedPage } from "pages/wifi/join-failed.slint";
 import { WifiPage } from "pages/wifi/wifi.slint";
 import { Stage } from "stage/stage.slint";
-import { Theme, Layout } from "theme.slint";
+import { Theme, Layout, Motion } from "theme.slint";
 import { Capture, Haptic, HomeView, JoinState, NavKey, PageId, VoiceStage } from "types.slint";
 
 // What Rust reaches: the types and every global.
@@ -85,7 +85,10 @@ export component AppWindow inherits Window {
     animate recede { duration: 460ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
     property <bool> overlay-open: (Control.volume-overlay && Control.power-on) || hold.power-overlay || hold.key-holding || (Sys.charge-card && Sys.lit) || Voice.stage != VoiceStage.off;
     property <float> under: root.overlay-open ? 1 : 0;
-    animate under { duration: 380ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+    animate under { duration: Motion.under; easing: Theme.page-easing; }
+    // The voice overlay sends the screen further back, as a menu does the stage.
+    property <float> voice-under: Voice.stage != VoiceStage.off ? 1 : 0;
+    animate voice-under { duration: Motion.under; easing: Theme.page-easing; }
     public function hold-swap() { stage.hold-swap(); }
     public function run-swap() { stage.run-swap(); }
 
@@ -226,7 +229,7 @@ export component AppWindow inherits Window {
         // since Slint cannot blur live content.
         world := Rectangle {
             transform-origin: { x: self.width / 2, y: self.height / 2 };
-            transform-scale: Fx.capturing != Capture.none ? 1 : 1 - 0.05 * root.under;
+            transform-scale: Fx.capturing != Capture.none ? 1 : (1 - 0.05 * root.under) * (1 - Motion.recede-scale * root.voice-under);
 
             stage := Stage { recede: root.recede; }
 
@@ -266,6 +269,12 @@ export component AppWindow inherits Window {
                 source: Fx.world-blur;
                 image-fit: fill;
                 opacity: root.under;
+                visible: self.opacity > 0 && Fx.capturing == Capture.none;
+            }
+
+            Rectangle {
+                background: Theme.bg;
+                opacity: Motion.recede-dim * root.voice-under;
                 visible: self.opacity > 0 && Fx.capturing == Capture.none;
             }
         }

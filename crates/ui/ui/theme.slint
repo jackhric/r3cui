@@ -105,4 +105,9 @@ export global Motion {
     out property <duration> voice-fade: 1000ms;
     // One turn of a spinner.
     out property <duration> spin: 1100ms;
+    // How long whatever is under an overlay takes to step back, and to return.
+    out property <duration> under: 380ms;
+    // The stage stepping back behind a menu or the voice overlay: how much it shrinks and dims.
+    out property <float> recede-scale: 0.08;
+    out property <float> recede-dim: 0.55;
 }

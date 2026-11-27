@@ -2,7 +2,7 @@ import { Fx } from "../globals/fx.slint";
 import { Home } from "../globals/home.slint";
 import { Lib } from "../globals/lib.slint";
 import { Sys } from "../globals/sys.slint";
-import { Theme, Layout, Type } from "../theme.slint";
+import { Theme, Layout, Type, Motion } from "../theme.slint";
 import { Capture, HomeView, LibMode } from "../types.slint";
 import { Library } from "library.slint";
 import { MarkView } from "mark.slint";
@@ -18,8 +18,8 @@ export component Stage inherits Rectangle {
     public function run-library() { lib.run(); }
 
     transform-origin: { x: self.width / 2, y: self.height / 2 };
-    transform-scale: Fx.capturing == Capture.stage ? 1 : (1 - 0.08 * root.recede) * (Fx.swapping && !Fx.swap-plain ? 0.97 + 0.03 * dissolve.progress : 1);
-    opacity: Fx.capturing == Capture.stage ? 1 : 1 - 0.55 * root.recede;
+    transform-scale: Fx.capturing == Capture.stage ? 1 : (1 - Motion.recede-scale * root.recede) * (Fx.swapping && !Fx.swap-plain ? 0.97 + 0.03 * dissolve.progress : 1);
+    opacity: Fx.capturing == Capture.stage ? 1 : 1 - Motion.recede-dim * root.recede;
 
     // The input's UI slot, playing
     PlayingView {
