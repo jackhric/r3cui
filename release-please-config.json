@@ -11,7 +11,7 @@
       "package-name": "r3cui",
       "extra-files": [
         { "type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.package.version" },
-        { "type": "toml", "path": "Cargo.lock", "jsonpath": "$.package[?(@.name.value==='remote-ui')].version" },
+        { "type": "toml", "path": "Cargo.lock", "jsonpath": "$.package[?(@.name.value==='r3cui')].version" },
         { "type": "toml", "path": "Cargo.lock", "jsonpath": "$.package[?(@.name.value==='coreapi')].version" },
         { "type": "json", "path": "packaging/release.json", "jsonpath": "$.version" }
       ]

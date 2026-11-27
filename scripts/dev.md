@@ -1,6 +1,6 @@
 # Dev loop (desktop, no device)
 
-`scripts/test.sh` is what CI runs. To see the app with nothing set up, `cargo run -p remote-ui -- --demo` (see
+`scripts/test.sh` is what CI runs. To see the app with nothing set up, `cargo run -p r3cui -- --demo` (see
 "The demo" below). The rest of this page is for running against the simulator and the fakes.
 
 ## 1. Run the core simulator (the remote's own state)
@@ -31,7 +31,7 @@ REST demo accounts: `admin`/`remote2`, `web-configurator`/`1234`.
 ```sh
 eval "$(scripts/sim.sh env)"   # UC_SOCKET_URL + UC_TOKEN_PATH
 export RUST_LOG=info           # remote_ui=debug dumps every entity and event
-cargo run -p remote-ui
+cargo run -p r3cui
 ```
 
 A 480×800 window opens and authenticates with the core. The rest of the screen is filled by the drivers set up in
@@ -49,7 +49,7 @@ A 480×800 window opens and authenticates with the core. The rest of the screen 
 ## Simulating the hard keys
 
 Physical buttons never come over the WebSocket, so the simulator can't inject them. On the desktop
-the keyboard stands in (`crates/ui/src/input/mod.rs`); the footer line shows what each press resolved to.
+the keyboard stands in (`crates/r3cui/src/input/mod.rs`); the footer line shows what each press resolved to.
 
 | Key | Button | Key | Button |
 |---|---|---|---|
@@ -93,7 +93,7 @@ and use `type-file <path>` in the steps, which types the file's text when the st
 
 ## The demo
 
-`cargo run -p remote-ui -- --demo` (or `UC_DEMO=1`, or `--record` without `--live`) runs the real session with nothing
+`cargo run -p r3cui -- --demo` (or `UC_DEMO=1`, or `--record` without `--live`) runs the real session with nothing
 to connect to: an in-memory setup (`demo::modules()`) puts the Demo driver behind global volume and source
 and every input's remote, and behind Kodi's screen, and a made-up remote stands in for the core (battery, Wi-Fi to
 join; keys `c` charger, `z` asleep, `x` every driver down). Nothing is written to `config/`. All the made-up values
@@ -102,13 +102,13 @@ are in `crates/demo/src/data.rs`; the `--shots` stills read the same ones.
 ## Driving the live app
 
 `--steps <file> --out <dir>` presses keys through the window and takes pictures along the way
-(`crates/ui/src/preview/steps.rs` lists the steps; `page <name>` opens a page by name, the same names `--page <name>`
+(`crates/r3cui/src/preview/steps.rs` lists the steps; `page <name>` opens a page by name, the same names `--page <name>`
 takes). `awake` puts away the charger card the simulator always shows.
 `scripts/tour.steps` visits every page and overlay (41 pictures): run it before and after a change to the Slint files
 and compare the pictures to see that nothing moved:
 
 ```sh
-cargo run -p remote-ui -- --demo --steps scripts/tour.steps --out <dir>
+cargo run -p r3cui -- --demo --steps scripts/tour.steps --out <dir>
 ```
 
 `scripts/voice.steps` holds the voice key in the demo (listening, thinking, the made-up answer) and taps it
@@ -127,7 +127,7 @@ from the demo data, `--snap <png>` one picture of the running window, `--press <
 ## Hot reload
 
 `scripts/dev.sh` runs the UI against the simulator with Slint live preview
-(`SLINT_LIVE_PREVIEW=1` + `--features slint/live-preview`): saving any `.slint` file under `crates/ui/ui/` reloads
+(`SLINT_LIVE_PREVIEW=1` + `--features slint/live-preview`): saving any `.slint` file under `crates/r3cui/ui/` reloads
 the running window. Rust edits need a restart; with `watchexec` installed the script does that too.
 
 ## A real Kodi

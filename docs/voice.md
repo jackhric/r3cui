@@ -47,7 +47,7 @@ Audio is what the core sends by default: PCM, 16 kHz, mono, signed 16-bit, in ch
 | Assist | `crates/homeassistant` | `assist_pipeline/pipeline/list` and `assist_pipeline/run`, the binary audio frames, typed pipeline events. Needs binary frames in `crates/wsclient`. |
 | Voice port | `crates/sdk` | A driver can take voice (`Provides.voice`, `Driver::voice()`): start a session, push chunks, end, and report what was heard and the answer. Global control gains **Voice**, bound like Volume and Inputs. Home Assistant provides it, one target per Assist pipeline. |
 | Core | `crates/coreapi` | `execute_entity_command` (`voice_start`, `voice_end`) and the `assistant_event` stream. |
-| UI | `crates/ui` | The voice key held starts a session, released ends it (a tap sends nothing; the inputs are Home's, held); the voice overlay: listening, what was heard, the answer or an error. |
+| UI | `crates/r3cui` | The voice key held starts a session, released ends it (a tap sends nothing; the inputs are Home's, held); the voice overlay: listening, what was heard, the answer or an error. |
 
 ## The voice link
 
@@ -82,7 +82,7 @@ The relay listens, r3cui connects and reconnects; a new connection replaces the 
 
 ### Building it
 
-The device build container (`scripts/build-device.sh`) builds `-p remote-ui` for `aarch64-unknown-linux-gnu`
+The device build container (`scripts/build-device.sh`) builds `-p r3cui` for `aarch64-unknown-linux-gnu`
 against the SDK's glibc 2.33, dynamically linked. A custom integration must be a **statically linked** aarch64
 binary, so the relay cannot simply be built the same way. Its dependencies are pure Rust (no C, no TLS), so the
 proposal is `aarch64-unknown-linux-musl`:

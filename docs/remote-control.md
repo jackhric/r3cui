@@ -27,7 +27,7 @@ without the simulator. Off by default.
 - `crates/remotewire`: the protocol, named once for both ends: hard keys (`HardKey`; no power key: switching the
   remote off stays physical), requests, replies, and the key proof (HMAC-SHA256 of a fresh nonce; the key never
   crosses the network).
-- `crates/ui/src/remote_control/`: the server. It listens on port 10780 only while switched on, answers only
+- `crates/r3cui/src/remote_control/`: the server. It listens on port 10780 only while switched on, answers only
   local-network addresses, and locks for a minute after five wrong keys. Keys and touches go in through
   `input/inject.rs`, the same door as the remote's own keys and touchscreen, so they behave exactly alike.
   An asleep remote is woken first (`set_power_mode NORMAL`, as a key press does; the core hears only real keys), and

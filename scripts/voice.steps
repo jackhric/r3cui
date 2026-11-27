@@ -1,6 +1,6 @@
 # Hold the voice key to talk, in the demo: the aurora rises and moves with a made-up voice, a spinner while the
 # answer is worked out, the answer, then it fades. A tap of the voice key does nothing; holding Home opens the inputs.
-#   cargo run -p remote-ui -- --demo --steps scripts/voice.steps --out <dir>
+#   cargo run -p r3cui -- --demo --steps scripts/voice.steps --out <dir>
 awake
 wait 800
 snap 00-home

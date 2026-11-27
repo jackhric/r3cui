@@ -7,4 +7,4 @@ set -eu
 cd "$(dirname "$0")/.."
 cargo test --workspace --locked "$@"
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo clippy -p remote-ui --no-default-features --features device --locked -- -D warnings
+cargo clippy -p r3cui --no-default-features --features device --locked -- -D warnings

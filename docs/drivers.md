@@ -76,7 +76,7 @@ crates/host            r3cui's side. Names no integration.
   known.rs               targets.json: what each driver last offered, for the pickers offline
   host.rs                runs the configured drivers and routes keys and views
   testing.rs             FakeDriver: records intents, publishes views on demand
-crates/ui              The frontend: renders the host's view, sends it intents, and draws
+crates/r3cui           The app (binary remote-ui): renders the host's view, sends it intents, and draws
                        Settings → Integrations from the driver specs. `src/app/registry.rs` lists the
                        integrations it carries.
 ```
@@ -92,7 +92,7 @@ An integration is one crate, depending on `r3cui-sdk` and nothing else of r3cui'
    `pub const INTEGRATION: Integration = Integration { spec: &SPEC, start: ... }`.
 3. Its tests, against its own fake, with `r3cui_sdk::testing`.
 
-The app carries it with a dependency in `crates/ui/Cargo.toml` and one line in `src/app/registry.rs`. Nothing in
+The app carries it with a dependency in `crates/r3cui/Cargo.toml` and one line in `src/app/registry.rs`. Nothing in
 `host` or `r3cui-sdk` changes, and the Integrations pages are drawn from the `Spec`, so no Slint either.
 
 ## The contract (`r3cui_sdk::api`)

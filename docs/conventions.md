@@ -10,10 +10,10 @@ A string or number that means something is named once, and everything else uses 
 | Kodi's methods, parameters and shared value types | `crates/kodi/src/methods/` (one struct per method, checked against the vendored schema by `tests/schema.rs`) and `crates/kodi/src/wire.rs` |
 | Core-API message names and the events the UI acts on | `crates/coreapi/src/messages.rs`, `crates/coreapi/src/events.rs`; the System page's requests are typed in `system.rs` |
 | A driver's setup field keys | the integration's own `driver::field` module: `crates/homeassistant/src/driver.rs`, `crates/kodi/src/driver/mod.rs` |
-| The characters hard keys arrive as | `keys` in `crates/ui/src/input/mod.rs`; the window gets the same values through `KeyChars` in `crates/ui/ui/globals/keys.slint` |
-| Anything Slint and Rust both know about (pages, haptic events, library modes, ...) | a Slint `enum` in `crates/ui/ui/types.slint`, matched exhaustively in Rust |
+| The characters hard keys arrive as | `keys` in `crates/r3cui/src/input/mod.rs`; the window gets the same values through `KeyChars` in `crates/r3cui/ui/globals/keys.slint` |
+| Anything Slint and Rust both know about (pages, haptic events, library modes, ...) | a Slint `enum` in `crates/r3cui/ui/types.slint`, matched exhaustively in Rust |
 | Timings | a named `const` at the top of the module that uses it, with a `Duration` type |
-| The UI's colours, lengths, text sizes and animation timings | `Theme`, `Layout`, `Type` and `Motion` in `crates/ui/ui/theme.slint`, named by role (`Layout.margin`, `Type.label`), never a literal that repeats one |
+| The UI's colours, lengths, text sizes and animation timings | `Theme`, `Layout`, `Type` and `Motion` in `crates/r3cui/ui/theme.slint`, named by role (`Layout.margin`, `Type.label`), never a literal that repeats one |
 
 A new protocol message, field or domain goes in the client crate's constants first. A driver or
 the UI never spells a wire string itself.
@@ -52,7 +52,7 @@ release-please builds the releases from them.
 
 An integration is one crate on `r3cui-sdk`: its client, its `Spec` and `field` keys, its `Driver`, its fake, its
 tests, exported as `driver::INTEGRATION`. The app carries it with a Cargo dependency and one line in
-`crates/ui/src/app/registry.rs`. The recipe is in `docs/drivers.md`, "Writing an integration". The Integrations
+`crates/r3cui/src/app/registry.rs`. The recipe is in `docs/drivers.md`, "Writing an integration". The Integrations
 pages are drawn from the `Spec`, so no Slint changes.
 
 ## Tests
@@ -73,4 +73,4 @@ the desktop and the device build.
 `examples/fake-ha.rs`). See `scripts/dev.md`.
 
 Pure logic takes the time as an argument so tests can drive it (`Player` in
-`crates/ui/src/hardware/feedback/player.rs`).
+`crates/r3cui/src/hardware/feedback/player.rs`).

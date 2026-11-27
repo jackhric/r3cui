@@ -24,22 +24,22 @@ Surveyed Rust GUI toolkits for a no-compositor, direct-to-KMS, aarch64 touchscre
 Slint wins because it ships the one maintained direct-to-KMS backend **and** input, matches the
 device's GLES2/KMS/GBM stack, has a software-renderer fallback (same code), is GPL-3.0, and plays
 nicely with tokio. Caveat: the LinuxKMS backend is labelled "experimental". The device build tries GLES2 first and falls back to
-the software renderer if the GPU path won't start (`select_device_renderer` in `crates/ui/src/main.rs`).
+the software renderer if the GPU path won't start (`select_device_renderer` in `crates/r3cui/src/main.rs`).
 
 ## Architecture
 
 | Layer | Choice |
 |---|---|
 | UI / render | `slint`; `backend-winit` + FemtoVG on the desktop (the default `desktop` feature); `backend-linuxkms` + FemtoVG (GLES2) on the device (the `device` feature), with the software renderer compiled in as fallback |
-| Slint source | `crates/ui/ui/`: `app.slint` (window, key router, layer order), `theme.slint` (colours, sizes, timing), `types.slint` (enums and structs shared with Rust), `globals/` (state per area, with `Nav` for pages), `marks/` (icons, logos, codec and brand marks as path data, and what draws them), `widgets/` (shared pieces: `Layer`, `PageHeader`, `ChoiceList`, `Row`, `Bar`), `pages/` (one per page; `system/` and `wifi/` group their flows), `stage/` (the home screen and the library wall), `overlays/`, `assets/` (fonts, icons, rating badges) |
+| Slint source | `crates/r3cui/ui/`: `app.slint` (window, key router, layer order), `theme.slint` (colours, sizes, timing), `types.slint` (enums and structs shared with Rust), `globals/` (state per area, with `Nav` for pages), `marks/` (icons, logos, codec and brand marks as path data, and what draws them), `widgets/` (shared pieces: `Layer`, `PageHeader`, `ChoiceList`, `Row`, `Bar`), `pages/` (one per page; `system/` and `wifi/` group their flows), `stage/` (the home screen and the library wall), `overlays/`, `assets/` (fonts, icons, rating badges) |
 | Display | GBM/DRM-KMS, 480×800 portrait; `SLINT_KMS_ROTATION`, `SLINT_DRM_OUTPUT`/`SLINT_DRM_MODE` as needed |
-| Input | On the device, `crates/ui/src/input/evdev.rs` reads the touchscreen, the hard keys and the capacitive slider itself and hands them to the window (libinput is left out of the device build). On the desktop the keyboard stands in |
+| Input | On the device, `crates/r3cui/src/input/evdev.rs` reads the touchscreen, the hard keys and the capacitive slider itself and hands them to the window (libinput is left out of the device build). On the desktop the keyboard stands in |
 | WebSocket | `tokio` + `tokio-tungstenite`. `crates/wsclient` is the shared connection, backoff, pending-call table and reconnecting `Session`; `coreapi`, `kodi` and `homeassistant` each run on it and keep their own protocol. Bridged to Slint via `invoke_from_event_loop` |
 | Remote's own state | `crates/coreapi`: auth by reading `UC_TOKEN_PATH`, the `kind/id/msg/msg_data` envelope, typed power, battery and Wi-Fi events. No entities: see `docs/core-ws-protocol.md` |
-| Other programs | Integrations, each one crate with its client and driver on `crates/sdk` (`r3cui-sdk`): `homeassistant`, `kodi`, `androidtv`, `demo`. `crates/host`: `modules.json`, the input list, the host that routes keys and views. The app lists what it carries in `crates/ui/src/app/registry.rs` |
+| Other programs | Integrations, each one crate with its client and driver on `crates/sdk` (`r3cui-sdk`): `homeassistant`, `kodi`, `androidtv`, `demo`. `crates/host`: `modules.json`, the input list, the host that routes keys and views. The app lists what it carries in `crates/r3cui/src/app/registry.rs` |
 | Packaging | `scripts/build-device.sh` cross-compiles aarch64 in a container against the manufacturer's SDK, `packaging/pack.sh` makes the `.tar.gz` (`release.json`, `bin/remote-ui`, `config/`); CI builds it and release-please publishes it. Install via `POST /system/install/ui?void_warranty=yes`, or `install.sh` / `install.bat` |
 
-The `crates/ui` binary is the only crate that knows Slint. `coreapi`, `wsclient`, `kodi`,
+The `crates/r3cui` binary is the only crate that knows Slint. `coreapi`, `wsclient`, `kodi`,
 `homeassistant`, `androidtv`, `r3cui-sdk` and `host` have no UI dependency and are tested on their own, against the fakes
 described in `docs/conventions.md`.
 

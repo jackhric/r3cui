@@ -5,7 +5,7 @@ the remote's own state (`crates/coreapi`). It no longer reads entities, entity c
 the core: the receiver, Kodi and the hard keys' targets are drivers (`docs/drivers.md`), and the entity,
 activity and button-mapping rows below are kept as spec notes only.
 
-Requests the UI sends today (`crates/ui/src/remote/`, `hardware/backlight.rs`): `get_power_mode`,
+Requests the UI sends today (`crates/r3cui/src/remote/`, `hardware/backlight.rs`): `get_power_mode`,
 `get_battery_charger`, `get_display_cfg` / `set_display_cfg`, `get_haptic_cfg`, `get_sound_cfg`,
 `get_power_saving_cfg`, `get_network_cfg` / `set_network_cfg`, `get_wifi_status`, `get_wifi_scan_status`,
 `wifi_scan_start`, `add_wifi_network`, `set_button_cfg`, and for the System page `version`, `set_ui_info` (after every sign-in, as
@@ -50,7 +50,7 @@ handy for the simulator. The stock on-device path is the token-file `auth` messa
 ## Keep-alive
 
 Server pings every 10 s, closes after ~30 s silence. There's also an app-level `ping`/`pong`.
-`tokio-tungstenite` answers WS pings automatically. The UI retries every 2 s after a drop (`RECONNECT_DELAY` in `crates/ui/src/app/session.rs`).
+`tokio-tungstenite` answers WS pings automatically. The UI retries every 2 s after a drop (`RECONNECT_DELAY` in `crates/r3cui/src/app/session.rs`).
 
 ## Messages a UI could use
 
@@ -75,7 +75,7 @@ The stock UI fetches the activity's button mappings and sends the mapped `execut
 
 ## Software: firmware updates, the web configurator, r3cui's own updates
 
-`crates/coreapi/src/system.rs` types these, `crates/ui/src/app/software.rs` holds the state, `crates/ui/src/remote/software.rs`
+`crates/coreapi/src/system.rs` types these, `crates/r3cui/src/app/software.rs` holds the state, `crates/r3cui/src/remote/software.rs`
 does the work. `coreapi::testing::FakeCore` answers all of them.
 
 | Message | Notes |
@@ -96,7 +96,7 @@ r3cui's own updates are not the core's: `GET https://api.github.com/repos/jackhr
 port 80 if that does not answer. Uninstalling empties `UC_CONFIG_HOME` and `UC_DATA_HOME` (never `UC_STATE_HOME`), then
 `DELETE /api/system/install/ui`, or `PUT ...?enable=false` if that is refused. Both turn the web configurator on with a PIN
 of r3cui's own first and off again after if it was off (`UC_DATA_HOME/web-configurator-was-off` tells a restarted UI to
-finish that). The REST calls are tested against a local fake server (`crates/ui/src/remote/selfupdate/`), not a remote.
+finish that). The REST calls are tested against a local fake server (`crates/r3cui/src/remote/selfupdate/`), not a remote.
 
 ## Voice: control settings, sessions, assistant events
 
