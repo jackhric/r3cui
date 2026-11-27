@@ -626,7 +626,7 @@ pub(crate) async fn serve(
                     }
                     UiAction::Display { brightness, auto } => link.set_display(brightness, auto),
                     UiAction::VoiceKey { down } => {
-                        let todo = if down { session.voice.press(Instant::now()) } else { session.voice.release(Instant::now(), link.voice_grace()) };
+                        let todo = if down { session.voice.press(Instant::now(), session.front.host.voice().as_ref()) } else { session.voice.release(Instant::now(), link.voice_grace()) };
                         session.voice_do(&link, &later_tx, todo);
                     }
                     UiAction::Wake => link.wake(),

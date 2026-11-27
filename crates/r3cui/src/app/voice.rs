@@ -38,10 +38,18 @@ pub(crate) struct VoiceKey {
     last: u32,
     active: Option<Active>,
     dismissed: Option<u32>,
+    /// The press closed the overlay instead of talking, so its release is no one's.
+    closing: bool,
 }
 
 impl VoiceKey {
-    pub(crate) fn press(&mut self, now: Instant) -> Vec<Do> {
+    /// While the overlay shows a session, the key closes it rather than starting another.
+    pub(crate) fn press(&mut self, now: Instant, view: Option<&Voice>) -> Vec<Do> {
+        if self.shown(view).is_some_and(|v| v.phase != VoicePhase::Listening) {
+            self.dismiss(view);
+            self.closing = true;
+            return Vec::new();
+        }
         self.last += 1;
         let session = self.last;
         self.active = Some(Active { session, pressed: now, ended: false, reported: false });
@@ -50,6 +58,9 @@ impl VoiceKey {
 
     /// `grace` is how long the relay gets to end the audio: `END_GRACE` on the remote, none without a relay.
     pub(crate) fn release(&mut self, now: Instant, grace: Duration) -> Vec<Do> {
+        if std::mem::take(&mut self.closing) {
+            return Vec::new();
+        }
         let Some(a) = &self.active else { return Vec::new() };
         let session = a.session;
         if now.duration_since(a.pressed) < TAP {
@@ -139,7 +150,7 @@ mod tests {
     #[test]
     fn a_hold_talks_and_reports_once() {
         let (mut key, t) = (VoiceKey::default(), Instant::now());
-        assert_eq!(key.press(t), [Do::Driver(VoiceIntent::Start { session: 1, sample_rate: SAMPLE_RATE }), Do::CoreStart(1)]);
+        assert_eq!(key.press(t, None), [Do::Driver(VoiceIntent::Start { session: 1, sample_rate: SAMPLE_RATE }), Do::CoreStart(1)]);
         assert_eq!(key.relay(audio(1, &[1, 2])), [Do::Driver(VoiceIntent::Audio { session: 1, pcm: vec![1, 2] })]);
         assert!(key.relay(audio(9, &[9])).is_empty(), "another session's audio");
         assert_eq!(key.release(t + Duration::from_secs(2), END_GRACE), [Do::CoreEnd(1), Do::EndAfter(1, END_GRACE)]);
@@ -159,9 +170,24 @@ mod tests {
     }
 
     #[test]
+    fn the_key_closes_a_shown_answer_instead_of_talking_again() {
+        let (mut key, t) = (VoiceKey::default(), Instant::now());
+        key.press(t, None);
+        key.release(t + Duration::from_secs(1), Duration::ZERO);
+        for phase in [VoicePhase::Thinking, VoicePhase::Answered { success: true }] {
+            let v = Voice { session: 1, phase, ..Voice::default() };
+            let mut key = VoiceKey { last: key.last, ..VoiceKey::default() };
+            assert!(key.press(t + Duration::from_secs(2), Some(&v)).is_empty(), "no new session");
+            assert!(key.shown(Some(&v)).is_none(), "the overlay goes");
+            assert!(key.release(t + Duration::from_secs(3), END_GRACE).is_empty(), "its release ends nothing");
+            assert_eq!(key.press(t + Duration::from_secs(4), Some(&v))[1], Do::CoreStart(2), "the next press talks");
+        }
+    }
+
+    #[test]
     fn a_tap_sends_nothing() {
         let (mut key, t) = (VoiceKey::default(), Instant::now());
-        key.press(t);
+        key.press(t, None);
         assert_eq!(key.release(t + Duration::from_millis(100), END_GRACE), [Do::Driver(VoiceIntent::Cancel { session: 1 }), Do::CoreEnd(1)]);
         assert!(key.relay(audio(1, &[1])).is_empty());
     }
@@ -169,7 +195,7 @@ mod tests {
     #[test]
     fn without_a_relay_the_audio_ends_with_the_key_and_failures_are_reported() {
         let (mut key, t) = (VoiceKey::default(), Instant::now());
-        key.press(t);
+        key.press(t, None);
         assert_eq!(key.release(t + Duration::from_secs(1), Duration::ZERO), [Do::CoreEnd(1), Do::Driver(VoiceIntent::End { session: 1 })]);
         let v = Voice { session: 1, phase: VoicePhase::Failed(VoiceFailure::NoTextRecognized), ..Voice::default() };
         assert!(matches!(key.answered(Some(&v)).as_slice(), [Do::Report(UiMsg::Error { session_id: 1, code: ErrorCode::NoTextRecognized, .. })]));
