@@ -1,0 +1,77 @@
+import { Fx } from "../globals/fx.slint";
+import { Home } from "../globals/home.slint";
+import { Lib } from "../globals/lib.slint";
+import { Sys } from "../globals/sys.slint";
+import { Theme, Layout, Type, Motion } from "../theme.slint";
+import { Capture, HomeView, LibMode } from "../types.slint";
+import { Library } from "library.slint";
+import { MarkView } from "mark.slint";
+import { OffView } from "off.slint";
+import { PlayingView } from "playing.slint";
+import { StageSwap } from "swap.slint";
+
+export component Stage inherits Rectangle {
+    in property <float> recede;
+    public function hold-swap() { dissolve.hold(); }
+    public function run-swap() { dissolve.run(); }
+    public function hold-library() { lib.hold(); }
+    public function run-library() { lib.run(); }
+
+    transform-origin: { x: self.width / 2, y: self.height / 2 };
+    transform-scale: Fx.capturing == Capture.stage ? 1 : (1 - Motion.recede-scale * root.recede) * (Fx.swapping && !Fx.swap-plain ? 0.97 + 0.03 * dissolve.progress : 1);
+    opacity: Fx.capturing == Capture.stage ? 1 : 1 - Motion.recede-dim * root.recede;
+
+    // The input's UI slot, playing
+    PlayingView {
+        opacity: Home.view == HomeView.playing ? 1 : 0;
+        visible: self.opacity > 0;
+    }
+
+    // The current input, shown as its mark. An input showing its library looks the same as any other.
+    MarkView {
+        opacity: Home.view == HomeView.mark ? 1 : 0;
+        visible: self.opacity > 0;
+    }
+
+    // Power off
+    OffView {
+        opacity: Home.view == HomeView.off ? 1 : 0;
+        visible: self.opacity > 0;
+    }
+
+    // The input's library wall, mirrored; also the previews' library variations.
+    lib := Library {
+        mode: Lib.mode;
+        heading: Lib.heading;
+        count: Lib.count;
+        posters: Lib.posters;
+        items: Lib.items;
+        at: Lib.focus;
+        wall-style: Lib.wall-style;
+        opacity: Home.view == HomeView.wall ? 1 : 0;
+        visible: self.opacity > 0 && Lib.mode != LibMode.off;
+    }
+
+    if !Sys.connected: Text {
+        y: 772px;
+        width: Layout.screen-w;
+        horizontal-alignment: center;
+        text: Sys.status;
+        font-size: Type.caption;
+        color: Theme.t3;
+        overflow: elide;
+    }
+
+    // One stage giving way to another: the old one, sharp then blurred, dissolves into
+    // the new one blurred, which sharpens into the live stage beneath.
+    dissolve := StageSwap { }
+
+    Image {
+    width: Layout.screen-w;
+    height: Layout.screen-h;
+    source: Fx.stage-blur;
+    image-fit: fill;
+    opacity: root.recede;
+    visible: self.opacity > 0 && Fx.capturing != Capture.stage;
+    }
+}

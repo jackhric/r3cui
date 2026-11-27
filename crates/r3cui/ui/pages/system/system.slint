@@ -1,0 +1,121 @@
+import { Nav } from "../../globals/nav.slint";
+import { RemoteControl } from "../../globals/remote-control.slint";
+import { Software } from "../../globals/software.slint";
+import { R3Wordmark } from "../../marks/brand.slint";
+import { Icons } from "../../marks/icons.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
+import { Dot, PageId, UpdateState, VoiceSetup } from "../../types.slint";
+import { Layer } from "../../widgets/layer.slint";
+import { PageBody, Gap, Spring, Inset } from "../../widgets/page-body.slint";
+import { PageHeader } from "../../widgets/page-header.slint";
+import { Pill } from "../../widgets/pill.slint";
+import { Tile } from "../../widgets/tile.slint";
+import { BuildBadge } from "../../widgets/build-badge.slint";
+
+export component SystemPage inherits Layer {
+    page: PageId.system;
+    property <bool> available: Software.r3-state == UpdateState.available;
+
+    PageHeader {
+        title: "System";
+        back => { Nav.back(); }
+    }
+    PageBody {
+        Gap { size: Layout.gap-l; }
+        // r3cui, its version and the commit it was built from: no more. Whether there is an update is the first tile's.
+        HorizontalLayout {
+            alignment: center;
+            spacing: Layout.lead-gap;
+            // The wordmark and the version's digits are both about 48 px tall: centred on each other, they share a line.
+            VerticalLayout {
+                alignment: center;
+                R3Wordmark { }
+            }
+            Text {
+                text: Software.r3-version;
+                font-size: Type.hero;
+                font-weight: Type.display-weight;
+                color: Theme.text;
+                vertical-alignment: center;
+            }
+        }
+        if Software.r3-commit != "" || Software.r3-features != "": HorizontalLayout {
+            alignment: center;
+            padding-top: Layout.gap-m;
+            BuildBadge {
+                commit: Software.r3-commit;
+                features: Software.r3-features;
+            }
+        }
+        Gap { size: Layout.gap-xl; }
+        Inset {
+            GridLayout {
+                spacing: Layout.gap-m;
+                Tile {
+                    row: 0;
+                    col: 0;
+                    title: root.available ? "Update to " + Software.r3-new-version
+                        : Software.r3-state == UpdateState.checking ? "Checking…"
+                        : Software.r3-state == UpdateState.current ? "Up to date"
+                        : "Check for updates";
+                    value: Software.r3-short;
+                    r3-mark: true;
+                    accent: root.available;
+                    focused: Nav.focus == Software.action-row;
+                    tapped => { Nav.activate(Software.action-row); }
+                }
+                Tile {
+                    row: 0;
+                    col: 1;
+                    title: "Remote control";
+                    value: RemoteControl.on ? "On" : "Off";
+                    r3-mark: true;
+                    focused: Nav.focus == Software.control-row;
+                    tapped => { Nav.activate(Software.control-row); }
+                }
+                Tile {
+                    row: 1;
+                    col: 0;
+                    title: Software.fw-state == UpdateState.available ? "Firmware update" : "Firmware";
+                    value: Software.fw-state == UpdateState.available ? Software.fw-new-version : Software.fw-installed;
+                    uc-mark: true;
+                    dot: Software.fw-state == UpdateState.current ? Dot.up : Dot.none;
+                    accent: Software.fw-state == UpdateState.available;
+                    focused: Nav.focus == Software.firmware-row;
+                    tapped => { Nav.activate(Software.firmware-row); }
+                }
+                Tile {
+                    row: 1;
+                    col: 1;
+                    title: "Web configurator";
+                    value: Software.web-on ? "On" : "Off";
+                    uc-mark: true;
+                    focused: Nav.focus == Software.web-row;
+                    tapped => { Nav.activate(Software.web-row); }
+                }
+                Tile {
+                    row: 2;
+                    col: 0;
+                    colspan: 2;
+                    wide: true;
+                    title: "Voice assistant";
+                    value: Software.voice-line;
+                    r3-mark: true;
+                    dot: Software.voice-setup == VoiceSetup.ready ? Dot.up : Software.voice-setup == VoiceSetup.failed ? Dot.down : Dot.none;
+                    accent: Software.voice-setup == VoiceSetup.absent;
+                    focused: Nav.focus == Software.voice-row;
+                    tapped => { Nav.activate(Software.voice-row); }
+                }
+            }
+        }
+        Spring { }
+        Pill {
+            label: "Uninstall r3cui";
+            glyph: Icons.trash;
+            danger: true;
+            focused: Nav.focus == Software.uninstall-row;
+            tapped => { Nav.activate(Software.uninstall-row); }
+        }
+        Gap { size: Layout.bottom-inset; }
+    }
+}

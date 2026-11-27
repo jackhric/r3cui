@@ -1,0 +1,64 @@
+[package]
+name = "r3cui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "remote-ui"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+r3cui-sdk = { path = "../sdk" }
+# The integrations this build carries: each is listed once, in src/app/registry.rs.
+homeassistant = { path = "../homeassistant" }
+kodi = { path = "../kodi" }
+androidtv = { path = "../androidtv" }
+r3cui-bridge = { path = "../bridge" }
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+# `tls`: the release check and download go to GitHub over https.
+ureq = { version = "2", default-features = false, features = ["tls"] }
+base64 = "0.22"
+qrcode = { version = "0.14", default-features = false }
+semver = "1"
+sha2 = "0.10"
+getrandom = "0.2"
+r3ctl = { path = "../r3ctl", default-features = false }
+futures-util.workspace = true
+tokio-tungstenite.workspace = true
+
+# `desktop` (default) runs in a window on the workstation. `device` renders straight to the
+# remote's display through KMS; libinput is left out because the device has none, and
+# input/evdev.rs reads the touchscreen and keys itself.
+[dependencies.slint]
+version = "1.19"
+default-features = false
+features = ["compat-1-18", "std"]
+
+[dependencies.evdev]
+version = "0.12"
+optional = true
+
+[features]
+default = ["desktop"]
+desktop = ["slint/backend-winit", "slint/renderer-femtovg", "preview", "demo"]
+device = ["slint/backend-linuxkms", "slint/renderer-femtovg", "slint/renderer-software", "slint/software-renderer-path", "dep:evdev"]
+# Screenshot, recording and remote-photo framing tools (--shots, --snap, --record, --frame).
+preview = ["demo"]
+# A made-up receiver and player behind the real session (--demo), and the data the preview stills share with it.
+demo = []
+
+[dev-dependencies]
+r3cui-bridge = { path = "../bridge", features = ["testing"] }
+r3cui-sdk = { path = "../sdk", features = ["testing"] }
+tokio = { workspace = true, features = ["test-util"] }
+
+[build-dependencies]
+slint-build = "1.19"

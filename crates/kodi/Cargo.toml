@@ -1,0 +1,35 @@
+[package]
+name = "kodi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "r3cui's own Kodi client: typed JSON-RPC over WebSocket and HTTP, and Kodi's state for the UI."
+
+[dependencies]
+r3cui-sdk = { path = "../sdk" }
+tokio.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+tracing.workspace = true
+thiserror = "2"
+
+[dev-dependencies]
+kodi = { path = ".", features = ["testing"] }
+r3cui-sdk = { path = "../sdk", features = ["testing"] }
+tokio = { workspace = true, features = ["test-util", "signal"] }
+tracing-subscriber.workspace = true
+
+[features]
+default = ["driver"]
+# The r3cui integration: its spec and its driver. Without it, only the client.
+driver = []
+# FakeKodi: an in-process Kodi JSON-RPC WebSocket server for tests.
+testing = ["r3cui-sdk/testing"]
+
+[[test]]
+name = "fake"
+required-features = ["testing"]
+
+[[example]]
+name = "fake-kodi"
+required-features = ["testing"]

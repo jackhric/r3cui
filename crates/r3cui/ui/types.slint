@@ -1,0 +1,274 @@
+// What the home page shows: the film playing, the input's mark, power off, or a library wall.
+export enum HomeView {
+    playing,
+    mark,
+    off,
+    wall,
+}
+
+// The rows of the menu, in the order `Menu.row` gives them.
+export enum MenuItem {
+    wifi,
+    integrations,
+    hardware,
+    system,
+    lab,
+}
+
+export enum PageId {
+    home,
+    inputs,
+    menu,
+    hardware,
+    wifi,
+    // A Wi-Fi password, or other text for an integration or an input's name.
+    keyboard,
+    join-failed,
+    // The audio or subtitle picker.
+    tracks,
+    feedback-lab,
+    integrations,
+    // r3cui and the remote's software: the System page and what opens from it.
+    system,
+    r3-update,
+    r3-installing,
+    uninstall,
+    fw-update,
+    fw-installing,
+    web-config,
+    remote-control,
+    r3-web,
+}
+
+// What a check for a software update has found so far.
+export enum UpdateState {
+    unchecked,
+    checking,
+    current,
+    available,
+    failed,
+}
+
+// How far an update has got: fetching it, putting it on the remote, the remote restarting into it.
+export enum InstallPhase {
+    idle,
+    download,
+    install,
+    restart,
+}
+
+export enum UninstallState {
+    idle,
+    working,
+    failed,
+}
+
+// r3cui's voice integration on the remote: what the System page's voice tile shows.
+export enum VoiceSetup {
+    unknown,
+    // Not installed, or installed but not the remote's voice assistant.
+    absent,
+    working,
+    ready,
+    failed,
+}
+
+// Where Back leads: a page and the row to focus there.
+export struct Dest {
+    page: PageId,
+    focus: int,
+}
+
+export enum PowerAction {
+    restart,
+    power-off,
+}
+
+// A codec's logo, drawn from the part of its viewbox that `top`, `width` and `height` mark out, `size` tall.
+export struct FormatMark {
+    path: string,
+    top: float,
+    width: float,
+    height: float,
+    size: length,
+    // A wordmark with no descenders is set on the label's baseline instead of centred.
+    baseline: bool,
+}
+
+// Where a voice session is, as the overlay shows it.
+export enum VoiceStage {
+    off,
+    listening,
+    thinking,
+    answered,
+    failed,
+}
+
+// How large a Row's text is: regular for lists, compact for a page's secondary rows.
+export enum RowSize {
+    regular,
+    compact,
+}
+
+// A status dot: a link working, broken or unknown, or a setting changed by the user.
+export enum Dot {
+    none,
+    up,
+    down,
+    unknown,
+    changed,
+}
+
+// What the Inputs page shows when the list is empty, and where its one row leads.
+export struct NoInputs {
+    // Empty when there are inputs.
+    message: string,
+    // The mark of the integration the inputs come from; none while nothing is set up.
+    icon: string,
+    dot: Dot,
+    row: string,
+    value: string,
+}
+
+// The d-pad as the on-screen keyboard sees it.
+export enum NavKey {
+    up,
+    down,
+    left,
+    right,
+    ok,
+    back,
+}
+
+export enum KeyStyle {
+    char,
+    action,
+    // Shift while it is armed.
+    action-on,
+    // The join or done key while there is not enough text for it.
+    join-dim,
+    join-ready,
+}
+
+export enum KeyGlyph {
+    none,
+    shift,
+    delete,
+}
+
+// What the screen asks the haptic motor and speaker for; `cue_for` in feedback.rs says what each plays.
+export enum Haptic {
+    page,
+    select,
+    power-hold,
+    power-complete,
+    home-hold,
+    home-complete,
+    hold-cancel,
+}
+
+// What the library shows. Only `off` and `wall` are live; the rest are the previews' variations.
+export enum LibMode {
+    off,
+    river,
+    river-card,
+    carousel,
+    wall,
+    dim-river-card,
+}
+
+// How the poster wall shows the highlighted title: `sheet` a solid sheet under the grid, `fade` the grid fading out
+// behind the words, `inline` the details opening under the highlighted row.
+export enum WallStyle {
+    sheet,
+    fade,
+    inline,
+}
+
+// What a snapshot takes in: the stage alone, or the stage with the layers over it.
+export enum Capture {
+    none,
+    stage,
+    world,
+}
+
+export enum JoinState {
+    idle,
+    joining,
+    failed,
+}
+
+// What the keyboard page is for.
+export enum KbPurpose {
+    wifi-password,
+    text,
+    // The code a device shows to pair with it.
+    code,
+}
+
+export enum Picker {
+    audio,
+    subtitles,
+}
+
+export struct InputRow {
+    // What the source calls it; picking a row sends this.
+    id: string,
+    name: string,
+    icon: string,
+}
+
+export struct WifiRow {
+    ssid: string,
+    ssid-hex: string,
+    secured: bool,
+    // 1 to 4
+    bars: int,
+    connected: bool,
+}
+
+export struct KeyCell {
+    label: string,
+    glyph: KeyGlyph,
+    x: length,
+    y: length,
+    w: length,
+    h: length,
+    focused: bool,
+    style: KeyStyle,
+}
+
+// One row of a choice list. Every field but `label` is optional.
+export struct Choice {
+    label: string,
+    // A second, smaller line under the label.
+    detail: string,
+    // Right-aligned, before the trailing mark.
+    value: string,
+    // A brand mark before the label.
+    icon: string,
+    // The current choice: a tick.
+    checked: bool,
+    // Leads somewhere else: a chevron.
+    chevron: bool,
+    // A status dot before the label.
+    dot: Dot,
+    // A small outlined label after the label, such as NEW.
+    tag: string,
+    // Wi-Fi strength, 1 to 4; 0 for none.
+    bars: int,
+    locked: bool,
+}
+
+export struct LibItem {
+    poster: image,
+    title: string,
+    // Year, runtime and the like; then the rating, drawn after a star, then the certificate.
+    meta: string,
+    rating: string,
+    tail: string,
+    genre: string,
+    plot: string,
+    detail: string,
+    progress: float,
+}

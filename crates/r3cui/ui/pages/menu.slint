@@ -1,0 +1,22 @@
+import { Menu } from "../globals/menu.slint";
+import { Nav } from "../globals/nav.slint";
+import { Power } from "../globals/power.slint";
+import { Icons } from "../marks/icons.slint";
+import { PageId } from "../types.slint";
+import { ChoiceList } from "../widgets/choice-list.slint";
+import { Layer } from "../widgets/layer.slint";
+
+export component MenuPage inherits Layer {
+    page: PageId.menu;
+
+    ChoiceList {
+        title: "Menu";
+        rows: Menu.rows;
+        focused-row: Nav.focus;
+        action: Icons.power;
+        action-focused: Nav.focus == Nav.header-action;
+        pick(i) => { Nav.activate(i); }
+        back => { Nav.back(); }
+        act => { Power.open(); }
+    }
+}

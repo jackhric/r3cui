@@ -1,0 +1,314 @@
+//! Putting the model on screen, and the screen-side helpers the session and the demo share.
+
+pub(crate) mod aurora;
+pub(crate) mod ease;
+pub(crate) mod format;
+pub(crate) mod idle;
+pub(crate) mod keyboard;
+pub(crate) mod lava;
+pub(crate) mod library;
+pub(crate) mod qr;
+pub(crate) mod screen;
+pub(crate) mod software;
+pub(crate) mod stage;
+pub(crate) mod voice;
+
+use crate::Nav;
+use crate::Health;
+use crate::Playback;
+use crate::Control;
+use crate::Sys;
+use crate::Tracks;
+use crate::Cfg;
+use crate::Wifi;
+use crate::view::screen::Screen;
+use crate::PageId;
+use crate::{AppWindow, Choice, Dot, JoinState, Logos, InputRow, NoInputs as NoInputsView, Theme, WifiRow};
+
+use crate::app::settings;
+use crate::app::model::{Model, NoInputs};
+use r3cui_sdk::api::Health as DriverHealth;
+use crate::hardware::backlight;
+use crate::app::global::{volume_db, volume_percent};
+use crate::view::format::{address_label, band_label, clock, codec_badge, codec_logo, input_logo};
+use crate::view::idle::poke;
+use crate::view::stage::stage_change;
+#[cfg(feature = "device")]
+use crate::hardware::frames;
+
+use slint::{ComponentHandle, Model as _, ModelRc, SharedString, VecModel};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+
+pub(crate) const VOLUME_OVERLAY: Duration = Duration::from_millis(1800);
+/// The interface colour. Callable at any time from the UI thread.
+pub(crate) fn set_accent(app: &AppWindow, color: slint::Color) {
+    app.global::<Theme>().set_accent(color);
+}
+/// The colour picked from the current poster; while the film is on screen it stands in for the
+/// input's accent, and the keys follow it.
+pub(crate) fn set_poster_accent(app: &AppWindow, tint: Option<(u8, u8, u8)>) {
+    if let Some((r, g, b)) = tint {
+        tracing::info!("poster accent #{r:02X}{g:02X}{b:02X}");
+    }
+    app.global::<Playback>().set_poster_tinted(tint.is_some());
+    if let Some((r, g, b)) = tint {
+        app.global::<Playback>().set_poster_accent(slint::Color::from_rgb_u8(r, g, b));
+    }
+    // The poster arrives after the film is already showing, so take the colour up at once.
+    let film_on_screen = app.global::<Control>().get_power_on() && app.global::<Playback>().get_staged() && !app.global::<Playback>().get_title().is_empty();
+    if film_on_screen && tint.is_some() && std::env::var_os("UC_ACCENT").is_none() {
+        set_accent(app, app.global::<Playback>().get_poster_accent());
+    }
+}
+/// `#RRGGBB` or `RRGGBB`.
+pub(crate) fn parse_color(s: &str) -> Option<slint::Color> {
+    let hex = s.trim().trim_start_matches('#');
+    if hex.len() != 6 {
+        return None;
+    }
+    let v = u32::from_str_radix(hex, 16).ok()?;
+    Some(slint::Color::from_rgb_u8((v >> 16) as u8, (v >> 8) as u8, v as u8))
+}
+/// Fill the picker. `current` beyond the list marks none.
+pub(crate) fn show_tracks(weak: &slint::Weak<AppWindow>, rows: Vec<(String, String)>, current: usize) {
+    ui(weak, move |app| {
+        let rows: Vec<Choice> = rows
+            .into_iter()
+            .enumerate()
+            .map(|(i, (label, detail))| Choice { label: label.into(), detail: detail.into(), checked: i == current, ..Default::default() })
+            .collect();
+        let focus = rows.iter().position(|r| r.checked).unwrap_or(0) as i32;
+        app.global::<Tracks>().set_rows(ModelRc::new(VecModel::from(rows)));
+        if app.on_page(PageId::Tracks) {
+            app.global::<Nav>().set_focus(focus);
+        }
+    });
+}
+thread_local! {
+    /// The depth of the Integrations screen last shown, and whether its page was on screen then.
+    static SETTINGS_SHOWN: std::cell::Cell<(usize, bool)> = const { std::cell::Cell::new((0, false)) };
+}
+
+/// Draw the Integrations screen on show, keeping the focus where the logic says.
+pub(crate) fn show_settings(weak: &slint::Weak<AppWindow>, page: crate::app::integrations::Page) {
+    ui(weak, move |app| {
+        let rows: Vec<Choice> = page
+            .rows
+            .iter()
+            .map(|r| Choice {
+                icon: r.icon.into(),
+                label: (&r.label).into(),
+                detail: (&r.detail).into(),
+                value: (&r.value).into(),
+                chevron: r.chevron,
+                checked: r.checked,
+                dot: r.dot,
+                ..Default::default()
+            })
+            .collect();
+        let here = app.on_page(PageId::Integrations);
+        // A move between its screens slides like a page, but only one made on it: arriving from the keyboard or
+        // another page already slid.
+        let (was_depth, was_here) = SETTINGS_SHOWN.replace((page.depth, here));
+        let moved = page.depth != was_depth;
+        if moved && here && was_here {
+            app.global::<Nav>().invoke_inner(page.depth > was_depth);
+        }
+        let new_screen = moved || app.global::<Cfg>().get_title() != page.title.as_str();
+        if !new_screen && app.global::<Cfg>().get_rows().iter().eq(rows.iter().cloned()) {
+            return;
+        }
+        app.global::<Cfg>().set_title(page.title.as_str().into());
+        app.global::<Cfg>().set_rows(ModelRc::new(VecModel::from(rows)));
+        if new_screen && app.on_page(PageId::Integrations) {
+            app.global::<Nav>().set_focus(page.focus as i32);
+        }
+    });
+}
+/// Leave the keyboard for the network list, or for the failure page.
+pub(crate) fn finish_join(weak: &slint::Weak<AppWindow>, ok: bool) {
+    ui(weak, move |app| {
+        if !app.on_page(PageId::Keyboard) {
+            return;
+        }
+        app.global::<Wifi>().set_join_state(if ok { JoinState::Idle } else { JoinState::Failed });
+        app.go_to(if ok { PageId::Wifi } else { PageId::JoinFailed }, 0);
+    });
+}
+/// Show the volume overlay and hide it again once the keys have been quiet for a moment.
+pub(crate) fn flash_volume(weak: &slint::Weak<AppWindow>, generation: &Arc<AtomicU64>) {
+    let mine = generation.fetch_add(1, Ordering::SeqCst) + 1;
+    ui(weak, |app| app.global::<Control>().set_volume_overlay(true));
+    let (weak, generation) = (weak.clone(), generation.clone());
+    tokio::spawn(async move {
+        tokio::time::sleep(VOLUME_OVERLAY).await;
+        if generation.load(Ordering::SeqCst) == mine {
+            ui(&weak, |app| app.global::<Control>().set_volume_overlay(false));
+        }
+    });
+}
+pub(crate) fn ui(weak: &slint::Weak<AppWindow>, f: impl FnOnce(AppWindow) + Send + 'static) {
+    let weak = weak.clone();
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(app) = weak.upgrade() {
+            f(app);
+        }
+    });
+}
+pub(crate) fn set_status(weak: &slint::Weak<AppWindow>, connected: bool, s: String) {
+    ui(weak, move |app| {
+        app.global::<Sys>().set_connected(connected);
+        app.global::<Sys>().set_status(s.into());
+    });
+}
+pub(crate) fn render(weak: &slint::Weak<AppWindow>, m: &Model) {
+    let m = m.clone();
+    ui(weak, move |app| apply(&app, &m));
+}
+/// A model change that alters what is on screen starts a transition; the playback position
+/// ticking along does not count.
+#[cfg(feature = "device")]
+pub(crate) fn kick_if_changed(m: &Model) {
+    use std::hash::{Hash, Hasher};
+    thread_local!(static LAST: std::cell::Cell<u64> = const { std::cell::Cell::new(0) });
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (m.volume, m.muted, &m.input, &m.title, m.paused, m.awake, m.power_on, &m.warning, m.scanning, m.wifi.len()).hash(&mut h);
+    format!("{:?}", m.key_light).hash(&mut h);
+    let now = h.finish();
+    if LAST.with(|l| l.replace(now)) != now {
+        frames::kick();
+    }
+}
+/// Push a model into the window. UI thread only.
+pub(crate) fn apply(app: &AppWindow, m: &Model) {
+    stage_change(app, m, || apply_now(app, m));
+}
+pub(crate) fn apply_now(app: &AppWindow, m: &Model) {
+    #[cfg(feature = "device")]
+    kick_if_changed(m);
+    let now = chrono::Local::now();
+    let logos = app.global::<Logos>();
+
+    app.global::<Sys>().set_clock(now.format("%H:%M").to_string().into());
+    if std::env::var_os("UC_ACCENT").is_none() {
+        let film_on_screen = m.power_on && m.staged && !m.title.is_empty() && app.global::<Playback>().get_poster_tinted();
+        let accent = if film_on_screen { Some(app.global::<Playback>().get_poster_accent()) } else { settings::get().accent_for(&m.input).and_then(parse_color) };
+        if let Some(accent) = accent {
+            set_accent(app, accent);
+        }
+    }
+    app.global::<Sys>().set_awake(m.awake);
+    app.global::<Control>().set_power_on(m.power_on);
+    backlight::set_requested(m.key_light);
+    app.global::<Sys>().set_battery(m.battery);
+    if m.charging != app.global::<Sys>().get_charging() {
+        // Put on the charger: show the battery, and start counting down to dark from now.
+        app.global::<Sys>().set_charge_card(m.charging);
+        if m.charging {
+            poke();
+        } else {
+            app.global::<Sys>().set_resting(false);
+        }
+    }
+    app.global::<Sys>().set_charging(m.charging);
+    // Shown as 0-100 of the volume limit; the dB figure stays the device's own.
+    app.global::<Control>().set_volume(volume_percent(m.volume, m.volume_max));
+    app.global::<Control>().set_volume_db(volume_db(m.volume).into());
+    app.global::<Control>().set_muted(m.muted);
+    app.global::<Control>().set_has_volume(m.has_volume);
+
+    let name = m.inputs.iter().find(|s| s.id == m.input).map_or(m.input.as_str(), |s| s.name.as_str());
+    app.global::<Control>().set_input(name.into());
+    app.global::<Control>().set_switching(m.switching);
+    app.global::<Control>().set_app(m.app.as_str().into());
+    let mark = |s: &crate::app::model::InputEntry| s.icon.map_or_else(|| input_logo(&logos, &s.id), SharedString::from);
+    let icon = m.inputs.iter().find(|s| s.id == m.input).map_or_else(|| input_logo(&logos, &m.input), mark);
+    app.global::<Control>().set_input_generic(icon == logos.get_generic());
+    app.global::<Control>().set_input_icon(icon);
+    let current = m.inputs.iter().position(|s| s.id == m.input).map_or(-1, |i| i as i32);
+    let rows: Vec<InputRow> =
+        m.inputs.iter().map(|s| InputRow { id: (&s.id).into(), name: (&s.name).into(), icon: mark(s) }).collect();
+    if app.global::<Control>().get_inputs().iter().ne(rows.iter().cloned()) {
+        app.global::<Control>().set_inputs(ModelRc::new(VecModel::from(rows)));
+    }
+    app.global::<Control>().set_input_index(current);
+    let inputs: Vec<Choice> = m
+        .inputs
+        .iter()
+        .enumerate()
+        .map(|(i, s)| Choice { label: (&s.name).into(), icon: mark(s), checked: i as i32 == current, ..Default::default() })
+        .collect();
+    if app.global::<Control>().get_input_choices().iter().ne(inputs.iter().cloned()) {
+        app.global::<Control>().set_input_choices(ModelRc::new(VecModel::from(inputs)));
+    }
+    app.global::<Control>().set_no_inputs(no_inputs(&m.no_inputs));
+    app.global::<Control>().set_has_voice(m.has_voice);
+    voice::show(app, m.voice.as_ref());
+
+    app.global::<Wifi>().set_name(m.wifi_ssid.as_str().into());
+    let wifi: Vec<WifiRow> = m
+        .wifi
+        .iter()
+        .map(|n| WifiRow { ssid: (&n.ssid).into(), ssid_hex: (&n.hex).into(), secured: n.secured, bars: n.bars, connected: n.connected })
+        .collect();
+    if app.global::<Wifi>().get_rows().iter().ne(wifi.iter().cloned()) {
+        app.global::<Wifi>().set_rows(ModelRc::new(VecModel::from(wifi)));
+    }
+    let mut networks: Vec<Choice> = m
+        .wifi
+        .iter()
+        .map(|n| Choice {
+            label: (&n.ssid).into(),
+            checked: n.connected,
+            locked: n.secured && !n.connected,
+            bars: n.bars,
+            ..Default::default()
+        })
+        .collect();
+    networks.push(Choice { label: if m.scanning { "Scanning…" } else { "Scan again" }.into(), ..Default::default() });
+    if let Some(band) = band_label(&m.wifi_band) {
+        networks.push(Choice { label: "Band".into(), value: band.into(), ..Default::default() });
+    }
+    app.global::<Wifi>().set_band_known(band_label(&m.wifi_band).is_some());
+    if app.global::<Wifi>().get_choices().iter().ne(networks.iter().cloned()) {
+        app.global::<Wifi>().set_choices(ModelRc::new(VecModel::from(networks)));
+    }
+    app.global::<Health>().set_warning(m.warning.as_str().into());
+
+    app.global::<Playback>().set_staged(m.staged);
+    app.global::<Playback>().set_title(m.title.as_str().into());
+    app.global::<Playback>().set_sub(m.media_sub.as_str().into());
+    app.global::<Playback>().set_paused(m.paused);
+    let left = (m.duration - m.position).max(0.0);
+    let known = m.duration > 0.0;
+    app.global::<Playback>().set_progress(if known { (m.position / m.duration) as f32 } else { 0.0 });
+    app.global::<Playback>().set_elapsed(if known { clock(m.position).into() } else { SharedString::new() });
+    app.global::<Playback>().set_time_left(if known { format!("−{}", clock(left.ceil())).into() } else { SharedString::new() });
+    app.global::<Playback>().set_ends_at(if known { (now + chrono::Duration::seconds(left as i64)).format("ends %H:%M").to_string().into() } else { SharedString::new() });
+    let (logo, label) = codec_badge(&m.media_format);
+    let mark = codec_logo(app, logo);
+    app.global::<Playback>().set_format(mark);
+    app.global::<Playback>().set_format_label(label.into());
+}
+
+/// The empty Inputs page: why there is nothing to pick, and the row that leads to the fix.
+fn no_inputs(why: &NoInputs) -> NoInputsView {
+    match why {
+        NoInputs::No => NoInputsView::default(),
+        NoInputs::SetUp { global } => {
+            let place = if *global { "Global control" } else { "Inputs" };
+            NoInputsView { message: format!("Set up your inputs in\nMenu › Integrations › {place}").into(), row: "Set up inputs".into(), ..Default::default() }
+        }
+        NoInputs::Source { name, icon, address, status } => {
+            let place = address.as_deref().map_or_else(|| name.clone(), address_label);
+            let (message, dot) = match status.health {
+                DriverHealth::Down => (format!("Can't connect to {place},\nis it online?"), Dot::Down),
+                DriverHealth::Connecting | DriverHealth::Up => (format!("Connecting to {place}…"), Dot::Unknown),
+                DriverHealth::NotSetUp | DriverHealth::NotPaired => (format!("Finish setting up {name}"), Dot::Unknown),
+            };
+            NoInputsView { message: message.into(), icon: (*icon).into(), dot, row: name.into(), value: status.word().into() }
+        }
+    }
+}

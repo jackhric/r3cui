@@ -1,6 +1,9 @@
-# Dev loop (milestone 1 — desktop spike, no device)
+# Dev loop (desktop, no device)
 
-## 1. Run the core simulator
+`scripts/test.sh` is what CI runs. To see the app with nothing set up, `cargo run -p r3cui -- --demo` (see
+"The demo" below). The rest of this page is for running against the simulator and the fakes.
+
+## 1. Run the core simulator (the remote's own state)
 
 Clone Unfolded Circle's dockerized core next to this repo (or anywhere, and set `SIM_DIR`):
 
@@ -10,9 +13,10 @@ scripts/sim.sh up        # also: seed | down | logs | env
 ```
 
 `sim.sh up` starts the core plus its Home Assistant demo integration (`integration-hass` + a demo
-HA), then configures all of that integration's entities in the core. A fresh simulator has **no
-configured entities** — they exist only as "available" on the integration until added — so without
-the seed step `get_entities` returns an empty list.
+HA), then configures all of that integration's entities in the core. r3cui doesn't read those entities
+(its drivers talk to Home Assistant and Kodi directly), so they only matter if you open the simulator's
+own configurator. What the UI takes from the simulator is the remote's state: power mode, battery,
+Wi-Fi, display and sound settings.
 
 The core listens on **`127.0.0.1:8090`** (override with `SIM_PORT`), not upstream's 8080, which is
 commonly taken on a workstation (Steam's CEF debug port sits there). `scripts/sim.override.yml`
@@ -27,22 +31,27 @@ REST demo accounts: `admin`/`remote2`, `web-configurator`/`1234`.
 ```sh
 eval "$(scripts/sim.sh env)"   # UC_SOCKET_URL + UC_TOKEN_PATH
 export RUST_LOG=info           # remote_ui=debug dumps every entity and event
-cargo run -p remote-ui
+cargo run -p r3cui
 ```
 
-A 480×800 window opens, authenticates, and lists the simulator's 41 demo entities. It reconnects
-every 2 s if the core goes away. (`UC_TOKEN=<raw token>` also works instead of `UC_TOKEN_PATH`.)
+A 480×800 window opens and authenticates with the core. The rest of the screen is filled by the drivers set up in
+`config/modules.json` (Settings → Integrations; see below). It reconnects to the core every 2 s if the core goes away.
+(`UC_TOKEN=<raw token>` also works instead of `UC_TOKEN_PATH`.)
 
 ## Notes / limits
 
 - The simulator can't install custom UIs and has no suspend/BT/mic; it's for the WS + UI loop only.
-- Device build (later): switch `crates/ui` slint features to `backend-linuxkms`, cross-compile for
-  aarch64, then `packaging/pack.sh`. See docs/plan.md and docs/device-contract.md.
+- Device demo: `R3CUI_FEATURES=demo scripts/build-device.sh` compiles the demo in, and `UC_DEMO=1` in `settings.json`'s
+  `env` turns it on, to try made-up devices and voice on the real remote.
+- Device build: `scripts/build-device.sh` cross-compiles the `device` feature for aarch64 in a container and runs
+  `packaging/pack.sh`; `scripts/test.sh` also clippy-checks that build. See docs/plan.md and docs/device-contract.md.
+- r3cui bridge: `scripts/build-bridge.sh` builds it as a static aarch64 musl binary in the same container and runs
+  `packaging/bridge.sh`, writing `packaging/out/bridge/r3cui-bridge.tar.gz`. See docs/voice.md.
 
 ## Simulating the hard keys
 
 Physical buttons never come over the WebSocket, so the simulator can't inject them. On the desktop
-the keyboard stands in (`crates/ui/src/input.rs`); the footer line shows what each press resolved to.
+the keyboard stands in (`crates/r3cui/src/input/mod.rs`); the footer line shows what each press resolved to.
 
 | Key | Button | Key | Button |
 |---|---|---|---|
@@ -51,19 +60,82 @@ the keyboard stands in (`crates/ui/src/input.rs`); the footer line shows what ea
 | `H` `M` | HOME, MENU | `S` `R` | stop, record |
 | PgUp / PgDn | channel up / down | | |
 
-Volume keys go to `UC_VOLUME_ENTITY`, everything else to `UC_SCREEN_ENTITY` (entity ids). Unset, the
-screen picks a Kodi `media_player` if one exists, else the first `media_player`.
+Volume and mute go to global control; Home and the input key (`V`) are the remote's own; everything else goes to
+the current input's remote slot. What fills those is `config/modules.json` (see docs/drivers.md); on the first run
+it is filled from the old `kodi` and `hidden_sources` keys of `config/settings.json`, if any.
+
+## Stand-ins for Kodi and Home Assistant
+
+The drivers can run against in-process fakes, so the whole UI works with no Kodi or Home Assistant at hand:
+
+```sh
+cargo run -p kodi --features testing --example fake-kodi -- 127.0.0.1:9095          # six films, d-pad walks them
+cargo run -p homeassistant --features testing --example fake-ha -- 127.0.0.1:8124 t # a receiver with inputs, token t
+```
+
+Then add each in Settings → Integrations (Kodi: host `127.0.0.1` and the port as its WebSocket port; Home Assistant:
+`http://127.0.0.1:8124` and the token).
+
+The simulator's own demo Home Assistant (`127.0.0.1:8123`, token `HASS_TOKEN` in the simulator's `docker/.env`) has
+a `media_player.receiver` that works as global control too.
+
+## A stand-in Android TV
+
+```sh
+cargo run -p androidtv --features testing --example fake-androidtv   # 127.0.0.1:6466 and :6467; prints each pairing code
+```
+
+In Settings → Integrations choose Add integration → Android TV, set Address to `127.0.0.1`: pairing starts at once,
+the keyboard opens, and the fake prints `pairing code: XXXXXX`. Type that code and press Pair (a wrong one stays on the
+keyboard with an error). Then give the driver to an input's Remote and Screen slots (Inputs → Default when there is no
+source) and, if you like, to Power under Global control. The screen shows the app the fake reports.
+
+The code depends on the client certificate, so a steps file cannot hold it: write it to a file as the fake prints it
+and use `type-file <path>` in the steps, which types the file's text when the step comes.
+
+## The demo
+
+`cargo run -p r3cui -- --demo` (or `UC_DEMO=1`, or `--record` without `--live`) runs the real session with nothing
+to connect to: an in-memory setup (`app::demo::integration::modules()`) puts the Demo driver behind global volume and source
+and every input's remote, and behind Kodi's screen, and a made-up remote stands in for the core (battery, Wi-Fi to
+join; keys `c` charger, `z` asleep, `x` every driver down). Nothing is written to `config/`. All the made-up values
+are in `crates/r3cui/src/app/demo/data.rs`; the `--shots` stills read the same ones.
+
+## Driving the live app
+
+`--steps <file> --out <dir>` presses keys through the window and takes pictures along the way
+(`crates/r3cui/src/preview/steps.rs` lists the steps; `page <name>` opens a page by name, the same names `--page <name>`
+takes). `awake` puts away the charger card the simulator always shows.
+`scripts/tour.steps` visits every page and overlay (41 pictures): run it before and after a change to the Slint files
+and compare the pictures to see that nothing moved:
+
+```sh
+cargo run -p r3cui -- --demo --steps scripts/tour.steps --out <dir>
+```
+
+`scripts/voice.steps` holds the voice key in the demo (listening, thinking, the made-up answer) and taps it
+(the input list).
+`scripts/system.steps` walks the System pages in the demo (Menu, System, Update r3cui and its install, Firmware and its install,
+Web configurator, Uninstall mid-hold); it also films with `--record <file.mp4> --frame <remote photo> --script steps:scripts/system.steps`.
+The demo's firmware 2.8.4 → 2.9.0 and r3cui 0.1.0 → 0.2.0 updates, their made-up installs and the web configurator's PINs are in
+`crates/r3cui/src/app/demo/data.rs`; the demo never touches the network or the REST API. Outside the demo, `UC_RELEASES_URL` points
+the r3cui update check at a stand-in for GitHub's `releases/latest`.
+
+Other preview flags (the default desktop build has the `preview` feature): `--shots <dir>` saves a still per screen
+from the demo data, `--snap <png>` one picture of the running window, `--press <key>` a key before `--snap`,
+`--record <file.mp4> --frame <remote photo>` films a session (the demo, or the real one with `--live`;
+`--script steps:<file>` films a steps file).
 
 ## Hot reload
 
 `scripts/dev.sh` runs the UI against the simulator with Slint live preview
-(`SLINT_LIVE_PREVIEW=1` + `--features slint/live-preview`): saving `crates/ui/ui/*.slint` reloads
+(`SLINT_LIVE_PREVIEW=1` + `--features slint/live-preview`): saving any `.slint` file under `crates/r3cui/ui/` reloads
 the running window. Rust edits need a restart; with `watchexec` installed the script does that too.
 
-## Kodi integration (optional)
+## A real Kodi
 
-`scripts/sim.sh kodi` starts the community Kodi driver (`albator78/kodi-integration`) on the
-simulator's network and registers it with the core. Finish setup in the configurator
-(`http://127.0.0.1:8090/configurator`, `web-configurator`/`1234`): enter the Kodi host and add its
-entities. Kodi needs "Allow remote control via HTTP" and remote control from other systems enabled
-(HTTP 8080, WebSocket 9090 by default). For a Kodi on this machine use the host `host.docker.internal`.
+Kodi is a driver: add it in Settings → Integrations with its host and ports. Kodi needs "Allow remote control via HTTP"
+and remote control from other systems enabled (HTTP 8080, WebSocket 9090 by default).
+
+`scripts/sim.sh kodi` starts the community Kodi *core integration* (`albator78/kodi-integration`) in the simulator and
+registers it with the core. r3cui doesn't use it; it is only there to try the simulator's own configurator.

@@ -1,0 +1,8 @@
+import { HomeView, LibMode } from "../types.slint";
+import { Control } from "control.slint";
+import { Lib } from "lib.slint";
+import { Playback } from "playback.slint";
+
+export global Home {
+    out property <HomeView> view: !Control.power-on ? HomeView.off : Playback.staged && Playback.title != "" ? HomeView.playing : Lib.mode != LibMode.off ? HomeView.wall : HomeView.mark;
+}

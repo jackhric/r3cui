@@ -1,0 +1,29 @@
+[package]
+name = "r3cui-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "r3cui's Unfolded Circle integration: bridges remote functions only integrations can reach (today the microphone) to r3cui."
+
+[[bin]]
+name = "driver"
+path = "src/main.rs"
+
+[dependencies]
+r3cui-sdk = { path = "../sdk" }
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+prost.workspace = true
+bytes.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[features]
+# FakeBridge: an in-process bridge that scripts a session and captures what r3cui sends back.
+testing = []
+
+[dev-dependencies]
+r3cui-bridge = { path = ".", features = ["testing"] }

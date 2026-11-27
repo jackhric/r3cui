@@ -1,0 +1,8 @@
+{
+  "wide": { "width": 1200, "height": 630, "angle": -20, "rw": 184, "gap": 26, "rx": 628, "ry": 106,
+    "s0": "poster-madmax", "s1": "now-playing", "s2": "home-ps", "o0": 100, "o1": 50, "o2": 2,
+    "lw": 420, "lx": 80, "ly": 190, "ts": 29, "tgap": 28, "tw": 500, "bg": "light" },
+  "square": { "width": 1200, "height": 1200, "angle": -20, "rw": 200, "gap": 44, "rx": 380, "ry": 470,
+    "s0": "poster-madmax", "s1": "now-playing", "s2": "home-ps", "o0": 110, "o1": -30, "o2": 60,
+    "lw": 520, "lx": 90, "ly": 110, "ts": 36, "tgap": 30, "tw": 720, "bg": "light" }
+}

@@ -3,8 +3,9 @@
 ## Goal
 
 A from-scratch Rust `remote-ui` for the UCR3, installed via the Core-API custom-UI slot,
-rendering to the device's GLES2/KMS display and driving the closed `remote-core` over its
-WebSocket.
+rendering to the device's GLES2/KMS display. The closed `remote-core` is used for the remote's own
+state (power, battery, Wi-Fi, display); the receiver, Kodi and the hard keys' targets are r3cui's own
+drivers (`docs/drivers.md`).
 
 ## Why Slint (library decision)
 
@@ -22,45 +23,52 @@ Surveyed Rust GUI toolkits for a no-compositor, direct-to-KMS, aarch64 touchscre
 
 Slint wins because it ships the one maintained direct-to-KMS backend **and** input, matches the
 device's GLES2/KMS/GBM stack, has a software-renderer fallback (same code), is GPL-3.0, and plays
-nicely with tokio. Caveat: the LinuxKMS backend is labelled "experimental" and we haven't yet
-confirmed the remote's GPU driver (likely Panfrost/Mali) — verify on device.
+nicely with tokio. Caveat: the LinuxKMS backend is labelled "experimental". The device build tries GLES2 first and falls back to
+the software renderer if the GPU path won't start (`select_device_renderer` in `crates/r3cui/src/main.rs`).
 
 ## Architecture
 
 | Layer | Choice |
 |---|---|
-| UI / render | `slint`, `backend-linuxkms` + FemtoVG (GLES2) on device; software renderer compiled in as fallback; `backend-winit` for the desktop spike |
+| UI / render | `slint`; `backend-winit` + FemtoVG on the desktop (the default `desktop` feature); `backend-linuxkms` + FemtoVG (GLES2) on the device (the `device` feature), with the software renderer compiled in as fallback |
+| Slint source | `crates/r3cui/ui/`: `app.slint` (window, key router, layer order), `theme.slint` (colours, sizes, timing), `types.slint` (enums and structs shared with Rust), `globals/` (state per area, with `Nav` for pages), `marks/` (icons, logos, codec and brand marks as path data, and what draws them), `widgets/` (shared pieces: `Layer`, `PageHeader`, `ChoiceList`, `Row`, `Bar`), `pages/` (one per page; `system/` and `wifi/` group their flows), `stage/` (the home screen and the library wall), `overlays/`, `assets/` (fonts, icons, rating badges) |
 | Display | GBM/DRM-KMS, 480×800 portrait; `SLINT_KMS_ROTATION`, `SLINT_DRM_OUTPUT`/`SLINT_DRM_MODE` as needed |
-| Input | Slint libinput for touch/keys **+** a dedicated `evdev` reader thread for the UCR3 capacitive slider and for resolving physical button → `execute_entity_command` |
-| Async / WS | `tokio` + `tokio-tungstenite` → `UC_SOCKET_URL`; auth by reading `UC_TOKEN_PATH`; `serde` for the `kind/id/msg/msg_data` envelope; bridge to Slint via `invoke_from_event_loop` |
-| Protocol | `crates/coreapi`: typed Core-API WS client, coded against the `core-api` AsyncAPI spec and diffed against stock `src/core/core.cpp` |
-| Packaging | cross-compile aarch64 → `.tar.gz` (`release.json` + `bin/remote-ui`); install via `POST /system/install/ui?void_warranty=yes` |
+| Input | On the device, `crates/r3cui/src/input/evdev.rs` reads the touchscreen, the hard keys and the capacitive slider itself and hands them to the window (libinput is left out of the device build). On the desktop the keyboard stands in |
+| WebSocket | `tokio` + `tokio-tungstenite`. `r3cui_sdk::ws` (`crates/sdk`) is the shared connection, backoff, pending-call table and reconnecting `Session`; `coreapi`, `kodi` and `homeassistant` each run on it and keep their own protocol. Bridged to Slint via `invoke_from_event_loop` |
+| Remote's own state | `crates/r3cui/src/coreapi`: auth by reading `UC_TOKEN_PATH`, the `kind/id/msg/msg_data` envelope, typed power, battery and Wi-Fi events. No entities: see `docs/core-ws-protocol.md` |
+| Other programs | Integrations, each one crate with its client and driver on `crates/sdk` (`r3cui-sdk`): `homeassistant`, `kodi`, `androidtv`, and the app's `demo`. `crates/r3cui/src/host`: `modules.json`, the input list, the host that routes keys and views. The app lists what it carries in `crates/r3cui/src/app/registry.rs` |
+| Packaging | `scripts/build-device.sh` cross-compiles aarch64 in a container against the manufacturer's SDK, `packaging/pack.sh` makes `r3cui-<version>.tar.gz` (`release.json`, `bin/remote-ui`, `config/`; versions in `docs/conventions.md`); CI builds it and release-please publishes it. Install via `POST /system/install/ui?void_warranty=yes`, or `install.sh` / `install.bat` |
+
+The `crates/r3cui` binary is the only crate that knows Slint; its `coreapi` and `host` modules have no UI dependency. `kodi`,
+`homeassistant`, `androidtv` and `r3cui-sdk` are tested on their own, against the fakes
+described in `docs/conventions.md`.
 
 ## Milestones
 
-1. **Desktop spike vs `core-simulator` (no device).**
-   `docker compose up` the sim (see `scripts/`), read its token, authenticate over WS, dump
-   `get_entities`, show them in a minimal Slint window (`backend-winit`). Proves the full protocol
-   path with zero device risk. ← the scaffold in this repo is aimed here.
-2. **First real app: Kodi remote + HA volume keys** (still desktop, vs simulator). Flesh out the
-   protocol module (typed messages; consider the `uc_api` crate), then build the target app:
-   render the Kodi `media_player`/`remote` entity as the on-screen remote, and map the physical
-   `VOLUME_UP`/`VOLUME_DOWN` evdev keys to a Home Assistant `media_player`'s `volume_up`/`volume_down`
-   commands. See `docs/integrations.md` for the entity/command specifics and the one-time
-   "is the entity configured?" check. This exercises get_entities, subscribe/`entity_change`,
-   `execute_entity_command`, and the evdev→command wiring — the core of the whole UI.
-3. **Cross-compile to aarch64** with `backend-linuxkms` + `dlopen`, using the `ucr2-toolchain`
-   Buildroot sysroot (has fontconfig/freetype/openssl — Slint needs fontconfig). Produce the
-   `.tar.gz` via `packaging/pack.sh`.
-4. **Device bring-up (irreversible: writes `void_warranty`).** Minimal first goal: a Slint screen
-   on the real panel + a confirmed WS connect with the real token — validates KMS/EGL/input on the
-   actual GPU. Then iterate the UI. Revert with `?enable=false` / `DELETE` if needed.
+The plan as first written, with where each stands.
 
-   Pre-step: probe the device GPU (`/dev/dri`, `eglinfo`, driver name) to confirm the GLES2 path.
+1. **Desktop spike vs `core-simulator` (no device).** Done. Authenticate over WS, show the result in
+   a Slint window (`backend-winit`). The spike listed the core's entities; that path was later
+   removed (see 2).
+2. **First real app: Kodi remote + HA volume keys.** Done, but not as first planned. The plan was to
+   read the Kodi and HA entities through the core. Instead r3cui got its own Kodi and Home Assistant
+   clients, then the driver layer on top (global volume and source, a remote slot and a UI slot per
+   input, `modules.json`, Settings → Integrations), and the core's entity path was deleted.
+   The app grew a Now Playing stage, a poster wall, track pickers, key backlighting and haptics.
+3. **Cross-compile to aarch64** with `backend-linuxkms`, using the `ucr2-toolchain`
+   Buildroot sysroot. Done: `scripts/build-device.sh`, `packaging/pack.sh`, and a CI job that builds
+   the package.
+4. **Device bring-up (irreversible: writes `void_warranty`).** Done on the owned unit; the repo has
+   install and uninstall scripts and a release workflow. Revert with `?enable=false` / `DELETE`.
+   Later device work (haptics, key backlight, 60 fps animation) is in the git history.
 
-## Open questions to resolve on-device
+Since then: the Slint side was split into pages, stages, overlays, widgets and globals with typed
+enums; the demo became the real session over the Demo driver; `scripts/test.sh` is what CI runs.
 
-- GPU + driver (Panfrost? Mali model?) → GLES2 FemtoVG vs software renderer.
-- Real `/dev/input/event*` mapping (touch, keys, slider) and `UC_TOUCHSLIDER_DEV_PATH` value.
-- Actual `UC_SOCKET_URL` and token filename on the device.
-- Whether the core accepts a partial/empty `release.json`.
+## Open questions
+
+- The real GPU and driver, and whether the GLES2 path always starts or falls back to software. The
+  device build logs which renderer it picked.
+- Whether the core accepts a partial/empty `release.json` (we ship a complete one).
+- Whether the sandbox lets the UI open the sound card (`docs/haptics.md`, "Audio").
+- Pairing drivers by code instead of a pasted token (`docs/drivers.md`, "Later").

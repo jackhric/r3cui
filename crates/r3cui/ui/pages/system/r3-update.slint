@@ -1,0 +1,99 @@
+import { Nav } from "../../globals/nav.slint";
+import { Software } from "../../globals/software.slint";
+import { R3Wordmark } from "../../marks/brand.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
+import { PageId } from "../../types.slint";
+import { Caption } from "../../widgets/caption.slint";
+import { Layer } from "../../widgets/layer.slint";
+import { PageBody, Gap, Spring, Inset } from "../../widgets/page-body.slint";
+import { PageHeader } from "../../widgets/page-header.slint";
+import { Row } from "../../widgets/row.slint";
+import { Upgrade } from "upgrade.slint";
+
+export component R3UpdatePage inherits Layer {
+    page: PageId.r3-update;
+
+    PageHeader {
+        title: "Update r3cui";
+        back => { Nav.back(); }
+    }
+    PageBody {
+        Gap { size: Layout.gap-l; }
+        HorizontalLayout {
+            alignment: center;
+            R3Wordmark { }
+        }
+        Gap { size: Layout.gap-m; }
+        Upgrade {
+            from: Software.r3-version;
+            to: Software.r3-new-version;
+        }
+        Gap { size: Layout.gap-xs; }
+        Text {
+            horizontal-alignment: center;
+            text: Software.r3-release-line;
+            font-size: Type.body;
+            color: Theme.t2;
+        }
+        Gap { size: Layout.gap-l; }
+        Inset {
+            spacing: Layout.gap-l;
+            Rectangle {
+                width: 168px;
+                height: 168px;
+                HorizontalLayout {
+                    alignment: center;
+                    VerticalLayout {
+                        alignment: center;
+                        Image {
+                            width: self.source.width * 1px;
+                            height: self.source.height * 1px;
+                            source: Software.r3-qr;
+                            image-rendering: pixelated;
+                        }
+                    }
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                spacing: Layout.gap-s;
+                Caption { text: "WHAT’S NEW"; }
+                Text {
+                    text: "Scan for the release notes";
+                    wrap: word-wrap;
+                    font-size: Type.body;
+                    color: Theme.text-dim;
+                }
+                Text {
+                    text: Software.r3-repo;
+                    font-size: Type.small;
+                    color: Theme.t3;
+                    overflow: elide;
+                }
+            }
+        }
+        Spring { }
+        if Software.r3-error != "": Inset {
+            Text {
+                wrap: word-wrap;
+                text: Software.r3-error;
+                font-size: Type.body;
+                color: Theme.off;
+            }
+        }
+        Gap { size: Layout.gap-m; }
+        Row {
+            top-line: true;
+            bottom-line: true;
+            choice: { label: "Install update" };
+            focused: Nav.focus == 0;
+            tapped => { Nav.activate(0); }
+        }
+        Row {
+            bottom-line: true;
+            choice: { label: "Not now" };
+            focused: Nav.focus == 1;
+            tapped => { Nav.activate(1); }
+        }
+    }
+}

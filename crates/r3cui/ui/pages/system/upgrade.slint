@@ -1,0 +1,36 @@
+import { Glyph, Icons } from "../../marks/icons.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
+
+// `from → to`, the new version large and light, the old one small beside it on the same baseline.
+export component Upgrade inherits HorizontalLayout {
+    in property <string> from;
+    in property <string> to;
+
+    alignment: center;
+    spacing: Layout.gap-m;
+
+    VerticalLayout {
+        alignment: end;
+        padding-bottom: 0.2 * (new.preferred-height - old.preferred-height);
+        old := Text {
+            text: root.from;
+            font-size: Type.headline;
+            font-weight: Type.value-weight;
+            color: Theme.t2;
+        }
+    }
+    VerticalLayout {
+        alignment: end;
+        padding-bottom: 0.2 * new.preferred-height + Layout.gap-xs;
+        Glyph {
+            size: 22px;
+            commands: Icons.arrow;
+        }
+    }
+    new := Text {
+        text: root.to;
+        font-size: Type.display;
+        font-weight: Type.display-weight;
+        color: Theme.text;
+    }
+}

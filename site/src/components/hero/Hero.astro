@@ -1,0 +1,323 @@
+---
+import { Button } from '@/components/starwind/button';
+import Icon from '../Icon.astro';
+import Logo from '../Logo.astro';
+import { riverColumns } from './river';
+
+interface Props { repo: string }
+const { repo } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const iconButton = 'text-(--hero-text) rounded-full hover:text-(--hero-text) select-none';
+const docsButton = `docs text-base px-2.5 -ml-2.5 ${iconButton}`;
+const columns = riverColumns(15);
+---
+
+<section class="hero">
+  <div class="stage" aria-hidden="true">
+    <div class="glow"></div>
+    <div class="river">
+      {columns.map((col, ci) => (
+        <div class="column" style={col.style}>
+          <div class="flow">
+            {[...col.clips, ...col.clips].map((c, k) => (
+              <div class="tile" style={`--in:${(0.2 + (((ci * 7 + k * 3) % 11) / 11) * 1.4).toFixed(2)}s`}>
+                <img src={c.poster} alt="" width="100" height="432" draggable="false" />
+                <video muted loop playsinline preload="none" width="100" height="432" data-webm={c.webm} data-mp4={c.mp4}></video>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+  <div class="shade"></div>
+
+  <header class="top">
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#get-started">Get started</a>
+      <a href={`${base}/docs/faq/`}>FAQ</a>
+      <Button href={`${base}/docs/`} variant="ghost" size="sm" class={docsButton}>
+        Docs
+      </Button>
+      <span class="icons">
+        <Button href={repo} target="_blank" rel="noopener" title="GitHub" variant="ghost" size="icon-sm" class={iconButton}>
+          <Icon name="github" label="GitHub" class="size-5" />
+        </Button>
+      </span>
+    </nav>
+    <div class="island">
+      <Button variant="ghost" size="icon-sm" class={`${iconButton} theme-cycle`} data-theme-cycle title="Theme: System" aria-label="Theme: System. Switch to Light">
+        <svg class="t auto" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+        <svg class="t light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg>
+        <svg class="t dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
+      </Button>
+    </div>
+  </header>
+
+  <div class="content">
+    <h1>
+      <span class="lens" data-logo-lens>
+        <span data-lens-art><Logo class="logo" label="r3cui" /></span>
+        <canvas aria-hidden="true"></canvas>
+        <span class="beta">Beta</span>
+      </span>
+    </h1>
+    <p class="summary">
+      A custom, simplified UI for the{' '}<a class="uc" href="https://www.unfoldedcircle.com/" target="_blank" rel="noopener"><svg viewBox="0 0 45 30" role="img" aria-label="Unfolded Circle"><path d="M30 15a15 15 0 0 1-30 0M45 30a15 15 0 0 1 0-30" fill="currentColor" /></svg>Remote&nbsp;3</a>
+    </p>
+  </div>
+</section>
+
+<script>
+  import { mountLogoLens } from '../../scripts/logo-lens';
+
+  // Theme: one button cycling System, Light and Dark, stored as starlight-theme so the docs open in the same theme.
+  const order = ['auto', 'light', 'dark'] as const;
+  const names = { auto: 'System', light: 'Light', dark: 'Dark' };
+  const cycle = document.querySelector<HTMLButtonElement>('[data-theme-cycle]')!;
+  const stored = () => { try { const t = localStorage.getItem('starlight-theme'); return (order as readonly string[]).includes(t ?? '') ? t as typeof order[number] : 'auto'; } catch { return 'auto' as const; } };
+  function show(theme: typeof order[number]) {
+    cycle.dataset.current = theme;
+    const next = order[(order.indexOf(theme) + 1) % order.length];
+    cycle.title = `Theme: ${names[theme]}`;
+    cycle.setAttribute('aria-label', `Theme: ${names[theme]}. Switch to ${names[next]}`);
+  }
+  cycle.addEventListener('click', () => {
+    const theme = order[(order.indexOf(stored()) + 1) % order.length];
+    try { localStorage.setItem('starlight-theme', theme); } catch {}
+    if (theme === 'auto') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = theme;
+    show(theme);
+  });
+  show(stored());
+
+  for (const el of document.querySelectorAll<HTMLElement>('[data-logo-lens]')) mountLogoLens(el);
+
+  // A tile stays hidden (its entrance paused) until its poster has decoded, so none shows up blank. Posters load a few
+  // at a time, which staggers their arrival; each tile's own --in delay staggers the entrance. Both copies of a clip in
+  // a column share a poster and are revealed together, so the loop's wrap never swaps a visible tile for a hidden twin.
+  const byPoster = new Map<string, HTMLElement[]>();
+  for (const el of document.querySelectorAll<HTMLElement>('.hero .tile')) {
+    const poster = el.querySelector('img')!.src;
+    byPoster.set(poster, [...(byPoster.get(poster) ?? []), el]);
+  }
+  const pending = [...byPoster];
+  const reveal = (els: HTMLElement[]) => els.forEach(el => el.classList.add('ready'));
+  let next = 0;
+  function pump() {
+    const item = pending[next++];
+    if (!item) return;
+    const [poster, els] = item;
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = poster;
+    img.decode().catch(() => {}).finally(() => { reveal(els); pump(); });
+  }
+  for (let i = 0; i < 6; i++) pump();
+
+  const videos = [...document.querySelectorAll<HTMLVideoElement>('.hero video[data-webm]')];
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  const golden = 0.618034;
+
+  function load(video: HTMLVideoElement, i: number) {
+    if (video.dataset.loaded) return;
+    video.dataset.loaded = '1';
+    for (const [type, key] of [['video/webm', 'webm'], ['video/mp4', 'mp4']] as const) {
+      const source = document.createElement('source');
+      source.type = type;
+      source.src = video.dataset[key]!;
+      video.append(source);
+    }
+    // Copies of a clip start at different points, so neighbours never play in step. The video stays invisible over
+    // its poster until it is really playing, then crossfades in.
+    video.addEventListener('loadedmetadata', () => { video.currentTime = ((i * golden) % 1) * video.duration; }, { once: true });
+    video.addEventListener('playing', () => video.classList.add('live'), { once: true });
+    video.load();
+  }
+
+  // Decoding is the hero's main cost, so at most MAX_PLAYING clips run, only those on screen; the rest show
+  // their poster. Nothing downloads until the page has loaded and gone idle.
+  // Phones decode far fewer at once, and none while the page is being scrolled.
+  const MAX_PLAYING = matchMedia('(max-width: 760px), (pointer: coarse)').matches ? 5 : 12;
+  let scrolling = 0;
+  const visible = new Set<HTMLVideoElement>();
+  const playing = new Set<HTMLVideoElement>();
+  function schedule() {
+    for (const v of playing) if (!visible.has(v) || document.hidden) { v.pause(); playing.delete(v); }
+    if (document.hidden || scrolling) return;
+    for (const v of visible) {
+      if (playing.size >= MAX_PLAYING) break;
+      if (playing.has(v)) continue;
+      load(v, videos.indexOf(v));
+      v.play().catch(() => {});
+      playing.add(v);
+    }
+  }
+  const observer = new IntersectionObserver(entries => {
+    for (const { target, isIntersecting } of entries) {
+      if (isIntersecting) visible.add(target as HTMLVideoElement);
+      else visible.delete(target as HTMLVideoElement);
+    }
+    schedule();
+  });
+
+  const start = () => videos.forEach(v => observer.observe(v));
+  const idle = () => ('requestIdleCallback' in window ? requestIdleCallback(start, { timeout: 2000 }) : setTimeout(start, 300));
+  if (!still.matches) {
+    if (document.readyState === 'complete') idle();
+    else addEventListener('load', idle, { once: true });
+  }
+  document.addEventListener('visibilitychange', schedule);
+  addEventListener('scroll', () => {
+    if (!scrolling) for (const v of playing) { v.pause(); playing.delete(v); }
+    clearTimeout(scrolling);
+    scrolling = window.setTimeout(() => { scrolling = 0; schedule(); }, 250);
+  }, { passive: true });
+
+  // Off screen the hero costs nothing: the river and the clips pause.
+  const hero = document.querySelector<HTMLElement>('.hero')!;
+  new IntersectionObserver(([e]) => {
+    hero.classList.toggle('away', !e.isIntersecting);
+    if (e.isIntersecting) schedule();
+    else for (const v of playing) { v.pause(); playing.delete(v); }
+  }).observe(hero);
+</script>
+
+<style>
+  .hero {
+    position: relative; overflow: hidden; isolation: isolate; color: var(--hero-text); background: var(--hero-bg);
+    min-height: min(58vh, 540px); display: flex; flex-direction: column;
+  }
+  /* The river never decides where the page scrolls: Firefox anchored to its moving clips and shifted the page. */
+  .stage { overflow-anchor: none; position: absolute; inset: 0; contain: strict; user-select: none; -webkit-user-select: none; pointer-events: none; }
+  .glow {
+    position: absolute; left: 50%; top: 50%; width: 110%; height: 160%; translate: -50% -50%;
+    background: radial-gradient(closest-side, var(--hero-glow), color-mix(in srgb, var(--hero-glow) 30%, transparent) 55%, transparent 75%);
+    animation: glow-in 2.4s ease-out backwards;
+  }
+  @keyframes glow-in { from { opacity: 0; scale: 0.85; } }
+
+  /* Flat, top-down: columns of whole remotes drifting down the page, each at its own pace and offset. */
+  /* Taller than the hero and rotated about its centre, so a tilted river still covers every corner. */
+  .river {
+    position: absolute; top: -60%; bottom: -60%; left: 50%; translate: -50% 0; rotate: 20deg;
+    display: flex; gap: 22px;
+    animation: river-in 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s backwards;
+  }
+  @keyframes river-in { from { opacity: 0; } }
+  .column {
+    --tile: 100px; --gap: 22px; flex: none; width: var(--tile); height: 100%;
+    margin-top: calc(var(--stagger, 0) * -1 * (var(--tile) * 4.32 + var(--gap)));
+  }
+  .flow {
+    display: grid; gap: 22px; will-change: transform;
+    animation: drift var(--speed, 120s) linear infinite;
+  }
+  /* Video can't carry the photo's transparent corners everywhere, so each tile is clipped to the remote's
+     outline: a rounded rectangle, tight at the top and rounder at the bottom (measured from the photo). A
+     rounded clip costs the GPU next to nothing, where an image mask on every tile was redrawn each frame.
+     The poster sits underneath and the video fades in over it once playing. */
+  .tile {
+    position: relative; width: var(--tile); aspect-ratio: 200 / 864; overflow: hidden;
+    border-radius: 2% 2% 15% 15% / 0.46% 0.46% 3.5% 3.5%;
+  }
+  .tile img, .tile video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  .tile video { opacity: 0; transition: opacity 0.7s ease; }
+  .tile video:global(.live) { opacity: 1; }
+  /* Two copies of the column stacked; sliding by one copy's height loops seamlessly. */
+  @keyframes drift { from { transform: translateY(calc(-50% - 11px)); } to { transform: translateY(0); } }
+  .hero.away .flow { animation-play-state: paused; }
+  /* Each tile grows and fades in once its poster is ready. Filling backwards only, so a finished entrance stops
+     holding an animation. */
+  .tile { animation: tile-in 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) var(--in, 0s) backwards; }
+  .tile:not(:global(.ready)) { animation-play-state: paused; }
+  @keyframes tile-in { from { opacity: 0; scale: 0.85; } }
+
+  /* Darkest behind the logo, fading out toward the edges so the river stays visible around it. */
+  .shade {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      radial-gradient(ellipse 34% 40% at 50% 54%, color-mix(in srgb, var(--hero-bg) 82%, transparent), color-mix(in srgb, var(--hero-bg) 40%, transparent) 60%, transparent 100%),
+      linear-gradient(to bottom, color-mix(in srgb, var(--hero-bg) 45%, transparent), transparent 14%);
+  }
+
+  /* The links and the theme button sit in two separate pills, the same height, with the theme on the far right. */
+  .top {
+    position: relative; z-index: 3; width: 100%; max-width: 1160px; margin: 0 auto; padding: 18px 28px;
+    display: flex; align-items: stretch; justify-content: flex-end; gap: 10px;
+  }
+  /* A dark, blurred pill keeps the links readable over whatever part of the river passes behind them. */
+  .top nav, .island {
+    display: flex; align-items: center; border-radius: 999px;
+    background: color-mix(in srgb, var(--hero-bg) 55%, transparent); border: 1px solid rgb(255 255 255 / 0.1);
+    backdrop-filter: blur(18px) saturate(1.3);
+    box-shadow: 0 8px 30px rgb(0 0 0 / 0.45);
+  }
+  .top nav { gap: 20px; flex-wrap: wrap; padding: 6px 8px 6px 20px; }
+  .island { justify-content: center; padding: 6px; }
+  .top nav a { color: color-mix(in srgb, var(--hero-text) 88%, transparent); text-decoration: none; font-weight: 600; }
+  .top nav a:hover { color: var(--hero-text); }
+  .icons { display: flex; gap: 4px; }
+  /* A <button>, so it would otherwise carry the browser's grey button face; like the GitHub link it has no hover fill. */
+  .island :global(.theme-cycle) { border: 0; background-color: transparent; color: color-mix(in srgb, var(--hero-text) 88%, transparent); font: inherit; }
+  .island :global(.theme-cycle:hover) { color: var(--hero-text); }
+  /* The theme button shows the icon of the current choice. */
+  .theme-cycle svg.t { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .theme-cycle:not([data-current='auto']) svg.auto, .theme-cycle:not([data-current='light']) svg.light,
+  .theme-cycle:not([data-current='dark']) svg.dark { display: none; }
+  .theme-cycle:not([data-current]) svg.light, .theme-cycle:not([data-current]) svg.dark { display: none; }
+
+  .content {
+    position: relative; z-index: 2; margin: auto; padding: 24px 28px 88px; display: grid; place-items: center;
+    text-align: center; text-shadow: 0 2px 18px rgb(0 0 0 / 0.85), 0 0 4px rgb(0 0 0 / 0.6);
+  }
+  h1 { margin: 0; }
+  .uc { color: inherit; text-decoration: none; white-space: nowrap; }
+  /* Centred on the capitals of "Remote 3": the mark's middle sits at half the cap height. */
+  .uc svg {
+    display: inline-block; height: 0.72em; width: auto; margin: 0 0.32em 0 0.12em;
+    vertical-align: -0.01em; vertical-align: calc(0.5cap - 0.36em);
+    filter: drop-shadow(0 2px 10px rgb(0 0 0 / 0.8));
+  }
+  .uc:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .summary { margin: 22px 0 0; font-size: clamp(1.05rem, 2.2vw, 1.4rem); font-weight: 600; color: var(--hero-text); text-wrap: balance; }
+  .lens {
+    --logo-w: min(420px, 72vw);
+    position: relative; display: inline-block; cursor: crosshair; touch-action: none; user-select: none;
+    color: var(--hero-text); filter: drop-shadow(0 4px 30px rgb(0 0 0 / 0.6));
+  }
+  .lens canvas { position: absolute; pointer-events: none; }
+  .lens :global(.logo) { display: block; width: var(--logo-w); height: auto; }
+  /* A small outlined beta banner over the r, placed by hand in the placement tool. Sized and placed from the logo's
+     width so it keeps its place at every size. */
+  .beta {
+    position: absolute; z-index: 1; left: calc(var(--logo-w) * 0.0628); top: calc(var(--logo-w) * 0.0441);
+    translate: -50% -50%; rotate: -28deg; --f: calc(var(--logo-w) * 0.036);
+    padding: calc(var(--f) * 0.31) calc(var(--f) * 0.61) calc(var(--f) * 0.31) calc(var(--f) * 0.72);
+    display: grid; place-items: center; border-radius: calc(var(--f) * 0.22); pointer-events: none;
+    font: 800 var(--f) / 1 'Plus Jakarta Sans Variable', system-ui, sans-serif; letter-spacing: 0.16em; text-transform: uppercase;
+    color: #fff; text-shadow: none; background: rgb(14 14 14 / 0.55);
+    box-shadow: inset 0 0 0 1.5px #fff, 0 4px 12px rgb(0 0 0 / 0.45);
+  }
+  /* Once the lens has drawn the logo, the canvas shows it and the SVG only holds its place. */
+  [data-lens-art][data-lens-ready] :global(svg) { opacity: 0; }
+
+  @media (max-width: 760px) {
+    .top nav > a:not(.docs) { display: none; }
+    /* Phones: only the middle columns reach the screen, and a live blur over moving video is too heavy. */
+    .column:nth-child(-n + 4), .column:nth-child(n + 12) { display: none; }
+    .top nav, .island { backdrop-filter: none; background: color-mix(in srgb, var(--hero-bg) 88%, transparent); }
+    .river { gap: 16px; }
+    .column { --tile: 80px; --gap: 16px; }
+    .flow { gap: 16px; }
+    .content { padding-bottom: 64px; }
+  }
+  @media (max-width: 400px) {
+    .top { padding: 14px 16px; }
+    .top nav { gap: 8px; padding-left: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .flow, .river, .glow, .tile { animation: none; }
+  }
+</style>

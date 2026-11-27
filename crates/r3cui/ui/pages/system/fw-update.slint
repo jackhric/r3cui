@@ -1,0 +1,114 @@
+import { Nav } from "../../globals/nav.slint";
+import { Software } from "../../globals/software.slint";
+import { UcMark } from "../../marks/brand.slint";
+import { Marks } from "../../marks/icons.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
+import { PageId, UpdateState } from "../../types.slint";
+import { Caption } from "../../widgets/caption.slint";
+import { Layer } from "../../widgets/layer.slint";
+import { PageBody, Gap, Spring, Inset } from "../../widgets/page-body.slint";
+import { PageHeader } from "../../widgets/page-header.slint";
+import { Row } from "../../widgets/row.slint";
+import { Upgrade } from "upgrade.slint";
+
+export component FwUpdatePage inherits Layer {
+    page: PageId.fw-update;
+    property <bool> available: Software.fw-state == UpdateState.available;
+
+    PageHeader {
+        title: root.available ? "Firmware update" : "Firmware";
+        back => { Nav.back(); }
+    }
+    PageBody {
+        Gap { size: Layout.gap-l; }
+        HorizontalLayout {
+            alignment: center;
+            UcMark { wide: 84px; }
+        }
+        Gap { size: Layout.gap-m; }
+        if root.available: Upgrade {
+            from: Software.fw-installed;
+            to: Software.fw-new-version;
+        }
+        if !root.available: Text {
+            horizontal-alignment: center;
+            text: Software.fw-installed;
+            font-size: Type.display;
+            font-weight: Type.display-weight;
+            color: Theme.text;
+        }
+        Gap { size: Layout.gap-xs; }
+        Text {
+            horizontal-alignment: center;
+            text: root.available ? Software.fw-release-line : Software.fw-status;
+            font-size: Type.body;
+            color: Theme.t2;
+        }
+        Gap { size: Layout.gap-m; }
+        if root.available: Inset {
+            Rectangle {
+                height: 164px;
+                border-radius: Layout.card-radius;
+                background: #FFFFFF0A;
+                VerticalLayout {
+                    padding: Layout.gap-m;
+                    padding-left: Layout.gap-l;
+                    padding-right: Layout.gap-l;
+                    spacing: Layout.gap-s;
+                    Caption { text: "WHAT’S NEW"; }
+                    Text {
+                        text: Software.fw-notes;
+                        wrap: word-wrap;
+                        overflow: elide;
+                        font-size: Type.body;
+                        color: Theme.text-dim;
+                    }
+                }
+            }
+        }
+        if root.available: Gap { size: Layout.gap-m; }
+        if root.available: Inset {
+            spacing: Layout.gap-s;
+            VerticalLayout {
+                alignment: center;
+                Path {
+                    width: 20px;
+                    height: 20px;
+                    viewbox-width: 24;
+                    viewbox-height: 24;
+                    commands: Marks.bolt;
+                    fill: Software.fw-battery-ok ? Theme.good : Theme.off;
+                }
+            }
+            Text {
+                text: Software.fw-error != "" ? Software.fw-error : Software.fw-battery-line;
+                font-size: Type.body;
+                color: Software.fw-error != "" ? Theme.off : Theme.t2;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        if !root.available && Software.fw-error != "": Inset {
+            Text {
+                wrap: word-wrap;
+                text: Software.fw-error;
+                font-size: Type.body;
+                color: Theme.off;
+            }
+        }
+        Spring { }
+        Row {
+            top-line: true;
+            bottom-line: true;
+            choice: { label: root.available ? "Download" : Software.fw-state == UpdateState.checking ? "Checking…" : "Check for updates", value: root.available ? "then install" : "" };
+            focused: Nav.focus == 0;
+            tapped => { Nav.activate(0); }
+        }
+        if root.available: Row {
+            bottom-line: true;
+            choice: { label: "Not now" };
+            focused: Nav.focus == 1;
+            tapped => { Nav.activate(1); }
+        }
+    }
+}

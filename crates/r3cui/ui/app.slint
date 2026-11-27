@@ -1,0 +1,317 @@
+import "assets/fonts/Inter-200.ttf";
+import "assets/fonts/Inter-300.ttf";
+import "assets/fonts/Inter-400.ttf";
+import "assets/fonts/Inter-500.ttf";
+import "assets/fonts/JetBrainsMono-500.ttf";
+import { Control } from "globals/control.slint";
+import { Fx } from "globals/fx.slint";
+import { Home } from "globals/home.slint";
+import { Kb } from "globals/kb.slint";
+import { KeyChars } from "globals/keys.slint";
+import { Nav } from "globals/nav.slint";
+import { Power } from "globals/power.slint";
+import { Prefs } from "globals/prefs.slint";
+import { Software } from "globals/software.slint";
+import { Voice } from "globals/voice.slint";
+import { Sys } from "globals/sys.slint";
+import { Wifi } from "globals/wifi.slint";
+import { ChargeCard } from "overlays/charge-card.slint";
+import { HoldOverlay } from "overlays/hold.slint";
+import { NavBar } from "overlays/navbar.slint";
+import { PowerOverlay } from "overlays/power.slint";
+import { VoiceOverlay } from "overlays/voice.slint";
+import { VolumeOverlay } from "overlays/volume.slint";
+import { HardwarePage } from "pages/hardware.slint";
+import { InputsPage } from "pages/inputs.slint";
+import { IntegrationsPage } from "pages/integrations.slint";
+import { KeyboardPage } from "pages/keyboard.slint";
+import { LabPage } from "pages/lab.slint";
+import { MenuPage } from "pages/menu.slint";
+import { FwInstallingPage } from "pages/system/fw-installing.slint";
+import { FwUpdatePage } from "pages/system/fw-update.slint";
+import { R3InstallingPage } from "pages/system/r3-installing.slint";
+import { R3UpdatePage } from "pages/system/r3-update.slint";
+import { SystemPage } from "pages/system/system.slint";
+import { UninstallPage } from "pages/system/uninstall.slint";
+import { RemoteControlPage } from "pages/system/remote-control.slint";
+import { WebConfigPage } from "pages/system/web-config.slint";
+import { R3WebPage } from "pages/system/r3-web.slint";
+import { TracksPage } from "pages/tracks.slint";
+import { JoinFailedPage } from "pages/wifi/join-failed.slint";
+import { WifiPage } from "pages/wifi/wifi.slint";
+import { Stage } from "stage/stage.slint";
+import { Theme, Layout, Motion } from "theme.slint";
+import { Capture, Haptic, HomeView, JoinState, NavKey, PageId } from "types.slint";
+
+// What Rust reaches: the types and every global.
+export * from "types.slint";
+export { Theme, Motion } from "theme.slint";
+export { Icons, Marks } from "marks/icons.slint";
+export { Logos } from "marks/logos.slint";
+export { Codecs } from "marks/codecs.slint";
+export { KeyChars } from "globals/keys.slint";
+export { Cfg } from "globals/cfg.slint";
+export { R3Web } from "globals/r3-web.slint";
+export { Control } from "globals/control.slint";
+export { Fx } from "globals/fx.slint";
+export { Health } from "globals/health.slint";
+export { Kb } from "globals/kb.slint";
+export { Lab } from "globals/lab.slint";
+export { Lib } from "globals/lib.slint";
+export { Menu } from "globals/menu.slint";
+export { Nav } from "globals/nav.slint";
+export { Playback } from "globals/playback.slint";
+export { Power } from "globals/power.slint";
+export { Prefs } from "globals/prefs.slint";
+export { Software } from "globals/software.slint";
+export { Sys } from "globals/sys.slint";
+export { Tracks } from "globals/tracks.slint";
+export { RemoteControl } from "globals/remote-control.slint";
+export { Voice } from "globals/voice.slint";
+export { Wifi } from "globals/wifi.slint";
+
+export component AppWindow inherits Window {
+    title: "remote-ui";
+    width: Layout.screen-w;
+    height: Layout.screen-h;
+    background: Theme.bg;
+    default-font-family: "Inter";
+    forward-focus: keys;
+
+    public function hold-library() { stage.hold-library(); }
+    public function run-library() { stage.run-library(); }
+    out property <bool> lava-on: Nav.page == PageId.home && Home.view == HomeView.mark && Sys.lit;
+    out property <bool> power-overlay: hold.power-overlay;
+    out property <bool> power-turning-off: hold.power-turning-off;
+
+    property <float> recede: Nav.page != PageId.home ? 1 : 0;
+    animate recede { duration: Motion.recede; easing: Theme.page-easing; }
+    // The deepest open overlay: the screen behind recedes by it as the stage does behind a list.
+    property <float> overlay-depth: max(max(max(volume.depth, voice.depth), max(hold.depth, charge.depth)), power.depth);
+    public function hold-swap() { stage.hold-swap(); }
+    public function run-swap() { stage.run-swap(); }
+
+    property <float> wake: Sys.lit ? 1 : 0;
+    animate wake { duration: 650ms; easing: ease-in-out; }
+    // Smoothed again so the fade and zoom ease at both ends.
+    property <float> reveal: root.wake * root.wake * (3 - 2 * root.wake);
+
+    keys := FocusScope {
+        transform-scale: 0.8 + 0.2 * root.reveal;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+        opacity: root.reveal;
+        key-pressed(event) => {
+            Sys.activity();
+            if (Sys.resting || Sys.charge-card) {
+                Sys.resting = false;
+                Sys.charge-card = false;
+                return accept;
+            }
+            // While software installs, the remote has no buttons.
+            if (Software.blocking) {
+                return accept;
+            }
+            if (event.text.to-lowercase() == KeyChars.power) {
+                if (!event.repeat) {
+                    hold.press-power();
+                }
+                return accept;
+            }
+            if (event.text.to-lowercase() == KeyChars.home) {
+                if (!event.repeat) {
+                    hold.press-home();
+                }
+                return accept;
+            }
+            // Held, the menu key opens r3cui's menu; tapped, it is the input's own menu key.
+            if (event.text.to-lowercase() == KeyChars.menu) {
+                if (!event.repeat) {
+                    hold.press-menu();
+                }
+                return accept;
+            }
+            // The voice key: held, it talks, when something takes voice. The inputs are Home's, held.
+            if (event.text.to-lowercase() == KeyChars.input) {
+                if (!event.repeat && Control.has-voice) {
+                    Voice.press();
+                }
+                return accept;
+            }
+            if (Nav.page == PageId.keyboard) {
+                if (Wifi.join-state != JoinState.joining) {
+                    if (event.text == Key.UpArrow) {
+                        Kb.nav(NavKey.up);
+                    } else if (event.text == Key.DownArrow) {
+                        Kb.nav(NavKey.down);
+                    } else if (event.text == Key.LeftArrow) {
+                        Kb.nav(NavKey.left);
+                    } else if (event.text == Key.RightArrow) {
+                        Kb.nav(NavKey.right);
+                    } else if (event.text == Key.Return) {
+                        Kb.nav(NavKey.ok);
+                    } else if (event.text == Key.Backspace || event.text == Key.Escape) {
+                        Kb.nav(NavKey.back);
+                    }
+                }
+                return accept;
+            }
+            if (Nav.page == PageId.uninstall && event.text == Key.Return) {
+                if (!event.repeat) {
+                    uninstall.press();
+                }
+                return accept;
+            }
+            if (Power.shown) {
+                if (event.text == Key.UpArrow || event.text == Key.DownArrow) {
+                    Power.move(event.text == Key.UpArrow ? -1 : 1);
+                } else if (event.text == Key.Return) {
+                    Power.pick(Power.focus);
+                } else if (event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.LeftArrow) {
+                    Power.close();
+                }
+                return accept;
+            }
+            if (Nav.page != PageId.home) {
+                if (event.text == Key.Escape || event.text == Key.Backspace) {
+                    Nav.back();
+                    return accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    Nav.move(-1);
+                    return accept;
+                }
+                if (event.text == Key.DownArrow) {
+                    Nav.move(1);
+                    return accept;
+                }
+                if (event.text == Key.Return) {
+                    Nav.activate(Nav.focus);
+                    return accept;
+                }
+                if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
+                    if (Nav.sideways(event.text == Key.LeftArrow ? -1 : 1)) {
+                    } else if (Nav.page == PageId.hardware && Nav.focus == Prefs.brightness-row) {
+                        if (!Prefs.auto-brightness) {
+                            Prefs.brightness = max(5, min(100, Prefs.brightness + (event.text == Key.LeftArrow ? -5 : 5)));
+                            Prefs.changed();
+                        }
+                    } else if (event.text == Key.LeftArrow) {
+                        Nav.back();
+                    }
+                    return accept;
+                }
+            }
+            if (!event.repeat && event.text == Key.Return) {
+                Fx.haptic(Haptic.select);
+            }
+            Control.key(event.text);
+            return accept;
+        }
+
+        key-released(event) => {
+            if (event.text == Key.Return) {
+                uninstall.release();
+            }
+            if (event.text.to-lowercase() == KeyChars.home) {
+                hold.release-home();
+            }
+            if (event.text.to-lowercase() == KeyChars.menu) {
+                hold.release-menu();
+            }
+            if (event.text.to-lowercase() == KeyChars.power) {
+                hold.release-power();
+            }
+            if (event.text.to-lowercase() == KeyChars.input && Control.has-voice) {
+                Voice.release();
+            }
+            return accept;
+        }
+
+        // Catches touches that land on nothing, so the pointer stays hidden there too.
+        TouchArea {
+            mouse-cursor: Theme.cursor;
+        }
+
+        // Three layers. The main stage (home, now playing) is at the bottom; option lists (menu,
+        // inputs, track pickers) open over it, and the stage recedes: it shrinks, blurs and dims
+        // until it is only faintly there behind the list. Overlays (volume, power, charging) do
+        // the same to whatever lies beneath them. Blur is a snapshot taken as the layer opens,
+        // since Slint cannot blur live content.
+        world := Rectangle {
+            transform-origin: { x: self.width / 2, y: self.height / 2 };
+            transform-scale: Fx.capturing != Capture.none ? 1 : 1 - Motion.recede-scale * root.overlay-depth;
+
+            stage := Stage { recede: root.recede; }
+
+            options := Rectangle {
+                visible: root.recede > 0 && Fx.capturing != Capture.stage;
+                opacity: root.recede;
+                transform-origin: { x: self.width / 2, y: self.height / 2 };
+                transform-scale: 1.04 - 0.04 * root.recede;
+                background: Theme.veil;
+                // The stage behind is only scenery while a list is open.
+                TouchArea { mouse-cursor: Theme.cursor; }
+
+                InputsPage { }
+                MenuPage { }
+                HardwarePage { }
+                WifiPage { }
+                KeyboardPage { }
+                IntegrationsPage { }
+                SystemPage { }
+                R3UpdatePage { }
+                R3InstallingPage { }
+                uninstall := UninstallPage { }
+                FwUpdatePage { }
+                FwInstallingPage { }
+                WebConfigPage { }
+                RemoteControlPage { }
+                R3WebPage { }
+                LabPage { }
+                JoinFailedPage { }
+                TracksPage { }
+            }
+
+            Image {
+                width: Layout.screen-w;
+                height: Layout.screen-h;
+                source: Fx.world-blur;
+                image-fit: fill;
+                opacity: root.overlay-depth;
+                visible: self.opacity > 0 && Fx.capturing == Capture.none;
+            }
+
+            Rectangle {
+                background: Theme.bg;
+                opacity: Motion.recede-dim * root.overlay-depth;
+                visible: self.opacity > 0 && Fx.capturing == Capture.none;
+            }
+        }
+
+        // Volume overlay, over everything.
+        volume := VolumeOverlay { }
+        voice := VoiceOverlay { }
+        power := PowerOverlay { }
+    }
+
+    hold := HoldOverlay { }
+
+    // Charging: the battery, full screen, until the first touch or key.
+    charge := ChargeCard { }
+
+    // The navbar belongs to no layer: it stays put through every transition, fading only with
+    // sleep, and is kept out of the snapshots so no blurred copy of it shows behind it.
+    NavBar { reveal: root.reveal; }
+
+    if !Sys.awake: TouchArea { mouse-cursor: Theme.cursor; }
+    // The first touch after resting only wakes the screen.
+    if Sys.awake && Sys.resting: TouchArea {
+        mouse-cursor: Theme.cursor;
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down) {
+                Sys.resting = false;
+                Sys.activity();
+            }
+        }
+    }
+}

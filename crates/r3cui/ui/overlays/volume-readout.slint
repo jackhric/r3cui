@@ -1,0 +1,39 @@
+import { Theme, Layout, Type } from "../theme.slint";
+import { Bar } from "../widgets/bar.slint";
+
+export component VolumeReadout inherits Rectangle {
+    in property <int> volume;
+    in property <string> volume-db;
+    in property <bool> muted;
+    in property <length> top;
+
+    width: Layout.screen-w;
+    Text {
+        y: root.top;
+        width: Layout.screen-w;
+        height: 190px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        text: root.volume;
+        font-size: 200px;
+        font-weight: Type.display-weight;
+        letter-spacing: -8px;
+        color: root.muted ? Theme.t3 : Theme.text;
+        animate color { duration: 200ms; }
+    }
+    Text {
+        y: root.top + 194px;
+        width: Layout.screen-w;
+        horizontal-alignment: center;
+        text: root.volume-db;
+        font-size: 26px;
+        font-weight: 300;
+        color: root.muted ? Theme.t3 : Theme.t2;
+    }
+    Bar {
+        x: Layout.margin;
+        y: root.top + 254px;
+        value: root.volume / 100;
+        tint: root.muted ? Theme.t3 : Theme.accent;
+    }
+}

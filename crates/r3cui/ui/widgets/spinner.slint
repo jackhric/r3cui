@@ -1,0 +1,22 @@
+import { Theme, Motion } from "../theme.slint";
+
+// Something is being worked out: a short arc turning.
+export component Spinner inherits Rectangle {
+    in property <length> size: 44px;
+    in property <color> tint: Theme.text;
+    width: self.size;
+    height: self.size;
+    Path {
+        width: root.size;
+        height: root.size;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M12 2.5a9.5 9.5 0 0 1 9.5 9.5";
+        fill: transparent;
+        stroke: root.tint;
+        stroke-width: root.size * 2 / 24;
+        stroke-line-cap: round;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+        transform-rotation: mod(animation-tick(), Motion.spin) / Motion.spin * 360deg;
+    }
+}

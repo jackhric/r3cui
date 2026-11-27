@@ -1,0 +1,21 @@
+import { Choice, MenuItem } from "../types.slint";
+import { Software } from "software.slint";
+import { Wifi } from "wifi.slint";
+
+export global Menu {
+    // The list's order, which `rows` follows.
+    pure public function row(item: MenuItem) -> int {
+        item == MenuItem.wifi ? 0
+            : item == MenuItem.integrations ? 1
+            : item == MenuItem.hardware ? 2
+            : item == MenuItem.system ? 3
+            : 4
+    }
+    out property <[Choice]> rows: [
+        { label: "Wi-Fi", value: Wifi.name, chevron: true },
+        { label: "Integrations", chevron: true },
+        { label: "Hardware", chevron: true },
+        { label: "System", value: "r3cui " + Software.r3-version, chevron: true, tag: Software.any-update ? "NEW" : "" },
+        { label: "Feedback lab", chevron: true },
+    ];
+}

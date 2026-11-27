@@ -1,0 +1,134 @@
+/* Monotone palette: true greys and one red accent, used only on primary buttons, focus/selection and feature icons.
+   The hero's glow is the home screen's red lava. */
+:root {
+  --radius: 0.625rem;
+
+
+  --background: oklch(0.975 0 0);
+  --foreground: oklch(0.2 0 0);
+  --card: #ffffff;
+  --card-foreground: var(--foreground);
+  --popover: #ffffff;
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.58 0.2 25);
+  --primary-foreground: #ffffff;
+  --primary-accent: oklch(0.52 0.19 25);
+  --secondary: oklch(0.92 0 0);
+  --secondary-foreground: var(--foreground);
+  --secondary-accent: var(--foreground);
+  --muted: oklch(0.955 0 0);
+  --muted-foreground: oklch(0.48 0 0);
+  --accent: oklch(0.95 0 0);
+  --accent-foreground: oklch(0.45 0.16 25);
+  --info: #7dd3fc;
+  --info-foreground: #082f49;
+  --success: #86efac;
+  --success-foreground: #052e16;
+  --warning: #fcd34d;
+  --warning-foreground: #451a03;
+  --error: #b91c1c;
+  --error-foreground: #fafafa;
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.9 0 0);
+  --outline: oklch(0.62 0.18 25);
+
+  --selection-bg: oklch(0.65 0.2 25 / 0.3);
+  --selection-text: inherit;
+
+  --hero-bg: oklch(0.13 0 0);
+  --hero-text: oklch(0.97 0 0);
+  --hero-muted: oklch(0.72 0 0);
+  --hero-glow: oklch(0.42 0.17 25 / 0.55);
+
+  --tile-surface: oklch(0.21 0 0);
+  --tile-border: oklch(0.29 0 0);
+  --tile-feature-bg: oklch(0.25 0 0);
+  --tile-feature-border: oklch(0.33 0 0);
+  --tile-icon: oklch(0.72 0.17 25);
+  --tile-log: oklch(0.82 0 0);
+  --tile-code: oklch(0.88 0 0);
+  --tile-comment: oklch(0.55 0 0);
+
+  --feature-mark-bg: var(--muted);
+  --feature-mark-fg: oklch(0.36 0 0);
+  --feature-flow: oklch(0.55 0 0);
+  --feature-arrow: oklch(0.7 0 0);
+  --feature-panel-bg: oklch(0.96 0 0);
+  --feature-panel-border: var(--border);
+  --feature-panel-text: oklch(0.36 0 0);
+  --feature-panel-dim: oklch(0.7 0 0);
+  --feature-panel-accent: oklch(0.5 0.17 25);
+  --feature-hover-ring: rgb(0 0 0 / 0.1);
+  --feature-hover-shadow: rgb(0 0 0 / 0.14);
+
+  color-scheme: light;
+}
+
+/* Dark palette: by system preference unless a light theme was chosen, or by an explicit dark choice. The choice is
+   stored as starlight-theme, shared with the docs. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --background: oklch(0.16 0 0);
+    --foreground: oklch(0.96 0 0);
+    --card: oklch(0.2 0 0);
+    --popover: oklch(0.2 0 0);
+    --primary: oklch(0.66 0.2 25);
+    --primary-foreground: oklch(0.99 0 0);
+    --primary-accent: oklch(0.72 0.18 25);
+    --secondary: oklch(0.26 0 0);
+    --muted: oklch(0.22 0 0);
+    --muted-foreground: oklch(0.7 0 0);
+    --accent: oklch(0.27 0 0);
+    --accent-foreground: oklch(0.88 0.06 25);
+    --error: #991b1b;
+    --border: oklch(0.28 0 0);
+    --input: oklch(0.33 0 0);
+    --outline: oklch(0.68 0.17 25);
+    --feature-mark-fg: oklch(0.86 0 0);
+    --feature-flow: oklch(0.7 0 0);
+    --feature-arrow: oklch(0.5 0 0);
+    --feature-panel-bg: oklch(0.21 0 0);
+    --feature-panel-border: oklch(0.28 0 0);
+    --feature-panel-text: oklch(0.86 0 0);
+    --feature-panel-dim: oklch(0.5 0 0);
+    --feature-panel-accent: oklch(0.78 0.12 25);
+    --feature-hover-ring: rgb(255 255 255 / 0.12);
+    --feature-hover-shadow: rgb(0 0 0 / 0.45);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --background: oklch(0.16 0 0);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(0.2 0 0);
+  --popover: oklch(0.2 0 0);
+  --primary: oklch(0.66 0.2 25);
+  --primary-foreground: oklch(0.99 0 0);
+  --primary-accent: oklch(0.72 0.18 25);
+  --secondary: oklch(0.26 0 0);
+  --muted: oklch(0.22 0 0);
+  --muted-foreground: oklch(0.7 0 0);
+  --accent: oklch(0.27 0 0);
+  --accent-foreground: oklch(0.88 0.06 25);
+  --error: #991b1b;
+  --border: oklch(0.28 0 0);
+  --input: oklch(0.33 0 0);
+  --outline: oklch(0.68 0.17 25);
+  --feature-mark-fg: oklch(0.86 0 0);
+  --feature-flow: oklch(0.7 0 0);
+  --feature-arrow: oklch(0.5 0 0);
+  --feature-panel-bg: oklch(0.21 0 0);
+  --feature-panel-border: oklch(0.28 0 0);
+  --feature-panel-text: oklch(0.86 0 0);
+  --feature-panel-dim: oklch(0.5 0 0);
+  --feature-panel-accent: oklch(0.78 0.12 25);
+  --feature-hover-ring: rgb(255 255 255 / 0.12);
+  --feature-hover-shadow: rgb(0 0 0 / 0.45);
+  color-scheme: dark;
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-text);
+}

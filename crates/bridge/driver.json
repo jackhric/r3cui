@@ -1,0 +1,19 @@
+{
+  "driver_id": "r3cui_bridge",
+  "version": "0.1.0",
+  "min_core_api": "0.20.0",
+  "name": { "en": "r3cui bridge" },
+  "icon": "uc:integration",
+  "description": {
+    "en": "Bridges remote functions only integrations can reach, today the microphone for voice commands, to r3cui."
+  },
+  "developer": {
+    "name": "r3cui",
+    "url": "https://github.com/jackhric/r3cui"
+  },
+  "home_page": "https://github.com/jackhric/r3cui",
+  "setup_data_schema": {
+    "title": { "en": "r3cui bridge" },
+    "settings": []
+  }
+}

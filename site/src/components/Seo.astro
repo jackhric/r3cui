@@ -1,0 +1,82 @@
+---
+import release from '../../../packaging/release.json';
+
+interface Props { title: string; description: string }
+const { title, description } = Astro.props;
+const repo = 'https://github.com/jackhric/r3cui';
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+// Share images, drawn from the card layouts and saved by the build. Only the wide one goes in og:image: iMessage
+// collages every og:image it finds. Google takes the square one from the JSON-LD image list.
+const image = new URL(`${base}/og.png`, Astro.site).href;
+const square = new URL(`${base}/og-square.png`, Astro.site).href;
+const alt = 'r3cui: a simplified custom frontend for the Unfolded Circle Remote 3, shown on three remotes';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    { '@type': 'WebSite', name: 'r3cui', alternateName: 'Remote 3 Custom UI', url: canonical, inLanguage: 'en' },
+    {
+      '@type': 'SoftwareSourceCode',
+      name: 'r3cui',
+      codeRepository: repo,
+      programmingLanguage: ['Rust', 'Slint'],
+      license: `${repo}/blob/main/LICENSE`,
+    },
+    {
+      '@type': 'SoftwareApplication',
+      name: 'r3cui',
+      alternateName: 'Remote 3 Custom UI',
+      description,
+      url: canonical,
+      image: [image, square],
+      screenshot: image,
+      inLanguage: 'en',
+      applicationCategory: 'MultimediaApplication',
+      operatingSystem: 'Unfolded Circle Remote 3 firmware 2.8.4 or newer',
+      softwareVersion: release.version,
+      license: `${repo}/blob/main/LICENSE`,
+      isAccessibleForFree: true,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      downloadUrl: `${repo}/releases/latest`,
+      sameAs: [repo],
+      author: { '@type': 'Person', name: 'Jack Hric', url: 'https://jackhric.com' },
+      keywords: 'Unfolded Circle Remote 3, Remote 3 custom UI, home theater remote, Kodi remote, Home Assistant, receiver input switching',
+      featureList: [
+        'Now playing from Kodi with poster, progress, audio tracks and subtitles',
+        'Kodi movie and TV library as a wall of posters',
+        'Receiver input switching through Home Assistant',
+        'Global volume on the touch slider and volume keys',
+        'Button backlighting that follows the input and what is playing',
+      ],
+    },
+  ],
+};
+---
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+<link rel="sitemap" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/sitemap-index.xml`} />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="r3cui" />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:locale" content="en_US" />
+<meta property="og:image" content={image} />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content={alt} />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={image} />
+<meta name="twitter:image:alt" content={alt} />
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9f9f9" />
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141414" />
+<link rel="manifest" href={`${base}/manifest.webmanifest`} />
+<link rel="apple-touch-icon" href={`${base}/apple-touch-icon.png`} />
+<link rel="alternate" type="text/plain" title="r3cui for AI assistants" href={`${base}/llms.txt`} />
+<script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />

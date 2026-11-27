@@ -1,0 +1,58 @@
+import { Voice } from "../globals/voice.slint";
+import { Theme, Layout, Type, Motion } from "../theme.slint";
+import { VoiceStage } from "../types.slint";
+import { Spinner } from "../widgets/spinner.slint";
+import { Overlay } from "../widgets/overlay.slint";
+
+// Hold the voice key: light rises round the edges and moves with the voice; let go, a spinner while the answer is
+// worked out; then the answer, and everything fades.
+export component VoiceOverlay inherits Overlay {
+    shown: Voice.stage != VoiceStage.off;
+    driven: Voice.depth;
+    fade-out: Voice.cut-short ? Motion.lift : Motion.voice-fade;
+    property <bool> listening: Voice.stage == VoiceStage.listening;
+    property <bool> thinking: Voice.stage == VoiceStage.thinking;
+    property <bool> failed: Voice.stage == VoiceStage.failed;
+    property <bool> done: Voice.stage == VoiceStage.answered || root.failed;
+    Image {
+        width: Layout.screen-w;
+        height: Layout.screen-h;
+        source: Voice.aurora;
+        image-fit: fill;
+        image-rendering: smooth;
+    }
+    TouchArea {
+        enabled: root.done;
+        mouse-cursor: Theme.cursor;
+        clicked => { Voice.dismiss(); }
+    }
+    VerticalLayout {
+        padding-left: Layout.margin;
+        padding-right: Layout.margin;
+        alignment: center;
+        spacing: Layout.gap-l;
+        if root.thinking: HorizontalLayout {
+            alignment: center;
+            Spinner { }
+        }
+        if Voice.heard != "": Text {
+            horizontal-alignment: center;
+            wrap: word-wrap;
+            text: "“" + Voice.heard + "”";
+            font-size: Type.headline;
+            color: Theme.text;
+        }
+        if Voice.answer != "": Text {
+            horizontal-alignment: center;
+            wrap: word-wrap;
+            text: Voice.answer;
+            font-size: Type.body;
+            color: root.failed ? Theme.off : Theme.t2;
+        }
+    }
+    Timer {
+        interval: Motion.voice-linger;
+        running: root.shown && root.done;
+        triggered => { Voice.dismiss(); }
+    }
+}

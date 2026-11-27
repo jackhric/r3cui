@@ -1,0 +1,56 @@
+---
+title: FAQ
+description: Answers about r3cui, the simplified Unfolded Circle Remote 3 interface for home theaters.
+---
+
+export const faqs = [
+  {
+    q: 'What is r3cui?',
+    a: 'r3cui (Remote 3 Custom UI) is a free, open-source replacement for the touchscreen UI on the Unfolded Circle Remote 3. It is a single-purpose home theater remote: Kodi now playing and library, receiver inputs, global volume and button backlighting.',
+  },
+  {
+    q: 'Does installing r3cui void my warranty?',
+    a: 'Yes. The remote writes a permanent record when a custom UI is installed, and that record stays even after you go back to the Normal UI.',
+  },
+  {
+    q: 'Can I go back to the Normal UI?',
+    a: 'Yes. Disable the custom UI with one request to the remote, or delete it completely. If r3cui fails to start many times in a row, the remote goes back to the Normal UI by itself. The Getting started page has the commands.',
+  },
+  {
+    q: 'Will it work with my setup?',
+    a: 'Probably not out of the box yet. r3cui is beta software built around one home theater: Kodi for playback and a receiver controlled through Home Assistant. You will need to clone the project and modify it to suit your own configuration.',
+  },
+  {
+    q: 'Which integrations does it use?',
+    a: 'It builds on the existing Remote 3 integrations: the Kodi integration by albaintor, and the Home Assistant integration by zehnm and Unfolded Circle.',
+  },
+  {
+    q: 'Do the physical buttons still work?',
+    a: 'Yes. r3cui reads the buttons and the touch slider directly and sends the matching commands, including volume to your receiver from anywhere in the UI.',
+  },
+  {
+    q: 'Is r3cui made by Unfolded Circle?',
+    a: 'No. r3cui is an independent project and is not supported by Unfolded Circle. It uses the custom UI slot that Unfolded Circle provides for replacing the remote\'s UI.',
+  },
+  {
+    q: 'Why is it licensed under GPL-3.0?',
+    a: 'r3cui is built with Slint, whose free license for embedded devices like the Remote 3 is the GPL-3.0.',
+  },
+  {
+    q: 'Was it written with AI?',
+    a: 'Yes. The project was built with heavy use of Claude Code.',
+  },
+];
+
+<script type="application/ld+json" set:html={JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faqs.map(({ q, a }) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
+})} />
+
+{faqs.map(({ q, a }) => (
+  <>
+    <h2 id={q.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}>{q}</h2>
+    <p>{a}</p>
+  </>
+))}

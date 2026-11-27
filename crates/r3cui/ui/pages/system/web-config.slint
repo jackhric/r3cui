@@ -1,0 +1,73 @@
+import { Nav } from "../../globals/nav.slint";
+import { Software } from "../../globals/software.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
+import { PageId } from "../../types.slint";
+import { Caption } from "../../widgets/caption.slint";
+import { Layer } from "../../widgets/layer.slint";
+import { PageBody, Gap, Spring } from "../../widgets/page-body.slint";
+import { PageHeader } from "../../widgets/page-header.slint";
+import { PinDigits } from "../../widgets/pin-digits.slint";
+import { Row } from "../../widgets/row.slint";
+
+export component WebConfigPage inherits Layer {
+    page: PageId.web-config;
+
+    PageHeader {
+        title: "Web configurator";
+        uc-mark: true;
+        back => { Nav.back(); }
+    }
+    PageBody {
+        Gap { size: Layout.gap-l; }
+        Caption {
+            horizontal-alignment: center;
+            text: "PIN";
+        }
+        Gap { size: Layout.gap-s; }
+        PinDigits { digits: Software.web-pin; }
+        Gap { size: Layout.gap-xl; }
+        Rectangle {
+            height: Layout.qr;
+            HorizontalLayout {
+                alignment: center;
+                VerticalLayout {
+                    alignment: center;
+                    Image {
+                        width: self.source.width * 1px;
+                        height: self.source.height * 1px;
+                        source: Software.web-qr;
+                        image-rendering: pixelated;
+                    }
+                }
+            }
+        }
+        Gap { size: Layout.gap-m; }
+        Text {
+            horizontal-alignment: center;
+            text: Software.web-address;
+            font-size: Type.body;
+            color: Theme.text-dim;
+        }
+        Gap { size: Layout.gap-s; }
+        Text {
+            horizontal-alignment: center;
+            text: "Same Wi-Fi as the remote · user web-configurator";
+            font-size: Type.small;
+            color: Theme.t3;
+        }
+        Spring { }
+        Row {
+            top-line: true;
+            bottom-line: true;
+            choice: { label: "New PIN" };
+            focused: Nav.focus == 0;
+            tapped => { Nav.activate(0); }
+        }
+        Row {
+            bottom-line: true;
+            choice: { label: "Turn off" };
+            focused: Nav.focus == 1;
+            tapped => { Nav.activate(1); }
+        }
+    }
+}

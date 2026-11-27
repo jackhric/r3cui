@@ -1,0 +1,10 @@
+import { Theme } from "../theme.slint";
+import { Dot } from "../types.slint";
+
+export component StatusDot inherits Rectangle {
+    in property <Dot> dot;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    background: root.dot == Dot.up ? Theme.good : root.dot == Dot.down ? Theme.off : Theme.t3;
+}

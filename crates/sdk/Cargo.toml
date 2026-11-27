@@ -1,0 +1,29 @@
+[package]
+name = "r3cui-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Write an r3cui integration: the contract a driver implements, its setup, and helpers for running and testing it."
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tokio-tungstenite.workspace = true
+rustls = { workspace = true, optional = true }
+webpki-roots = { version = "0.26", optional = true }
+futures-util.workspace = true
+thiserror = "2"
+
+[features]
+# Helpers for an integration's own tests, and `ws::testing`: a reusable in-process WebSocket server for faking a device.
+testing = []
+# wss:// for `ws` (rustls on ring). Off by default: it needs a C compiler for the target, which the bridge's static build has not.
+tls = ["tokio-tungstenite/__rustls-tls", "dep:rustls", "dep:webpki-roots"]
+
+[dev-dependencies]
+r3cui-sdk = { path = ".", features = ["tls"] }
+tokio = { workspace = true, features = ["test-util"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rcgen = { version = "0.14", default-features = false, features = ["ring"] }

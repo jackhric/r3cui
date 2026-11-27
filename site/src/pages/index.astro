@@ -1,0 +1,116 @@
+---
+import "@/styles/starwind.css";
+import '@fontsource-variable/plus-jakarta-sans';
+import '../styles/theme.css';
+import Features from '../components/Features.astro';
+import Footer from '../components/Footer.astro';
+import Hero from '../components/hero/Hero.astro';
+import Seo from '../components/Seo.astro';
+import Statistics from '../components/Statistics.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const repo = 'https://github.com/jackhric/r3cui';
+const download = `${repo}/releases/latest`;
+const title = 'r3cui: a simplified Unfolded Circle Remote 3 interface';
+const description = 'A simplified, single-purpose Unfolded Circle Remote 3 interface for your home theater: Kodi now playing and library, receiver inputs, global volume and reactive backlighting.';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <Seo title={title} description={description} />
+    <Statistics />
+    <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
+    <meta name="color-scheme" content="light dark" />
+    <script is:inline>
+      // Before paint: an explicit light or dark choice (shared with the docs) applies at once; "auto" follows the system.
+      try { const t = localStorage.getItem('starlight-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}
+    </script>
+  </head>
+  <body>
+    <Hero repo={repo} />
+
+    <main>
+      <Features />
+    </main>
+
+    <Footer repo={repo} download={download} />
+
+    <script>
+      addEventListener('load', () => setTimeout(() => document.documentElement.classList.add('loaded'), 0), { once: true });
+      // Long-pressing a picture or clip opens no menu.
+      document.addEventListener('contextmenu', e => { if ((e.target as Element).closest?.('img, video, canvas')) e.preventDefault(); });
+
+      for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-copy]')) {
+        const input = document.getElementById(button.dataset.copy!) as HTMLInputElement | null;
+        input?.addEventListener('focus', () => input.select());
+        let timer = 0;
+        button.addEventListener('click', async () => {
+          // The Clipboard API can be refused (permissions, an embedded frame); select-and-copy is the fallback.
+          const copy = async (text: string) => {
+            try { await navigator.clipboard.writeText(text); return true; } catch {}
+            input?.focus(); input?.select();
+            try { return document.execCommand('copy'); } catch { return false; }
+          };
+          try {
+            if (!(await copy(input?.value ?? ''))) throw new Error('copy refused');
+            button.classList.add('copied');
+            button.setAttribute('aria-label', 'Copied');
+            clearTimeout(timer);
+            timer = window.setTimeout(() => { button.classList.remove('copied'); button.setAttribute('aria-label', 'Copy command'); }, 1800);
+          } catch {
+            input?.focus();
+            input?.select();
+          }
+        });
+      }
+
+      // The computer picker: tabs that swap which install command shows.
+      const tabs = [...document.querySelectorAll<HTMLButtonElement>('.os [role="tab"]')];
+      const pick = (tab: HTMLButtonElement) => {
+        for (const t of tabs) {
+          const on = t === tab;
+          t.setAttribute('aria-selected', String(on));
+          t.tabIndex = on ? 0 : -1;
+          document.getElementById(t.getAttribute('aria-controls')!)!.hidden = !on;
+        }
+      };
+      tabs.forEach((t, i) => {
+        t.addEventListener('click', () => pick(t));
+        t.addEventListener('keydown', e => {
+          const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+          if (!step) return;
+          const next = tabs[(i + step + tabs.length) % tabs.length];
+          pick(next); next.focus();
+        });
+      });
+      if (/Win/.test(navigator.platform || navigator.userAgent)) { const w = tabs.find(t => t.id === 'os-windows'); if (w) pick(w); }
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  @layer base {
+    * { box-sizing: border-box; }
+    /* Smooth scrolling only once the page has loaded: set from the start, it also animated the browser restoring the
+       scroll position after a refresh, which looked like the page jumping. */
+    html { scrollbar-gutter: stable; }
+    html.loaded { scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--background); color: var(--foreground);
+      font: 16px/1.6 'Plus Jakarta Sans Variable', system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, sans-serif;
+    }
+    a { color: var(--foreground); text-underline-offset: 3px; }
+    a[data-slot] { text-decoration: none; }
+    img { max-width: 100%; height: auto; }
+    /* No long-press callout, selection or dragging on the site's pictures and clips. */
+    img, video, canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+    h2 { font-size: clamp(1.35rem, 2.6vw, 1.85rem); text-align: center; margin: 0 0 28px; letter-spacing: -0.015em; }
+  }
+
+  main { max-width: 1160px; margin: 0 auto; padding-inline: 20px; }
+
+
+</style>

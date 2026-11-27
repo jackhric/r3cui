@@ -1,0 +1,70 @@
+import { R3Wordmark, UcMark } from "../marks/brand.slint";
+import { Glyph, Icons } from "../marks/icons.slint";
+
+import { Theme, Layout, Type } from "../theme.slint";
+
+export component PageHeader inherits Rectangle {
+    in property <string> title;
+    // The Unfolded Circle mark at the right: the page is about the remote itself.
+    in property <bool> uc-mark;
+    // The r3cui wordmark there instead: the page is about r3cui.
+    in property <bool> r3-mark;
+    // A round button across from the title: its `Icons` path, empty for none.
+    in property <string> action;
+    in property <bool> action-focused;
+    callback back();
+    callback act();
+
+    x: 0;
+    y: Layout.header-y;
+    width: Layout.screen-w;
+    height: Layout.header-h;
+
+    Glyph {
+        x: Layout.margin;
+        size: Layout.header-glyph;
+        commands: Icons.left;
+        tint: Theme.text;
+    }
+    Text {
+        x: 84px;
+        text: root.title;
+        font-size: Type.label;
+        font-weight: 500;
+        color: Theme.text;
+    }
+    if root.uc-mark: UcMark {
+        x: root.width - Layout.margin - self.width;
+        y: (root.height - self.height) / 2;
+        wide: 36px;
+    }
+    if root.r3-mark: R3Wordmark {
+        x: root.width - Layout.margin - self.width;
+        y: (root.height - self.height) / 2;
+        wide: Layout.wordmark-mark;
+        tint: Theme.t2;
+    }
+    TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { root.back(); }
+    }
+    if root.action != "": Rectangle {
+        x: root.width - Layout.margin - self.width;
+        y: (root.height - self.height) / 2;
+        width: Layout.header-action;
+        height: Layout.header-action;
+        border-radius: self.width / 2;
+        background: Theme.raised;
+        border-width: root.action-focused ? Layout.focus-ring : 0px;
+        border-color: Theme.accent;
+        Glyph {
+            size: Layout.header-glyph;
+            commands: root.action;
+            tint: Theme.text;
+        }
+        TouchArea {
+            mouse-cursor: Theme.cursor;
+            clicked => { root.act(); }
+        }
+    }
+}

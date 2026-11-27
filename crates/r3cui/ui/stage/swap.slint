@@ -1,0 +1,57 @@
+import { Layout } from "../theme.slint";
+import { Fx } from "../globals/fx.slint";
+import { Capture } from "../types.slint";
+
+export component StageSwap inherits Rectangle {
+    // One stage giving way to another: the old one, sharp then blurred, dissolves into
+    // the new one blurred, which sharpens into the live stage beneath.
+    // Eased 0 to 1 over the swap.
+    out property <float> progress: root.linear * root.linear * (3 - 2 * root.linear);
+    // Timed from the animation clock: a declared animation on a property nothing reads while
+    // hidden jumps straight to its end.
+    property <duration> start;
+    // The pictures are taken before the clock can move on, so the swap holds the old stage until
+    // `run` starts the clock on a fresh tick.
+    property <bool> held;
+    property <float> linear: !Fx.swapping || root.held ? 0 : clamp((animation-tick() - root.start) / 620ms, 0, 1);
+    public function hold() {
+        root.held = true;
+        Fx.swapping = true;
+    }
+    public function run() {
+        root.start = animation-tick();
+        root.held = false;
+    }
+    Timer {
+        interval: 660ms;
+        running: Fx.swapping && !root.held;
+        triggered => { Fx.swapping = false; }
+    }
+
+    visible: Fx.swapping && Fx.capturing == Capture.none;
+    Image {
+        width: Layout.screen-w;
+        height: Layout.screen-h;
+        source: Fx.swap-in-blur;
+        image-fit: fill;
+        opacity: 1 - clamp((root.progress - 0.55) / 0.45, 0, 1);
+    }
+    Image {
+        width: Layout.screen-w;
+        height: Layout.screen-h;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+        transform-scale: Fx.swap-plain ? 1 : 1 + 0.05 * root.progress;
+        source: Fx.swap-out-blur;
+        image-fit: fill;
+        opacity: 1 - clamp((root.progress - 0.25) / 0.35, 0, 1);
+    }
+    Image {
+        width: Layout.screen-w;
+        height: Layout.screen-h;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+        transform-scale: Fx.swap-plain ? 1 : 1 + 0.05 * root.progress;
+        source: Fx.swap-out;
+        image-fit: fill;
+        opacity: 1 - clamp(root.progress / 0.3, 0, 1);
+    }
+}

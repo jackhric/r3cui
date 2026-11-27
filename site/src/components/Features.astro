@@ -1,0 +1,551 @@
+---
+import ring from '../assets/one-ring.webp?url';
+import kodiSvg from '../assets/brands/kodi-wordmark.svg?raw';
+import haSvg from '../assets/brands/homeassistant-wordmark.svg?raw';
+
+// Card clips are their own encodes: only the top of the remote (all a card ever shows) at full resolution, so the
+// screen stays sharp at card size. The hero's small full-remote clips live in assets/clips.
+const clips = import.meta.glob<string>('../assets/cards/*.{webm,mp4,webp}', { query: '?url', import: 'default', eager: true });
+const clip = (name: string) => ({
+  webm: clips[`../assets/cards/${name}.webm`],
+  mp4: clips[`../assets/cards/${name}.mp4`],
+  poster: clips[`../assets/cards/${name}.webp`],
+});
+
+// Each brand's own wordmark (Kodi from Wikimedia Commons, public domain; Home Assistant from its logo pack). The
+// lettering is drawn in currentColor so it follows the theme; the marks keep their brand blue.
+const brand = (svg: string) => svg.replace('<svg', '<svg aria-hidden="true"');
+const brands = {
+  kodi: { name: 'Kodi', colour: '#17B2E7', svg: brand(kodiSvg), href: 'https://kodi.tv' },
+  ha: { name: 'Home Assistant', colour: '#18BCF2', svg: brand(haSvg), href: 'https://www.home-assistant.io' },
+};
+
+// The Kodi card is built from two takes recorded together, composited in the page: the TV behind, and the remote
+// (its picture on the left half of the video, its transparency on the right) in front. On phones only the remote
+// shows. `side` puts the words on the left or the right of the card, the remote on the other side.
+const cinema = {
+  tv: clips['../assets/cards/kodi-tv.mp4'],
+  tvStill: clips['../assets/cards/kodi-tv.webp'],
+  remote: clips['../assets/cards/kodi-remote.mp4'],
+  remoteStill: clips['../assets/cards/kodi-remote.webp'],
+  side: 'right' as 'left' | 'right',
+};
+
+// A card without a product of its own gets an icon in the brand mark's place, so its heading lines up with its
+// neighbour's. A speaker with its sound waves, drawn in the site's accent.
+const volumeIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4.7a.7.7 0 0 0-1.19-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/></svg>';
+
+// Each card opens its feature's page in the docs; the arrow in its corner is the link, stretched over the card.
+const doc = (slug: string) => `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}docs/features/${slug}/`;
+const arrow = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>';
+
+type Feature = { title: string; text: string; clip: ReturnType<typeof clip>; wide?: boolean; brand?: keyof typeof brands; cinema?: boolean; icon?: string; doc: string };
+const features: Feature[] = [
+  { doc: 'kodi', brand: 'kodi', title: 'Deep Kodi integration', wide: true, cinema: true, clip: clip('kodi-deep'),
+    text: "r3cui turns your remote into a second screen for Kodi. See more about what you're browsing and watching, and change playback settings without fiddling through menus on the TV. It looks nice too!" },
+  { doc: 'input-switching', brand: 'ha', title: 'Easy input switching', clip: clip('inputs-lava'),
+    text: "We also integrate with Home Assistant too. r3cui controls your receiver's media player entity (power, source, etc.) in Home Assistant, so any receiver HA can control works with r3cui." },
+  { doc: 'volume', title: 'Global volume', icon: volumeIcon, clip: clip('matrix-volume'),
+    text: "Use volume like you normally would! Globally accessible volume controls with either buttons or the touch slider make it easy peasy to adjust your home theater's sound." },
+];
+
+// The backlighting card shows one remote per input, its keys lit in that input's colour.
+const lightStills = import.meta.glob<string>('../assets/lights/*.webp', { query: '?url', import: 'default', eager: true });
+const light = (file: string) => lightStills[`../assets/lights/${file}.webp`];
+const lights = [
+  { name: 'Late Night with the Devil playing', colour: '#E8343A', still: light('late-night') },
+  { name: 'Toy Story playing', colour: '#2E7BFF', still: light('toy-story') },
+  { name: 'The Matrix playing', colour: '#4CD137', still: light('matrix') },
+  { name: 'the PlayStation input', colour: '#2E7BFF', still: light('playstation') },
+];
+---
+
+<section id="features" class="features">
+  <h2>
+    <a class="one-ring" href="https://www.youtube.com/watch?v=GI_fvDOUCu8" target="_blank" rel="noopener" title="One ring to rule them all">
+      <img src={ring} alt="The One Ring" width="51" height="48" />
+    </a>
+    One frontend to rule them all
+  </h2>
+  <div class="bento">
+    {features.map(f => (
+      <article class:list={['card', { wide: 'wide' in f && f.wide, cinema: f.cinema }]} tabindex="0" data-side={f.cinema ? cinema.side : undefined}>
+        <div class="copy">
+          <a class="more" href={doc(f.doc)}><span class="sr-only">{f.title}: read more</span><span class="arrow"><Fragment set:html={arrow} /></span></a>
+          {f.icon && <span class="brand icon" aria-hidden="true"><Fragment set:html={f.icon} /></span>}
+          {f.brand && (
+            <a class="brand" href={brands[f.brand].href} target="_blank" rel="noopener" style={`--brand:${brands[f.brand].colour}`}>
+              <Fragment set:html={brands[f.brand].svg} /><span class="sr-only">{brands[f.brand].name}</span>
+            </a>
+          )}
+          <h3>{f.title}</h3>
+          <p>{f.text}</p>
+        </div>
+        <div class="crop" aria-hidden="true">
+          {f.cinema && <canvas class="tv" style={`background-image:url(${cinema.tvStill})`}></canvas>}
+          {f.cinema ? (
+            <div class="remote layered">
+              <img src={cinema.remoteStill} alt="" width="544" height="1300" loading="lazy" decoding="async" />
+              <canvas width="544" height="1300"></canvas>
+              <video class="src" muted loop playsinline preload="none" data-role="tv" data-mp4={cinema.tv}></video>
+              <video class="src" muted loop playsinline preload="none" data-role="remote" data-mp4={cinema.remote}></video>
+            </div>
+          ) : (
+            <div class="remote">
+              <img src={f.clip.poster} alt="" width="544" height="1084" loading="lazy" decoding="async" />
+              <video muted loop playsinline preload="none" width="544" height="1084" data-webm={f.clip.webm} data-mp4={f.clip.mp4}></video>
+            </div>
+          )}
+        </div>
+      </article>
+    ))}
+    <article class="card lights-card" tabindex="0">
+      <div class="copy">
+        <a class="more" href={doc('backlighting')}><span class="sr-only">Reactive backlighting: read more</span><span class="arrow"><Fragment set:html={arrow} /></span></a>
+        <h3>Reactive backlighting</h3>
+        <p>The buttons light up to match what's on screen: the colours of the poster for the film that's playing, or the
+          colour of the input you've switched to.</p>
+      </div>
+      <ul class="lights" aria-label="Key colours by input">
+        {lights.map(l => (
+          <li style={`--glow:${l.colour}`}>
+            <div class="remote"><img src={l.still} alt={`Remote with ${l.name}, keys lit to match`} width="200" height="864" decoding="async" /></div>
+          </li>
+        ))}
+      </ul>
+    </article>
+  </div>
+</section>
+
+<script>
+  // Each card's remote shows its still until its row is the one in focus (nearest the middle of the screen); then the
+  // clip crossfades in and the remote rises. Scrolling another row into focus pauses it again.
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+
+  // The Kodi card: the TV and the remote are two videos on one clock (the TV leads). Each frame the remote is put
+  // back together from its picture and its mask by a small shader, and on desktop the TV is drawn to fill the card.
+  const VS = 'attribute vec2 p;varying vec2 uv;void main(){uv=vec2((p.x+1.)/2.,(1.-p.y)/2.);gl_Position=vec4(p,0.,1.);}';
+  const FS = 'precision mediump float;varying vec2 uv;uniform sampler2D t;void main(){vec3 c=texture2D(t,vec2(uv.x*.5,uv.y)).rgb;float a=texture2D(t,vec2(.5+uv.x*.5,uv.y)).r;gl_FragColor=vec4(c,clamp((a-.02)/.96,0.,1.));}';
+  const FILM_AT = 5.9;
+  type Layered = { tv: HTMLVideoElement; remote: HTMLVideoElement; out: HTMLCanvasElement; screen: HTMLCanvasElement | null; gl: WebGLRenderingContext; raf: number };
+  const layered = new WeakMap<HTMLElement, Layered>();
+  function setUp(card: HTMLElement): Layered | null {
+    const out = card.querySelector<HTMLCanvasElement>('.remote.layered canvas')!;
+    const gl = out.getContext('webgl', { premultipliedAlpha: false, alpha: true });
+    if (!gl) return null;
+    const shader = (type: number, src: string) => { const sh = gl.createShader(type)!; gl.shaderSource(sh, src); gl.compileShader(sh); return sh; };
+    const prog = gl.createProgram()!;
+    gl.attachShader(prog, shader(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(prog); gl.useProgram(prog);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const at = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(at); gl.vertexAttribPointer(at, 2, gl.FLOAT, false, 0, 0);
+    gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+    for (const k of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    const tv = card.querySelector<HTMLVideoElement>('video[data-role="tv"]')!, remote = card.querySelector<HTMLVideoElement>('video[data-role="remote"]')!;
+    for (const v of [tv, remote]) { v.src = v.dataset.mp4!; v.load(); }
+    const l: Layered = { tv, remote, out, screen: card.querySelector<HTMLCanvasElement>('canvas.tv'), gl, raf: 0 };
+    layered.set(card, l);
+    return l;
+  }
+  function frame(card: HTMLElement, l: Layered) {
+    const { tv, remote, out, screen, gl } = l;
+    if (!tv.paused && Math.abs(remote.currentTime - tv.currentTime) > 0.08) remote.currentTime = tv.currentTime;
+    if (remote.readyState >= 2) {
+      gl.viewport(0, 0, out.width, out.height);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, remote);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      out.classList.add('live');
+    }
+    // The TV only shows on desktop. It covers the card, scaled up by a zoom and panned by an anchor (0 left or top, to 1
+    // right or bottom): set by style variables on the card.
+    if (screen && screen.offsetWidth && tv.readyState >= 2) {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      const w = Math.round(screen.offsetWidth * dpr), h = Math.round(screen.offsetHeight * dpr);
+      if (screen.width !== w || screen.height !== h) { screen.width = w; screen.height = h; }
+      const ctx = screen.getContext('2d')!;
+      const css = getComputedStyle(card), num = (n: string, d: number) => { const x = parseFloat(css.getPropertyValue(n)); return Number.isNaN(x) ? d : x; };
+      // Two framings: on the highlighted poster while Kodi shows its library, on the captions once the film plays,
+      // eased from one to the other as the film starts (FILM_AT, in the take).
+      const k0 = Math.min(1, Math.max(0, (tv.currentTime - FILM_AT) / 0.7)), e = k0 * k0 * (3 - 2 * k0);
+      const mix = (a: string, b: string) => num(a, 0.5) + (num(b, 0.5) - num(a, 0.5)) * e;
+      const ax = mix('--tv-x-a', '--tv-x-b'), ay = mix('--tv-y-a', '--tv-y-b'), zoom = Math.max(1, mix('--tv-zoom-a', '--tv-zoom-b'));
+      const k = Math.max(w / tv.videoWidth, h / tv.videoHeight) * zoom, dw = tv.videoWidth * k, dh = tv.videoHeight * k;
+      ctx.drawImage(tv, (w - dw) * ax, (h - dh) * ay, dw, dh);
+      screen.classList.add('live');
+    }
+    l.raf = requestAnimationFrame(() => frame(card, l));
+  }
+  function startLayered(card: HTMLElement) {
+    const l = layered.get(card) ?? setUp(card);
+    if (!l) return;
+    const play = () => Promise.all([l.tv.play(), l.remote.play()]);
+    play().catch(() => {
+      setTimeout(() => { if (card.classList.contains('in-focus')) play().catch(() => {}); }, 400);
+    });
+    cancelAnimationFrame(l.raf);
+    l.raf = requestAnimationFrame(() => frame(card, l));
+  }
+  function stopLayered(card: HTMLElement) {
+    const l = layered.get(card);
+    if (!l) return;
+    l.tv.pause(); l.remote.pause(); cancelAnimationFrame(l.raf);
+  }
+
+  function start(card: HTMLElement) {
+    if (card.classList.contains('cinema')) { if (!still.matches) startLayered(card); return; }
+    const video = card.querySelector('video');
+    if (!video || still.matches) return;
+    if (!video.dataset.loaded) {
+      video.dataset.loaded = '1';
+      for (const [type, key] of [['video/webm', 'webm'], ['video/mp4', 'mp4']] as const) {
+        const source = document.createElement('source');
+        source.type = type;
+        source.src = video.dataset[key]!;
+        video.append(source);
+      }
+      video.addEventListener('playing', () => video.classList.add('live'));
+      video.load();
+    }
+    // A refused attempt (a scroll, a clip still loading) gets one retry while in focus. If the browser blocks autoplay
+    // outright, the still stays.
+    video.play().catch(() => {
+      setTimeout(() => { if (card.classList.contains('in-focus') && video.paused) video.play().catch(() => {}); }, 400);
+    });
+  }
+  const stop = (card: HTMLElement) => card.classList.contains('cinema') ? stopLayered(card) : card.querySelector('video')?.pause();
+
+  // Backlighting: each remote rises the nearer the pointer (or finger) is to it, so they lift and settle one by one.
+  const lightsCard = document.querySelector<HTMLElement>('#features .lights-card');
+  if (lightsCard && !still.matches) {
+    const remotes = [...lightsCard.querySelectorAll<HTMLElement>('.lights .remote')];
+    // --lift raises a remote and --hot lights its halo; both live on the <li> so the halo can read them. `reach` is
+    // how far the ripple spreads, in remote widths.
+    const liftAt = (x: number, reach = 2.4) => {
+      for (const r of remotes) {
+        const box = r.getBoundingClientRect();
+        const away = Math.abs(x - (box.left + box.width / 2)) / (box.width * reach);
+        const lift = Math.max(0, 1 - away * away).toFixed(3);
+        r.parentElement!.style.setProperty('--lift', lift);
+        r.parentElement!.style.setProperty('--hot', lift);
+      }
+    };
+    const settle = () => remotes.forEach(r => { r.parentElement!.style.removeProperty('--lift'); r.parentElement!.style.removeProperty('--hot'); });
+    if (matchMedia('(hover: hover)').matches) {
+      lightsCard.addEventListener('pointermove', e => liftAt(e.clientX));
+      lightsCard.addEventListener('pointerleave', settle);
+    } else {
+      // Touch. Each remote is a small spring (position and velocity), so it rises and settles like an object rather
+      // than snapping. A finger only moves the row once the gesture is clearly a tap or a sideways drag: scrolling
+      // never does, and any scroll, or a touch anywhere else, lowers it. With no finger down it always rests lowered.
+      lightsCard.classList.add('touch');
+      const items = remotes.map(r => r.parentElement!);
+      const target = items.map(() => 0), pos = items.map(() => 0), vel = items.map(() => 0);
+      let raf = 0, last = 0;
+      const frame = (t: number) => {
+        const dt = Math.min(0.05, (t - (last || t)) / 1000 || 1 / 60);
+        last = t;
+        let moving = false;
+        items.forEach((li, n) => {
+          // Stiffness 220, damping 26: a quick rise with the gentlest overshoot, and a soft landing.
+          vel[n] += ((target[n] - pos[n]) * 220 - vel[n] * 26) * dt;
+          pos[n] += vel[n] * dt;
+          if (Math.abs(target[n] - pos[n]) < 0.002 && Math.abs(vel[n]) < 0.01) { pos[n] = target[n]; vel[n] = 0; } else moving = true;
+          li.style.setProperty('--lift', Math.max(0, Math.min(1.08, pos[n])).toFixed(3));
+          li.style.setProperty('--hot', Math.max(0, Math.min(1, pos[n])).toFixed(3));
+        });
+        raf = moving ? requestAnimationFrame(frame) : 0;
+        if (!raf) last = 0;
+      };
+      const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
+      const aim = (x: number) => {
+        remotes.forEach((r, n) => {
+          const box = r.getBoundingClientRect();
+          const away = Math.abs(x - (box.left + box.width / 2)) / (box.width * 1.3);
+          target[n] = Math.max(0, 1 - away * away);
+        });
+        kick();
+      };
+      let mode: 'idle' | 'pending' | 'drag' | 'scroll' = 'idle', x0 = 0, y0 = 0, t0 = 0, timer = 0;
+      const lower = () => { clearTimeout(timer); target.fill(0); kick(); };
+      lightsCard.addEventListener('touchstart', e => {
+        const t = e.touches[0]; if (!t || e.touches.length > 1) return;
+        clearTimeout(timer); x0 = t.clientX; y0 = t.clientY; t0 = performance.now(); mode = 'pending';
+      }, { passive: true });
+      lightsCard.addEventListener('touchmove', e => {
+        const t = e.touches[0]; if (!t || mode === 'scroll' || mode === 'idle') return;
+        const dx = Math.abs(t.clientX - x0), dy = Math.abs(t.clientY - y0);
+        if (mode === 'pending') {
+          if (dy > 6 && dy >= dx) { mode = 'scroll'; lower(); return; }
+          if (dx > 8 && dx > dy * 1.2) mode = 'drag'; else return;
+        }
+        aim(t.clientX);
+      }, { passive: true });
+      lightsCard.addEventListener('touchend', e => {
+        if (e.touches.length) return;
+        const t = e.changedTouches[0];
+        // A tap: lift where it landed for a blink, then settle; a drag lowers the moment the finger lifts.
+        if (mode === 'pending' && t && performance.now() - t0 < 500 && Math.abs(t.clientX - x0) < 10 && Math.abs(t.clientY - y0) < 10) {
+          aim(t.clientX); timer = window.setTimeout(lower, 180);
+        } else if (mode === 'drag') lower();
+        else lower();
+        mode = 'idle';
+      }, { passive: true });
+      lightsCard.addEventListener('touchcancel', () => { mode = 'idle'; lower(); }, { passive: true });
+      // Whatever else happens, the row goes back down: a scroll, a touch elsewhere, leaving the page.
+      addEventListener('scroll', () => { if (mode !== 'drag') { if (mode === 'pending') mode = 'scroll'; lower(); } }, { passive: true });
+      document.addEventListener('touchstart', e => { if (!lightsCard.contains(e.target as Node)) { mode = 'idle'; lower(); } }, { passive: true });
+      document.addEventListener('visibilitychange', () => { mode = 'idle'; lower(); });
+      // On first sight a wave runs across once, as a hint that the row responds.
+      const wave = () => {
+        const first = remotes[0].getBoundingClientRect(), lastBox = remotes[remotes.length - 1].getBoundingClientRect();
+        const from = first.left, to = lastBox.right, start = performance.now(), length = 1400;
+        const step = (t: number) => {
+          if (mode !== 'idle') return lower();
+          const k = Math.min(1, (t - start) / length);
+          aim(from + (to - from) * k);
+          if (k < 1) requestAnimationFrame(step); else timer = window.setTimeout(lower, 150);
+        };
+        requestAnimationFrame(step);
+      };
+      new IntersectionObserver(([e], io) => { if (e.isIntersecting) { io.disconnect(); setTimeout(wave, 300); } }, { threshold: 0.4 }).observe(lightsCard);
+    }
+  }
+
+  // Only the cards with a clip take part; cards sharing a row (input switching and volume) play together.
+  const cards = [...document.querySelectorAll<HTMLElement>('#features .card:not(.lights-card)')];
+  cards.forEach(c => c.removeAttribute('tabindex'));
+  if (!matchMedia('(hover: hover)').matches) document.querySelector('#features .lights-card')?.removeAttribute('tabindex');
+  let focusRow: HTMLElement[] = [];
+  function pickRow() {
+    const rows = new Map<number, HTMLElement[]>();
+    for (const c of cards) { const top = Math.round(c.offsetTop); rows.set(top, [...(rows.get(top) ?? []), c]); }
+    const mid = innerHeight / 2;
+    let best: HTMLElement[] = [], bestDist = Infinity;
+    for (const row of rows.values()) {
+      const r = row[0].getBoundingClientRect();
+      const visible = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0);
+      if (visible < r.height * 0.4) continue;
+      const dist = Math.abs((r.top + r.bottom) / 2 - mid);
+      if (dist < bestDist) { bestDist = dist; best = row; }
+    }
+    if (best.length === focusRow.length && best.every((c, k) => c === focusRow[k])) return;
+    for (const c of focusRow) if (!best.includes(c)) { stop(c); c.classList.remove('in-focus'); }
+    for (const c of best) { start(c); c.classList.add('in-focus'); }
+    focusRow = best;
+  }
+  let queued = false;
+  const queue = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; pickRow(); }); } };
+  addEventListener('scroll', queue, { passive: true });
+  addEventListener('resize', queue);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) focusRow.forEach(stop); else { focusRow = []; pickRow(); } });
+  pickRow();
+
+
+</script>
+
+<style>
+  h2 {
+    font-size: clamp(1.35rem, 2.6vw, 1.85rem); text-align: center; margin: 0 0 28px; letter-spacing: -0.015em;
+    display: flex; align-items: center; justify-content: center; gap: 0.45em; flex-wrap: wrap;
+  }
+  .one-ring { display: inline-flex; flex: none; transition: rotate 0.4s ease, scale 0.4s ease; }
+  .one-ring img { height: 1.6em; width: auto; filter: drop-shadow(0 3px 8px rgb(180 120 20 / 0.35)); }
+  .one-ring:hover { rotate: -12deg; scale: 1.08; }
+  .features { padding-block: 32px 56px; }
+
+  /* Three rows: Kodi across the top, input switching and volume side by side, then the backlighting row. */
+  .bento { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .card { grid-column: span 1; }
+  .card {
+    -webkit-tap-highlight-color: transparent;
+    position: relative; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px;
+    background: var(--card); border: 1px solid var(--border); outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  /* Hovering a card plays its clip; a pointer shows the card responds. */
+  @media (hover: hover) { .lights-card { cursor: pointer; } }
+  .card:focus-visible { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); box-shadow: 0 18px 40px -18px var(--feature-hover-shadow); }
+  .card:focus-visible { box-shadow: 0 0 0 2px var(--primary); }
+  .copy { padding: 22px 22px 16px; }
+  /* The product a card builds on: its real logo in its own colour, with its name. */
+  .brand { display: inline-flex; margin-bottom: 18px; color: var(--foreground); text-decoration: none; position: relative; z-index: 1; }
+  .brand :global(svg) { display: block; height: 26px; width: auto; flex: none; }
+  .brand.icon { color: var(--primary); }
+  /* The whole card opens its docs page: the link's box covers the card, under the brand links. The arrow in the
+     corner says so, and turns to the accent and nudges out on hover. */
+  .more { position: static; }
+  .more::after { content: ''; position: absolute; inset: 0; z-index: 3; border-radius: inherit; }
+  .brand { z-index: 4; }
+  .more .arrow {
+    position: absolute; top: 16px; right: 16px; z-index: 4; display: grid; place-items: center; width: 34px; height: 34px;
+    border-radius: 999px; color: var(--muted-foreground); background: var(--card);
+    border: 1px solid var(--border); transition: color 0.2s ease, border-color 0.2s ease, translate 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .more .arrow :global(svg) { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .card:hover .more .arrow, .more:focus-visible .arrow { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); translate: 2px -2px; }
+  .more:focus-visible { outline: none; }
+  .card:has(.more:focus-visible) { box-shadow: 0 0 0 2px var(--primary); }
+  .brand.icon :global(svg) { width: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .brand:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 4px; }
+  h3 { margin: 0 0 6px; font-size: 1.12rem; letter-spacing: -0.01em; }
+  p { margin: 0; color: var(--muted-foreground); }
+
+  /* Like the install card: a large remote hangs from near the top of its area so the screen is the focus, and the
+     card cuts it off below the first row of keys. */
+  /* Nothing is clipped here: the card's own rounded edge cuts the remote off below, and its shadow spreads across the
+     whole card rather than stopping at this box. */
+  .crop {
+    position: relative; height: 360px; margin-top: auto; padding-top: 22px; flex: none;
+    display: flex; justify-content: center; align-items: flex-start;
+    /* Firefox anchored scrolling to the remote and shifted the page when its clip started loading on first hover. */
+    overflow-anchor: none;
+  }
+  .remote {
+    position: relative; width: 190px; aspect-ratio: 200 / 864; flex: none; overflow: hidden; will-change: translate;
+    border-radius: 2% 2% 15% 15% / 0.46% 0.46% 3.5% 3.5%; box-shadow: 0 10px 26px rgb(0 0 0 / 0.18);
+    /* Resting lower, the remote rises to its full view on hover. iOS-style curve: it moves off at once and settles
+       softly. Leaving returns a little faster. */
+    translate: 0 var(--rest, 0px);
+    transition: translate 0.35s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.35s ease;
+  }
+  /* With a mouse, a clip card's remote rests lower and eases up, its shadow deepening, while the pointer is over the
+     card; scrolling plays the clips but never moves them. On touch screens it always sits raised. */
+  @media (hover: hover) {
+    .card:not(.lights-card) { --rest: 34px; }
+    .card:not(.lights-card):hover .remote { translate: 0 0; box-shadow: 0 16px 36px rgb(0 0 0 / 0.28); transition-duration: 0.5s; }
+    .card.wide.cinema:hover .remote { translate: 0 0; }
+  }
+  /* The backlighting row responds to the pointer itself (below); only it gets hover styles. */
+  @media (hover: hover) {
+    .lights-card { --rest: 34px; }
+    .lights-card:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); box-shadow: 0 18px 40px -18px var(--feature-hover-shadow); }
+    .lights-card:hover .remote { box-shadow: 0 16px 36px rgb(0 0 0 / 0.28); }
+  }
+  .remote img, .remote video { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  /* Card media is the top of the remote only: pinned to its top at its own shape, the rest is below the card's edge. */
+  .card:not(.lights-card) .remote :is(img, video) { inset: 0 0 auto; height: auto; aspect-ratio: 544 / 1084; }
+  .remote video { opacity: 0; transition: opacity 0.5s ease; }
+  .remote video:global(.live) { opacity: 1; }
+
+  /* The Kodi card's remote is put together from two videos (see the script): its own transparent shape, so a drop
+     shadow follows it rather than a box. Its still shows until the first frame is drawn. */
+  .remote.layered { aspect-ratio: 544 / 1300; overflow: visible; border-radius: 0; box-shadow: none; filter: drop-shadow(0 14px 26px rgb(0 0 0 / 0.3)); }
+  .card:hover .remote.layered { box-shadow: none; }
+  .card:not(.lights-card) .remote.layered :is(img, canvas) { position: absolute; inset: 0; width: 100%; height: 100%; aspect-ratio: auto; }
+  .remote.layered canvas { opacity: 0; transition: opacity 0.5s ease; }
+  .remote.layered canvas:global(.live) { opacity: 1; }
+  .remote.layered .src { display: none; }
+  .cinema .tv { display: none; }
+
+  /* At its full width only, the TV floats in the media side (two thirds of the card) as a screen with a soft shadow,
+     the remote standing in front of its edge, and the words take the other third, on the side data-side names. Any
+     narrower and it is the plain wide card, the remote alone. */
+  .bento { container: bento / inline-size; }
+  @container bento (min-width: 1120px) {
+    .cinema {
+      --remote-w: 210px; --remote-x: 28px; --remote-top: 26px;
+      --screen-w: 600px; --screen-x: 96px; --screen-y: 0px;
+      --tv-zoom-a: 1; --tv-x-a: 0.5; --tv-y-a: 0.5;
+      --tv-zoom-b: 1; --tv-x-b: 0.5; --tv-y-b: 0.5;
+    }
+    .card.wide.cinema { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+    .card.wide.cinema .crop { display: block; position: relative; padding-top: 0; }
+    .cinema .tv {
+      display: block; position: absolute; left: var(--screen-x); top: 50%; translate: 0 calc(-50% + var(--screen-y));
+      width: min(var(--screen-w), 100% - var(--screen-x) - 24px);
+      aspect-ratio: 16 / 9; border-radius: 4px; background: #000 center / cover no-repeat;
+      box-shadow: 0 18px 40px -14px rgb(0 0 0 / 0.42), 0 4px 12px rgb(0 0 0 / 0.16);
+    }
+    .card.wide.cinema .remote {
+      position: absolute; left: var(--remote-x); top: var(--remote-top); width: var(--remote-w); z-index: 1;
+      translate: 0 var(--rest, 0px); filter: drop-shadow(0 16px 26px rgb(0 0 0 / 0.35));
+    }
+    .card.wide.cinema[data-side='right'] { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+    .cinema[data-side='right'] .copy { order: 2; text-align: right; }
+    .cinema[data-side='right'] .crop { order: 1; }
+  }
+
+
+  /* The wide card: text beside a larger remote, the text setting the height (contain: size keeps the remote from
+     growing the card). */
+  .card.wide, .lights-card { grid-column: span 2; }
+  .card.wide { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+  .card.wide .copy { padding: 26px; align-self: center; }
+  .card.wide h3 { font-size: 1.3rem; }
+  .card.wide .crop { contain: size; height: auto; min-height: 420px; margin: 0; padding-top: 30px; }
+  .card.wide .remote { width: 220px; }
+
+  /* Backlighting: text beside four remotes, each cut below its keypad with a glow of its key colour behind it. */
+  .lights-card { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 2fr); align-items: center; }
+  .lights-card .copy { padding: 26px; }
+  .lights {
+    /* Reaches 80px left into the text column (empty padding), so the first remote's glow isn't clipped by this box's edge. */
+    list-style: none; margin: 0 0 0 -80px; padding: 30px 26px 0 80px; height: 420px; contain: size; overflow-anchor: none;
+
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-self: stretch;
+  }
+  .lights li { position: relative; display: flex; justify-content: center; }
+  /* A faint halo in the remote's key colour fades in around its keypad as the pointer lifts it (--hot, set by the script). */
+  .lights li::before {
+    content: ''; position: absolute; left: 50%; top: var(--top); width: var(--size); height: var(--height); translate: -50% 0; pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--glow) var(--halo), transparent), color-mix(in srgb, var(--glow) calc(var(--halo) * 0.3), transparent) 55%, transparent);
+    opacity: var(--hot, 0); transition: opacity 0.18s ease-out;
+  }
+  /* Halo per view, tuned by eye: strength, width, height and how far down the remote it sits. Wide is the desktop
+     layout, narrow the phone layout below 760px. */
+  .lights { --halo: 70%; --size: 170%; --height: 60%; --top: 20%; }
+  :root[data-theme='dark'] .lights { --halo: 90%; --size: 230%; --height: 60%; --top: 40%; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .lights { --halo: 90%; --size: 230%; --height: 60%; --top: 40%; } }
+  @media (max-width: 760px) {
+    .lights { --halo: 70%; --size: 200%; --height: 75%; --top: 44%; }
+    :root[data-theme='dark'] .lights { --halo: 70%; --size: 190%; --height: 60%; --top: 52%; }
+  }
+  @media (max-width: 760px) and (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .lights { --halo: 70%; --size: 190%; --height: 60%; --top: 52%; }
+  }
+  /* Faint grain on the halo: the same shape and fade, over the colour, under the remote. */
+  .lights li::after {
+    content: ''; position: absolute; left: 50%; top: var(--top); width: var(--size); height: var(--height); translate: -50% 0;
+    pointer-events: none; z-index: 0; opacity: calc(var(--hot, 0) * 0.65); transition: opacity 0.18s ease-out;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.9 -0.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    -webkit-mask: radial-gradient(closest-side, #000, transparent); mask: radial-gradient(closest-side, #000, transparent);
+  }
+  .lights .remote { z-index: 1; }
+  .lights-card.touch li::after { transition: none; }
+  .lights .remote { width: min(140px, 100%); }
+  /* Each remote rises by its own --lift, set from how close the pointer is (see the script), so they ripple as it moves. */
+  /* Short and eased out, so the lift follows the pointer closely. The card, not the list, clips the remotes, so their
+     shadows fade out softly. */
+  .lights .remote { translate: 0 calc(var(--rest, 0px) * (1 - var(--lift, 0))); transition: translate 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease; }
+  .lights-card:focus-visible li { --lift: 1; }
+  /* Touch screens: the row rests lower so a finger can lift it; sideways drags reach the script, vertical ones scroll. */
+  .lights-card.touch { --rest: 34px; }
+  .lights-card.touch .lights { touch-action: pan-y; }
+  /* Touch is animated by the script frame by frame, so no CSS transitions to fight it. */
+  .lights-card.touch .remote, .lights-card.touch li::before { transition: none; }
+  /* A faint fade at the bottom edge, drawn over the row in the card's colour (cheaper than masking moving remotes). */
+  .lights-card { position: relative; }
+  .lights-card::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 56px; pointer-events: none;
+    background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--card) 40%, transparent));
+  }
+
+  @media (max-width: 760px) {
+    .lights-card { grid-template-columns: minmax(0, 1fr); }
+    .lights-card .copy { padding: 22px 22px 0; }
+    .lights { margin-left: 0; padding: 22px 16px 0; height: 330px; gap: 10px; }
+  }
+  @media (max-width: 600px) {
+    .bento { grid-template-columns: minmax(0, 1fr); }
+    .card, .card.wide, .lights-card { grid-column: span 1; }
+    .card.wide { display: flex; }
+    .card.wide .copy { padding: 22px 22px 16px; }
+    .card.wide .crop { contain: none; min-height: 0; height: 360px; padding-top: 22px; }
+    .card.wide .remote { width: 190px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .one-ring, .card, .remote, .remote video { transition: none; }
+  }
+</style>

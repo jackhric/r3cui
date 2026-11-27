@@ -1,0 +1,30 @@
+import { Theme, Layout } from "../theme.slint";
+import { Dot } from "../types.slint";
+import { StatusDot } from "../widgets/status-dot.slint";
+
+// Why the screen cannot do its job, shown on the home screen itself.
+export component WarningRow inherits Rectangle {
+    in property <string> message;
+    callback tapped();
+    x: 0;
+    width: Layout.screen-w;
+    height: 56px;
+    HorizontalLayout {
+        alignment: center;
+        spacing: 14px;
+        VerticalLayout {
+            alignment: center;
+            StatusDot { dot: Dot.down; }
+        }
+        Text {
+            text: root.message;
+            font-size: 22px;
+            color: Theme.text;
+            vertical-alignment: center;
+        }
+    }
+    TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { root.tapped(); }
+    }
+}

@@ -1,0 +1,67 @@
+import { Sys } from "../globals/sys.slint";
+import { Marks } from "../marks/icons.slint";
+import { Theme, Layout, Type } from "../theme.slint";
+import { Overlay } from "../widgets/overlay.slint";
+
+export component ChargeCard inherits Overlay {
+    shown: Sys.charge-card && Sys.lit;
+    Rectangle {
+        x: 122px;
+        y: 300px;
+        width: 220px;
+        height: 104px;
+        border-radius: 26px;
+        border-width: 5px;
+        border-color: #FFFFFF59;
+        Rectangle {
+            x: 11px;
+            y: 11px;
+            width: (parent.width - 22px) * clamp(Sys.battery, 4, 100) / 100;
+            height: parent.height - 22px;
+            border-radius: 16px;
+            background: Theme.good;
+        }
+        Path {
+            width: 64px;
+            height: 84px;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: Marks.bolt;
+            fill: Theme.text;
+            stroke: Theme.bg;
+            stroke-width: 4px;
+        }
+    }
+    Rectangle {
+        x: 346px;
+        y: 334px;
+        width: 12px;
+        height: 36px;
+        border-radius: 6px;
+        background: #FFFFFF59;
+    }
+    Text {
+        y: 436px;
+        width: Layout.screen-w;
+        horizontal-alignment: center;
+        text: Sys.battery + "%";
+        font-size: 64px;
+        font-weight: Type.display-weight;
+        color: Theme.text;
+    }
+    Text {
+        y: 520px;
+        width: Layout.screen-w;
+        horizontal-alignment: center;
+        text: Sys.battery >= 100 ? "Charged" : "Charging";
+        font-size: 22px;
+        color: Theme.t2;
+    }
+    TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => {
+            Sys.charge-card = false;
+            Sys.activity();
+        }
+    }
+}

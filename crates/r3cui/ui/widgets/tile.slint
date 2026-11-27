@@ -1,0 +1,112 @@
+import { Theme, Layout, Type, Motion } from "../theme.slint";
+import { Glyph } from "../marks/icons.slint";
+import { R3Wordmark, UcMark } from "../marks/brand.slint";
+import { Dot } from "../types.slint";
+import { StatusDot } from "status-dot.slint";
+
+// One action in a grid of them: what it is at the top, how it stands at the bottom, its mark in the corner. Lay tiles
+// out in a GridLayout; the page says which is focused. A wide tile spans its row on one line: the title, then how it
+// stands and the mark at the end.
+export component Tile inherits Rectangle {
+    in property <string> title;
+    in property <string> value;
+    // An `Icons` path for the corner; empty for none.
+    in property <string> glyph;
+    // Whose it is, in the corner instead of a glyph: the Unfolded Circle mark for the remote's own, the r3cui wordmark
+    // for r3cui's.
+    in property <bool> uc-mark;
+    in property <bool> r3-mark;
+    in property <Dot> dot: Dot.none;
+    // The title in the accent: the tile is what the page wants done next.
+    in property <bool> accent;
+    in property <bool> focused;
+    in property <bool> wide;
+    callback tapped();
+
+    property <float> lift: root.focused || ta.has-hover ? Motion.lift-scale : 1;
+    animate lift { duration: Motion.lift; easing: ease-out; }
+    property <length> mark: root.r3-mark ? Layout.wordmark-mark : Layout.glyph;
+
+    height: root.wide ? Layout.row-compact : Layout.tile-h;
+    border-radius: Layout.card-radius;
+    background: Theme.raised;
+    border-width: root.focused ? Layout.focus-ring : 0px;
+    border-color: Theme.accent;
+    transform-origin: { x: self.width / 2, y: self.height / 2 };
+    transform-scale: root.lift;
+    animate border-width { duration: Motion.fade; }
+
+    property <length> mark-top: root.wide ? (root.height - Layout.glyph) / 2 : Layout.gap-m;
+    if root.glyph != "": Glyph {
+        x: parent.width - Layout.gap-m - self.width;
+        y: root.mark-top;
+        size: root.mark;
+        commands: root.glyph;
+        tint: root.accent ? Theme.accent : Theme.t2;
+    }
+    if root.uc-mark: UcMark {
+        x: parent.width - Layout.gap-m - self.width;
+        y: root.mark-top + (root.mark - self.height) / 2;
+        wide: root.mark;
+        tint: Theme.t2;
+    }
+    if root.r3-mark: R3Wordmark {
+        x: parent.width - Layout.gap-m - self.width;
+        y: root.mark-top + (Layout.glyph - self.height) / 2;
+        wide: Layout.wordmark-mark;
+        tint: root.accent ? Theme.accent : Theme.t2;
+    }
+    if !root.wide: VerticalLayout {
+        padding: Layout.gap-m;
+        padding-right: Layout.gap-m + root.mark + Layout.gap-s;
+        Text {
+            text: root.title;
+            wrap: word-wrap;
+            font-size: Type.value-compact;
+            color: root.accent ? Theme.accent : Theme.text;
+        }
+        Rectangle { }
+        HorizontalLayout {
+            spacing: Layout.gap-s;
+            alignment: start;
+            if root.dot != Dot.none: VerticalLayout {
+                alignment: center;
+                StatusDot { dot: root.dot; }
+            }
+            Text {
+                text: root.value;
+                font-size: Type.body;
+                font-weight: Type.value-weight;
+                color: Theme.t2;
+                vertical-alignment: center;
+            }
+        }
+    }
+    if root.wide: HorizontalLayout {
+        padding-left: Layout.gap-m;
+        padding-right: Layout.gap-m + root.mark + Layout.gap-m;
+        spacing: Layout.gap-s;
+        Text {
+            text: root.title;
+            font-size: Type.value-compact;
+            color: root.accent ? Theme.accent : Theme.text;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        if root.dot != Dot.none: VerticalLayout {
+            alignment: center;
+            StatusDot { dot: root.dot; }
+        }
+        Text {
+            text: root.value;
+            font-size: Type.body;
+            font-weight: Type.value-weight;
+            color: Theme.t2;
+            vertical-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: Theme.cursor;
+        clicked => { root.tapped(); }
+    }
+}

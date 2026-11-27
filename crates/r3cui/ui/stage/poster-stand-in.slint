@@ -1,0 +1,30 @@
+import { Theme } from "../theme.slint";
+
+// Shown until the real poster from the library is wired in.
+export component PosterStandIn inherits Rectangle {
+    in property <string> title;
+    background: @linear-gradient(180deg, #06252c 0%, #0f4a50 40%, #b8602b 72%, #2a1208 100%);
+    Rectangle {
+        y: parent.height * 0.26;
+        width: parent.width * 0.56;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: @radial-gradient(circle, #ffb26b 0%, #e57b36 50%, #e57b3600 72%);
+    }
+    Rectangle {
+        y: parent.height * 0.62;
+        height: parent.height * 0.38;
+        background: @linear-gradient(180deg, #05060800 0%, #050608 45%, #050608 100%);
+    }
+    Text {
+        y: parent.height * 0.8;
+        width: parent.width - 24px;
+        horizontal-alignment: center;
+        wrap: word-wrap;
+        text: root.title;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 2.6px;
+        color: Theme.text;
+    }
+}

@@ -1,0 +1,31 @@
+import { Theme, Layout } from "../theme.slint";
+
+// The one instrument: a thick bar. Volume, film progress and sliders all use it.
+export component Bar inherits Rectangle {
+    in property <float> value;
+    in property <color> tint: Theme.accent;
+    in property <bool> handle: false;
+    property <float> v: clamp(root.value, 0, 1);
+
+    width: Layout.content-w;
+    height: 14px;
+    border-radius: 7px;
+    background: Theme.track;
+
+    Rectangle {
+        x: 0;
+        width: root.v <= 0 ? 0px : max(14px, root.width * root.v);
+        border-radius: 7px;
+        background: root.tint;
+        animate width { duration: 160ms; easing: ease-out; }
+        animate background { duration: 200ms; }
+    }
+    if root.handle: Rectangle {
+        x: root.width * root.v - 16px;
+        width: 32px;
+        height: 32px;
+        border-radius: 16px;
+        background: Theme.text;
+        animate x { duration: 160ms; easing: ease-out; }
+    }
+}

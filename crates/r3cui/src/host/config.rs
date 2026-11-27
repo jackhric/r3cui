@@ -1,0 +1,370 @@
+//! `modules.json`: the drivers set up, what global control points at, and the user's changes to the input list.
+//! Every edit the Integrations pages make is a method here, so the rules (removing a driver clears its slots, an
+//! input moved keeps the rest in order) are tested without a screen.
+
+use r3cui_sdk::api::Field;
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Modules {
+    /// Instance id → its driver type and settings.
+    pub drivers: BTreeMap<String, DriverEntry>,
+    pub global: Global,
+    /// The user's order; sources not listed follow in the order the source reports them.
+    pub inputs: Vec<InputEntry>,
+}
+
+pub use r3cui_sdk::DriverEntry;
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Global {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub volume: Option<Binding>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<Binding>,
+    /// Unset, power follows the source: `Modules::power_binding`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub power: Option<Binding>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice: Option<Binding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Binding {
+    pub driver: String,
+    pub target: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct InputEntry {
+    /// The source's name as it reports it: Home Assistant gives inputs no other id.
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui: Option<String>,
+    /// Placed by the user rather than left in the source's order.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub placed: bool,
+}
+
+impl InputEntry {
+    fn is_empty(&self) -> bool {
+        self.name.is_none() && !self.hidden && self.remote.is_none() && self.ui.is_none() && !self.placed
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Slot {
+    Remote,
+    Ui,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    Volume,
+    Source,
+    Power,
+    Voice,
+}
+
+impl Modules {
+    pub fn parse(text: &str) -> Result<Self, String> {
+        serde_json::from_str(text).map_err(|e| e.to_string())
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string_pretty(self).expect("modules serialise") + "\n"
+    }
+
+    /// What power is bound to: its own binding, else wherever the source is, so a `modules.json` from before power
+    /// had its own keeps working.
+    pub fn power_binding(&self) -> Option<&Binding> {
+        self.global.power.as_ref().or(self.global.source.as_ref())
+    }
+
+    pub fn input(&self, id: &str) -> Option<&InputEntry> {
+        self.inputs.iter().find(|i| i.id == id)
+    }
+
+    fn input_mut(&mut self, id: &str) -> &mut InputEntry {
+        match self.inputs.iter().position(|i| i.id == id) {
+            Some(at) => &mut self.inputs[at],
+            None => {
+                self.inputs.push(InputEntry { id: id.to_string(), ..Default::default() });
+                self.inputs.last_mut().unwrap()
+            }
+        }
+    }
+
+    fn tidy(&mut self) {
+        self.inputs.retain(|i| !i.is_empty());
+    }
+
+    /// Adds a driver of `kind` with its defaults; the instance id is the type's, one per type for now.
+    pub fn add_driver(&mut self, kind: &str, defaults: Map<String, Value>) -> String {
+        self.drivers.entry(kind.to_string()).or_insert(DriverEntry { kind: kind.to_string(), fields: defaults });
+        kind.to_string()
+    }
+
+    /// Removes a driver and everything that pointed at it.
+    pub fn remove_driver(&mut self, id: &str) {
+        self.drivers.remove(id);
+        for role in [&mut self.global.volume, &mut self.global.source, &mut self.global.power] {
+            if role.as_ref().is_some_and(|b| b.driver == id) {
+                *role = None;
+            }
+        }
+        for input in &mut self.inputs {
+            for slot in [&mut input.remote, &mut input.ui] {
+                if slot.as_deref() == Some(id) {
+                    *slot = None;
+                }
+            }
+        }
+        self.tidy();
+    }
+
+    /// An empty value clears the field.
+    pub fn set_field(&mut self, driver: &str, field: &Field, value: &str) {
+        if let Some(d) = self.drivers.get_mut(driver) {
+            d.set(field, value);
+        }
+    }
+
+    pub fn set_flag(&mut self, driver: &str, field: &Field, on: bool) {
+        if let Some(d) = self.drivers.get_mut(driver) {
+            d.set_flag(field, on);
+        }
+    }
+
+    pub fn bind(&mut self, role: Role, binding: Option<Binding>) {
+        match role {
+            Role::Volume => self.global.volume = binding,
+            Role::Source => self.global.source = binding,
+            Role::Power => self.global.power = binding,
+            Role::Voice => self.global.voice = binding,
+        }
+    }
+
+    pub fn set_slot(&mut self, input: &str, slot: Slot, driver: Option<String>) {
+        let entry = self.input_mut(input);
+        match slot {
+            Slot::Remote => entry.remote = driver,
+            Slot::Ui => entry.ui = driver,
+        }
+        self.tidy();
+    }
+
+    /// An empty name, or the source's own, removes the rename.
+    pub fn rename(&mut self, input: &str, name: &str) {
+        let name = name.trim();
+        self.input_mut(input).name = (!name.is_empty() && name != input).then(|| name.to_string());
+        self.tidy();
+    }
+
+    pub fn set_hidden(&mut self, input: &str, hidden: bool) {
+        self.input_mut(input).hidden = hidden;
+        self.tidy();
+    }
+
+    /// Moves an input one place among `order` (the list as shown, hidden ones included). Every input from the top
+    /// down to the ones swapped is pinned in place, so the move holds however the source reorders its list later.
+    pub fn move_input(&mut self, order: &[String], input: &str, by: isize) {
+        let Some(from) = order.iter().position(|i| i == input) else { return };
+        let to = from as isize + by;
+        if to < 0 || to as usize >= order.len() {
+            return;
+        }
+        let mut order = order.to_vec();
+        order.swap(from, to as usize);
+        let pinned = from.max(to as usize);
+        let mut entries = Vec::with_capacity(self.inputs.len().max(order.len()));
+        for (i, id) in order.iter().enumerate() {
+            let mut entry = self.input(id).cloned().unwrap_or_else(|| InputEntry { id: id.clone(), ..Default::default() });
+            entry.placed |= i <= pinned;
+            entries.push(entry);
+        }
+        entries.extend(self.inputs.iter().filter(|e| !order.contains(&e.id)).cloned());
+        self.inputs = entries;
+        self.tidy();
+    }
+
+    /// Back to how the source reports it: its own name, shown, in its own place. The slots stay.
+    pub fn reset_input(&mut self, input: &str) {
+        let entry = self.input_mut(input);
+        (entry.name, entry.hidden, entry.placed) = (None, false, false);
+        self.tidy();
+    }
+}
+
+const KNOWN_FILE: &str = "targets.json";
+
+/// Where `modules.json` lives: read and written in `dir`, with `seed` the copy shipped in the archive. Whichever was
+/// written last wins: a new archive (with a token pasted into its copy) takes over, and changes made on the remote
+/// since it was installed stay.
+#[derive(Debug, Clone)]
+pub struct Store {
+    pub path: PathBuf,
+    pub seed: Option<PathBuf>,
+}
+
+impl Store {
+    pub fn new(dir: &Path, seed_dir: Option<&Path>) -> Self {
+        Self { path: dir.join("modules.json"), seed: seed_dir.map(|d| d.join("modules.json")).filter(|s| *s != dir.join("modules.json")) }
+    }
+
+    /// Where the drivers' last target lists are kept (`KnownTargets`), beside the modules.
+    pub fn known_path(&self) -> PathBuf {
+        self.path.with_file_name(KNOWN_FILE)
+    }
+
+    /// The saved modules; `None` when there are none anywhere yet. A file that doesn't parse is an error, so a
+    /// typo is never silently replaced by an empty setup.
+    pub fn load(&self) -> Result<Option<Modules>, String> {
+        let written = |p: &PathBuf| std::fs::metadata(p).and_then(|m| m.modified()).ok();
+        // On a tie the remote's own copy wins: it comes last, and `max_by_key` keeps the last of equals.
+        let newest = self.seed.iter().chain(std::iter::once(&self.path)).filter_map(|p| Some((written(p)?, p))).max_by_key(|(t, _)| *t);
+        let Some((_, path)) = newest else { return Ok(None) };
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        Modules::parse(&text).map(Some).map_err(|e| format!("{}: {e}", path.display()))
+    }
+
+    /// Written beside and renamed over, so a power loss leaves the old file or the new one, never half of one.
+    pub fn save(&self, modules: &Modules) -> Result<(), String> {
+        let tmp = self.path.with_extension("json.tmp");
+        if let Some(dir) = self.path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(&tmp, modules.to_json()).map_err(|e| e.to_string())?;
+        std::fs::rename(&tmp, &self.path).map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample() -> Modules {
+        Modules::parse(
+            r#"{
+              "drivers": {
+                "homeassistant": { "type": "homeassistant", "url": "http://ha:8123", "token": "t" },
+                "kodi": { "type": "kodi", "host": "kodi", "ws_port": 9090 }
+              },
+              "global": {
+                "volume": { "driver": "homeassistant", "target": "media_player.receiver" },
+                "source": { "driver": "homeassistant", "target": "media_player.receiver" }
+              },
+              "inputs": [ { "id": "KODI", "remote": "kodi", "ui": "kodi" }, { "id": "NET", "hidden": true } ]
+            }"#,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn round_trips() {
+        let m = sample();
+        assert_eq!(Modules::parse(&m.to_json()).unwrap(), m);
+        assert_eq!(m.drivers["kodi"].text("ws_port").as_deref(), Some("9090"));
+        assert_eq!(m.drivers["kodi"].text("missing"), None);
+        assert!(!m.to_json().contains("placed"), "defaults stay out of the file");
+    }
+
+    #[test]
+    fn power_follows_the_source_until_bound_on_its_own() {
+        let mut m = sample();
+        assert_eq!(m.global.power, None, "a file from before power had its own");
+        assert_eq!(m.power_binding(), m.global.source.as_ref());
+        assert!(!m.to_json().contains("power"), "unset stays out of the file");
+        let own = Binding { driver: "homeassistant".into(), target: "media_player.tv".into() };
+        m.bind(Role::Power, Some(own.clone()));
+        assert_eq!(m.power_binding(), Some(&own));
+        assert_eq!(Modules::parse(&m.to_json()).unwrap(), m);
+        m.bind(Role::Power, None);
+        assert_eq!(m.power_binding(), m.global.source.as_ref());
+        m.bind(Role::Source, None);
+        assert_eq!(m.power_binding(), None);
+    }
+
+    #[test]
+    fn removing_a_driver_clears_what_pointed_at_it() {
+        let mut m = sample();
+        m.remove_driver("kodi");
+        assert_eq!(m.input("KODI"), None, "nothing left on it");
+        assert!(m.global.volume.is_some());
+        m.bind(Role::Power, m.global.volume.clone());
+        m.remove_driver("homeassistant");
+        assert_eq!(m.global, Global::default());
+        assert!(m.input("NET").unwrap().hidden);
+    }
+
+    #[test]
+    fn fields_are_set_and_cleared() {
+        let mut m = sample();
+        let host = Field { key: "host", label: "Host", kind: r3cui_sdk::api::FieldKind::Text, required: true, default: None };
+        m.set_field("kodi", &host, " theater.local ");
+        assert_eq!(m.drivers["kodi"].fields["host"], Value::from("theater.local"));
+        m.set_field("kodi", &host, "");
+        assert!(!m.drivers["kodi"].fields.contains_key("host"));
+    }
+
+    #[test]
+    fn renaming_to_the_sources_own_name_is_no_rename() {
+        let mut m = sample();
+        m.rename("PLAYSTATION 5", "PS5");
+        assert_eq!(m.input("PLAYSTATION 5").unwrap().name.as_deref(), Some("PS5"));
+        m.rename("PLAYSTATION 5", "PLAYSTATION 5");
+        assert_eq!(m.input("PLAYSTATION 5"), None);
+        m.set_hidden("NET", false);
+        assert_eq!(m.input("NET"), None);
+    }
+
+    #[test]
+    fn moving_pins_the_inputs_above() {
+        let mut m = sample();
+        let order: Vec<String> = ["A", "KODI", "NET", "B"].map(String::from).to_vec();
+        m.move_input(&order, "NET", -1);
+        let ids: Vec<&str> = m.inputs.iter().map(|i| i.id.as_str()).collect();
+        assert_eq!(ids, ["A", "NET", "KODI"]);
+        assert!(m.inputs.iter().all(|i| i.placed));
+        assert_eq!(m.input("KODI").unwrap().ui.as_deref(), Some("kodi"), "slots move with it");
+        m.move_input(&order, "A", -1);
+        assert_eq!(m.inputs.len(), 3, "can't move past the top");
+        m.reset_input("A");
+        assert_eq!(m.input("A"), None);
+    }
+
+    #[test]
+    fn the_store_seeds_then_saves() {
+        let dir = std::env::temp_dir().join(format!("r3cui-store-{}", std::process::id()));
+        let (data, seed) = (dir.join("data"), dir.join("config"));
+        std::fs::create_dir_all(&seed).unwrap();
+        let store = Store::new(&data, Some(&seed));
+        assert_eq!(store.load().unwrap(), None);
+        std::fs::write(seed.join("modules.json"), sample().to_json()).unwrap();
+        assert_eq!(store.load().unwrap(), Some(sample()));
+        let mut m = sample();
+        m.remove_driver("kodi");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        store.save(&m).unwrap();
+        assert_eq!(store.load().unwrap(), Some(m), "changes made here outlast the archive's copy");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(seed.join("modules.json"), sample().to_json()).unwrap();
+        assert_eq!(store.load().unwrap(), Some(sample()), "a newer archive's copy takes over");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(&store.path, "{ nope").unwrap();
+        assert!(store.load().is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+}

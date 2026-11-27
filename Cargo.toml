@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/coreapi", "crates/ui"]
+members = ["crates/androidtv", "crates/homeassistant", "crates/kodi", "crates/r3ctl", "crates/r3cui", "crates/sdk", "crates/bridge"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,9 +10,19 @@ license = "GPL-3.0-only"
 [workspace.dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "fs"] }
 tokio-tungstenite = "0.24"
+# ring, not aws-lc: no C toolchain to cross-compile for the remote.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 futures-util = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
+prost = "0.14"
+bytes = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.dev.package.rsa]
+opt-level = 3
+
+[profile.dev.package.num-bigint-dig]
+opt-level = 3

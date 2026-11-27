@@ -1,0 +1,8 @@
+import { Theme, Layout, Type } from "../theme.slint";
+
+// A small spaced-out label in capitals over what follows it: THE REMOTE, WHAT'S NEW, PIN.
+export component Caption inherits Text {
+    font-size: Type.caption;
+    letter-spacing: Type.caption-spacing;
+    color: Theme.t2;
+}

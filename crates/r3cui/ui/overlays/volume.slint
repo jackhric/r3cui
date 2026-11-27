@@ -1,0 +1,25 @@
+import { Layout } from "../theme.slint";
+import { Control } from "../globals/control.slint";
+import { Glyph, Icons } from "../marks/icons.slint";
+import { VolumeReadout } from "volume-readout.slint";
+import { Overlay } from "../widgets/overlay.slint";
+
+export component VolumeOverlay inherits Overlay {
+    shown: Control.volume-overlay && Control.power-on;
+
+    Glyph {
+        y: 198px;
+        size: 52px;
+        commands: Icons.muted;
+        opacity: Control.muted ? 1 : 0;
+        animate opacity { duration: 160ms; }
+    }
+    VolumeReadout {
+        y: 0;
+        height: Layout.screen-h;
+        top: 270px;
+        volume: Control.volume;
+        volume-db: Control.volume-db;
+        muted: Control.muted;
+    }
+}

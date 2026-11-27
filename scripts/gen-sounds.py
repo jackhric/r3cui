@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Writes the UI's short cue sounds (16 kHz mono 16-bit WAV) into crates/ui/assets/sounds."""
+"""Writes the UI's short cue sounds (16 kHz mono 16-bit WAV) into crates/r3cui/assets/sounds."""
 import math, struct, sys, wave
 from pathlib import Path
 
 RATE = 16000
-OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "crates/ui/assets/sounds"
+OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "crates/r3cui/assets/sounds"
 
 
 def tone(parts, peak=0.6):

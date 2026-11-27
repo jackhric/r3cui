@@ -1,0 +1,12 @@
+// Remote control: the switch, the access key a client must prove it holds, and where to reach the remote.
+export global RemoteControl {
+    in property <bool> on;
+    in property <string> key;
+    // ip:port.
+    in property <string> address;
+    in property <image> qr;
+    // A client is connected right now.
+    in property <bool> watched;
+    callback toggle();
+    callback new-key();
+}

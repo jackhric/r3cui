@@ -1,0 +1,19 @@
+import { Glyph, Icons } from "../marks/icons.slint";
+import { Theme, Layout } from "../theme.slint";
+
+export component OffView inherits Rectangle {
+    Glyph {
+        y: 340px;
+        size: 72px;
+        commands: Icons.power;
+        tint: Theme.t3;
+    }
+    Text {
+        y: 436px;
+        width: Layout.screen-w;
+        horizontal-alignment: center;
+        text: "Off";
+        font-size: 26px;
+        color: Theme.t2;
+    }
+}

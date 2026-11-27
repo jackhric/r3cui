@@ -1,0 +1,135 @@
+import { Fx } from "../../globals/fx.slint";
+import { Nav } from "../../globals/nav.slint";
+import { Software } from "../../globals/software.slint";
+import { Glyph, Icons } from "../../marks/icons.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
+import { Haptic, PageId, UninstallState } from "../../types.slint";
+import { Layer } from "../../widgets/layer.slint";
+import { PageBody, Gap, Spring, Inset } from "../../widgets/page-body.slint";
+import { PageHeader } from "../../widgets/page-header.slint";
+import { Ring } from "../../widgets/ring.slint";
+
+export component UninstallPage inherits Layer {
+    page: PageId.uninstall;
+    property <bool> holding;
+    property <duration> started;
+    property <bool> working: Software.uninstall-state == UninstallState.working;
+    property <float> linear: root.working ? 1 : root.holding ? clamp((animation-tick() - root.started) / 1500ms, 0, 1) : 0;
+
+    // OK held, from the window's key handling or a touch on the ring.
+    public function press() {
+        if (!root.working) {
+            root.started = animation-tick();
+            root.holding = true;
+            Fx.haptic(Haptic.power-hold);
+        }
+    }
+    public function release() {
+        if (root.holding) {
+            root.holding = false;
+            Fx.haptic(Haptic.hold-cancel);
+        }
+    }
+
+    Timer {
+        interval: 1500ms;
+        running: root.holding;
+        triggered => {
+            root.holding = false;
+            Fx.haptic(Haptic.power-complete);
+            Software.uninstall();
+        }
+    }
+
+    PageHeader {
+        title: "Uninstall r3cui";
+        back => { Nav.back(); }
+    }
+    PageBody {
+        Gap { size: Layout.gap-l; }
+        HorizontalLayout {
+            alignment: center;
+            Ring {
+                width: 200px;
+                height: 200px;
+                inset: 12px;
+                tint: Theme.off;
+                progress: root.linear * root.linear * (3 - 2 * root.linear);
+                HorizontalLayout {
+                    alignment: center;
+                    VerticalLayout {
+                        alignment: center;
+                        Glyph {
+                            size: 56px;
+                            commands: Icons.trash;
+                            tint: Theme.off;
+                        }
+                    }
+                }
+                TouchArea {
+                    mouse-cursor: Theme.cursor;
+                    pointer-event(e) => {
+                        if (e.kind == PointerEventKind.down) {
+                            root.press();
+                        } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                            root.release();
+                        }
+                    }
+                }
+            }
+        }
+        Gap { size: Layout.gap-l; }
+        Text {
+            horizontal-alignment: center;
+            text: root.working ? "Uninstalling…" : "Hold OK to uninstall";
+            font-size: Type.headline;
+            font-weight: Type.value-weight;
+            color: Theme.text;
+        }
+        Gap { size: Layout.gap-s; }
+        Inset {
+            Text {
+                horizontal-alignment: center;
+                wrap: word-wrap;
+                text: Software.uninstall-error != "" ? Software.uninstall-error : root.working ? "Keep the remote powered." : "Back cancels";
+                font-size: Type.body;
+                color: Software.uninstall-error != "" ? Theme.off : Theme.t2;
+            }
+        }
+        Gap { size: Layout.gap-l; }
+        Inset {
+            VerticalLayout {
+                spacing: Layout.gap-m;
+                alignment: start;
+                for line in [
+                    "r3cui and its settings are erased, integration tokens included.",
+                    "The remote restarts into its stock interface.",
+                    "Your activities, Wi-Fi and core settings stay as they are.",
+                    "The warranty flag set when r3cui was installed stays set.",
+                ]: HorizontalLayout {
+                    spacing: Layout.gap-m;
+                    Rectangle {
+                        width: 6px;
+                        VerticalLayout {
+                            padding-top: 9px;
+                            alignment: start;
+                            Rectangle {
+                                width: 6px;
+                                height: 6px;
+                                border-radius: 3px;
+                                background: Theme.t2;
+                            }
+                        }
+                    }
+                    Text {
+                        text: line;
+                        wrap: word-wrap;
+                        font-size: Type.body;
+                        color: Theme.text-dim;
+                    }
+                }
+            }
+        }
+        Spring { }
+    }
+}

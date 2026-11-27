@@ -1,0 +1,70 @@
+import { Software } from "../../globals/software.slint";
+import { R3Wordmark } from "../../marks/brand.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
+import { InstallPhase, PageId } from "../../types.slint";
+import { Caption } from "../../widgets/caption.slint";
+import { Layer } from "../../widgets/layer.slint";
+import { PageBody, Gap, Spring } from "../../widgets/page-body.slint";
+import { Ring } from "../../widgets/ring.slint";
+import { StepsLine } from "steps-line.slint";
+
+export component R3InstallingPage inherits Layer {
+    page: PageId.r3-installing;
+    // Nothing behind this page may be touched while it works.
+    TouchArea { mouse-cursor: Theme.cursor; }
+
+    PageBody {
+        under-header: false;
+        Spring { }
+        HorizontalLayout {
+            alignment: center;
+            Ring {
+                width: 220px;
+                height: 220px;
+                inset: 8px;
+                stroke: 6px;
+                tint: Theme.text;
+                progress: Software.r3-percent / 100;
+                HorizontalLayout {
+                    alignment: center;
+                    VerticalLayout {
+                        alignment: center;
+                        R3Wordmark { }
+                    }
+                }
+            }
+        }
+        Gap { size: Layout.gap-xl; }
+        Caption {
+            horizontal-alignment: center;
+            text: Software.r3-phase == InstallPhase.download ? "DOWNLOADING" : Software.r3-phase == InstallPhase.restart ? "RESTARTING" : "INSTALLING";
+        }
+        Gap { size: Layout.gap-xs; }
+        Text {
+            horizontal-alignment: center;
+            text: Software.r3-new-version;
+            font-size: Type.display;
+            font-weight: Type.display-weight;
+            color: Theme.text;
+        }
+        Gap { size: Layout.gap-xs; }
+        Text {
+            horizontal-alignment: center;
+            text: Software.r3-percent + "%";
+            font-size: Type.body;
+            color: Theme.t2;
+        }
+        Gap { size: Layout.gap-xl; }
+        StepsLine {
+            names: ["Download", "Install", "Restart r3cui"];
+            current: Software.r3-phase == InstallPhase.download ? 0 : Software.r3-phase == InstallPhase.install ? 1 : 2;
+        }
+        Spring { }
+        Text {
+            horizontal-alignment: center;
+            text: "The screen goes dark for a moment.";
+            font-size: Type.body;
+            color: Theme.t2;
+        }
+    }
+}

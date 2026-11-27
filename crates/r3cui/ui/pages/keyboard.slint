@@ -1,0 +1,124 @@
+import { Kb } from "../globals/kb.slint";
+import { Nav } from "../globals/nav.slint";
+import { Wifi } from "../globals/wifi.slint";
+import { Glyph, Icons } from "../marks/icons.slint";
+import { Theme, Layout } from "../theme.slint";
+import { JoinState, KbPurpose, KeyGlyph, KeyStyle, PageId } from "../types.slint";
+import { Layer } from "../widgets/layer.slint";
+import { PageHeader } from "../widgets/page-header.slint";
+
+export component KeyboardPage inherits Layer {
+    property <bool> caret-on: true;
+    Timer {
+        interval: 550ms;
+        running: Nav.page == PageId.keyboard;
+        triggered => { root.caret-on = !root.caret-on; }
+    }
+
+    page: PageId.keyboard;
+
+    PageHeader {
+        y: 0;
+        title: Kb.purpose != KbPurpose.wifi-password ? Kb.title : Wifi.target.ssid;
+        back => { Nav.back(); }
+    }
+    Text {
+        x: Layout.margin;
+        y: 128px;
+        text: Kb.purpose != KbPurpose.wifi-password ? Kb.caption : "PASSWORD";
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 1.8px;
+        color: Theme.t2;
+    }
+    Rectangle {
+        x: Layout.margin;
+        y: 158px;
+        width: Layout.content-w;
+        height: 84px;
+        clip: true;
+        HorizontalLayout {
+            alignment: end;
+            spacing: 3px;
+            Text {
+                text: Kb.text;
+                font-size: 40px;
+                font-weight: 300;
+                letter-spacing: 0.8px;
+                color: Theme.text;
+                vertical-alignment: center;
+            }
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 3px;
+                    height: 40px;
+                    border-radius: 2px;
+                    background: Theme.accent;
+                    opacity: root.caret-on && Wifi.join-state != JoinState.joining ? 1 : 0;
+                }
+            }
+        }
+    }
+    Rectangle {
+        x: Layout.margin;
+        y: 242px;
+        width: Layout.content-w;
+        height: Layout.hairline;
+        background: Theme.hair;
+    }
+
+    if Wifi.join-state != JoinState.joining: Rectangle {
+        for key[i] in Kb.keys: Rectangle {
+            x: key.x;
+            y: key.y;
+            width: key.w;
+            height: key.h;
+            border-radius: key.style == KeyStyle.char ? 12px : 16px;
+            background: key.focused ? Theme.accent : key.style == KeyStyle.action-on ? #2A2A2C : key.style == KeyStyle.char ? #121213 : #161617;
+            opacity: key.focused && key.style == KeyStyle.join-dim ? 0.45 : 1;
+            transform-scale: key.focused ? (key.style == KeyStyle.char ? 1.12 : 1.06) : 1;
+            animate transform-scale, background { duration: 80ms; }
+            if key.glyph == KeyGlyph.none: Text {
+                text: key.label;
+                font-size: key.style == KeyStyle.char ? 26px : 20px;
+                font-weight: key.focused || key.style == KeyStyle.join-ready ? 600 : key.style == KeyStyle.char ? 400 : 500;
+                color: key.focused ? #000000 : key.style == KeyStyle.join-dim ? Theme.t3 : key.style == KeyStyle.join-ready ? Theme.accent : Theme.text;
+            }
+            if key.glyph != KeyGlyph.none: Glyph {
+                commands: key.glyph == KeyGlyph.shift ? Icons.shift : Icons.delete;
+                tint: key.focused ? #000000 : Theme.text;
+            }
+            TouchArea {
+                mouse-cursor: Theme.cursor;
+                clicked => { Kb.tap(i); }
+            }
+        }
+    }
+    if Wifi.join-state == JoinState.joining: Rectangle {
+        Text {
+            y: 440px;
+            width: Layout.screen-w;
+            horizontal-alignment: center;
+            text: "Joining…";
+            font-size: 32px;
+            font-weight: 300;
+            color: Theme.text;
+        }
+        Rectangle {
+            x: 120px;
+            y: 524px;
+            width: 240px;
+            height: 14px;
+            border-radius: 7px;
+            background: Theme.track;
+            clip: true;
+            Rectangle {
+                x: 75px + 75px * sin(animation-tick() / 1ms * 0.33deg);
+                width: 90px;
+                border-radius: 7px;
+                background: Theme.accent;
+            }
+        }
+    }
+}

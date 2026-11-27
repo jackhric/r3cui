@@ -1,0 +1,52 @@
+import { Nav } from "../../globals/nav.slint";
+import { Wifi } from "../../globals/wifi.slint";
+import { Theme, Layout, Type } from "../../theme.slint";
+import { PageId } from "../../types.slint";
+import { Layer } from "../../widgets/layer.slint";
+import { PageBody, Gap, Spring, Inset } from "../../widgets/page-body.slint";
+import { PageHeader } from "../../widgets/page-header.slint";
+import { Pill } from "../../widgets/pill.slint";
+
+export component JoinFailedPage inherits Layer {
+    page: PageId.join-failed;
+
+    PageHeader {
+        y: 0;
+        title: Wifi.target.ssid;
+        back => { Nav.back(); }
+    }
+    PageBody {
+        Spring { }
+        Text {
+            horizontal-alignment: center;
+            text: "Couldn’t join";
+            font-size: Type.display;
+            font-weight: Type.display-weight;
+            color: Theme.text;
+        }
+        Gap { size: Layout.gap-m; }
+        Text {
+            horizontal-alignment: center;
+            text: "Check the password and try again.";
+            font-size: Type.value;
+            color: Theme.t2;
+        }
+        Spring { }
+        Inset {
+            Pill {
+                label: "Try again";
+                focused: Nav.focus == Wifi.retry-row;
+                tapped => { Nav.activate(Wifi.retry-row); }
+            }
+        }
+        Gap { size: Layout.gap-m; }
+        Inset {
+            Pill {
+                label: Wifi.name == "" ? "Cancel" : "Stay on " + Wifi.name;
+                focused: Nav.focus == Wifi.stay-row;
+                tapped => { Nav.activate(Wifi.stay-row); }
+            }
+        }
+        Spring { }
+    }
+}

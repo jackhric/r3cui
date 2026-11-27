@@ -1,0 +1,49 @@
+import { Control } from "../globals/control.slint";
+import { Fx } from "../globals/fx.slint";
+import { Home } from "../globals/home.slint";
+import { Nav } from "../globals/nav.slint";
+import { RemoteControl } from "../globals/remote-control.slint";
+import { Software } from "../globals/software.slint";
+import { Sys } from "../globals/sys.slint";
+import { Logo } from "../marks/icons.slint";
+import { Layout, Theme } from "../theme.slint";
+import { Capture, HomeView, PageId } from "../types.slint";
+import { StatusBar } from "status-bar.slint";
+
+export component NavBar inherits Rectangle {
+    in property <float> reveal;
+    y: 0;
+    height: Layout.navbar-h;
+    opacity: root.reveal * (Nav.hides-navbar(Nav.page) ? 0 : 1);
+    visible: self.opacity > 0 && Fx.capturing == Capture.none;
+    animate opacity { duration: Theme.page-time; }
+    StatusBar {
+        clock: Sys.clock;
+        battery: Sys.battery;
+        charging: Sys.charging;
+        watched: RemoteControl.watched;
+        in-menu: !Nav.shows-menu(Nav.page);
+        menu-enabled: Nav.shows-menu(Nav.page) || !Software.blocking;
+        menu => { Nav.go(PageId.menu, 0); }
+        close => { Nav.go(PageId.home, 0); }
+    }
+    // The input's mark sits in the middle everywhere but the input's own screen (or the power-off one), so
+    // away from it you can always tell where you are; tapping it opens the list.
+    TouchArea {
+        property <bool> shown: Control.inputs.length > 0 && !(Nav.page == PageId.home && (Home.view == HomeView.mark || Home.view == HomeView.off));
+        mouse-cursor: Theme.cursor;
+        x: 190px;
+        width: 100px;
+        height: Layout.navbar-h;
+        enabled: self.shown && Nav.page != PageId.inputs && !Software.blocking;
+        clicked => { Nav.go(PageId.inputs, Control.input-index); }
+        // The one item bigger than navbar-ink: the input's mark stands out.
+        Logo {
+            y: (Layout.navbar-h - self.height) / 2;
+            commands: Control.input-icon;
+            tint: Theme.t2;
+            opacity: parent.shown ? 1 : 0;
+            animate opacity { duration: 620ms; easing: ease-in-out; }
+        }
+    }
+}

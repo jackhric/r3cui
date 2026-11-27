@@ -1,11 +1,17 @@
 name: CI
 
+# Pushes to dev are checked through their pull request, so only main runs on push.
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
     branches: [main, dev]
   workflow_call:
+    inputs:
+      version:
+        description: The version to build as (a release's own); unset, scripts/version.sh adds the commit
+        type: string
+        default: ''
   workflow_dispatch:
 
 permissions:
@@ -21,16 +27,48 @@ env:
   UC_SDK_SHA256: 9307f0006d7dbc49e2ab6a2040f4633cd48318f6a5598cdc3b54af2cf417b7ef
 
 jobs:
+  # Which parts changed, so a site-only change skips the Rust jobs and the other way round. A skipped
+  # job still satisfies a required check. Anything else (a release, a manual run) builds everything.
+  changes:
+    name: Changes
+    runs-on: ubuntu-26.04
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
+      site: ${{ steps.diff.outputs.site }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          all() { echo rust=true >> "$GITHUB_OUTPUT"; echo site=true >> "$GITHUB_OUTPUT"; }
+          case "$GITHUB_EVENT_NAME" in push|pull_request) ;; *) all; exit 0 ;; esac
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then all; exit 0; fi
+          files=$(git diff --name-only "$BASE" HEAD)
+          printf '%s\n' "$files"
+          rust=false; site=false
+          if grep -qvE '^(site/|docs/|README\.md$|\.github/workflows/pages\.yml$)' <<<"$files"; then rust=true; fi
+          if grep -qE '^(site/|docs/images/|packaging/release\.json$|\.github/workflows/ci\.yml$)' <<<"$files"; then site=true; fi
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
+          echo "site=$site" >> "$GITHUB_OUTPUT"
+
   test:
     name: Test
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libfontconfig1-dev libxkbcommon-dev libwayland-dev
       - run: cargo test --workspace --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   device:
     name: Device package
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,9 +79,43 @@ jobs:
           mkdir "$RUNNER_TEMP/sdk"
           tar -xzf "$RUNNER_TEMP/sdk.tar.gz" -C "$RUNNER_TEMP/sdk"
           echo "UC_SDK=$RUNNER_TEMP/sdk/aarch64-buildroot-linux-gnu_sdk-buildroot" >> "$GITHUB_ENV"
+      # Only r3cui's own crates rebuild when the lockfile is unchanged; a lockfile change starts from
+      # the newest older cache, so most dependencies still come from it. The script pins the Rust
+      # image, so a toolchain bump changes its hash and starts a fresh cache.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            target-device
+            ${{ runner.temp }}/cargo-registry
+          key: device-${{ hashFiles('scripts/build-device.sh') }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: device-${{ hashFiles('scripts/build-device.sh') }}-
       - run: scripts/build-device.sh
+        env:
+          CARGO_REGISTRY: ${{ runner.temp }}/cargo-registry
+          R3CUI_VERSION: ${{ inputs.version }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: remote-ui
-          path: packaging/out/remote-ui.tar.gz
+          name: r3cui
+          path: packaging/out/r3cui-*.tar.gz
           if-no-files-found: error
+
+  site:
+    name: Site
+    needs: changes
+    if: needs.changes.outputs.site == 'true'
+    runs-on: ubuntu-26.04
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: site/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build

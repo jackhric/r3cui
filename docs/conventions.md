@@ -1,0 +1,96 @@
+# Conventions
+
+## No magic strings
+
+A string or number that means something is named once, and everything else uses the name.
+
+| What | Where |
+|---|---|
+| Home Assistant's wire vocabulary: message types, frame fields, domains, services, states, attributes | `crates/homeassistant/src/protocol.rs` (`MessageType`, the `field` module, ...) |
+| Kodi's methods, parameters and shared value types | `crates/kodi/src/methods/` (one struct per method, checked against the vendored schema by `tests/schema.rs`) and `crates/kodi/src/wire.rs` |
+| Core-API message names and the events the UI acts on | `crates/r3cui/src/coreapi/messages.rs`, `crates/r3cui/src/coreapi/events.rs`; the System page's requests are typed in `system.rs` |
+| A driver's setup field keys | the integration's own `driver::field` module: `crates/homeassistant/src/driver.rs`, `crates/kodi/src/driver/mod.rs` |
+| The characters hard keys arrive as | `keys` in `crates/r3cui/src/input/mod.rs`; the window gets the same values through `KeyChars` in `crates/r3cui/ui/globals/keys.slint` |
+| Anything Slint and Rust both know about (pages, haptic events, library modes, ...) | a Slint `enum` in `crates/r3cui/ui/types.slint`, matched exhaustively in Rust |
+| Timings | a named `const` at the top of the module that uses it, with a `Duration` type |
+| The UI's colours, lengths, text sizes and animation timings | `Theme`, `Layout`, `Type` and `Motion` in `crates/r3cui/ui/theme.slint`, named by role (`Layout.margin`, `Type.label`), never a literal that repeats one |
+
+A new protocol message, field or domain goes in the client crate's constants first. A driver or
+the UI never spells a wire string itself.
+
+Slint and Rust agree through enums, not integers or strings. `PageId`, for one, is spelled for
+`--page` and the `page` step in `view/screen.rs` by an exhaustive `match`, so a new page cannot be
+left out. Slint contracts are checked when the crate compiles.
+
+## One primitive per look
+
+Every page inherits `Layer` (`widgets/layer.slint`), which slides it in and out and slides its own nested screens
+(`Nav.inner`). Every overlay (volume, the holds, charging, voice) inherits `Overlay` (`widgets/overlay.slint`): it
+fades in over `Theme.veil`, takes the blurred snapshot as it opens, and the screen behind recedes by the deepest
+open overlay's `depth` exactly as the stage does behind a list (`Motion.recede`, `recede-scale`, `recede-dim`). An
+overlay that times its own recede sets `driven` (the voice overlay, by the key's hold). A page is either a list or
+unique:
+
+- A **list** hands its rows to `ChoiceList`.
+- A **unique** page (System, an update, the web configurator) puts its parts in a `PageBody`
+  (`widgets/page-body.slint`): they stack down from under the header in the page's order, with `Gap`s from the
+  `Layout.gap-*` scale between them, `Inset` keeps a part inside the side margins, and parts after a `Spring` sit at
+  the bottom. A unique page sets no `y` of its own.
+
+Every row on either is `Row` (`widgets/row.slint`), with `size`, a leading glyph or mark, `danger` and a slot at the
+right edge for what a row needs beyond that; a section label over rows is `Caption`. A new look goes into the
+primitive, not into a page.
+
+## Comments
+
+Only where the code can't say it: a constraint, a gotcha, the reason for an unusual choice. Not
+what the next line does. Match the density of the file you are in.
+
+## Commits
+
+Conventional commits: `type(scope): subject`, for example `refactor(ui): ...` or
+`feat(drivers): ...`. CI checks pull request titles (`.github/workflows/pr-title.yml`), and
+release-please builds the releases from them.
+
+## Versions
+
+Semver, one version for the workspace. release-please bumps it on `main` from the commits (`fix` a patch, `feat` a
+minor, `!` a major; before 1.0 a break is a minor) and tags `vX.Y.Z`, which `release.yml` builds and publishes.
+
+Every build knows what it is: `scripts/version.sh` gives the release's own version for the tagged commit, and
+otherwise adds the commit as build metadata (`0.2.0+g1eb1474`; a device build with extra features adds them,
+`0.2.0+g1eb1474.demo`). The app reports that (`env!("R3CUI_VERSION")`, set by its build script) and shows it on the System
+page as the release large with a `BuildBadge` under it (the GitHub mark, the commit, any features). Every build
+shows its commit, releases too: `scripts/version.sh --commit` gives it, and the build script bakes it in as
+`R3CUI_COMMIT` (the device build works it out on the host, where git is). The demo runs as the build it is, and offers the
+next minor version as its made-up release.
+`pack.sh` names the archive for it (`r3cui-0.2.0+g1eb1474.tar.gz`) and writes it into the archive's
+`release.json`. A release's archive is `r3cui-<version>.tar.gz`, the name the self-update and the installers look
+for; build metadata never counts as newer.
+
+## Adding an integration
+
+An integration is one crate on `r3cui-sdk`: its client, its `Spec` and `field` keys, its `Driver`, its fake, its
+tests, exported as `driver::INTEGRATION`. The app carries it with a Cargo dependency and one line in
+`crates/r3cui/src/app/registry.rs`. The recipe is in `docs/drivers.md`, "Writing an integration". The Integrations
+pages are drawn from the `Spec`, so no Slint changes.
+
+## Tests
+
+`scripts/test.sh` runs what CI runs: every crate's tests, then clippy with warnings as errors for
+the desktop and the device build.
+
+| Fake | Where | Used by |
+|---|---|---|
+| `FakeServer` | `crates/sdk/src/ws/testing.rs` (sdk feature `testing`) | the scaffold under every fake below, and `coreapi`'s tests |
+| `FakeCore` | `crates/r3cui/src/coreapi/testing.rs` (tests only) | `coreapi`'s tests: sign-in, `version`, firmware updates, API access |
+| `FakeKodi` | `crates/kodi/src/testing.rs` | `crates/kodi/tests/fake.rs`, its driver |
+| `FakeHa` | `crates/homeassistant/src/testing.rs` | `crates/homeassistant/tests/fake.rs`, its driver |
+| `FakeTv` | `crates/androidtv/src/testing.rs` | `crates/androidtv/tests/fake.rs`, its driver (also `examples/fake-androidtv.rs`) |
+| `FakeDriver` and its specs | `crates/r3cui/src/host/testing.rs` (tests only) | host routing and the Integrations screens, with no network |
+
+`FakeKodi` and `FakeHa` also run as stand-alone servers for the desktop app (`examples/fake-kodi.rs`,
+`examples/fake-ha.rs`). See `scripts/dev.md`.
+
+Pure logic takes the time as an argument so tests can drive it (`Player` in
+`crates/r3cui/src/hardware/feedback/player.rs`).

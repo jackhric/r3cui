@@ -1,0 +1,31 @@
+[package]
+name = "homeassistant"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "r3cui's own Home Assistant client: the WebSocket API, entity state, service calls."
+
+[dependencies]
+r3cui-sdk = { path = "../sdk", features = ["tls"] }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror = "2"
+
+[features]
+default = ["driver"]
+# The r3cui integration: its spec and its driver. Without it, only the client.
+driver = []
+# FakeHa: an in-process Home Assistant WebSocket server for tests.
+testing = ["r3cui-sdk/testing"]
+
+[dev-dependencies]
+homeassistant = { path = ".", features = ["testing"] }
+r3cui-sdk = { path = "../sdk", features = ["testing"] }
+tokio = { workspace = true, features = ["test-util", "signal"] }
+tracing-subscriber.workspace = true
+
+[[example]]
+name = "fake-ha"
+required-features = ["testing"]

@@ -1,0 +1,21 @@
+import { Capture, Haptic } from "../types.slint";
+
+export global Fx {
+    callback haptic(Haptic);
+    // Ask for a blurred picture of what is on screen now.
+    callback capture(Capture);
+    // Set by Rust only while it takes a picture: `stage` shows the stage alone, `world` hides the overlays.
+    in-out property <Capture> capturing;
+    in property <image> stage-blur;
+    in property <image> world-blur;
+    // A change of main stage in progress; Rust supplies the pictures and starts it.
+    in-out property <bool> swapping;
+    // Between the idle mark and Now playing: the same blur, without the zoom.
+    in property <bool> swap-plain;
+    in property <image> swap-out;
+    in property <image> swap-out-blur;
+    in property <image> swap-in-blur;
+    // The idle home screen's animated background.
+    in property <image> lava;
+    in property <image> grain;
+}

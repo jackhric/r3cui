@@ -54,7 +54,10 @@ jobs:
 
   ci:
     name: CI
+    needs: check
     uses: ./.github/workflows/ci.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
 
   release:
     name: GitHub Release
@@ -70,8 +73,10 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: remote-ui
+          name: r3cui
           path: release
+      # The install and uninstall scripts ride along, so the one-line install can fetch them from the release.
+      - run: cp install.sh install.bat uninstall.sh uninstall.bat release/
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: release/*
@@ -81,6 +86,8 @@ jobs:
           VERSION: ${{ needs.check.outputs.version }}
         run: |
           tag="$TAG"
+          # The self-update and the installers look for exactly this name.
+          [ -f "release/r3cui-$VERSION.tar.gz" ] || { echo "::error::no release/r3cui-$VERSION.tar.gz to publish"; ls release; exit 1; }
           title="r3cui $VERSION"
           prerelease=false
           if [[ "$VERSION" == *-* ]]; then prerelease=true; fi

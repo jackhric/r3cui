@@ -1,0 +1,21 @@
+import { VoiceStage } from "../types.slint";
+
+// Hold the voice key to talk: the session on screen, and the key's press and release for Rust.
+export global Voice {
+    in property <VoiceStage> stage;
+    // Which session is on screen; a new one starts its aurora afresh.
+    in property <int> session;
+    in property <string> heard;
+    // The answer; or, when the session failed, why, said for a person.
+    in property <string> answer;
+    // The light rising round the edges, drawn by Rust each frame while the overlay is up.
+    in property <image> aurora;
+    // The session ended without an answer (the key was only tapped): it goes at once instead of fading slowly.
+    in property <bool> cut-short;
+    // How far the screen behind has receded, 0 to 1: Rust drives it with the key's hold, so the blur and push-back
+    // arrive as the microphone comes on, and eases it back once the overlay closes.
+    in property <float> depth;
+    callback press();
+    callback release();
+    callback dismiss();
+}

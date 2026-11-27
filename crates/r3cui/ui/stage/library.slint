@@ -1,0 +1,427 @@
+import { Theme, Layout, Type } from "../theme.slint";
+
+import { LibItem, LibMode, WallStyle } from "../types.slint";
+
+// Prototype library views for the Movies and TV menus, fed by a driver's library. Exploration only:
+// `mode` picks the variation.
+
+// A library poster; until it arrives, a frosted stand-in with the title and a spinner.
+component PosterTile inherits Rectangle {
+    in property <image> poster;
+    in property <string> title;
+    property <bool> loaded: root.poster.width > 0;
+    clip: true;
+    background: @linear-gradient(165deg, #3A3E45 0%, #25282D 55%, #1A1C20 100%);
+    Rectangle { background: @linear-gradient(135deg, #FFFFFF12 0%, #FFFFFF00 45%, #FFFFFF08 100%); }
+    Rectangle { border-width: 1px; border-color: #FFFFFF10; }
+    if !root.loaded: Rectangle {
+        x: (parent.width - 24px) / 2;
+        y: parent.height * 0.34 - 12px;
+        width: 24px;
+        height: 24px;
+        Path {
+            width: 100%;
+            height: 100%;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18";
+            stroke: #FFFFFF14;
+            stroke-width: 2px;
+        }
+        Path {
+            width: 100%;
+            height: 100%;
+            viewbox-width: 24;
+            viewbox-height: 24;
+            commands: "M12 3a9 9 0 0 1 9 9";
+            stroke: Theme.t2;
+            stroke-width: 2px;
+            transform-origin: { x: self.width / 2, y: self.height / 2 };
+            transform-rotation: animation-tick() / 1ms * 0.36deg;
+        }
+    }
+    if !root.loaded: Text {
+        x: 10px;
+        y: parent.height * 0.52;
+        width: parent.width - 20px;
+        height: parent.height * 0.4;
+        text: root.title;
+        font-size: 13px;
+        color: Theme.t3;
+        wrap: word-wrap;
+        overflow: elide;
+        horizontal-alignment: center;
+    }
+    Image {
+        width: 100%;
+        height: 100%;
+        image-fit: cover;
+        source: root.poster;
+        opacity: root.loaded ? 1 : 0;
+        animate opacity { duration: 220ms; }
+    }
+}
+
+// Certification badges, drawn by scripts/rating-badges.py; `code` as library::entry writes it.
+global Ratings {
+    public pure function badge(code: string) -> image {
+        if code == "G" { return @image-url("../assets/ratings/g.svg"); }
+        if code == "PG" { return @image-url("../assets/ratings/pg.svg"); }
+        if code == "PG-13" { return @image-url("../assets/ratings/pg-13.svg"); }
+        if code == "R" { return @image-url("../assets/ratings/r.svg"); }
+        if code == "NC-17" { return @image-url("../assets/ratings/nc-17.svg"); }
+        if code == "NR" { return @image-url("../assets/ratings/nr.svg"); }
+        if code == "TV-Y" { return @image-url("../assets/ratings/tv-y.svg"); }
+        if code == "TV-Y7" { return @image-url("../assets/ratings/tv-y7.svg"); }
+        if code == "TV-G" { return @image-url("../assets/ratings/tv-g.svg"); }
+        if code == "TV-PG" { return @image-url("../assets/ratings/tv-pg.svg"); }
+        if code == "TV-14" { return @image-url("../assets/ratings/tv-14.svg"); }
+        if code == "TV-MA" { return @image-url("../assets/ratings/tv-ma.svg"); }
+        return @image-url("");
+    }
+}
+
+// The details line: the font has no star, so the rating's star is a picture.
+component MetaLine inherits HorizontalLayout {
+    in property <LibItem> item;
+    in property <length> size: 15px;
+    in property <color> tint: Theme.t2;
+    spacing: 0;
+    Text { text: root.item.meta; font-size: root.size; color: root.tint; vertical-alignment: center; }
+    if root.item.rating != "": Text { text: " · "; font-size: root.size; color: root.tint; vertical-alignment: center; }
+    if root.item.rating != "": VerticalLayout {
+        alignment: center;
+        // A picture, not a Path: drawn as a filled Path the star went missing on the remote,
+        // most likely its GPU's fill for concave shapes.
+        Image {
+            width: root.size * 0.85;
+            height: root.size * 0.85;
+            source: @image-url("../assets/icons/star.svg");
+            colorize: root.tint;
+        }
+    }
+    if root.item.rating != "": Text { text: " " + root.item.rating; font-size: root.size; color: root.tint; vertical-alignment: center; }
+    property <image> badge: Ratings.badge(root.item.tail);
+    if root.item.tail != "" && root.badge.width == 0: Text { text: " · " + root.item.tail; font-size: root.size; color: root.tint; vertical-alignment: center; }
+    if root.badge.width > 0: Rectangle { width: root.size * 0.6; }
+    if root.badge.width > 0: VerticalLayout {
+        alignment: center;
+        Image {
+            height: root.size * 1.15;
+            width: self.height * root.badge.width / root.badge.height;
+            source: root.badge;
+            colorize: root.tint;
+        }
+    }
+}
+
+component River inherits Rectangle {
+    in property <[image]> posters;
+    in property <float> dim: 0.42;
+    property <float> t: animation-tick() / 1ms;
+    clip: true;
+    // Rotated, so oversized to keep the corners covered.
+    Rectangle {
+        x: -170px;
+        y: -120px;
+        width: 820px;
+        height: 1040px;
+        transform-rotation: -9deg;
+        transform-origin: { x: self.width / 2, y: self.height / 2 };
+        for r in 7: Rectangle {
+            property <float> step: 118;
+            property <int> n: 9;
+            property <float> span: self.n * self.step;
+            // Neighbouring rows drift opposite ways at slightly different speeds.
+            property <float> speed: (mod(r, 2) == 0 ? 1 : -1) * (0.010 + 0.0025 * mod(r * 3, 4));
+            property <float> shift: mod(root.t * self.speed, self.span) + (self.speed < 0 ? self.span : 0);
+            y: r * 158px;
+            height: 150px;
+            for i in self.n: Rectangle {
+                x: (mod(i * parent.step + parent.shift, parent.span) - parent.step) * 1px;
+                width: 100px;
+                height: 150px;
+                border-radius: 0;
+                clip: true;
+                Image {
+                    width: 100%;
+                    height: 100%;
+                    image-fit: cover;
+                    source: root.posters.length == 0 ? @image-url("") : root.posters[mod(r * 11 + i * 3, root.posters.length)];
+                }
+            }
+        }
+    }
+    Rectangle { background: #000000; opacity: 1 - root.dim; }
+    Rectangle { height: 200px; y: 0; background: @linear-gradient(180deg, #000000 0%, #000000 35%, #00000000 100%); }
+    Rectangle { y: parent.height - 220px; height: 220px; background: @linear-gradient(180deg, #00000000 0%, #000000 70%); }
+}
+
+component Card inherits Rectangle {
+    in property <LibItem> item;
+    in property <bool> show: true;
+    Rectangle {
+        x: 24px;
+        y: 0;
+        width: 150px;
+        height: 225px;
+        border-radius: 0;
+        clip: true;
+        background: #111111;
+        drop-shadow-blur: 24px;
+        drop-shadow-color: #000000C0;
+        PosterTile { poster: root.item.poster; title: root.item.title; }
+    }
+    VerticalLayout {
+        x: 192px;
+        width: root.width - 192px - 24px;
+        y: 4px;
+        height: 225px;
+        spacing: 8px;
+        alignment: start;
+        Text { text: root.item.title; font-size: 24px; font-weight: 600; color: Theme.text; wrap: word-wrap; }
+        MetaLine { item: root.item; alignment: start; }
+        Text { text: root.item.genre; font-size: Type.caption; color: Theme.t2; }
+        Rectangle { height: 4px; }
+        Rectangle {
+            visible: root.item.progress > 0;
+            height: 4px;
+            border-radius: 2px;
+            background: Theme.track;
+            Rectangle { x: 0; width: parent.width * root.item.progress; border-radius: 2px; background: Theme.accent; }
+        }
+        Text { visible: root.item.detail != ""; text: root.item.detail; font-size: 13px; color: Theme.t2; }
+    }
+    Text {
+        x: 24px;
+        y: 250px;
+        width: root.width - 48px;
+        height: 110px;
+        text: root.item.plot;
+        font-size: 15px;
+        color: Theme.text-dim;
+        wrap: word-wrap;
+        overflow: elide;
+    }
+}
+
+// What the highlighted title is about, bottom-aligned: the plot trimmed to `lines`.
+component Details inherits Rectangle {
+    in property <LibItem> item;
+    in property <int> lines: 4;
+    // Every line has a fixed place, and the plot a box `lines` tall, so moving between titles
+    // never shifts the title, year or rating, however long or short the plot.
+    height: 104px + root.lines * 25px;
+    Text { y: 0; height: 38px; width: root.width; text: root.item.title; font-size: 30px; font-weight: 600; color: Theme.text; overflow: elide; vertical-alignment: center; }
+    meta := MetaLine { x: 0; y: 44px; height: 22px; width: self.preferred-width; size: 17px; item: root.item; alignment: start; }
+    Text { y: 73px; height: 20px; width: root.width; text: root.item.genre; font-size: 15px; color: Theme.t3; overflow: elide; }
+    // How far in a started title is: at the far right of the year and rating line, a fixed length unless the line
+    // leaves it less room.
+    if root.item.progress > 0: Rectangle {
+        width: max(32px, min(120px, root.width - meta.width - 20px));
+        x: root.width - self.width;
+        y: 44px + (22px - self.height) / 2;
+        height: 4px;
+        border-radius: 2px;
+        background: Theme.track;
+        Rectangle { x: 0; width: parent.width * root.item.progress; border-radius: 2px; background: Theme.accent; }
+    }
+    Text {
+        y: 104px;
+        width: root.width;
+        height: root.lines * 25px;
+        text: root.item.plot;
+        font-size: Type.body;
+        color: Theme.text-dim;
+        wrap: word-wrap;
+        overflow: elide;
+        vertical-alignment: top;
+    }
+}
+
+export component Library inherits Rectangle {
+    in property <LibMode> mode;
+    in property <string> heading;
+    in property <string> count;
+    in property <[image]> posters;
+    in property <[LibItem]> items;
+    in property <int> at;
+    in property <WallStyle> wall-style: WallStyle.fade;
+    property <float> pos: root.at;
+    animate pos { duration: 320ms; easing: cubic-bezier(0.2, 0.8, 0.2, 1); }
+    property <LibItem> current: root.items.length == 0 ? { } : root.items[root.at];
+    background: #000000;
+
+    // The wall's entrance: tiles fade and rise in along the diagonals, top left first. `hold`
+    // puts them out of sight; `run`, a moment later, plays the entrance. Two steps, because a
+    // property animation starts from what was last drawn.
+    property <float> entrance: 1;
+    property <bool> entering;
+    animate entrance { duration: root.entering ? 1300ms : 0ms; easing: linear; }
+    public function hold() {
+        root.entering = false;
+        root.entrance = 0;
+    }
+    public function run() {
+        root.entering = true;
+        root.entrance = 1;
+    }
+
+    // 1: the river on its own, behind the menu's name.
+    if root.mode == LibMode.river || root.mode == LibMode.river-card || root.mode == LibMode.dim-river-card: River {
+        posters: root.posters;
+        dim: root.mode == LibMode.river ? 0.55 : 0.30;
+    }
+    if root.mode == LibMode.river: VerticalLayout {
+        alignment: center;
+        spacing: 6px;
+        Text { text: root.heading; font-size: 56px; font-weight: 300; color: Theme.text; horizontal-alignment: center; }
+        Text { text: root.count; font-size: 17px; color: Theme.t2; horizontal-alignment: center; }
+    }
+
+    // 2 and 5: the river behind a card for whatever the driver has highlighted.
+    if root.mode == LibMode.river-card || root.mode == LibMode.dim-river-card: Rectangle {
+        Text { x: 24px; y: 92px; text: root.heading; font-size: 15px; font-weight: 600; color: Theme.t2; letter-spacing: 1.5px; }
+        Text { x: 24px; y: 92px; width: root.width - 48px; text: root.count; font-size: 15px; color: Theme.t3; horizontal-alignment: right; }
+        for it[i] in root.items: Card {
+            y: 300px;
+            height: 380px;
+            item: it;
+            opacity: max(0, 1 - abs(i - root.pos) * 1.6);
+            visible: self.opacity > 0;
+        }
+    }
+
+    // 3: a carousel that follows the driver's highlight.
+    if root.mode == LibMode.carousel: Rectangle {
+        Text { x: 24px; y: 92px; text: root.heading; font-size: 15px; font-weight: 600; color: Theme.t2; letter-spacing: 1.5px; }
+        Text { x: 24px; y: 92px; width: root.width - 48px; text: root.count; font-size: 15px; color: Theme.t3; horizontal-alignment: right; }
+        // Neighbours first, the centre last, so the highlighted poster sits on top.
+        for it[i] in root.items: Rectangle {
+            property <float> d: i - root.pos;
+            property <float> k: 1 - min(abs(self.d), 2) * 0.22;
+            visible: abs(self.d) < 3 && abs(self.d) >= 0.5;
+            width: 220px * self.k;
+            height: 330px * self.k;
+            x: (240 + self.d * 150) * 1px - self.width / 2;
+            y: 330px - self.height / 2;
+            border-radius: 0;
+            clip: true;
+            PosterTile { poster: it.poster; title: it.title; }
+            Rectangle { background: #000000; opacity: min(abs(parent.d), 2) * 0.3; }
+        }
+        for it[i] in root.items: Rectangle {
+            property <float> d: i - root.pos;
+            property <float> k: 1 - min(abs(self.d), 2) * 0.22;
+            visible: abs(self.d) < 0.5;
+            width: 220px * self.k;
+            height: 330px * self.k;
+            x: (240 + self.d * 150) * 1px - self.width / 2;
+            y: 330px - self.height / 2;
+            border-radius: 0;
+            background: #111111;
+            drop-shadow-blur: 30px;
+            drop-shadow-color: #000000E0;
+            clip: true;
+            PosterTile { poster: it.poster; title: it.title; }
+        }
+        VerticalLayout {
+            y: 520px;
+            height: 200px;
+            padding-left: 32px;
+            padding-right: 32px;
+            spacing: 8px;
+            alignment: start;
+            Text { text: root.current.title; font-size: 26px; font-weight: 600; color: Theme.text; horizontal-alignment: center; wrap: word-wrap; }
+            MetaLine { item: root.current; alignment: center; }
+            Text { text: root.current.genre; font-size: Type.caption; color: Theme.t3; horizontal-alignment: center; }
+            Rectangle {
+                visible: root.current.progress > 0;
+                height: 4px;
+                Rectangle {
+                    x: (parent.width - 160px) / 2;
+                    width: 160px;
+                    border-radius: 2px;
+                    background: Theme.track;
+                    Rectangle { x: 0; width: parent.width * root.current.progress; border-radius: 2px; background: Theme.accent; }
+                }
+            }
+        }
+    }
+
+    // The wall: posters with the highlight lifted out of it, and what the highlighted title is
+    // about along the bottom, as `wall-style` says.
+    if root.mode == LibMode.wall: Rectangle {
+        clip: true;
+        property <int> focus-row: floor(root.at / 3);
+        // Follows the row the highlight is going to, not its animated position, so the wall starts moving
+        // the moment the row changes and eases in and out in one stroke.
+        property <float> scroll: self.focus-row;
+        animate scroll { duration: 460ms; easing: cubic-bezier(0.65, 0, 0.35, 1); }
+        // Where the highlighted row sits: high up, just a sliver of the row before showing.
+        property <float> first: root.wall-style == WallStyle.sheet ? 140 : root.wall-style == WallStyle.fade ? 110 : 120;
+        for it[i] in root.items: cell := Rectangle {
+            property <bool> on: i == root.at;
+            property <float> below: root.wall-style == WallStyle.inline && floor(i / 3) > parent.focus-row ? 1 : 0;
+            animate below { duration: 320ms; easing: ease-out; }
+            property <float> top: (floor(i / 3) - parent.scroll) * 222 + parent.first + self.below * 300;
+            visible: self.top > -240 && self.top < 820;
+            x: (24 + mod(i, 3) * 148) * 1px;
+            y: self.top * 1px;
+            width: 136px;
+            height: 204px;
+            transform-origin: { x: self.width / 2, y: self.height / 2 };
+            transform-scale: self.on ? 1.07 : 1;
+            animate transform-scale { duration: 200ms; easing: ease-out; }
+            property <float> diagonal: max(0, floor(i / 3) - floor(parent.scroll) + 1) + mod(i, 3);
+            property <float> t: clamp((root.entrance * 1300ms - 80ms - self.diagonal * 55ms) / 420ms, 0, 1);
+            property <float> e: 1 - pow(1 - self.t, 3);
+            Rectangle {
+                clip: true;
+                opacity: cell.e;
+                y: (1 - cell.e) * 22px;
+                transform-origin: { x: self.width / 2, y: self.height / 2 };
+                transform-scale: 0.92 + 0.08 * cell.e;
+                PosterTile { poster: it.poster; title: it.title; }
+                Rectangle { background: #000000; opacity: cell.on ? 0 : 0.5; animate opacity { duration: 200ms; } }
+            }
+            Rectangle {
+                visible: parent.on;
+                opacity: cell.e;
+                x: -3px;
+                y: -3px;
+                width: parent.width + 6px;
+                height: parent.height + 6px;
+                border-width: 2px;
+                border-color: Theme.accent;
+            }
+        }
+        Rectangle { y: 0; height: 104px; background: @linear-gradient(180deg, #000000 0%, #000000 62%, #00000000 100%); }
+
+        // 1: a solid sheet, the grid stopping above it.
+        if root.wall-style == WallStyle.sheet: Rectangle {
+            y: 366px;
+            height: root.height - 366px;
+            background: #000000;
+            Rectangle { y: -36px; height: 36px; background: @linear-gradient(180deg, #00000000 0%, #000000 100%); }
+            Rectangle { x: 24px; y: 0; width: parent.width - 48px; height: Layout.hairline; background: Theme.hair; }
+            Details { x: 24px; y: parent.height - 24px - self.height; width: parent.width - 48px; item: root.current; lines: 5; }
+        }
+        // 2: the grid carries on underneath, fading out behind the words.
+        if root.wall-style == WallStyle.fade: Rectangle {
+            y: 380px;
+            height: root.height - 380px;
+            background: @linear-gradient(180deg, #00000000 0%, #000000D0 30%, #000000F5 60%, #000000 100%);
+            Details { x: 24px; y: parent.height - 24px - self.height; width: parent.width - 48px; item: root.current; lines: 4; }
+        }
+        // 3: the details open up right under the highlighted row.
+        if root.wall-style == WallStyle.inline: Details {
+            x: 24px;
+            y: (parent.first + 222 + (parent.focus-row - parent.scroll) * 222) * 1px;
+            width: parent.width - 48px;
+            item: root.current;
+            lines: 5;
+        }
+        Rectangle { y: root.height - 40px; height: 40px; background: @linear-gradient(180deg, #00000000 0%, #000000 100%); visible: root.wall-style == WallStyle.inline; }
+    }
+}

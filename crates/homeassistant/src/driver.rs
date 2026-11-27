@@ -1,0 +1,485 @@
+//! The Home Assistant driver, on r3cui's own client: a media player as global volume and source, and the helper
+//! entities that steer the key backlight and cap the volume.
+
+use r3cui_sdk::api::*;
+use r3cui_sdk::DriverEntry;
+use r3cui_sdk::run::{follow, in_order};
+use crate::{AssistEvent, EndStage, EntityId, EntityState, HaConfig, HaHandle, HaService, HaState, Light, Link, MediaPlayer, VoiceError, VoiceRun};
+use std::time::Duration;
+use std::collections::BTreeSet;
+use std::sync::Mutex;
+use tokio::sync::watch;
+
+pub mod field {
+    pub const URL: &str = "url";
+    pub const TOKEN: &str = "token";
+    pub const SELF_SIGNED: &str = "self_signed";
+    pub const VOLUME_LIMIT: &str = "volume_limit";
+    pub const KEYS_LIGHT: &str = "keys_light";
+    pub const KEYS_MODE: &str = "keys_mode";
+}
+
+pub static SPEC: Spec = Spec {
+    id: "homeassistant",
+    name: "Home Assistant",
+    // Simple Icons (CC0); the mark is Home Assistant's.
+    icon: "M22.939 10.627 13.061.749a1.505 1.505 0 0 0-2.121 0l-9.879 9.878C.478 11.21 0 12.363 0 13.187v9c0 .826.675 1.5 1.5 1.5h9.227l-4.063-4.062a2.034 2.034 0 0 1-.664.113c-1.13 0-2.05-.92-2.05-2.05s.92-2.05 2.05-2.05 2.05.92 2.05 2.05c0 .233-.041.456-.113.665l3.163 3.163V9.928a2.05 2.05 0 0 1-1.15-1.84c0-1.13.92-2.05 2.05-2.05s2.05.92 2.05 2.05a2.05 2.05 0 0 1-1.15 1.84v8.127l3.146-3.146A2.051 2.051 0 0 1 18 12.239c1.13 0 2.05.92 2.05 2.05s-.92 2.05-2.05 2.05c-.25 0-.488-.047-.709-.13L12.9 20.602v3.088h9.6c.825 0 1.5-.675 1.5-1.5v-9c0-.825-.477-1.977-1.061-2.561z",
+    fields: &[
+        Field { key: field::URL, label: "Address", kind: FieldKind::Url, required: true, default: Some("http://homeassistant.local:8123") },
+        Field { key: field::TOKEN, label: "Access token", kind: FieldKind::Secret, required: true, default: None },
+        Field { key: field::SELF_SIGNED, label: "Allow self-signed certificate", kind: FieldKind::Toggle, required: false, default: None },
+        Field { key: field::VOLUME_LIMIT, label: "Volume limit", kind: FieldKind::Target(TargetKind::Sensor), required: false, default: None },
+        Field { key: field::KEYS_LIGHT, label: "Key light", kind: FieldKind::Target(TargetKind::Light), required: false, default: None },
+        Field { key: field::KEYS_MODE, label: "Key light mode", kind: FieldKind::Target(TargetKind::Select), required: false, default: None },
+    ],
+    provides: Provides { global: true, remote: false, ui: false, power: false, voice: true },
+    address: Some(field::URL),
+    pairing: None,
+};
+
+/// What the app lists to carry this integration.
+pub const INTEGRATION: r3cui_sdk::Integration = r3cui_sdk::Integration { spec: &SPEC, start: |e| std::sync::Arc::new(HomeAssistant::start(e)) };
+
+/// Full scale when there is no volume-limit sensor.
+const FULL: i32 = 100;
+/// How long Home Assistant may take to hear and answer once the audio starts.
+const VOICE_TIMEOUT: Duration = Duration::from_secs(30);
+
+pub struct HomeAssistant {
+    ha: HaHandle,
+    status: watch::Receiver<Status>,
+    key_light: Option<watch::Receiver<Option<KeyLight>>>,
+    limit: Option<EntityId>,
+    /// Every entity some port reads, so one subscription covers them all.
+    watched: Mutex<BTreeSet<EntityId>>,
+}
+
+impl HomeAssistant {
+    pub fn start(entry: &DriverEntry) -> Self {
+        let id = |key| entry.text(key).map(EntityId::new);
+        let (limit, light, mode) = (id(field::VOLUME_LIMIT), id(field::KEYS_LIGHT), id(field::KEYS_MODE));
+        let watched: BTreeSet<EntityId> = [&limit, &light, &mode].into_iter().flatten().cloned().collect();
+        let cfg = HaConfig::new(entry.text(field::URL).unwrap_or_default(), entry.text(field::TOKEN).unwrap_or_default()).self_signed(entry.flag(field::SELF_SIGNED));
+        let ha = HaService::start(cfg, watched.iter().cloned().collect());
+
+        let (status_tx, status) = watch::channel(Status::new(Health::Connecting));
+        follow(ha.state(), status_tx, |s: &HaState| status_of(&s.link));
+        let key_light = (light.is_some() || mode.is_some()).then(|| {
+            let (tx, rx) = watch::channel(None);
+            follow(ha.state(), tx, move |s: &HaState| key_light(s, light.as_ref(), mode.as_ref()));
+            rx
+        });
+        Self { ha, status, key_light, limit, watched: Mutex::new(watched) }
+    }
+
+    fn watch(&self, id: &EntityId) {
+        let mut watched = self.watched.lock().unwrap();
+        if watched.insert(id.clone()) {
+            self.ha.watch(watched.iter().cloned().collect());
+        }
+    }
+}
+
+/// The entity domains a target field of this kind lists.
+fn domains(kind: TargetKind) -> &'static [&'static str] {
+    use crate::protocol::domain::*;
+    match kind {
+        TargetKind::MediaPlayer => &[MEDIA_PLAYER],
+        TargetKind::Light => &[LIGHT],
+        TargetKind::Select => &[SELECT, INPUT_SELECT],
+        TargetKind::Sensor => &[SENSOR, INPUT_NUMBER],
+        // Pipelines are not entities: `targets` asks for them by name.
+        TargetKind::Pipeline => &[],
+    }
+}
+
+fn status_of(link: &Link) -> Status {
+    match link {
+        Link::Unconfigured => Status::with(Health::NotSetUp, "Address or token missing"),
+        Link::Connecting => Status::new(Health::Connecting),
+        Link::Up => Status::new(Health::Up),
+        Link::Down { .. } => Status::new(Health::Down),
+        Link::Rejected(_) => Status::with(Health::Down, "Token rejected"),
+    }
+}
+
+fn volume_of(s: &HaState, target: &EntityId, limit: Option<&EntityId>) -> Option<Volume> {
+    let player = MediaPlayer(s.entities.get(target)?);
+    let max = limit.and_then(|l| s.entities.get(l)?.number()).map_or(FULL, |v| (v.round() as i32).clamp(1, FULL));
+    Some(Volume { level: (player.volume_level()? * 100.0).round() as i32, max, muted: player.muted().unwrap_or(false) })
+}
+
+fn power_of(s: &HaState, target: &EntityId) -> Option<Power> {
+    Some(Power { on: MediaPlayer(s.entities.get(target)?).is_on() })
+}
+
+fn sources_of(s: &HaState, target: &EntityId) -> Option<Sources> {
+    let player = MediaPlayer(s.entities.get(target)?);
+    Some(Sources {
+        current: player.source().unwrap_or_default().to_string(),
+        list: player.source_list().into_iter().map(String::from).collect(),
+    })
+}
+
+/// Without the mode helper the light alone decides: on means its colour, off means follow the remote.
+fn key_light(s: &HaState, light: Option<&EntityId>, mode: Option<&EntityId>) -> Option<KeyLight> {
+    let colour = light.and_then(|l| s.entities.get(l)).map(Light).filter(Light::is_on).map(|l| {
+        let (h, sat) = l.hs_color().unwrap_or((0.0, 0.0));
+        hsv(h, sat / 100.0, f64::from(l.brightness().unwrap_or(255)) / 255.0)
+    });
+    let option = mode.and_then(|m| s.entities.get(m)).map(|e| e.state.to_lowercase()).unwrap_or_default();
+    let mode = match option.as_str() {
+        "off" => KeyMode::Off,
+        "custom" => KeyMode::Custom,
+        "" if colour.is_some() => KeyMode::Custom,
+        _ => KeyMode::Follow,
+    };
+    Some(KeyLight { mode, colour })
+}
+
+/// Hue in degrees; saturation and value 0 to 1.
+fn hsv(h: f64, s: f64, v: f64) -> (u8, u8, u8) {
+    let f = |n: f64| {
+        let k = (n + h / 60.0) % 6.0;
+        ((v - v * s * k.min(4.0 - k).clamp(0.0, 1.0)) * 255.0).round() as u8
+    };
+    (f(5.0), f(3.0), f(1.0))
+}
+
+fn current(session: u32, run: &Option<(u32, VoiceRun)>) -> Option<&VoiceRun> {
+    run.as_ref().filter(|(s, _)| *s == session).map(|(_, r)| r)
+}
+
+async fn voice_intent(ha: &HaHandle, pipeline: Option<&str>, view: &watch::Sender<Option<Voice>>, run: &mut Option<(u32, VoiceRun)>, intent: VoiceIntent) {
+    match intent {
+        VoiceIntent::Start { session, sample_rate } => {
+            // Dropping a run that is still going cancels it in Home Assistant.
+            *run = None;
+            view.send_replace(Some(Voice { session, ..Voice::default() }));
+            match ha.run_voice(pipeline, sample_rate, EndStage::Intent, VOICE_TIMEOUT).await {
+                Ok(r) => *run = Some((session, r)),
+                Err(e) => {
+                    tracing::warn!("home assistant voice: {e}");
+                    view.send_modify(|v| {
+                        if let Some(v) = v.as_mut().filter(|v| v.session == session) {
+                            v.phase = VoicePhase::Failed(VoiceFailure::ServiceUnavailable);
+                        }
+                    });
+                }
+            }
+        }
+        VoiceIntent::Audio { session, pcm } => {
+            if let Some(r) = current(session, run) {
+                if let Err(e) = r.send_audio(&pcm) {
+                    tracing::warn!("home assistant voice: sending audio: {e}");
+                }
+            }
+        }
+        VoiceIntent::End { session } => {
+            if let Some(r) = current(session, run) {
+                let _ = r.end_audio();
+            }
+            view.send_modify(|v| {
+                if let Some(v) = v.as_mut().filter(|v| v.session == session && v.phase == VoicePhase::Listening) {
+                    v.phase = VoicePhase::Thinking;
+                }
+            });
+        }
+        VoiceIntent::Cancel { session } => {
+            if current(session, run).is_some() {
+                *run = None;
+            }
+            view.send_if_modified(|v| v.take_if(|v| v.session == session).is_some());
+        }
+    }
+}
+
+/// The next event of the run going on, `None` inside when it ended without one; never resolves without a run.
+async fn next_event(run: &mut Option<(u32, VoiceRun)>) -> Option<(u32, Option<AssistEvent>)> {
+    match run {
+        Some((session, r)) => Some((*session, r.next().await)),
+        None => std::future::pending().await,
+    }
+}
+
+fn answer(v: &mut Voice, event: Option<AssistEvent>) {
+    match event {
+        Some(AssistEvent::Heard { text }) => v.heard = text,
+        Some(AssistEvent::Answer { text, success }) => {
+            v.answer = text;
+            v.phase = VoicePhase::Answered { success };
+        }
+        Some(AssistEvent::Failed { code, .. }) => v.phase = VoicePhase::Failed(failure(code)),
+        Some(AssistEvent::Finished) | None if !matches!(v.phase, VoicePhase::Answered { .. } | VoicePhase::Failed(_)) => {
+            v.phase = VoicePhase::Failed(VoiceFailure::Unexpected);
+        }
+        _ => {}
+    }
+}
+
+fn failure(code: VoiceError) -> VoiceFailure {
+    match code {
+        VoiceError::Timeout => VoiceFailure::Timeout,
+        VoiceError::NoTextRecognized => VoiceFailure::NoTextRecognized,
+        VoiceError::InvalidAudio => VoiceFailure::InvalidAudio,
+        VoiceError::ServiceUnavailable => VoiceFailure::ServiceUnavailable,
+        VoiceError::Unexpected => VoiceFailure::Unexpected,
+    }
+}
+
+impl Driver for HomeAssistant {
+    fn spec(&self) -> &'static Spec {
+        &SPEC
+    }
+
+    fn status(&self) -> watch::Receiver<Status> {
+        self.status.clone()
+    }
+
+    fn volume(&self, target: &str) -> Option<VolumePort> {
+        let target = EntityId::from(target);
+        self.watch(&target);
+        let limit = self.limit.clone();
+        // Filled from what is known now, so a new binding shows at once.
+        let (view, mut intents, port) = port(volume_of(&self.ha.state().borrow(), &target, limit.as_ref()));
+        follow(self.ha.state(), view, {
+            let target = target.clone();
+            move |s: &HaState| volume_of(s, &target, limit.as_ref())
+        });
+        let ha = self.ha.clone();
+        tokio::spawn(async move {
+            while let Some(intent) = intents.recv().await {
+                let (ha, t) = (ha.clone(), target.clone());
+                let what = format!("{t} {intent:?}");
+                match intent {
+                    VolumeIntent::Up => in_order(what, async move { ha.volume_up(&t).await }).await,
+                    VolumeIntent::Down => in_order(what, async move { ha.volume_down(&t).await }).await,
+                    VolumeIntent::Set(level) => in_order(what, async move { ha.volume_set(&t, f64::from(level) / 100.0).await }).await,
+                    VolumeIntent::Mute(muted) => in_order(what, async move { ha.volume_mute(&t, muted).await }).await,
+                }
+            }
+        });
+        Some(port)
+    }
+
+    fn source(&self, target: &str) -> Option<SourcePort> {
+        let target = EntityId::from(target);
+        self.watch(&target);
+        let (view, mut intents, port) = port(sources_of(&self.ha.state().borrow(), &target));
+        follow(self.ha.state(), view, {
+            let target = target.clone();
+            move |s: &HaState| sources_of(s, &target)
+        });
+        let ha = self.ha.clone();
+        tokio::spawn(async move {
+            while let Some(intent) = intents.recv().await {
+                let (ha, t) = (ha.clone(), target.clone());
+                let what = format!("{t} {intent:?}");
+                match intent {
+                    SourceIntent::Select(name) => in_order(what, async move { ha.select_source(&t, &name).await }).await,
+                }
+            }
+        });
+        Some(port)
+    }
+
+    fn power(&self, target: &str) -> Option<PowerPort> {
+        let target = EntityId::from(target);
+        self.watch(&target);
+        let (view, mut intents, port) = port(power_of(&self.ha.state().borrow(), &target));
+        follow(self.ha.state(), view, {
+            let target = target.clone();
+            move |s: &HaState| power_of(s, &target)
+        });
+        let ha = self.ha.clone();
+        tokio::spawn(async move {
+            while let Some(intent) = intents.recv().await {
+                let (ha, t) = (ha.clone(), target.clone());
+                let what = format!("{t} {intent:?}");
+                match intent {
+                    PowerIntent::Set(true) => in_order(what, async move { ha.turn_on(&t).await }).await,
+                    PowerIntent::Set(false) => in_order(what, async move { ha.turn_off(&t).await }).await,
+                }
+            }
+        });
+        Some(port)
+    }
+
+    fn key_light(&self) -> Option<watch::Receiver<Option<KeyLight>>> {
+        self.key_light.clone()
+    }
+
+    /// `target` is an Assist pipeline's id; empty is Home Assistant's preferred one.
+    fn voice(&self, target: &str) -> Option<VoicePort> {
+        let pipeline = (!target.is_empty()).then(|| target.to_string());
+        let (view, mut intents, port) = port(None);
+        let ha = self.ha.clone();
+        tokio::spawn(async move {
+            let mut run: Option<(u32, VoiceRun)> = None;
+            loop {
+                tokio::select! {
+                    intent = intents.recv() => {
+                        let Some(intent) = intent else { break };
+                        voice_intent(&ha, pipeline.as_deref(), &view, &mut run, intent).await;
+                    }
+                    Some((session, event)) = next_event(&mut run) => {
+                        let ended = event.as_ref().is_none_or(|e| matches!(e, AssistEvent::Finished | AssistEvent::Failed { .. }));
+                        view.send_modify(|v| {
+                            if let Some(v) = v.as_mut().filter(|v| v.session == session) {
+                                answer(v, event);
+                            }
+                        });
+                        if ended {
+                            run = None;
+                        }
+                    }
+                }
+            }
+        });
+        Some(port)
+    }
+
+    fn targets(&self, kind: TargetKind) -> Targets<'_> {
+        Box::pin(async move {
+            if kind == TargetKind::Pipeline {
+                let pipelines = self.ha.pipelines().await.map_err(|e| tracing::warn!("home assistant pipelines: {e}")).unwrap_or_default();
+                return pipelines.list.into_iter().map(|p| Target { id: p.id, name: p.name }).collect();
+            }
+            let domains = domains(kind);
+            let states = self.ha.states().await.map_err(|e| tracing::warn!("home assistant entities: {e}")).unwrap_or_default();
+            let mut found: Vec<Target> = states
+                .into_iter()
+                .filter(|(id, _)| domains.contains(&id.domain()))
+                .map(|(id, s): (EntityId, EntityState)| Target { name: s.friendly_name().unwrap_or(id.as_str()).to_string(), id: id.as_str().to_string() })
+                .collect();
+            found.sort_by_key(|t| t.name.to_lowercase());
+            found
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use r3cui_sdk::testing::{entry, until};
+    use crate::testing::FakeHa;
+    use serde_json::json;
+
+    fn receiver() -> serde_json::Value {
+        json!({ "source_list": ["KODI", "NET", "PLAYSTATION 5"], "volume_level": 0.56, "is_volume_muted": false, "source": "KODI", "supported_features": 69004 })
+    }
+
+    async fn driver(fake: &FakeHa) -> HomeAssistant {
+        let cfg = fake.config();
+        let fields = [(field::URL, cfg.url.as_str()), (field::TOKEN, cfg.token.as_str()), (field::VOLUME_LIMIT, "sensor.limit"), (field::KEYS_LIGHT, "light.keys")];
+        HomeAssistant::start(&entry(&SPEC, &fields))
+    }
+
+    #[tokio::test]
+    async fn the_receiver_as_volume_and_source() {
+        let fake = FakeHa::start("token").await;
+        fake.set_entity("media_player.receiver", "on", receiver());
+        fake.set_entity("sensor.limit", "72", json!({}));
+        let ha = driver(&fake).await;
+        let mut status = ha.status();
+        until(&mut status, |s| s.health == Health::Up).await;
+
+        let volume = ha.volume("media_player.receiver").unwrap();
+        let v = until(&mut volume.view.clone(), Option::is_some).await.unwrap();
+        assert_eq!((v.level, v.max, v.muted), (56, 72, false));
+        let source = ha.source("media_player.receiver").unwrap();
+        let s = until(&mut source.view.clone(), Option::is_some).await.unwrap();
+        assert_eq!((s.current.as_str(), s.list.len()), ("KODI", 3));
+        let power = ha.power("media_player.receiver").unwrap();
+        assert_eq!(until(&mut power.view.clone(), Option::is_some).await, Some(Power { on: true }));
+
+        volume.send(VolumeIntent::Set(40));
+        until(&mut volume.view.clone(), |v| v.as_ref().is_some_and(|v| v.level == 40)).await;
+        volume.send(VolumeIntent::Mute(true));
+        until(&mut volume.view.clone(), |v| v.as_ref().is_some_and(|v| v.muted)).await;
+        source.send(SourceIntent::Select("NET".into()));
+        until(&mut source.view.clone(), |s| s.as_ref().is_some_and(|s| s.current == "NET")).await;
+        power.send(PowerIntent::Set(false));
+        until(&mut power.view.clone(), |p| *p == Some(Power { on: false })).await;
+        let services: Vec<String> = fake.calls().into_iter().map(|(d, s, _)| format!("{d}.{s}")).collect();
+        assert_eq!(services, ["media_player.volume_set", "media_player.volume_mute", "media_player.select_source", "media_player.turn_off"]);
+    }
+
+    #[tokio::test]
+    async fn voice_goes_to_the_assist_pipeline_and_the_answer_comes_back() {
+        use crate::protocol::assist::EventType;
+        let fake = FakeHa::start("token").await;
+        fake.set_pipelines(&[("p1", "Home", "en")], Some("p1"));
+        let ha = driver(&fake).await;
+        until(&mut ha.status(), |s| s.health == Health::Up).await;
+        let targets = ha.targets(TargetKind::Pipeline).await;
+        assert_eq!(targets, [Target { id: "p1".into(), name: "Home".into() }]);
+
+        let voice = ha.voice("p1").unwrap();
+        voice.send(VoiceIntent::Start { session: 3, sample_rate: 16000 });
+        voice.send(VoiceIntent::Audio { session: 3, pcm: vec![1, 2] });
+        voice.send(VoiceIntent::Audio { session: 9, pcm: vec![9] });
+        voice.send(VoiceIntent::End { session: 3 });
+        let v = until(&mut voice.view.clone(), |v| v.as_ref().is_some_and(|v| v.phase == VoicePhase::Thinking)).await.unwrap();
+        assert_eq!(v.session, 3);
+        let id = FakeHa::stt_binary_handler_id();
+        for _ in 0..200 {
+            if fake.audio_frames().len() >= 2 {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert_eq!(fake.audio_frames(), [vec![id, 1, 2], vec![id]], "another session's audio is not sent");
+        assert_eq!(fake.voice_runs()[0]["pipeline"], "p1");
+
+        fake.run_event(EventType::SttEnd, json!({ "stt_output": { "text": "lights on" } }));
+        fake.run_event(EventType::IntentEnd, json!({ "intent_output": { "response": { "response_type": "action_done", "speech": { "plain": { "speech": "Turned on the lights" } } } } }));
+        fake.run_event(EventType::RunEnd, json!({}));
+        let v = until(&mut voice.view.clone(), |v| v.as_ref().is_some_and(|v| matches!(v.phase, VoicePhase::Answered { .. }))).await.unwrap();
+        assert_eq!((v.heard.as_str(), v.answer.as_str(), v.phase), ("lights on", "Turned on the lights", VoicePhase::Answered { success: true }));
+
+        voice.send(VoiceIntent::Start { session: 4, sample_rate: 16000 });
+        voice.send(VoiceIntent::Cancel { session: 4 });
+        until(&mut voice.view.clone(), Option::is_none).await;
+    }
+
+    #[tokio::test]
+    async fn a_bad_token_says_so() {
+        let fake = FakeHa::start("right").await;
+        let ha = HomeAssistant::start(&entry(&SPEC, &[(field::URL, &fake.config().url), (field::TOKEN, "wrong")]));
+        let s = until(&mut ha.status(), |s| s.health == Health::Down).await;
+        assert_eq!(s.word(), "Token rejected");
+    }
+
+    #[tokio::test]
+    async fn the_key_light_follows_its_helpers() {
+        let fake = FakeHa::start("token").await;
+        fake.set_entity("light.keys", "on", json!({ "hs_color": [240.0, 100.0], "brightness": 255 }));
+        let ha = driver(&fake).await;
+        let mut keys = ha.key_light().unwrap();
+        let k = until(&mut keys, |k| k.is_some_and(|k| k.colour.is_some())).await.unwrap();
+        assert_eq!((k.mode, k.colour), (KeyMode::Custom, Some((0, 0, 255))));
+        fake.set_entity("light.keys", "off", json!({}));
+        let k = until(&mut keys, |k| k.is_some_and(|k| k.colour.is_none())).await.unwrap();
+        assert_eq!(k.mode, KeyMode::Follow);
+    }
+
+    #[tokio::test]
+    async fn pickers_list_entities_by_kind() {
+        let fake = FakeHa::start("token").await;
+        fake.set_entity("media_player.receiver", "on", json!({ "friendly_name": "Theater Receiver" }));
+        fake.set_entity("light.keys", "on", json!({}));
+        let ha = driver(&fake).await;
+        until(&mut ha.status(), |s| s.health == Health::Up).await;
+        let players = ha.targets(TargetKind::MediaPlayer).await;
+        assert_eq!(players, [Target { id: "media_player.receiver".into(), name: "Theater Receiver".into() }]);
+    }
+
+    #[test]
+    fn hsv_to_rgb() {
+        assert_eq!(hsv(0.0, 1.0, 1.0), (255, 0, 0));
+        assert_eq!(hsv(120.0, 1.0, 1.0), (0, 255, 0));
+        assert_eq!(hsv(240.0, 1.0, 0.5), (0, 0, 128));
+        assert_eq!(hsv(0.0, 0.0, 1.0), (255, 255, 255));
+    }
+}

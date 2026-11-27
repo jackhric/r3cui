@@ -1,0 +1,15 @@
+{
+  "name": "r3cui",
+  "short_name": "r3cui",
+  "description": "A simplified custom frontend for the Unfolded Circle Remote 3.",
+  "start_url": "/r3cui/",
+  "scope": "/r3cui/",
+  "display": "browser",
+  "background_color": "#f9f9f9",
+  "theme_color": "#141414",
+  "icons": [
+    { "src": "/r3cui/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/r3cui/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/r3cui/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

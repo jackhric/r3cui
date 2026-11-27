@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>r3cui Tuning</title>
+<link rel="icon" href="data:,">
+<style>
+@font-face { font-family: "Inter"; font-weight: 400; src: url(/fonts/Inter-400.ttf) format("truetype"); }
+@font-face { font-family: "Inter"; font-weight: 500 600; src: url(/fonts/Inter-500.ttf) format("truetype"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 500; src: url(/fonts/JetBrainsMono-500.ttf) format("truetype"); }
+/* Layout: one dark workbench; the curve editor and the phone preview side by side, stacking on narrow screens.
+   Single dark theme on purpose: it is the remote's own look (theme.slint tokens). */
+:root {
+  color-scheme: dark;
+  --bg: #000000;
+  --raised: #131314;
+  --text: #F1F3F3;
+  --t2: #8B9195;
+  --t3: #53595D;
+  --hair: #FFFFFF14;
+  --accent: #2E7BFF;
+  --hop: #FFC857;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--sans);
+  padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+.lede { margin: 4px 0 0; color: var(--t2); max-width: 70ch; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--raised); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.panel h2 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--t2); }
+canvas { display: block; width: 100%; height: auto; touch-action: none; }
+.code { font: 500 14px/1.4 var(--mono); background: var(--bg); border: 1px solid var(--hair); border-radius: 10px; padding: 12px 14px; overflow-x: auto; white-space: pre; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button { font: 500 13px var(--sans); color: var(--text); background: transparent; border: 1px solid #FFFFFF2E; border-radius: 999px; padding: 7px 13px; cursor: pointer; }
+button[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.nums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.nums label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--t2); }
+.nums input { width: 100%; font: 500 14px var(--mono); color: var(--text); background: var(--bg); border: 1px solid #FFFFFF2E; border-radius: 8px; padding: 7px 8px; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--t2); }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.phone { position: relative; width: 100%; max-width: 300px; margin: 0 auto; aspect-ratio: 480 / 800; border-radius: 26px; border: 1px solid #2b2e31; overflow: hidden; background: #000; }
+.phone canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.note { margin: 0; color: var(--t2); font-size: 13.5px; }
+.note b { color: var(--text); font-weight: 500; }
+.time { font: 500 13px var(--mono); color: var(--t2); font-variant-numeric: tabular-nums; }
+.status { font-size: 13px; color: var(--t2); }
+.status.ok { color: #3DDC84; } .status.bad { color: #E8343A; }
+[hidden] { display: none !important; }
+.signin { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.signin input { width: 120px; font: 500 16px var(--mono); letter-spacing: 0.2em; color: var(--text); background: var(--bg); border: 1px solid #FFFFFF2E; border-radius: 8px; padding: 8px 10px; }
+.stages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.stages label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--t2); }
+.stages input { width: 100%; font: 500 14px var(--mono); color: var(--text); background: var(--bg); border: 1px solid #FFFFFF2E; border-radius: 8px; padding: 7px 8px; }
+@media (prefers-reduced-motion: reduce) { .phone { opacity: 0.9; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Warm-up curve</h1>
+    <p class="lede">Live on this remote: every change applies at once, so hold the voice key to feel it. The aurora's spread and climb and the background's zoom, blur and dim all follow this curve over the 800 ms the microphone takes to come on. Changes last until r3cui restarts; paste the line below into the code to keep one.</p>
+    <div class="signin" id="signin" hidden>
+      <label for="pin">PIN shown under Settings → Integrations → Set up from a computer</label>
+      <input id="pin" inputmode="numeric" maxlength="4" autocomplete="off">
+      <button id="go">Sign in</button>
+    </div>
+    <p class="status" id="status" role="status">Connecting to the remote…</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-label="Curve editor">
+      <h2>Curve</h2>
+      <canvas id="graph" width="1200" height="900" aria-label="Bezier curve with two draggable handles"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--text)"></i>progress over time</span>
+        <span><i style="background:var(--hop)"></i>speed (how fast it moves at each moment)</span>
+        <span><i style="background:var(--t3)"></i>spread ends · climb starts</span>
+      </div>
+      <div class="nums">
+        <label for="x1">x1<input id="x1" type="number" step="0.01" min="0" max="1"></label>
+        <label for="y1">y1<input id="y1" type="number" step="0.01" min="-0.5" max="1.5"></label>
+        <label for="x2">x2<input id="x2" type="number" step="0.01" min="0" max="1"></label>
+        <label for="y2">y2<input id="y2" type="number" step="0.01" min="-0.5" max="1.5"></label>
+      </div>
+      <div class="row" id="presets" role="group" aria-label="Presets"></div>
+      <div class="stages">
+        <label for="su">Spread ends (share of the warm-up)<input id="su" type="number" step="0.01" min="0.05" max="1"></label>
+        <label for="cf">Climb starts<input id="cf" type="number" step="0.01" min="0" max="0.94"></label>
+      </div>
+      <h2>Paste into crates/r3cui/src/view/voice.rs</h2>
+      <div class="code" id="code"></div>
+    </section>
+
+    <section class="panel" aria-label="Preview">
+      <h2>On the remote</h2>
+      <div class="phone"><canvas id="phone" width="480" height="800" aria-label="Preview of the warm-up on the remote's screen"></canvas></div>
+      <div class="row">
+        <button id="play" aria-pressed="true">Playing</button>
+        <button id="slow" aria-pressed="false">Slow motion ×4</button>
+        <span class="time" id="time">0 ms</span>
+      </div>
+      <p class="note">Loops a hold: the warm-up runs for 800 ms, then the <b>mic goes live</b> (the haptic and the colour bloom), then it resets. The light is simplified; the timing is the real one.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  let SPREAD_UNTIL = 0.45, CLIMB_FROM = 0.38; const WARM_MS = 800, LIVE_HOLD_MS = 700, GAP_MS = 500;
+  const PRESETS = [
+    { name: "Now (ease-in)", c: [0.64, 0.0, 0.78, 0.0] },
+    { name: "Hop, coast, rush", c: [0.10, 0.42, 0.90, 0.35] },
+    { name: "Bigger hop", c: [0.06, 0.55, 0.92, 0.30] },
+    { name: "Softer hop", c: [0.16, 0.30, 0.86, 0.25] },
+  ];
+  let c = PRESETS[1].c.slice();
+
+  // The same solver as crates/r3cui/src/view/ease.rs: find t for x, return y.
+  function bez(c, x) {
+    const [x1, y1, x2, y2] = c;
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    const bx = t => 3 * (1 - t) * (1 - t) * t * x1 + 3 * (1 - t) * t * t * x2 + t * t * t;
+    const by = t => 3 * (1 - t) * (1 - t) * t * y1 + 3 * (1 - t) * t * t * y2 + t * t * t;
+    let lo = 0, hi = 1, t = x;
+    for (let i = 0; i < 40; i++) { if (bx(t) < x) lo = t; else hi = t; t = (lo + hi) / 2; }
+    return by(t);
+  }
+
+  const $ = id => document.getElementById(id);
+  const inputs = ["x1", "y1", "x2", "y2"].map($);
+  const fmt = v => (Math.round(v * 100) / 100).toFixed(2);
+  function sync(fromInputs) {
+    if (fromInputs) c = inputs.map((el, i) => { const v = parseFloat(el.value); return isFinite(v) ? v : c[i]; });
+    c[0] = Math.min(1, Math.max(0, c[0])); c[2] = Math.min(1, Math.max(0, c[2]));
+    inputs.forEach((el, i) => { if (document.activeElement !== el) el.value = fmt(c[i]); });
+    $("code").textContent = `const WARM_CURVE: [f32; 4] = [${c.map(fmt).join(", ")}];\nconst SPREAD_UNTIL: f32 = ${fmt(SPREAD_UNTIL)};\nconst CLIMB_FROM: f32 = ${fmt(CLIMB_FROM)};`;
+    for (const [id, v] of [["su", SPREAD_UNTIL], ["cf", CLIMB_FROM]]) if (document.activeElement !== $(id)) $(id).value = fmt(v);
+    if (!loading) push();
+    document.querySelectorAll("#presets button").forEach((b, i) => b.setAttribute("aria-pressed", String(PRESETS[i].c.every((v, j) => Math.abs(v - c[j]) < 0.005))));
+    drawGraph();
+  }
+  inputs.forEach(el => el.addEventListener("input", () => sync(true)));
+  for (const id of ["su", "cf"]) $(id).addEventListener("input", () => {
+    const su = parseFloat($("su").value), cf = parseFloat($("cf").value);
+    if (isFinite(su)) SPREAD_UNTIL = su; if (isFinite(cf)) CLIMB_FROM = cf; sync(false);
+  });
+
+  // The remote: sign in with the PIN, read what it runs, and send every change.
+  const TOKEN_KEY = "r3cui-tune-token";
+  let token = null, loading = true, timer = 0;
+  try { token = sessionStorage.getItem(TOKEN_KEY); } catch {}
+  const status = (text, kind) => { const el = $("status"); el.textContent = text; el.className = "status " + (kind || ""); };
+  const api = (method, path, body) => fetch(path, { method, headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) }, body: body && JSON.stringify(body) });
+  async function load() {
+    const r = await api("GET", "/api/tune").catch(() => null);
+    if (!r) return status("The remote isn't answering. Is the web configurator still on?", "bad");
+    if (r.status === 401) { $("signin").hidden = false; return status("Sign in to tune this remote."); }
+    const t = await r.json();
+    $("signin").hidden = true;
+    c = t.curve.slice(); SPREAD_UNTIL = t.spread_until; CLIMB_FROM = t.climb_from;
+    loading = true; sync(false); loading = false;
+    status("Live on the remote. Hold the voice key to feel it.", "ok");
+  }
+  function push() {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const r = await api("PUT", "/api/tune", { curve: c, spread_until: SPREAD_UNTIL, climb_from: CLIMB_FROM }).catch(() => null);
+      if (!r) return status("The remote isn't answering.", "bad");
+      if (r.status === 401) { $("signin").hidden = false; return status("Signed out: sign in again.", "bad"); }
+      if (!r.ok) return status((await r.json()).error || "The remote refused it.", "bad");
+      status("Applied on the remote. Hold the voice key to feel it.", "ok");
+    }, 150);
+  }
+  $("go").addEventListener("click", async () => {
+    const r = await api("POST", "/api/login", { pin: $("pin").value }).catch(() => null);
+    if (!r || !r.ok) return status(r ? (await r.json()).error : "The remote isn't answering.", "bad");
+    token = (await r.json()).token; try { sessionStorage.setItem(TOKEN_KEY, token); } catch {}
+    load();
+  });
+  $("pin").addEventListener("keydown", e => { if (e.key === "Enter") $("go").click(); });
+  PRESETS.forEach(p => {
+    const b = document.createElement("button"); b.textContent = p.name;
+    b.addEventListener("click", () => { c = p.c.slice(); sync(false); });
+    $("presets").appendChild(b);
+  });
+
+  // Graph
+  const g = $("graph"), gx = g.getContext("2d");
+  const W = g.width, H = g.height, PAD = { l: 90, r: 40, t: 70, b: 90 };
+  const yMin = -0.2, yMax = 1.2;
+  const px = x => PAD.l + x * (W - PAD.l - PAD.r);
+  const py = y => PAD.t + (1 - (y - yMin) / (yMax - yMin)) * (H - PAD.t - PAD.b);
+  const ux = X => (X - PAD.l) / (W - PAD.l - PAD.r);
+  const uy = Y => yMin + (1 - (Y - PAD.t) / (H - PAD.t - PAD.b)) * (yMax - yMin);
+  function drawGraph() {
+    gx.clearRect(0, 0, W, H);
+    gx.font = "500 24px JetBrains Mono, monospace"; gx.fillStyle = "#53595D"; gx.textAlign = "center";
+    // grid
+    gx.strokeStyle = "#FFFFFF12"; gx.lineWidth = 2;
+    for (let i = 0; i <= 8; i++) { const x = px(i / 8); gx.beginPath(); gx.moveTo(x, py(yMin)); gx.lineTo(x, py(yMax)); gx.stroke(); gx.fillText(`${i * 100}`, x, H - PAD.b + 40); }
+    gx.textAlign = "right";
+    for (const y of [0, 0.25, 0.5, 0.75, 1]) { gx.beginPath(); gx.moveTo(px(0), py(y)); gx.lineTo(px(1), py(y)); gx.stroke(); gx.fillText(y.toFixed(2), PAD.l - 14, py(y) + 8); }
+    gx.textAlign = "center"; gx.fillText("ms held", (px(0) + px(1)) / 2, H - 18);
+    // stage marks
+    gx.setLineDash([10, 10]); gx.strokeStyle = "#53595D";
+    for (const y of [SPREAD_UNTIL, CLIMB_FROM]) { gx.beginPath(); gx.moveTo(px(0), py(y)); gx.lineTo(px(1), py(y)); gx.stroke(); }
+    gx.setLineDash([]);
+    gx.fillStyle = "#8B9195"; gx.textAlign = "left"; gx.font = "500 22px Inter, sans-serif";
+    gx.fillText("spread ends", px(0) + 12, py(SPREAD_UNTIL) - 10);
+    gx.fillText("climb starts", px(0) + 12, py(CLIMB_FROM) + 28);
+    // speed
+    const N = 200, v = [];
+    for (let i = 0; i <= N; i++) { const x = i / N; v.push((bez(c, Math.min(1, x + 0.005)) - bez(c, Math.max(0, x - 0.005))) / 0.01); }
+    const vmax = Math.max(3, ...v);
+    gx.beginPath();
+    v.forEach((s, i) => { const X = px(i / N), Y = py(0) - (s / vmax) * (py(0) - py(1)) * 0.95; i ? gx.lineTo(X, Y) : gx.moveTo(X, Y); });
+    gx.strokeStyle = "#FFC857"; gx.lineWidth = 3; gx.globalAlpha = 0.8; gx.stroke(); gx.globalAlpha = 1;
+    // handles
+    gx.strokeStyle = "#FFFFFF55"; gx.lineWidth = 2;
+    gx.beginPath(); gx.moveTo(px(0), py(0)); gx.lineTo(px(c[0]), py(c[1])); gx.stroke();
+    gx.beginPath(); gx.moveTo(px(1), py(1)); gx.lineTo(px(c[2]), py(c[3])); gx.stroke();
+    // curve
+    gx.beginPath();
+    for (let i = 0; i <= N; i++) { const x = i / N, X = px(x), Y = py(bez(c, x)); i ? gx.lineTo(X, Y) : gx.moveTo(X, Y); }
+    gx.strokeStyle = "#F1F3F3"; gx.lineWidth = 5; gx.stroke();
+    for (const [x, y] of [[c[0], c[1]], [c[2], c[3]]]) {
+      gx.beginPath(); gx.arc(px(x), py(y), 16, 0, Math.PI * 2); gx.fillStyle = "#2E7BFF"; gx.fill();
+      gx.lineWidth = 4; gx.strokeStyle = "#F1F3F3"; gx.stroke();
+    }
+    // playhead
+    if (playhead >= 0) { const X = px(playhead); gx.strokeStyle = "#2E7BFF"; gx.lineWidth = 3; gx.beginPath(); gx.moveTo(X, py(yMin)); gx.lineTo(X, py(yMax)); gx.stroke();
+      gx.beginPath(); gx.arc(X, py(bez(c, playhead)), 10, 0, Math.PI * 2); gx.fillStyle = "#2E7BFF"; gx.fill(); }
+  }
+  let drag = -1;
+  const toCanvas = e => { const r = g.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
+  g.addEventListener("pointerdown", e => {
+    const [X, Y] = toCanvas(e);
+    const d = [[c[0], c[1]], [c[2], c[3]]].map(([x, y]) => Math.hypot(px(x) - X, py(y) - Y));
+    drag = d[0] < d[1] ? 0 : 1; if (Math.min(...d) > 80) drag = -1;
+    if (drag >= 0) g.setPointerCapture(e.pointerId);
+  });
+  g.addEventListener("pointermove", e => {
+    if (drag < 0) return;
+    const [X, Y] = toCanvas(e);
+    c[drag * 2] = Math.min(1, Math.max(0, ux(X))); c[drag * 2 + 1] = Math.min(1.5, Math.max(-0.5, uy(Y)));
+    sync(false);
+  });
+  g.addEventListener("pointerup", () => { drag = -1; });
+
+  // Preview: a simplified aurora front on the real timing.
+  const p = $("phone"), pc = p.getContext("2d"), PW = 480, PH = 800;
+  const home = document.createElement("canvas"); home.width = PW; home.height = PH;
+  (() => { const h = home.getContext("2d"); h.fillStyle = "#000"; h.fillRect(0, 0, PW, PH);
+    const gr = h.createRadialGradient(140, 300, 0, 140, 300, 260); gr.addColorStop(0, "#1b2a4a"); gr.addColorStop(1, "#0000"); h.fillStyle = gr; h.fillRect(0, 0, PW, PH);
+    h.fillStyle = "#6C7276"; h.font = "600 92px Inter, sans-serif"; h.textAlign = "center"; h.fillText("PS", 240, 420);
+    h.fillStyle = "#F1F3F3"; h.font = "200 64px Inter, sans-serif"; h.fillText("86", 260, 690);
+    h.fillStyle = "#8B9195"; h.font = "500 26px Inter, sans-serif"; h.fillText("22:41", 64, 46); })();
+  const PAL = ["#2E7BFF", "#8F5BFF", "#2ED9E6", "#FFB84D"];
+  let start = performance.now(), playing = true, slow = false, playhead = -1;
+  $("play").addEventListener("click", () => { playing = !playing; $("play").setAttribute("aria-pressed", String(playing)); $("play").textContent = playing ? "Playing" : "Paused"; if (playing) start = performance.now() - pausedAt; });
+  $("slow").addEventListener("click", () => { slow = !slow; $("slow").setAttribute("aria-pressed", String(slow)); start = performance.now(); });
+  let pausedAt = 0;
+  function frame(now) {
+    const scale = slow ? 4 : 1, cycle = (WARM_MS + LIVE_HOLD_MS + GAP_MS) * scale;
+    const el = playing ? (now - start) % cycle : pausedAt; pausedAt = el;
+    const ms = el / scale;
+    const t = Math.min(1, ms / WARM_MS);
+    const warm = ms < WARM_MS + LIVE_HOLD_MS ? bez(c, t) : 0;
+    const live = ms >= WARM_MS && ms < WARM_MS + LIVE_HOLD_MS;
+    playhead = ms <= WARM_MS ? t : -1;
+    $("time").textContent = ms < WARM_MS ? `${Math.round(ms)} ms` : live ? "mic live" : "released";
+    // background: zoom 5%, blur, dim, veil
+    pc.clearRect(0, 0, PW, PH); pc.fillStyle = "#000"; pc.fillRect(0, 0, PW, PH);
+    const d = Math.max(0, Math.min(1, warm)), s = 1 - 0.05 * d;
+    pc.save(); pc.translate(PW / 2, PH / 2); pc.scale(s, s); pc.translate(-PW / 2, -PH / 2);
+    pc.filter = `blur(${(14 * d).toFixed(1)}px)`; pc.globalAlpha = 1 - 0.55 * d; pc.drawImage(home, 0, 0); pc.restore();
+    pc.filter = "none"; pc.globalAlpha = 1;
+    pc.fillStyle = `rgba(0,0,0,${(0.72 * d).toFixed(3)})`; pc.fillRect(0, 0, PW, PH);
+    // the front: along the bottom from the centre, then up the sides
+    const spread = Math.min(1, Math.max(0.02, warm / SPREAD_UNTIL));
+    const reach = Math.min(1, Math.max(0, (warm - CLIMB_FROM) / (1 - CLIMB_FROM)));
+    const bloom = live ? Math.min(1, (ms - WARM_MS) / 250) : 0;
+    const halfW = (0.06 + 0.56 * spread) * PW, rise = reach * 0.42 * PH;
+    pc.globalCompositeOperation = "lighter";
+    const glow = (x, y, w, h, i) => {
+      const col = bloom > 0 ? PAL[i % 4] : "#B8BEC2";
+      const a = (0.35 + 0.45 * bloom) * (bloom > 0 ? 1 : 0.6);
+      const gr = pc.createRadialGradient(x, y, 0, x, y, Math.max(w, h));
+      gr.addColorStop(0, col + "ff"); gr.addColorStop(1, col + "00");
+      pc.globalAlpha = a; pc.fillStyle = gr;
+      pc.beginPath(); pc.ellipse(x, y, w, h, 0, 0, Math.PI * 2); pc.fill();
+    };
+    for (let i = 0; i < 9; i++) { const f = i / 8; glow(PW / 2 + (f - 0.5) * 2 * halfW * 0.85, PH + 8, halfW * 0.35, 46 + 30 * spread, i); }
+    if (rise > 2) for (let i = 0; i < 7; i++) { const f = i / 6; glow(0, PH - f * rise, 34, rise * 0.3 + 20, i + 1); glow(PW, PH - f * rise, 34, rise * 0.3 + 20, i + 3); }
+    pc.globalAlpha = 1; pc.globalCompositeOperation = "source-over";
+    drawGraph();
+    requestAnimationFrame(frame);
+  }
+  sync(false);
+  load();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

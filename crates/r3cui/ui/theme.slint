@@ -1,0 +1,146 @@
+// `accent` is the one interface colour. It is in-out so Rust can change it at runtime:
+// `app.global::<Theme>().set_accent(color)`.
+export global Theme {
+    in-out property <color> accent: #E8343A;
+    // Set on the remote, which has no mouse: the display backend would otherwise draw an arrow
+    // under every touch.
+    in-out property <bool> touch-only: false;
+    out property <MouseCursor> cursor: self.touch-only ? MouseCursor.none : MouseCursor.default;
+    // Fixed meanings, independent of the accent: red turns off, green turns on.
+    out property <color> good: #3DDC84;
+    out property <color> off: #E8343A;
+    out property <color> on: #3DDC84;
+    out property <color> bg: #000000;
+    out property <color> text: #F1F3F3;
+    out property <color> text-dim: #F1F3F3B3;
+    out property <color> t2: #8B9195;
+    out property <color> t3: #53595D;
+    // Between t2 and t3: for a large mark that should sit back.
+    out property <color> t2-muted: #6C7276;
+    out property <color> track: #FFFFFF24;
+    out property <color> hair: #FFFFFF14;
+    // A block that stands on the black: a tile, a pill.
+    out property <color> raised: #131314;
+    out property <duration> page-time: 280ms;
+    out property <easing> page-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+    // How far a page sits to the side before it slides in.
+    out property <length> page-offset: 56px;
+    // Under whatever opens over the screen, a list or an overlay: the receded screen shows faintly through.
+    out property <color> veil: #000000B8;
+}
+
+// The screen and the grid every page and row is laid out on.
+export global Layout {
+    out property <length> screen-w: 480px;
+    out property <length> screen-h: 800px;
+    out property <length> margin: 40px;
+    out property <length> content-w: 400px;
+    out property <length> navbar-h: 64px;
+    // What shows of every navbar item but the input's mark is this tall: the clock's digits, the battery, the glyphs.
+    out property <length> navbar-ink: 18px;
+    // The glyphs' 24-unit box, whose paths span 16 units of it: drawn at this size they show navbar-ink tall.
+    out property <length> navbar-glyph: 24px;
+    // A line icon in a tile's corner, and the r3cui wordmark when it stands there instead, about as tall as the UC mark.
+    out property <length> glyph: 24px;
+    out property <length> wordmark-mark: 44px;
+    out property <length> header-y: 64px;
+    out property <length> header-h: 104px;
+    // The round button across from a header's title (the menu's power).
+    out property <length> header-action: 56px;
+    // The header's back arrow and its button's glyph.
+    out property <length> header-glyph: 28px;
+    out property <length> list-top: 168px;
+    out property <length> bottom-inset: 24px;
+    out property <length> row-min: 76px;
+    out property <length> row-max: 96px;
+    out property <length> value-edge: 440px;
+    out property <length> value-edge-trailing: 402px;
+    out property <length> trailing-x: 416px;
+    out property <length> bars-x: 372px;
+    out property <length> lock-x: 336px;
+    out property <length> bar-w: 5px;
+    out property <length> bar-pitch: 8px;
+    out property <length> bar-base: 7px;
+    out property <length> bar-step: 5px;
+    out property <length> bar-radius: 2px;
+    out property <length> bars-drop: 11px;
+    out property <length> focus-bar-w: 4px;
+    out property <length> focus-bar-h: 40px;
+    out property <length> focus-bar-radius: 2px;
+    // A focused block (a tile, a pill) is outlined in the accent instead of barred.
+    out property <length> focus-ring: 4px;
+    // A tile in a grid of actions, two to a row across the content width; a wide one spans the row at row-compact.
+    out property <length> tile-h: 112px;
+    out property <length> hairline: 1px;
+    // A row's height: a list's own rows fit between row-min and row-max; a page's rows use these.
+    out property <length> row-compact: 64px;
+    out property <length> row-detail: 84px;
+    // Between a row's leading mark and its label.
+    out property <length> lead-gap: 18px;
+    // The space between a unique page's parts, smallest to largest.
+    out property <length> gap-xs: 4px;
+    out property <length> gap-s: 8px;
+    out property <length> gap-m: 16px;
+    out property <length> gap-l: 24px;
+    out property <length> gap-xl: 32px;
+    out property <length> dot-size: 14px;
+    // The corner of a block that holds text or a digit: the release notes, a PIN box.
+    out property <length> card-radius: 14px;
+    // A PIN's digit boxes, and a QR code's square.
+    out property <length> pin-w: 72px;
+    out property <length> pin-h: 88px;
+    out property <length> qr: 176px;
+    // A badge: a one-line pill under a heading (the build), its mark, its outline and the space at its ends.
+    out property <length> badge-h: 32px;
+    out property <length> badge-mark: 18px;
+    out property <length> badge-line: 1.5px;
+    out property <length> badge-pad: 12px;
+}
+
+// Font sizes and weights shared across pages.
+export global Type {
+    out property <length> label: 26px;
+    out property <int> label-weight: 400;
+    out property <int> label-focused-weight: 500;
+    out property <length> value: 22px;
+    out property <int> value-weight: 300;
+    out property <length> body: 18px;
+    out property <length> small: 16px;
+    // A row's second line.
+    out property <length> detail: 16px;
+    // The one line a page is about when it has nothing else to show: No inputs found, Hold OK to uninstall.
+    out property <length> headline: 30px;
+    out property <length> label-compact: 22px;
+    out property <length> value-compact: 20px;
+    out property <length> caption: 14px;
+    // A caption is set in capitals and spaced out.
+    out property <length> caption-spacing: 2px;
+    // The big thin numbers: a version, a level. hero is the one a page is about.
+    out property <length> display: 56px;
+    out property <length> hero: 64px;
+    out property <int> display-weight: 200;
+    // How tall Inter's digits are, as a share of the font size: a text sized by what shows divides by this.
+    out property <float> digit-height: 0.747;
+    // Code, such as a commit's hash: every character the same width. A size below `detail`, as the face runs large.
+    out property <string> mono-family: "JetBrains Mono";
+    out property <length> mono: 15px;
+}
+
+// Timings and scale for focus, lift and toggles.
+export global Motion {
+    out property <duration> fade: 140ms;
+    out property <duration> lift: 180ms;
+    out property <float> lift-scale: 1.035;
+    out property <duration> toggle: 160ms;
+    out property <duration> list-scroll: 200ms;
+    // How long the voice overlay stays once it has the answer, and how slowly it then goes.
+    out property <duration> voice-linger: 4s;
+    out property <duration> voice-fade: 1000ms;
+    // One turn of a spinner.
+    out property <duration> spin: 1100ms;
+    // How long the screen takes to step back behind a list or an overlay, and to return.
+    out property <duration> recede: 460ms;
+    // The screen stepping back behind a list or an overlay: how much it shrinks and dims.
+    out property <float> recede-scale: 0.05;
+    out property <float> recede-dim: 0.55;
+}

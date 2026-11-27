@@ -29,7 +29,7 @@ Everything here is from public upstream unless marked "not published".
 | `UC_CONFIG_HOME` | our per-UI config dir (`./config` in the archive) |
 | `UC_DATA_HOME` | our per-UI data dir (`./data` in the archive) |
 | `UC_STATE_HOME` | writable, shared with factory UI; holds core token + onboarding marker |
-| `UC_TOUCHSLIDER_DEV_PATH` | evdev node for the UCR3 capacitive slider (read directly) |
+| `UC_TOUCHSLIDER_DEV_PATH` | evdev node for the UCR3 capacitive slider (read directly; r3cui finds the slider by its device name instead and doesn't read this) |
 | `UC_HAPTIC_DEV_PATH` | sysfs path for the haptic motor (write to pulse) |
 | `UC_SHARE_HOME`, `UC_LEGAL_PATH`, `UC_RESOURCE_PATH`, `UC_ONBOARDING_PATH` | misc paths |
 | `UC_UI_REQUEST_TIMEOUT` | optional, default 10000 ms |
@@ -53,7 +53,7 @@ Symlinks are stripped. `release.json` has **no strictly-required fields** per th
 # install (⚠ writes permanent void_warranty flag)
 curl -u 'web-configurator:<PIN>' \
   'http://<IP>/api/system/install/ui?void_warranty=yes' \
-  --form 'file=@"out/remote-ui.tar.gz"'
+  --form 'file=@"out/r3cui-<version>.tar.gz"'
 
 GET    /api/system/install          # list installed custom components
 GET    /api/system/install/ui       # status of our UI

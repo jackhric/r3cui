@@ -1,0 +1,17 @@
+---
+import svg from '../../../docs/images/logo-dark.svg?raw';
+
+interface Props { class?: string; label?: string }
+const { class: className, label = 'r3cui' } = Astro.props;
+// One outline drawn in currentColor, so the same file serves the dark hero and the light docs header.
+const inline = svg
+  .replace(/<\?xml[^>]*>/, '')
+  .replace(/<!--[\s\S]*?-->/g, '')
+  .replace(/<metadata[\s\S]*?<\/metadata>/g, '')
+  .replace(/<sodipodi:namedview[\s\S]*?(\/>|<\/sodipodi:namedview>)/g, '')
+  .replace(/#ffffff/gi, 'currentColor')
+  .replace(/<svg([^>]*)>/, (_, attrs: string) =>
+    `<svg${attrs.replace(/\s(width|height|id|class)="[^"]*"/g, '')} class="${className ?? ''}" role="img" aria-label="${label}">`);
+---
+
+<Fragment set:html={inline} />
