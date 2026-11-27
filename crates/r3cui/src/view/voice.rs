@@ -13,8 +13,9 @@ use std::time::{Duration, Instant};
 
 const FRAME: Duration = Duration::from_millis(33);
 /// The aurora's entrance: a spike shoots up from the bottom centre, sinks as the light spreads along the edge, and
-/// from a moment after it begins, the light climbs the sides, a little past its height and back.
-const SPIKE_HEIGHT: f32 = 0.1;
+/// from a moment after it begins, the light climbs the sides, a little past its height and back. The spike's height is
+/// how far up its light fades to a third, as a share of the screen; it shows about four times that.
+const SPIKE_HEIGHT: f32 = 0.04;
 const SPIKE_GROW: Duration = Duration::from_millis(90);
 const SPIKE_CURVE: Bezier = Bezier([0.0, 1.6, 0.64, 1.0]);
 /// How quickly the spike sinks as the spread comes in.
