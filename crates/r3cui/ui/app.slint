@@ -181,7 +181,8 @@ export component AppWindow inherits Window {
                     return accept;
                 }
                 if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
-                    if (Nav.page == PageId.display && Nav.focus == Prefs.brightness-row) {
+                    if (Nav.sideways(event.text == Key.LeftArrow ? -1 : 1)) {
+                    } else if (Nav.page == PageId.display && Nav.focus == Prefs.brightness-row) {
                         if (!Prefs.auto-brightness) {
                             Prefs.brightness = max(5, min(100, Prefs.brightness + (event.text == Key.LeftArrow ? -5 : 5)));
                             Prefs.changed();

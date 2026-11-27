@@ -31,6 +31,7 @@ pub(crate) fn show(weak: &slint::Weak<crate::AppWindow>, v: View) {
         s.set_r3_repo(v.r3_repo.into());
         s.set_r3_state(v.r3_state);
         s.set_r3_status(v.r3_status.into());
+        s.set_r3_short(v.r3_short.into());
         s.set_r3_new_version(v.r3_new_version.into());
         s.set_r3_release_line(v.r3_release_line.into());
         s.set_r3_phase(v.r3_phase);

@@ -1,20 +1,37 @@
-import { Theme, Layout } from "../theme.slint";
+import { Theme, Layout, Type } from "../theme.slint";
+import { Glyph } from "../marks/icons.slint";
 
 export component Pill inherits Rectangle {
     in property <string> label;
     in property <bool> focused;
+    // An `Icons` path before the label; empty for none.
+    in property <string> glyph;
+    // Something that can't be undone, such as uninstalling: red, outlined until focused.
+    in property <bool> danger;
     callback tapped();
     x: Layout.margin;
     width: Layout.content-w;
-    height: 64px;
-    border-radius: 32px;
-    background: #131314;
-    border-width: root.focused ? 4px : 0px;
-    border-color: Theme.accent;
-    Text {
-        text: root.label;
-        font-size: 22px;
-        color: root.focused ? Theme.text : Theme.t2;
+    height: Layout.row-compact;
+    border-radius: self.height / 2;
+    background: Theme.raised;
+    border-width: root.focused ? Layout.focus-ring : root.danger ? Layout.hairline : 0px;
+    border-color: root.focused ? Theme.accent : Theme.off;
+    HorizontalLayout {
+        alignment: center;
+        spacing: Layout.gap-s;
+        if root.glyph != "": VerticalLayout {
+            alignment: center;
+            Glyph {
+                commands: root.glyph;
+                tint: root.danger ? Theme.off : Theme.t2;
+            }
+        }
+        Text {
+            text: root.label;
+            font-size: Type.label-compact;
+            color: root.danger ? Theme.off : root.focused ? Theme.text : Theme.t2;
+            vertical-alignment: center;
+        }
     }
     TouchArea {
         mouse-cursor: Theme.cursor;

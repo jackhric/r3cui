@@ -127,8 +127,36 @@ export global Nav {
             : 1
     }
 
+    // A page that opens with a grid of tiles: how many of its first items are tiles, and in how many columns.
+    pure function tiles() -> int {
+        Nav.page == PageId.system ? Software.system-tiles : 0
+    }
+    pure function columns() -> int {
+        Nav.page == PageId.system ? Software.system-columns : 1
+    }
+
+    // Up and down: through a list a row at a time; in a grid, a row of tiles at a time, then on to what is under it.
     public function move(d: int) {
-        Nav.focus = max(0, min(Nav.rows() - 1, Nav.focus + d));
+        if (Nav.focus < Nav.tiles()) {
+            Nav.focus = Nav.focus + d * Nav.columns() < 0 ? Nav.focus : min(Nav.focus + d * Nav.columns(), Nav.tiles());
+        } else if (Nav.focus == Nav.tiles() && d < 0 && Nav.tiles() > 0) {
+            Nav.focus = Nav.tiles() - Nav.columns();
+        } else {
+            Nav.focus = max(0, min(Nav.rows() - 1, Nav.focus + d));
+        }
+    }
+
+    // Left and right across a grid's row; `false` where there is nothing to that side, for the page to decide.
+    public function sideways(d: int) -> bool {
+        if (Nav.focus >= Nav.tiles()) {
+            return false;
+        }
+        let column = Math.mod(Nav.focus, Nav.columns());
+        if (column + d < 0 || column + d >= Nav.columns()) {
+            return d > 0;
+        }
+        Nav.focus += d;
+        true
     }
 
     function activate-menu(i: int) {

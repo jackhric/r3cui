@@ -19,6 +19,8 @@ export global Theme {
     out property <color> t2-muted: #6C7276;
     out property <color> track: #FFFFFF24;
     out property <color> hair: #FFFFFF14;
+    // A block that stands on the black: a tile, a pill.
+    out property <color> raised: #131314;
     out property <duration> page-time: 280ms;
     out property <easing> page-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
     // How far a page sits to the side before it slides in.
@@ -38,6 +40,8 @@ export global Layout {
     out property <length> navbar-ink: 18px;
     // The glyphs' 24-unit box, whose paths span 16 units of it: drawn at this size they show navbar-ink tall.
     out property <length> navbar-glyph: 24px;
+    // A line icon in a tile's corner.
+    out property <length> glyph: 24px;
     out property <length> header-y: 64px;
     out property <length> header-h: 104px;
     out property <length> list-top: 168px;
@@ -58,6 +62,10 @@ export global Layout {
     out property <length> focus-bar-w: 4px;
     out property <length> focus-bar-h: 40px;
     out property <length> focus-bar-radius: 2px;
+    // A focused block (a tile, a pill) is outlined in the accent instead of barred.
+    out property <length> focus-ring: 4px;
+    // A tile in a grid of actions, two to a row across the content width.
+    out property <length> tile-h: 132px;
     out property <length> hairline: 1px;
     // A row's height: a list's own rows fit between row-min and row-max; a page's rows use these.
     out property <length> row-compact: 64px;

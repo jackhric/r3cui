@@ -106,6 +106,17 @@ impl Check {
         }
     }
 
+    /// The update tile's second line: the release's size when there is one, otherwise when it last looked.
+    fn short(self, now: Instant, release: Option<&Release>) -> String {
+        match (self, release.map(|r| r.size).filter(|&size| size > 0)) {
+            (_, Some(size)) => size_label(size),
+            (Self::Never, _) => "Not checked yet".into(),
+            (Self::Running, _) => String::new(),
+            (Self::Done { ok: false, .. }, _) => "Couldn’t check".into(),
+            (Self::Done { at, .. }, _) => ago(now.duration_since(at)),
+        }
+    }
+
     fn line(self, now: Instant, has_update: bool, new: &str) -> String {
         match self {
             _ if has_update => format!("Update available · {new}"),
@@ -489,6 +500,7 @@ impl Software {
             r3_repo: REPO_PATH.to_string(),
             r3_state: r3.check.state(has_r3),
             r3_status: r3.check.line(now, has_r3, &new_r3),
+            r3_short: r3.check.short(now, r3.release.as_ref()),
             r3_release_line: r3.release.as_ref().map(|r| release_line(&r.published_at, r.size)).unwrap_or_default(),
             r3_qr_text: r3.release.as_ref().map(|r| r.page_url.clone()).unwrap_or_default(),
             r3_new_version: new_r3,
@@ -548,6 +560,8 @@ pub(crate) struct View {
     /// The release it is (or is built from), without the build after a `+`.
     pub(crate) r3_version: String,
     pub(crate) r3_build: Build,
+    /// Under the update tile's title: "6.8 MB", "2 min ago".
+    pub(crate) r3_short: String,
     pub(crate) r3_repo: String,
     pub(crate) r3_state: UpdateState,
     pub(crate) r3_status: String,
