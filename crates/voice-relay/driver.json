@@ -11,5 +11,9 @@
     "name": "r3cui",
     "url": "https://github.com/jackhric/r3cui"
   },
-  "home_page": "https://github.com/jackhric/r3cui"
+  "home_page": "https://github.com/jackhric/r3cui",
+  "setup_data_schema": {
+    "title": { "en": "r3cui voice" },
+    "settings": []
+  }
 }

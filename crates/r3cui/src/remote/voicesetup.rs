@@ -20,9 +20,11 @@ const INSTALL_PATH: &str = "/api/intg/install";
 const UPDATE: (&str, &str) = ("update", "true");
 const SETUP_PATH: &str = "/api/intg/setup";
 const INSTANCES_PATH: &str = "/api/intg/instances";
-/// The relay has nothing to ask, so setup ends at once; this is ample.
+/// The relay has nothing to ask, so setup ends at once, and its entity shows a moment later; this is ample for both.
 const SETUP_WITHIN: Duration = Duration::from_secs(30);
 const SETUP_POLL: Duration = Duration::from_millis(500);
+/// Every entity the integration offers, configured or not, asked of the integration afresh.
+const OFFERED: &str = "entities?filter=ALL&reload=true";
 
 /// What the System page's voice tile shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,6 +86,11 @@ struct Instance {
 }
 
 #[derive(Deserialize)]
+struct Offered {
+    entity_id: String,
+}
+
+#[derive(Deserialize)]
 struct Setup {
     state: String,
     #[serde(default)]
@@ -104,8 +111,26 @@ fn set_up(rest: &Rest, archive: &std::path::Path) -> Result<String, RestError> {
             instance(rest)?.ok_or_else(|| RestError::Unexpected("set up, but no integration to show for it".into()))?
         }
     };
-    let _: serde_json::Value = rest.post(&format!("{INSTANCES_PATH}/{integration}/entities"), &json!([RELAY_ENTITY_ID]))?;
+    let entities = format!("{INSTANCES_PATH}/{integration}/entities");
+    // Right after setup the core may not have the relay's entities yet, and it skips an id it does not know without
+    // saying so.
+    wait_for_entity(rest, &format!("{INSTANCES_PATH}/{integration}/{OFFERED}"))?;
+    let _: serde_json::Value = rest.post(&entities, &json!([RELAY_ENTITY_ID]))?;
     Ok(entity_of(&integration))
+}
+
+fn wait_for_entity(rest: &Rest, offered: &str) -> Result<(), RestError> {
+    let until = Instant::now() + SETUP_WITHIN;
+    loop {
+        let all: Vec<Offered> = rest.get(offered)?.unwrap_or_default();
+        if all.iter().any(|e| e.entity_id == RELAY_ENTITY_ID) {
+            return Ok(());
+        }
+        if Instant::now() >= until {
+            return Err(RestError::Unexpected(format!("the integration did not offer its {RELAY_ENTITY_ID} entity")));
+        }
+        std::thread::sleep(SETUP_POLL);
+    }
 }
 
 fn instance(rest: &Rest) -> Result<Option<String>, RestError> {
@@ -152,6 +177,7 @@ mod tests {
 
     const DRIVER: &str = "/api/intg/drivers/r3cui_voice";
     const ENTITIES: &str = "/api/intg/instances/r3cui_voice.main/entities";
+    const OFFER: &str = r#"[{"entity_id":"voice","entity_type":"voice_assistant"}]"#;
     const ONE: &str = r#"[{"integration_id":"hass.main","driver_id":"hass"},{"integration_id":"r3cui_voice.main","driver_id":"r3cui_voice"}]"#;
 
     #[test]
@@ -160,12 +186,14 @@ mod tests {
             Canned::answer("POST", INSTALL_PATH, 201, r#"{"driver_id":"r3cui_voice"}"#),
             Canned::answer("POST", SETUP_PATH, 201, r#"{"id":"r3cui_voice","state":"OK"}"#),
             Canned::ok(INSTANCES_PATH, ONE),
+            Canned::ok(ENTITIES, OFFER),
             Canned::answer("POST", ENTITIES, 201, r#"["r3cui_voice.main.voice"]"#),
         ]);
         let rest = Rest::at(vec![format!("http://{}", http.addr())], "1");
         assert_eq!(set_up(&rest, &tarball()).unwrap(), "r3cui_voice.main.voice");
-        assert_eq!(calls(&http), [format!("GET {DRIVER}"), format!("POST {INSTALL_PATH}"), format!("GET {INSTANCES_PATH}"), format!("POST {ENTITIES}")]);
-        assert_eq!(http.requests()[3].body, br#"["voice"]"#);
+        let offered = format!("GET {ENTITIES}?filter=ALL&reload=true");
+        assert_eq!(calls(&http), [format!("GET {DRIVER}"), format!("POST {INSTALL_PATH}"), format!("GET {INSTANCES_PATH}"), offered, format!("POST {ENTITIES}")]);
+        assert_eq!(http.requests()[4].body, br#"["voice"]"#);
     }
 
     #[test]
@@ -175,6 +203,7 @@ mod tests {
                 Canned::ok(DRIVER, format!(r#"{{"driver_id":"r3cui_voice","version":"{version}"}}"#)),
                 Canned::answer("POST", INSTALL_PATH, 201, "{}"),
                 Canned::ok(INSTANCES_PATH, ONE),
+                Canned::ok(ENTITIES, OFFER),
                 Canned::answer("POST", ENTITIES, 201, "[]"),
             ]
         };

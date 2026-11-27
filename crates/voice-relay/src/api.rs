@@ -310,6 +310,7 @@ mod tests {
         let meta = driver_metadata();
         assert_eq!(meta["version"], DRIVER_VERSION);
         assert_eq!(meta["driver_id"], voicelink::RELAY_DRIVER_ID);
-        assert!(meta.get("setup_data_schema").is_none());
+        // The core refuses a driver.json without one, though the relay has nothing to ask.
+        assert_eq!(meta["setup_data_schema"]["settings"], serde_json::json!([]));
     }
 }
