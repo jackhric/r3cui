@@ -65,6 +65,11 @@ export global Layout {
     out property <length> dot-size: 14px;
     // The corner of a block that holds text or a digit: the release notes, a PIN box.
     out property <length> card-radius: 14px;
+    // A badge: a one-line pill under a heading (the build), its mark, its outline and the space at its ends.
+    out property <length> badge-h: 32px;
+    out property <length> badge-mark: 18px;
+    out property <length> badge-line: 1.5px;
+    out property <length> badge-pad: 12px;
 }
 
 // Font sizes and weights shared across pages.
@@ -91,6 +96,9 @@ export global Type {
     out property <int> display-weight: 200;
     // How tall Inter's digits are, as a share of the font size: a text sized by what shows divides by this.
     out property <float> digit-height: 0.747;
+    // Code, such as a commit's hash: every character the same width. A size below `detail`, as the face runs large.
+    out property <string> mono-family: "JetBrains Mono";
+    out property <length> mono: 15px;
 }
 
 // Timings and scale for focus, lift and toggles.

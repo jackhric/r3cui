@@ -485,7 +485,7 @@ impl Software {
         let configurator = (!self.web.address.is_empty()).then(|| format!("{}{CONFIGURATOR_PATH}", self.web.address));
         View {
             r3_version: Version::new(self.running.major, self.running.minor, self.running.patch).to_string() + &prerelease(&self.running),
-            r3_build: build_line(&self.running),
+            r3_build: Build::of(&self.running),
             r3_repo: REPO_PATH.to_string(),
             r3_state: r3.check.state(has_r3),
             r3_status: r3.check.line(now, has_r3, &new_r3),
@@ -525,9 +525,21 @@ fn prerelease(v: &Version) -> String {
     if v.pre.is_empty() { String::new() } else { format!("-{}", v.pre) }
 }
 
-/// A build that is not a release, as the System page names it under the version: `Build g1eb1474 · demo`.
-fn build_line(v: &Version) -> String {
-    if v.build.is_empty() { String::new() } else { format!("Build {}", v.build.as_str().replace('.', " · ")) }
+/// What a build that is not a release adds after the `+` (`g1eb1474.demo`, from scripts/version.sh): the commit it
+/// came from, without git's `g`, and the features it was built with. Both empty for a release.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Build {
+    pub(crate) commit: String,
+    pub(crate) features: String,
+}
+
+impl Build {
+    fn of(v: &Version) -> Self {
+        let mut parts = v.build.as_str().split('.').filter(|p| !p.is_empty()).peekable();
+        let is_commit = |p: &&str| p.strip_prefix('g').is_some_and(|h| !h.is_empty() && h.chars().all(|c| c.is_ascii_hexdigit()));
+        let commit = parts.next_if(is_commit).map(|p| p[1..].to_string()).unwrap_or_default();
+        Self { commit, features: parts.collect::<Vec<_>>().join(" · ") }
+    }
 }
 
 /// Everything the System pages show, as plain values for `view::software::show`.
@@ -535,8 +547,7 @@ fn build_line(v: &Version) -> String {
 pub(crate) struct View {
     /// The release it is (or is built from), without the build after a `+`.
     pub(crate) r3_version: String,
-    /// Empty for a release.
-    pub(crate) r3_build: String,
+    pub(crate) r3_build: Build,
     pub(crate) r3_repo: String,
     pub(crate) r3_state: UpdateState,
     pub(crate) r3_status: String,
@@ -635,10 +646,13 @@ mod tests {
     #[test]
     fn a_build_shows_its_release_large_and_the_build_under_it() {
         let v = |s| Version::parse(s).unwrap();
-        assert_eq!(build_line(&v("0.2.0+g1eb1474.demo")), "Build g1eb1474 · demo");
-        assert_eq!(build_line(&v("0.2.0")), "");
+        let build = |s| Build::of(&v(s));
+        assert_eq!(build("0.2.0+g1eb1474.demo.lab"), Build { commit: "1eb1474".into(), features: "demo · lab".into() });
+        assert_eq!(build("0.2.0+demo"), Build { commit: String::new(), features: "demo".into() }, "a release built with features");
+        assert_eq!(build("0.2.0+unknown"), Build { commit: String::new(), features: "unknown".into() });
+        assert_eq!(build("0.2.0"), Build::default());
         let view = Software::new(v("0.2.0-rc.1+g1eb1474"), || "0000".into()).view(Instant::now(), 100);
-        assert_eq!((view.r3_version.as_str(), view.r3_build.as_str()), ("0.2.0-rc.1", "Build g1eb1474"));
+        assert_eq!((view.r3_version.as_str(), view.r3_build.commit.as_str()), ("0.2.0-rc.1", "1eb1474"));
     }
     use coreapi::{AvailableUpdate, UpdateProgress};
 

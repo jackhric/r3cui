@@ -1,0 +1,64 @@
+import { Theme, Layout, Type } from "../theme.slint";
+import { Logos } from "../marks/logos.slint";
+
+// Which commit a build that is not a release came from: the GitHub mark in a white cap, then the commit's hash, then,
+// in a grey end, the features it was built with, if any.
+export component BuildBadge inherits Rectangle {
+    in property <string> commit;
+    in property <string> features;
+    height: Layout.badge-h;
+    border-radius: self.height / 2;
+    background: Theme.bg;
+    border-width: Layout.badge-line;
+    border-color: Theme.text;
+
+    HorizontalLayout {
+        Rectangle {
+            background: Theme.text;
+            border-top-left-radius: root.border-radius;
+            border-bottom-left-radius: root.border-radius;
+            HorizontalLayout {
+                padding-left: Layout.badge-pad;
+                padding-right: Layout.gap-s;
+                alignment: center;
+                VerticalLayout {
+                    alignment: center;
+                    Path {
+                        width: Layout.badge-mark;
+                        height: Layout.badge-mark;
+                        viewbox-width: 24;
+                        viewbox-height: 24;
+                        commands: Logos.github;
+                        fill: Theme.bg;
+                        stroke: transparent;
+                    }
+                }
+            }
+        }
+        Text {
+            text: root.commit;
+            font-family: Type.mono-family;
+            font-size: Type.mono;
+            color: Theme.text;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            min-width: self.preferred-width + Layout.gap-s + Layout.badge-pad;
+        }
+        if root.features != "": Rectangle {
+            background: Theme.t2;
+            border-top-right-radius: root.border-radius;
+            border-bottom-right-radius: root.border-radius;
+            HorizontalLayout {
+                padding-left: Layout.gap-s;
+                padding-right: Layout.badge-pad;
+                Text {
+                    text: root.features;
+                    font-family: Type.mono-family;
+                    font-size: Type.mono;
+                    color: Theme.bg;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}

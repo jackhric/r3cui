@@ -26,7 +26,8 @@ pub(crate) fn show(weak: &slint::Weak<crate::AppWindow>, v: View) {
     ui(weak, move |app| {
         let s = app.global::<Shown>();
         s.set_r3_version(v.r3_version.into());
-        s.set_r3_build(v.r3_build.into());
+        s.set_r3_commit(v.r3_build.commit.into());
+        s.set_r3_features(v.r3_build.features.into());
         s.set_r3_repo(v.r3_repo.into());
         s.set_r3_state(v.r3_state);
         s.set_r3_status(v.r3_status.into());

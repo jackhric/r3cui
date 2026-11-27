@@ -10,6 +10,7 @@ import { Caption } from "../../widgets/caption.slint";
 import { PageBody, Gap, Spring, Inset } from "../../widgets/page-body.slint";
 import { PageHeader } from "../../widgets/page-header.slint";
 import { Row } from "../../widgets/row.slint";
+import { BuildBadge } from "../../widgets/build-badge.slint";
 
 export component SystemPage inherits Layer {
     page: PageId.system;
@@ -32,11 +33,14 @@ export component SystemPage inherits Layer {
             font-weight: Type.display-weight;
             color: Theme.text;
         }
-        if Software.r3-build != "": Text {
-            horizontal-alignment: center;
-            text: Software.r3-build;
-            font-size: Type.detail;
-            color: Theme.t3;
+        if Software.r3-commit != "" || Software.r3-features != "": HorizontalLayout {
+            alignment: center;
+            padding-top: Layout.gap-xs;
+            padding-bottom: Layout.gap-xs;
+            BuildBadge {
+                commit: Software.r3-commit;
+                features: Software.r3-features;
+            }
         }
         HorizontalLayout {
             alignment: center;

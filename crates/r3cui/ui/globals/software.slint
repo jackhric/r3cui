@@ -12,8 +12,10 @@ export global Software {
     out property <int> system-rows: 5;
 
     in property <string> r3-version;
-    // A build that is not a release, "Build g1eb1474 · demo"; empty for one.
-    in property <string> r3-build;
+    // A build that is not a release: the commit it came from ("1eb1474") and the features it was built with ("demo");
+    // both empty for a release.
+    in property <string> r3-commit;
+    in property <string> r3-features;
     // Where the releases are read about, without the scheme.
     in property <string> r3-repo;
     in property <UpdateState> r3-state: UpdateState.unchecked;

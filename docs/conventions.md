@@ -55,7 +55,8 @@ minor, `!` a major; before 1.0 a break is a minor) and tags `vX.Y.Z`, which `rel
 
 Every build knows what it is: `scripts/version.sh` gives the release's own version for the tagged commit, and
 otherwise adds the commit as build metadata (`0.2.0+g1eb1474`; a device build with extra features adds them,
-`0.2.0+g1eb1474.demo`). The app shows and reports that (`env!("R3CUI_VERSION")`, set by its build script),
+`0.2.0+g1eb1474.demo`). The app reports that (`env!("R3CUI_VERSION")`, set by its build script) and shows it on the System
+page as the release large with a `BuildBadge` under it (the GitHub mark, the commit, any features; none for a release),
 `pack.sh` names the archive for it (`r3cui-0.2.0+g1eb1474.tar.gz`) and writes it into the archive's
 `release.json`. A release's archive is `r3cui-<version>.tar.gz`, the name the self-update and the installers look
 for; build metadata never counts as newer.
