@@ -87,7 +87,7 @@ impl Frontend {
     #[cfg(feature = "demo")]
     pub(crate) fn demo(weak: slint::Weak<AppWindow>) -> Self {
         let modules = demo::modules();
-        Self { host: Host::new(crate::app::registry::registry(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new(), software: Software::new(semver::Version::parse(demo::data::R3_RUNNING).expect("the demo's version is semver"), demo_pins()) }
+        Self { host: Host::new(crate::app::registry::registry(), modules), store: None, global: Global::default(), wall: Wall::new(weak), settings: Integrations::default(), pairer: None, poster_url: String::new(), software: Software::new(crate::remote::selfupdate::current_version(), demo_pins()) }
     }
 
     /// Changes from the Integrations pages: saved, then applied.

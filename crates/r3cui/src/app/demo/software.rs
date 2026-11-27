@@ -113,10 +113,13 @@ fn progress(state: UpdateRunState, step: u32, percent: u8) -> UpdateProgress {
     UpdateProgress { state, download_percent: Some(percent), total_steps: Some(FIRMWARE_STEPS), current_step: Some(step), current_percent: Some(percent) }
 }
 
+/// The next minor release after the build that runs, so the demo always has an update to offer.
 pub(crate) fn release() -> Release {
+    let running = crate::remote::selfupdate::current_version();
+    let version = Version::new(running.major, running.minor + 1, 0);
     Release {
-        version: Version::parse(R3_UPDATE).expect("the demo's version is semver"),
-        page_url: R3_RELEASE_URL.into(),
+        page_url: format!("https://{}/releases/tag/v{version}", crate::remote::selfupdate::REPO_PATH),
+        version,
         published_at: R3_RELEASE_DATE.into(),
         size: R3_SIZE,
         download_url: String::new(),

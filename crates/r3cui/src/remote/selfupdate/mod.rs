@@ -83,6 +83,9 @@ pub(crate) fn parse_release(json: &str) -> Result<Release> {
     Ok(Release { version, page_url: r.html_url, published_at: r.published_at, size: asset.size, download_url: asset.browser_download_url, sha256 })
 }
 
+/// The commit this build came from, 7 hex digits (`scripts/version.sh --commit`); empty outside a git checkout.
+pub(crate) const COMMIT: &str = env!("R3CUI_COMMIT");
+
 /// The version this build is, from `scripts/version.sh`: a release's own, or one with the commit after a `+`.
 pub(crate) fn current_version() -> Version {
     Version::parse(env!("R3CUI_VERSION")).expect("scripts/version.sh gives semver")

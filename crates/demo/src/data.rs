@@ -68,10 +68,7 @@ pub const FIRMWARE_RELEASE_DATE: &str = "2026-11-10";
 pub const FIRMWARE_SIZE: u64 = 118_000_000;
 pub const FIRMWARE_NOTES: &str = "Wi-Fi reconnects faster after a router restart, the charging light no longer flickers at 99%, and the dock stays paired through firmware updates.";
 pub const FIRMWARE_STEPS: u32 = 4;
-/// The version of r3cui the demo claims to be running, so that the update is newer whatever the crate's version is.
-pub const R3_RUNNING: &str = "0.1.0";
-pub const R3_UPDATE: &str = "0.2.0";
-pub const R3_RELEASE_URL: &str = "https://github.com/jackhric/r3cui/releases/tag/v0.2.0";
+/// The made-up r3cui release: the demo runs as the build it is, and offers the next minor version as this.
 pub const R3_RELEASE_DATE: &str = "2026-11-20";
 pub const R3_SIZE: u64 = 6_800_000;
 /// The PINs the made-up core hands out in turn, so a recording shows the same ones every time.

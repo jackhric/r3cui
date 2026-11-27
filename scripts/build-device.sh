@@ -17,10 +17,12 @@ CARGO_REGISTRY=${CARGO_REGISTRY:-ucr3-ui-cargo-registry}
 version=$("$repo/scripts/version.sh")
 [ -n "${R3CUI_FEATURES:-}" ] && version="$version$(case $version in *+*) echo . ;; *) echo + ;; esac)$(echo "$R3CUI_FEATURES" | tr ',' '.')"
 export R3CUI_VERSION="$version"
+R3CUI_COMMIT=$("$repo/scripts/version.sh" --commit)
+export R3CUI_COMMIT
 [ -x "$UC_SDK/bin/aarch64-none-linux-gnu-gcc" ] || { echo "SDK not found at $UC_SDK (set UC_SDK)" >&2; exit 1; }
 
 docker run --rm \
-    -e R3CUI_VERSION \
+    -e R3CUI_VERSION -e R3CUI_COMMIT \
     -v "$repo":/src -v "$UC_SDK":/sdk \
     -v "$CARGO_REGISTRY":/usr/local/cargo/registry \
     -w /src rust:1.100.0-bookworm sh -euc '
