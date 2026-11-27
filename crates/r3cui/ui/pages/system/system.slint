@@ -59,7 +59,7 @@ export component SystemPage inherits Layer {
                         : Software.r3-state == UpdateState.current ? "Up to date"
                         : "Check for updates";
                     value: Software.r3-short;
-                    glyph: root.available ? Icons.download : Software.r3-state == UpdateState.current ? Icons.check : "";
+                    r3-mark: true;
                     accent: root.available;
                     focused: Nav.focus == Software.action-row;
                     tapped => { Nav.activate(Software.action-row); }
@@ -69,7 +69,7 @@ export component SystemPage inherits Layer {
                     col: 1;
                     title: "Remote control";
                     value: RemoteControl.on ? "On" : "Off";
-                    glyph: Icons.remote;
+                    r3-mark: true;
                     focused: Nav.focus == Software.control-row;
                     tapped => { Nav.activate(Software.control-row); }
                 }
@@ -89,7 +89,7 @@ export component SystemPage inherits Layer {
                     col: 1;
                     title: "Web configurator";
                     value: Software.web-on ? "On" : "Off";
-                    glyph: Icons.globe;
+                    uc-mark: true;
                     focused: Nav.focus == Software.web-row;
                     tapped => { Nav.activate(Software.web-row); }
                 }

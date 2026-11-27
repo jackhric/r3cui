@@ -1,6 +1,6 @@
 import { Theme, Layout, Type, Motion } from "../theme.slint";
 import { Glyph } from "../marks/icons.slint";
-import { UcMark } from "../marks/brand.slint";
+import { R3Wordmark, UcMark } from "../marks/brand.slint";
 import { Dot } from "../types.slint";
 import { StatusDot } from "status-dot.slint";
 
@@ -11,8 +11,10 @@ export component Tile inherits Rectangle {
     in property <string> value;
     // An `Icons` path for the corner; empty for none.
     in property <string> glyph;
-    // The Unfolded Circle mark in the corner instead: a setting of the remote itself.
+    // Whose it is, in the corner instead of a glyph: the Unfolded Circle mark for the remote's own, the r3cui wordmark
+    // for r3cui's.
     in property <bool> uc-mark;
+    in property <bool> r3-mark;
     in property <Dot> dot: Dot.none;
     // The title in the accent: the tile is what the page wants done next.
     in property <bool> accent;
@@ -21,7 +23,7 @@ export component Tile inherits Rectangle {
 
     property <float> lift: root.focused || ta.has-hover ? Motion.lift-scale : 1;
     animate lift { duration: Motion.lift; easing: ease-out; }
-    property <length> mark: Layout.glyph;
+    property <length> mark: root.r3-mark ? Layout.wordmark-mark : Layout.glyph;
 
     height: Layout.tile-h;
     border-radius: Layout.card-radius;
@@ -44,6 +46,12 @@ export component Tile inherits Rectangle {
         y: Layout.gap-m + (root.mark - self.height) / 2;
         wide: root.mark;
         tint: Theme.t2;
+    }
+    if root.r3-mark: R3Wordmark {
+        x: parent.width - Layout.gap-m - self.width;
+        y: Layout.gap-m + (Layout.glyph - self.height) / 2;
+        wide: Layout.wordmark-mark;
+        tint: root.accent ? Theme.accent : Theme.t2;
     }
     VerticalLayout {
         padding: Layout.gap-m;
