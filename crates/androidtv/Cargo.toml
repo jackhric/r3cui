@@ -19,7 +19,7 @@ prost = "0.14"
 serde.workspace = true
 tracing.workspace = true
 thiserror = "2"
-wsclient = { path = "../wsclient" }
+wsclient = { path = "../wsclient", features = ["tls"] }
 
 [dev-dependencies]
 androidtv = { path = ".", features = ["testing"] }

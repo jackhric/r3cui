@@ -8,7 +8,7 @@ description = "r3cui's own Home Assistant client: the WebSocket API, entity stat
 [dependencies]
 r3cui-sdk = { path = "../sdk", optional = true }
 tokio.workspace = true
-wsclient = { path = "../wsclient" }
+wsclient = { path = "../wsclient", features = ["tls"] }
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true

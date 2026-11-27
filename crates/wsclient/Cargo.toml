@@ -7,18 +7,21 @@ description = "The WebSocket plumbing r3cui's driver crates share: a pinged conn
 
 [dependencies]
 tokio.workspace = true
-tokio-tungstenite = { workspace = true, features = ["__rustls-tls"] }
-rustls.workspace = true
-webpki-roots = "0.26"
+tokio-tungstenite.workspace = true
+rustls = { workspace = true, optional = true }
+webpki-roots = { version = "0.26", optional = true }
 futures-util.workspace = true
 tracing.workspace = true
 thiserror = "2"
 
 [features]
+# wss:// (rustls on ring). Off by default: it needs a C compiler for the target, which the relay's static build has not.
+tls = ["tokio-tungstenite/__rustls-tls", "dep:rustls", "dep:webpki-roots"]
 # A reusable in-process WebSocket server for faking a device in tests, and test helpers.
 testing = []
 
 [dev-dependencies]
+wsclient = { path = ".", features = ["tls"] }
 tokio = { workspace = true, features = ["test-util"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 rcgen = { version = "0.14", default-features = false, features = ["ring"] }

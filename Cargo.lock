@@ -6115,6 +6115,7 @@ dependencies = [
  "tokio-tungstenite",
  "tracing",
  "webpki-roots 0.26.11",
+ "wsclient",
 ]
 
 [[package]]

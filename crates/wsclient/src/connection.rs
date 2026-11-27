@@ -4,8 +4,7 @@ use tokio::sync::mpsc;
 use tokio::time::{interval, sleep, Instant};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::Connector;
-
+#[cfg(feature = "tls")]
 use crate::tls::{self, Trust};
 
 const PING_EVERY: Duration = Duration::from_secs(10);
@@ -66,20 +65,36 @@ pub async fn connect(request: impl IntoClientRequest) -> Result<Connection, Conn
     connect_with(request, Timing::default()).await
 }
 
+#[cfg(feature = "tls")]
 pub async fn connect_trusting(request: impl IntoClientRequest, trust: Trust) -> Result<Connection, ConnectError> {
-    open(request, Timing::default(), trust).await
+    let config = tls::client_config(trust).map_err(|e| ConnectError { url: String::new(), reason: e.to_string() })?;
+    open(request, Timing::default(), Some(tokio_tungstenite::Connector::Rustls(config))).await
 }
 
 pub async fn connect_with(request: impl IntoClientRequest, timing: Timing) -> Result<Connection, ConnectError> {
-    open(request, timing, Trust::Verified).await
+    #[cfg(feature = "tls")]
+    let connector = Some(tokio_tungstenite::Connector::Rustls(tls::client_config(Trust::Verified).map_err(|e| ConnectError { url: String::new(), reason: e.to_string() })?));
+    open(
+        request,
+        timing,
+        #[cfg(feature = "tls")]
+        connector,
+    )
+    .await
 }
 
-async fn open(request: impl IntoClientRequest, timing: Timing, trust: Trust) -> Result<Connection, ConnectError> {
+async fn open(
+    request: impl IntoClientRequest,
+    timing: Timing,
+    #[cfg(feature = "tls")] connector: Option<tokio_tungstenite::Connector>,
+) -> Result<Connection, ConnectError> {
     let request = request.into_client_request().map_err(|e| ConnectError { url: String::new(), reason: e.to_string() })?;
     let url = request.uri().to_string();
     let failed = |reason: String| ConnectError { url: url.clone(), reason };
-    let connector = Connector::Rustls(tls::client_config(trust).map_err(|e| failed(e.to_string()))?);
-    let connecting = tokio_tungstenite::connect_async_tls_with_config(request, None, false, Some(connector));
+    #[cfg(feature = "tls")]
+    let connecting = tokio_tungstenite::connect_async_tls_with_config(request, None, false, connector);
+    #[cfg(not(feature = "tls"))]
+    let connecting = tokio_tungstenite::connect_async(request);
     let (socket, _) = tokio::time::timeout(timing.connect_within, connecting)
         .await
         .map_err(|_| failed(format!("no answer in {:?}", timing.connect_within)))?
