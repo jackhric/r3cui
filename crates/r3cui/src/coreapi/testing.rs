@@ -25,6 +25,8 @@ pub struct FakeState {
     pub voice_assistants: Vec<Value>,
     /// Each `execute_entity_command` received, in order.
     pub entity_commands: Vec<EntityCommand>,
+    /// Each `system_cmd`'s command, in order.
+    pub system_commands: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -56,6 +58,7 @@ impl FakeState {
             voice_cfg: json!({"microphone": true, "voice_assistant": {"active": voice_assistant(), "profile_id": "p1", "speech_response": false}}),
             voice_assistants: vec![voice_assistant()],
             entity_commands: Vec::new(),
+            system_commands: Vec::new(),
         }
     }
 
@@ -182,6 +185,10 @@ impl Peer<Value> for FakeCore {
                     params: data.get("params").cloned(),
                 });
                 Reply::say(answer(200, json!({})))
+            }
+            Some(messages::SYSTEM_CMD) => {
+                state.system_commands.push(data["command"].as_str().unwrap_or_default().to_string());
+                Reply::say(answer(200, json!({}))).then_close()
             }
             _ => Reply::say(answer(404, json!({"message": "nope"}))),
         }

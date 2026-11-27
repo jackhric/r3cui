@@ -9,7 +9,7 @@ Requests the UI sends today (`crates/r3cui/src/remote/`, `hardware/backlight.rs`
 `get_battery_charger`, `get_display_cfg` / `set_display_cfg`, `get_haptic_cfg`, `get_sound_cfg`,
 `get_power_saving_cfg`, `get_network_cfg` / `set_network_cfg`, `get_wifi_status`, `get_wifi_scan_status`,
 `wifi_scan_start`, `add_wifi_network`, `set_button_cfg`, and for the System page `version`, `set_ui_info` (after every sign-in, as
-the stock UI does), `check_system_update`, `update_system`, `get_api_access`, `set_api_access`, and for voice the requests under Voice below. Events it acts on
+the stock UI does), `check_system_update`, `update_system`, `get_api_access`, `set_api_access`, `system_cmd` for the menu's restart and shut down, and for voice the requests under Voice below. Events it acts on
 (`coreapi::events`): `power_mode_change`, `battery_status`, `wifi_change`, `software_update`, `assistant_event`. Message names are the
 constants in `crates/r3cui/src/coreapi/src/messages.rs`; the System page's requests are typed in `crates/r3cui/src/coreapi/src/system.rs`. The connection runs on `r3cui_sdk::ws`.
 
@@ -62,7 +62,7 @@ Server pings every 10 s, closes after ~30 s silence. There's also an app-level `
 | Activities | Activities are entities (`entity_activity`); start/stop via `execute_entity_command`; progress via `entity_change`. Button mappings via `get_activity_button_mappings`-style messages (`button_mapping` data) |
 | Battery | `get_battery_charger`; event `battery_status` (`cat:REMOTE`) |
 | WiFi/net | `get_network_state`; events `wifi_change`, `network_change` |
-| Power | `get_power_mode`, `set_power_mode`; event `power_mode_change` (incl. `SUSPEND`) |
+| Power | `get_power_mode`, `set_power_mode`; event `power_mode_change` (incl. `SUSPEND`). `system_cmd` `{command: STANDBY \| REBOOT \| POWER_OFF \| RESTART \| RESTART_UI \| RESTART_CORE}` (🧪): on 200 the core closes the connection and does it. The spec's schema calls it `service_cmd`; the stock UI sends `system_cmd` |
 | System | `version`, `system`, `get_configuration`, `get_*_cfg` (display/haptic/button/device/sound/localization); event `warning` |
 | Voice | `get_voice_control_cfg`, `set_voice_control_cfg`, `get_voice_assistants`; event `assistant_event` (see Voice below) |
 

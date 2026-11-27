@@ -53,6 +53,31 @@ impl Core {
     pub async fn set_power_mode(&self, mode: crate::coreapi::PowerMode) -> Result<(), CallError> {
         self.call(&SetPowerMode { mode }).await.map(drop)
     }
+
+    /// Reboots or switches off the remote. Once the core accepts, it closes the connection and does it.
+    pub async fn system_command(&self, command: SystemCommand) -> Result<(), CallError> {
+        self.call(&SystemCmd { command }).await.map(drop)
+    }
+}
+
+/// What `system_cmd` can do, of the commands the spec lists (it also has `STANDBY` and restarting the services).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SystemCommand {
+    Reboot,
+    PowerOff,
+}
+
+/// `system_cmd`: experimental in the Core-API. The spec's schema names the message `service_cmd`; the stock UI sends
+/// `system_cmd`, as the spec's message list does.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SystemCmd {
+    pub command: SystemCommand,
+}
+
+impl Request for SystemCmd {
+    const MSG: &'static str = messages::SYSTEM_CMD;
+    type Reply = Value;
 }
 
 /// `set_power_mode`: experimental in the Core-API.

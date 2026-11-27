@@ -16,6 +16,7 @@ pub const GET_VOICE_ASSISTANTS: &str = "get_voice_assistants";
 pub const GET_API_ACCESS: &str = "get_api_access";
 pub const SET_API_ACCESS: &str = "set_api_access";
 pub const SET_POWER_MODE: &str = "set_power_mode";
+pub const SYSTEM_CMD: &str = "system_cmd";
 
 pub const POWER_MODE_CHANGE: &str = "power_mode_change";
 pub const BATTERY_STATUS: &str = "battery_status";

@@ -274,6 +274,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_system_command_is_sent_and_the_core_hangs_up() {
+        let (server, state) = fake_core().await;
+        let (core, mut events) = connect(config(&server, "t")).await.unwrap();
+        core.system_command(SystemCommand::Reboot).await.unwrap();
+        while events.recv().await.is_some() {}
+        assert_eq!(state.lock().unwrap().system_commands, ["REBOOT"]);
+        let (core, _events) = connect(config(&server, "t")).await.unwrap();
+        core.system_command(SystemCommand::PowerOff).await.unwrap();
+        assert_eq!(state.lock().unwrap().system_commands, ["REBOOT", "POWER_OFF"]);
+    }
+
+    #[tokio::test]
     async fn a_firmware_update_is_found_downloaded_then_installed() {
         let (server, state) = fake_core().await;
         let (core, mut events) = connect(config(&server, "t")).await.unwrap();

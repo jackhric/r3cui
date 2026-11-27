@@ -220,4 +220,20 @@ impl Link {
             Self::Demo(_) => {}
         }
     }
+
+    /// Reboots or switches off the remote. The demo has nothing to switch off, so it only says so.
+    pub(crate) fn system_command(&self, command: crate::coreapi::SystemCommand) {
+        match self {
+            Self::Core(core) => {
+                let core = core.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = core.system_command(command).await {
+                        tracing::warn!("{command:?}: {e}");
+                    }
+                });
+            }
+            #[cfg(feature = "demo")]
+            Self::Demo(_) => tracing::info!("{command:?} (demo: nothing switched off)"),
+        }
+    }
 }

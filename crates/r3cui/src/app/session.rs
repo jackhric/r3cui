@@ -23,11 +23,11 @@ use crate::remote::link::Link;
 use crate::remote::wifi::Wifi;
 use crate::view::library::Wall;
 use crate::view::screen::Screen;
-use crate::{Menu, MenuItem, PageId};
+use crate::{Menu, MenuItem, PageId, PowerAction};
 use crate::{KbPurpose, Picker};
 use crate::view::software::show as show_software;
 use crate::view::{finish_join, flash_volume, render, set_poster_accent, set_status, show_settings, show_tracks, ui};
-use crate::coreapi::CoreEvent;
+use crate::coreapi::{CoreEvent, SystemCommand};
 use r3cui_sdk::api::{Health, Media, PairError, Pairer, Stage, Status, UiIntent, VolumeIntent};
 use crate::host::{Host, Input, KnownTargets, Modules, Store, DEFAULT_INPUT};
 
@@ -667,10 +667,10 @@ pub(crate) async fn serve(
                         front.host.send_ui(front.current().as_ref(), intent);
                     }
                     UiAction::SelectInput(id) => front.global.select_input(&front.host, id),
-                    UiAction::Power(what) => {
-                        // Not wired yet: a stray tap in a prototype should not switch the remote off.
-                        tracing::info!("power action {what:?} (not sent)");
-                    }
+                    UiAction::Power(what) => link.system_command(match what {
+                        PowerAction::Restart => SystemCommand::Reboot,
+                        PowerAction::PowerOff => SystemCommand::PowerOff,
+                    }),
                     UiAction::PowerHeld => {
                         let on = front.global.view(&front.host).on;
                         front.global.toggle_power(&front.host, on);
