@@ -11,11 +11,14 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 const FRAME: Duration = Duration::from_millis(33);
-/// The warm-up: from the press, the light spreads along the bottom and climbs the sides as the screen behind recedes,
-/// slowly at first and fast at the end, arriving as the microphone comes on (`HOLD`). Until then it is muted; once
-/// the first audio is in, it blooms into its colours.
+/// The warm-up: from the press the light spreads out from the bottom centre, then climbs the sides, while the screen
+/// behind recedes, each slowly at first and fast at the end, arriving as the microphone comes on (`HOLD`). Until then
+/// it is muted; once the first audio is in, it blooms into its colours.
 const WARM: Duration = crate::app::voice::HOLD;
 const WARM_CURVE: Bezier = Bezier([0.64, 0.0, 0.78, 0.0]);
+/// The share of the warm-up the light spreads along the bottom in, and the share from which it climbs the sides.
+const SPREAD_UNTIL: f32 = 0.6;
+const CLIMB_FROM: f32 = 0.45;
 /// A glint even before the light has spread.
 const SPREAD_FIRST: f32 = 0.02;
 const BLOOM: Duration = Duration::from_millis(250);
@@ -204,7 +207,8 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
         s.bloom = follow(s.bloom, if live { 1.0 } else { 0.0 }, dt, BLOOM, BLOOM);
         let since = now.duration_since(s.began);
         let part = |of: Duration| since.as_secs_f32() / of.as_secs_f32();
-        let warm = WARM_CURVE.at(part(WARM));
+        let t = part(WARM);
+        let warm = WARM_CURVE.at(t);
         s.depth = warm;
         app.global::<Shown>().set_depth(s.depth);
         let l = &mut s.look;
@@ -214,8 +218,8 @@ pub(crate) fn animate_aurora(app: &AppWindow) -> slint::Timer {
         }
         let settled = follow(l.dim, if listening { 0.0 } else { 1.0 }, dt, SETTLE, SETTLE);
         l.dim = settled.max(MUTED_DIM * (1.0 - s.bloom));
-        l.spread = warm.max(SPREAD_FIRST);
-        l.reach = warm;
+        l.spread = WARM_CURVE.at(t / SPREAD_UNTIL).max(SPREAD_FIRST);
+        l.reach = WARM_CURVE.at((t - CLIMB_FROM) / (1.0 - CLIMB_FROM));
         l.spike = 0.0;
         l.wheel += dt * (WHEEL_START + (WHEEL_REST - WHEEL_START) * WHEEL_CURVE.at(part(WHEEL_EASE)) + WHEEL_TALK * l.level);
         l.flow += dt * (1.0 + 3.0 * l.level) * (1.0 - 0.6 * l.dim);
