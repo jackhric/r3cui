@@ -80,7 +80,7 @@ pub(crate) enum Later {
     PairChecked(Result<r3cui_sdk::api::Paired, r3cui_sdk::api::PairError>, Box<dyn r3cui_sdk::api::Pairer>),
     /// What the System pages asked the remote or the net for.
     Software(software::Event),
-    /// The relay did not end a session's audio in time after the key was let go.
+    /// The bridge did not end a session's audio in time after the key was let go.
     VoiceEndDue(u32),
     /// The voice key has been held long enough for the core to record.
     VoiceStartDue(u32),

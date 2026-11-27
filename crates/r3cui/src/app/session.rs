@@ -171,8 +171,8 @@ struct Session<'a> {
     system: System,
     wifi: Wifi,
     voice: VoiceKey,
-    /// r3cui's relay integration, to tell how a voice session ended; none in the demo.
-    relay: Option<voicelink::LinkHandle>,
+    /// r3cui's bridge integration, to tell how a voice session ended; none in the demo.
+    bridge: Option<r3cui_bridge::link::LinkHandle>,
     /// Demo only: pretend every driver is unreachable.
     links_down: bool,
 }
@@ -183,8 +183,8 @@ impl Session<'_> {
         let current = self.front.current();
         let stage = self.front.host.stage(current.as_ref());
         for todo in self.voice.answered(self.front.host.voice().as_ref()) {
-            if let (voice_key::Do::Report(msg), Some(relay)) = (todo, &self.relay) {
-                relay.send(msg);
+            if let (voice_key::Do::Report(msg), Some(bridge)) = (todo, &self.bridge) {
+                bridge.send(msg);
             }
         }
         let m = self.model(current.as_ref(), &stage);
@@ -228,8 +228,8 @@ impl Session<'_> {
                     });
                 }
                 voice_key::Do::Report(msg) => {
-                    if let Some(relay) = &self.relay {
-                        relay.send(msg);
+                    if let Some(bridge) = &self.bridge {
+                        bridge.send(msg);
                     }
                 }
             }
@@ -469,8 +469,8 @@ pub(crate) async fn serve(
     system: System,
     wifi: Wifi,
 ) -> anyhow::Result<()> {
-    let mut relay = link.relay();
-    let mut session = Session { front, system, wifi, voice: VoiceKey::default(), relay: relay.as_ref().map(|r| r.handle.clone()), links_down: false };
+    let mut bridge = link.bridge();
+    let mut session = Session { front, system, wifi, voice: VoiceKey::default(), bridge: bridge.as_ref().map(|r| r.handle.clone()), links_down: false };
     session.show(weak);
     set_status(weak, true, String::new());
 
@@ -525,8 +525,8 @@ pub(crate) async fn serve(
                 }
                 session.show(weak);
             }
-            Some(event) = next_relay(&mut relay) => {
-                let todo = session.voice.relay(event);
+            Some(event) = next_bridge(&mut bridge) => {
+                let todo = session.voice.bridge(event);
                 session.voice_do(&link, &later_tx, todo);
                 session.show(weak);
             }
@@ -726,9 +726,9 @@ pub(crate) async fn serve(
     Ok(())
 }
 
-/// The relay's next event; never resolves without a relay.
-async fn next_relay(relay: &mut Option<voicelink::Link>) -> Option<voicelink::LinkEvent> {
-    match relay {
+/// The bridge's next event; never resolves without a bridge.
+async fn next_bridge(bridge: &mut Option<r3cui_bridge::link::Link>) -> Option<r3cui_bridge::link::LinkEvent> {
+    match bridge {
         Some(r) => r.events.recv().await,
         None => std::future::pending().await,
     }

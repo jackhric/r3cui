@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use tokio_tungstenite::tungstenite::Message;
-use voicelink::{ErrorCode, RelayMsg, SessionId, UiMsg};
+use crate::link::{ErrorCode, BridgeMsg, SessionId, UiMsg};
 
 pub const NOT_LISTENING: &str = "r3cui is not listening";
 pub const LINK_LOST: &str = "r3cui disconnected";
@@ -23,7 +23,7 @@ pub struct Hub {
     heard: Mutex<Heard>,
 }
 
-/// What the core sent of the session's audio, for the log: whether the microphone reached the relay at all.
+/// What the core sent of the session's audio, for the log: whether the microphone reached the bridge at all.
 #[derive(Default)]
 struct Heard {
     frames: u64,
@@ -77,7 +77,7 @@ impl Hub {
         tracing::info!("session {session_id}: the core sent {} audio frames, {} bytes, peak {}", h.frames, h.bytes, h.peak);
     }
 
-    pub fn to_ui(&self, msg: &RelayMsg) {
+    pub fn to_ui(&self, msg: &BridgeMsg) {
         let text = serde_json::to_string(msg).expect("frame serialises");
         self.send_ui(Message::Text(text));
     }

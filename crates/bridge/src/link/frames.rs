@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// Chosen by r3cui for `voice_start`; the relay passes it through.
+/// Chosen by r3cui for `voice_start`; the bridge passes it through.
 pub type SessionId = u32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,10 +38,10 @@ pub enum ErrorCode {
     UnexpectedError,
 }
 
-/// Text frames from the relay. Audio follows as binary frames of PCM.
+/// Text frames from the bridge. Audio follows as binary frames of PCM.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum RelayMsg {
+pub enum BridgeMsg {
     Begin {
         session_id: SessionId,
         sample_rate: u32,
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn begin() {
         both(
-            RelayMsg::Begin {
+            BridgeMsg::Begin {
                 session_id: 7,
                 sample_rate: 16000,
                 channels: 1,
@@ -95,7 +95,7 @@ mod tests {
     #[test]
     fn end() {
         both(
-            RelayMsg::End { session_id: 7 },
+            BridgeMsg::End { session_id: 7 },
             r#"{"type":"end","session_id":7}"#,
         );
     }

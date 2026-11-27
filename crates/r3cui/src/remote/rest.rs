@@ -1,5 +1,5 @@
 //! The core's REST API, for what the WebSocket cannot do: putting a new UI on the remote and taking this one off, and
-//! installing and setting up r3cui's voice integration. All need the web configurator's PIN (basic auth as
+//! installing and setting up the r3cui bridge. All need the web configurator's PIN (basic auth as
 //! `web-configurator`).
 
 use base64::Engine as _;
@@ -133,6 +133,14 @@ impl Rest {
             ureq::request(method, &format!("{base}{path}")).set("Authorization", &self.auth).set("Content-Type", JSON).timeout(CALL_TIMEOUT).send_string(&body).map_err(Attempt::from)
         })?;
         parse(&text(answer)?)
+    }
+
+    /// Deletes what is at `path`; there being nothing there is as good.
+    pub(crate) fn remove(&self, path: &str) -> Result<(), RestError> {
+        match self.try_each(|base| ureq::delete(&format!("{base}{path}")).set("Authorization", &self.auth).timeout(CALL_TIMEOUT).call().map_err(Attempt::from)) {
+            Err(RestError::Refused { status: 404, .. }) => Ok(()),
+            answer => answer.map(drop),
+        }
     }
 
     /// Removes the UI; when the core will not, switches to the stock one and leaves this one installed.

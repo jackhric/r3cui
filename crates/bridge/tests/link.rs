@@ -1,7 +1,7 @@
 use bytes::Bytes;
 use std::time::Duration;
-use voicelink::testing::FakeRelay;
-use voicelink::{connect_to, ErrorCode, Link, LinkEvent, SampleFormat, UiMsg};
+use r3cui_bridge::link::testing::FakeBridge;
+use r3cui_bridge::link::{connect_to, ErrorCode, Link, LinkEvent, SampleFormat, UiMsg};
 
 async fn next(link: &mut Link) -> LinkEvent {
     tokio::time::timeout(Duration::from_secs(5), link.events.recv())
@@ -12,12 +12,12 @@ async fn next(link: &mut Link) -> LinkEvent {
 
 #[tokio::test]
 async fn a_session_arrives_and_the_outcome_goes_back() {
-    let mut relay = FakeRelay::start().await;
-    let mut link = connect_to(relay.addr());
+    let mut bridge = FakeBridge::start().await;
+    let mut link = connect_to(bridge.addr());
     assert_eq!(next(&mut link).await, LinkEvent::Connected);
-    relay.wait_for_client().await;
+    bridge.wait_for_client().await;
 
-    relay.script_session(7, &[&[1, 2, 3, 4], &[5, 6]]);
+    bridge.script_session(7, &[&[1, 2, 3, 4], &[5, 6]]);
     assert_eq!(
         next(&mut link).await,
         LinkEvent::Begin {
@@ -44,24 +44,24 @@ async fn a_session_arrives_and_the_outcome_goes_back() {
     assert_eq!(next(&mut link).await, LinkEvent::End { session_id: 7 });
 
     link.handle.send(UiMsg::Finished { session_id: 7 });
-    assert_eq!(relay.next_ui_msg().await, UiMsg::Finished { session_id: 7 });
+    assert_eq!(bridge.next_ui_msg().await, UiMsg::Finished { session_id: 7 });
     let error = UiMsg::Error {
         session_id: 7,
         code: ErrorCode::Timeout,
         message: "slow".into(),
     };
     link.handle.send(error.clone());
-    assert_eq!(relay.next_ui_msg().await, error);
+    assert_eq!(bridge.next_ui_msg().await, error);
 }
 
 #[tokio::test]
 async fn audio_outside_a_session_is_dropped() {
-    let mut relay = FakeRelay::start().await;
-    let mut link = connect_to(relay.addr());
+    let mut bridge = FakeBridge::start().await;
+    let mut link = connect_to(bridge.addr());
     assert_eq!(next(&mut link).await, LinkEvent::Connected);
-    relay.wait_for_client().await;
-    relay.send_audio([9u8, 9]);
-    relay.script_session(1, &[]);
+    bridge.wait_for_client().await;
+    bridge.send_audio([9u8, 9]);
+    bridge.script_session(1, &[]);
     assert!(matches!(
         next(&mut link).await,
         LinkEvent::Begin { session_id: 1, .. }
@@ -70,11 +70,11 @@ async fn audio_outside_a_session_is_dropped() {
 
 #[tokio::test]
 async fn reconnects_after_the_relay_hangs_up() {
-    let mut relay = FakeRelay::start().await;
-    let mut link = connect_to(relay.addr());
+    let mut bridge = FakeBridge::start().await;
+    let mut link = connect_to(bridge.addr());
     assert_eq!(next(&mut link).await, LinkEvent::Connected);
-    relay.wait_for_client().await;
-    relay.drop_client();
+    bridge.wait_for_client().await;
+    bridge.drop_client();
     assert_eq!(next(&mut link).await, LinkEvent::Disconnected);
     assert_eq!(next(&mut link).await, LinkEvent::Connected);
 }

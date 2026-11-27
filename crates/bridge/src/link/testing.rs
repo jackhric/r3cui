@@ -1,7 +1,7 @@
-//! `FakeRelay`: the relay's side of the link, for r3cui's tests with no device. It listens on an ephemeral port;
+//! `FakeBridge`: the bridge's side of the link, for r3cui's tests with no device. It listens on an ephemeral port;
 //! a test scripts a session and reads what r3cui sent back.
 
-use crate::{RelayMsg, SampleFormat, SessionId, UiMsg};
+use crate::link::{BridgeMsg, SampleFormat, SessionId, UiMsg};
 use futures_util::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -15,7 +15,7 @@ const WAIT: Duration = Duration::from_secs(5);
 
 type Outbox = Arc<Mutex<Option<mpsc::UnboundedSender<Message>>>>;
 
-pub struct FakeRelay {
+pub struct FakeBridge {
     addr: SocketAddr,
     current: Outbox,
     connections: watch::Receiver<usize>,
@@ -23,7 +23,7 @@ pub struct FakeRelay {
     task: JoinHandle<()>,
 }
 
-impl FakeRelay {
+impl FakeBridge {
     pub async fn start() -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let addr = listener.local_addr().expect("addr");
@@ -90,7 +90,7 @@ impl FakeRelay {
         tokio::time::timeout(WAIT, wait)
             .await
             .expect("no client connected")
-            .expect("fake relay stopped");
+            .expect("fake bridge stopped");
     }
 
     fn push(&self, frame: Message) {
@@ -102,7 +102,7 @@ impl FakeRelay {
             .expect("client connection is gone");
     }
 
-    pub fn send(&self, msg: &RelayMsg) {
+    pub fn send(&self, msg: &BridgeMsg) {
         self.push(Message::Text(serde_json::to_string(msg).unwrap()));
     }
 
@@ -112,7 +112,7 @@ impl FakeRelay {
 
     /// Begin, the chunks, End: a whole session of 16 kHz mono `i16`.
     pub fn script_session(&self, session_id: SessionId, chunks: &[&[u8]]) {
-        self.send(&RelayMsg::Begin {
+        self.send(&BridgeMsg::Begin {
             session_id,
             sample_rate: 16000,
             channels: 1,
@@ -121,7 +121,7 @@ impl FakeRelay {
         for chunk in chunks {
             self.send_audio(*chunk);
         }
-        self.send(&RelayMsg::End { session_id });
+        self.send(&BridgeMsg::End { session_id });
     }
 
     /// What r3cui sent next; panics after a few seconds of silence.
@@ -129,7 +129,7 @@ impl FakeRelay {
         tokio::time::timeout(WAIT, self.received.recv())
             .await
             .expect("r3cui sent nothing")
-            .expect("fake relay stopped")
+            .expect("fake bridge stopped")
     }
 
     /// Hangs up on the connected client; it should reconnect.
@@ -138,7 +138,7 @@ impl FakeRelay {
     }
 }
 
-impl Drop for FakeRelay {
+impl Drop for FakeBridge {
     fn drop(&mut self) {
         self.task.abort();
     }

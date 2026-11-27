@@ -171,16 +171,16 @@ impl Link {
         }
     }
 
-    /// r3cui's relay, which brings the remote's recorded audio; the demo has no microphone.
-    pub(crate) fn relay(&self) -> Option<voicelink::Link> {
+    /// r3cui's bridge, which brings the remote's recorded audio; the demo has no microphone.
+    pub(crate) fn bridge(&self) -> Option<r3cui_bridge::link::Link> {
         match self {
-            Self::Core(_) => Some(voicelink::connect_loop()),
+            Self::Core(_) => Some(r3cui_bridge::link::connect_loop()),
             #[cfg(feature = "demo")]
             Self::Demo(_) => None,
         }
     }
 
-    /// How long the relay gets to end a session's audio after the key is let go: none without one.
+    /// How long the bridge gets to end a session's audio after the key is let go: none without one.
     pub(crate) fn voice_grace(&self) -> Duration {
         match self {
             Self::Core(_) => crate::app::voice::END_GRACE,

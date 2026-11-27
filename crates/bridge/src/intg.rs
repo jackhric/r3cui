@@ -9,7 +9,7 @@ use prost::Message as _;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use voicelink::{ErrorCode, RelayMsg, SampleFormat, UiMsg};
+use crate::link::{ErrorCode, BridgeMsg, SampleFormat, UiMsg};
 
 const DEFAULT_SAMPLE_RATE: u32 = 16000;
 const DEFAULT_CHANNELS: u16 = 1;
@@ -156,7 +156,7 @@ fn handle_binary(hub: &Hub, bytes: &[u8]) {
             let cfg = begin.configuration.unwrap_or_default();
             tracing::info!("session {}: audio begins, {} Hz, {} channels, format {}", begin.session_id, cfg.sample_rate, cfg.channels, cfg.sample_format);
             hub.audio_began();
-            hub.to_ui(&RelayMsg::Begin {
+            hub.to_ui(&BridgeMsg::Begin {
                 session_id: begin.session_id,
                 sample_rate: if cfg.sample_rate == 0 {
                     DEFAULT_SAMPLE_RATE
@@ -177,7 +177,7 @@ fn handle_binary(hub: &Hub, bytes: &[u8]) {
             if !hub.ui_connected() {
                 hub.ui_said(UiMsg::Error { session_id: end.session_id, code: ErrorCode::ServiceUnavailable, message: NOT_LISTENING.into() });
             }
-            hub.to_ui(&RelayMsg::End {
+            hub.to_ui(&BridgeMsg::End {
                 session_id: end.session_id,
             })
         }

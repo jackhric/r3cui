@@ -155,7 +155,7 @@ pub(crate) async fn uninstall() -> Result<(), String> {
     Err("Demo: nothing was erased. The remote would restart into its stock interface.".into())
 }
 
-/// The demo's voice integration goes in at once, made up like the rest.
+/// The demo's bridge goes in at once, made up like the rest.
 pub(crate) async fn install_voice(updates: &Updates) -> Result<(), String> {
     tokio::time::sleep(VOICE_SETUP_TIME).await;
     updates.0.lock().unwrap().voice = true;

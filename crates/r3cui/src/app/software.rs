@@ -188,7 +188,7 @@ pub(crate) struct Software {
     firmware: Firmware,
     web: Web,
     uninstall: (UninstallState, String),
-    /// r3cui's voice integration, and what went wrong setting it up.
+    /// the r3cui bridge, and what went wrong setting it up.
     voice: (VoiceSetup, String),
     new_pin: Box<dyn FnMut() -> String + Send>,
 }

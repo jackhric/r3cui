@@ -1,4 +1,4 @@
-use crate::{RelayMsg, SampleFormat, SessionId, UiMsg, HOST, PORT};
+use crate::link::{BridgeMsg, SampleFormat, SessionId, UiMsg, HOST, PORT};
 use bytes::Bytes;
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
@@ -43,19 +43,19 @@ impl LinkHandle {
     }
 }
 
-/// The link to the relay: events in, `UiMsg`s out. The task behind it ends when `events` is dropped.
+/// The link to the bridge: events in, `UiMsg`s out. The task behind it ends when `events` is dropped.
 #[derive(Debug)]
 pub struct Link {
     pub events: mpsc::Receiver<LinkEvent>,
     pub handle: LinkHandle,
 }
 
-/// Connects to the relay on `voicelink::HOST:PORT` and keeps reconnecting.
+/// Connects to the bridge on `crate::link::HOST:PORT` and keeps reconnecting.
 pub fn connect_loop() -> Link {
     connect_to(format!("{HOST}:{PORT}"))
 }
 
-/// As `connect_loop`, for a relay at `addr` (`host:port`). Needs a running tokio runtime.
+/// As `connect_loop`, for a bridge at `addr` (`host:port`). Needs a running tokio runtime.
 pub fn connect_to(addr: impl Into<String>) -> Link {
     let (event_tx, events) = mpsc::channel(EVENT_BACKLOG);
     let (out, out_rx) = mpsc::unbounded_channel();
@@ -83,8 +83,8 @@ async fn run(
                 }
                 backoff.connection_ended(up.elapsed());
             }
-            Ok(Err(e)) => tracing::debug!("voice link {url}: {e}"),
-            Err(_) => tracing::debug!("voice link {url}: connect timed out"),
+            Ok(Err(e)) => tracing::debug!("bridge link {url}: {e}"),
+            Err(_) => tracing::debug!("bridge link {url}: connect timed out"),
         }
         tokio::select! {
             _ = sleep(backoff.delay()) => {}
@@ -111,24 +111,24 @@ where
             frame = ws.next() => {
                 let Some(Ok(frame)) = frame else { break true };
                 let event = match frame {
-                    Message::Text(text) => match serde_json::from_str::<RelayMsg>(&text) {
-                        Ok(RelayMsg::Begin { session_id, sample_rate, channels, format }) => {
+                    Message::Text(text) => match serde_json::from_str::<BridgeMsg>(&text) {
+                        Ok(BridgeMsg::Begin { session_id, sample_rate, channels, format }) => {
                             session = Some(session_id);
                             LinkEvent::Begin { session_id, sample_rate, channels, format }
                         }
-                        Ok(RelayMsg::End { session_id }) => {
+                        Ok(BridgeMsg::End { session_id }) => {
                             session = None;
                             LinkEvent::End { session_id }
                         }
                         Err(e) => {
-                            tracing::warn!("voice link: unreadable frame {text:?}: {e}");
+                            tracing::warn!("bridge link: unreadable frame {text:?}: {e}");
                             continue;
                         }
                     },
                     Message::Binary(pcm) => match session {
                         Some(session_id) => LinkEvent::Audio { session_id, pcm: pcm.into() },
                         None => {
-                            tracing::warn!("voice link: audio outside a session");
+                            tracing::warn!("bridge link: audio outside a session");
                             continue;
                         }
                     },

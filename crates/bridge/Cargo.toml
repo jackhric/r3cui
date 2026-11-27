@@ -1,18 +1,16 @@
 [package]
-name = "voice-relay"
+name = "r3cui-bridge"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "r3cui's voice relay: a custom integration that takes the core's microphone audio and hands it to r3cui over the voice link."
-
-[lib]
-name = "voice_relay"
+description = "r3cui's Unfolded Circle integration: bridges remote functions only integrations can reach (today the microphone) to r3cui."
 
 [[bin]]
 name = "driver"
 path = "src/main.rs"
 
 [dependencies]
+r3cui-sdk = { path = "../sdk" }
 tokio.workspace = true
 tokio-tungstenite.workspace = true
 futures-util.workspace = true
@@ -22,7 +20,10 @@ prost.workspace = true
 bytes.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-voicelink = { path = "../voicelink" }
+
+[features]
+# FakeBridge: an in-process bridge that scripts a session and captures what r3cui sends back.
+testing = []
 
 [dev-dependencies]
-voicelink = { path = "../voicelink", features = ["testing"] }
+r3cui-bridge = { path = ".", features = ["testing"] }

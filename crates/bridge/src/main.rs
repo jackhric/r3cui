@@ -22,7 +22,7 @@ async fn main() -> ExitCode {
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_PORT);
     let integration_addr = format!("{interface}:{port}");
-    let link_addr = format!("{}:{}", voicelink::HOST, voicelink::PORT);
+    let link_addr = format!("{}:{}", r3cui_bridge::link::HOST, r3cui_bridge::link::PORT);
 
     let bound = tokio::try_join!(
         TcpListener::bind(&integration_addr),
@@ -35,7 +35,7 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    tracing::info!("r3cui-voice {} listening: Integration-API on {integration_addr}, voice link on {link_addr}", voice_relay::api::DRIVER_VERSION);
-    voice_relay::serve(integration, link).await;
+    tracing::info!("r3cui-bridge {} listening: Integration-API on {integration_addr}, bridge link on {link_addr}", r3cui_bridge::api::DRIVER_VERSION);
+    r3cui_bridge::serve(integration, link).await;
     ExitCode::SUCCESS
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the installable custom-UI archive: release.json at root, the binary at bin/remote-ui, settings in config/, and the
-# voice relay's own archive at bin/r3cui-voice.tar.gz for System → Voice to install.
+# the r3cui bridge's own archive at bin/r3cui-bridge.tar.gz for System → Voice to install.
 # Usage: pack.sh <path-to-aarch64-remote-ui-binary>
 # Output: packaging/out/r3cui-<version>.tar.gz, the version from scripts/version.sh (R3CUI_VERSION wins), also written
 # into the archive's release.json.
@@ -19,9 +19,9 @@ sed -e "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" -e "s/\"release_da
 grep -q "\"version\": \"$VERSION\"" "$STAGE/release.json" || { echo "release.json has no version to set" >&2; exit 1; }
 cp "$BIN" "$STAGE/bin/remote-ui"
 chmod +x "$STAGE/bin/remote-ui"
-RELAY="$OUT/relay/r3cui-voice.tar.gz"
-[ -f "$RELAY" ] || { echo "no $RELAY: run scripts/build-relay.sh first" >&2; exit 1; }
-cp "$RELAY" "$STAGE/bin/r3cui-voice.tar.gz"
+BRIDGE="$OUT/bridge/r3cui-bridge.tar.gz"
+[ -f "$BRIDGE" ] || { echo "no $BRIDGE: run scripts/build-bridge.sh first" >&2; exit 1; }
+cp "$BRIDGE" "$STAGE/bin/r3cui-bridge.tar.gz"
 
 # The remote exposes this directory to the UI as UC_CONFIG_HOME: settings.json, and modules.json when there is one
 # (the drivers' setup; a Home Assistant token is pasted into it, so the archive is then private). Copied without
@@ -32,7 +32,7 @@ cp -r "$HERE/../config" "$STAGE/config"
 # No symlinks (the installer strips them); keep it a plain tar.
 # One archive in out/ at a time, so the newest is the only one to pick up.
 rm -f "$OUT"/r3cui-*.tar.gz
-tar -C "$STAGE" -czf "$ARCHIVE" release.json bin/remote-ui bin/r3cui-voice.tar.gz config
+tar -C "$STAGE" -czf "$ARCHIVE" release.json bin/remote-ui bin/r3cui-bridge.tar.gz config
 echo "wrote $ARCHIVE"
 echo
 echo "Install (⚠ writes permanent void_warranty flag):"

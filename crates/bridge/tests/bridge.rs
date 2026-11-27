@@ -5,12 +5,12 @@ use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
-use voice_relay::proto::integration_message::Message as Voice;
-use voice_relay::proto::{
+use r3cui_bridge::proto::integration_message::Message as Voice;
+use r3cui_bridge::proto::{
     AudioConfiguration, IntegrationMessage, RemoteVoiceBegin, RemoteVoiceData, RemoteVoiceEnd,
     SampleFormat,
 };
-use voicelink::{connect_to, ErrorCode, Link, LinkEvent, UiMsg};
+use r3cui_bridge::link::{connect_to, ErrorCode, Link, LinkEvent, UiMsg};
 
 const WAIT: Duration = Duration::from_secs(5);
 
@@ -23,7 +23,7 @@ impl FakeCore {
     async fn connect(addr: &str) -> Self {
         let (ws, _) = connect_async(format!("ws://{addr}"))
             .await
-            .expect("connect to the relay");
+            .expect("connect to the bridge");
         Self { ws, next_id: 1 }
     }
 
@@ -31,8 +31,8 @@ impl FakeCore {
         loop {
             let message = tokio::time::timeout(WAIT, self.ws.next())
                 .await
-                .expect("relay silent")
-                .expect("relay hung up")
+                .expect("bridge silent")
+                .expect("bridge hung up")
                 .unwrap();
             match message {
                 Message::Text(t) => return serde_json::from_str(&t).unwrap(),
@@ -88,7 +88,7 @@ async fn start() -> Rig {
         core_addr: integration.local_addr().unwrap().to_string(),
         link_addr: link.local_addr().unwrap().to_string(),
     };
-    tokio::spawn(voice_relay::serve(integration, link));
+    tokio::spawn(r3cui_bridge::serve(integration, link));
     rig
 }
 
@@ -137,7 +137,7 @@ async fn handshake_entities_and_subscription() {
     );
 
     core.request("get_driver_metadata", Value::Null).await;
-    assert_eq!(core.frame().await["msg_data"]["driver_id"], "r3cui_voice");
+    assert_eq!(core.frame().await["msg_data"]["driver_id"], r3cui_bridge::link::BRIDGE_DRIVER_ID);
 
     core.request("get_device_state", Value::Null).await;
     let v = core.frame().await;
@@ -260,7 +260,7 @@ async fn a_session_reaches_r3cui_and_its_outcome_reaches_the_core() {
             session_id: 7,
             sample_rate: 16000,
             channels: 1,
-            format: voicelink::SampleFormat::I16
+            format: r3cui_bridge::link::SampleFormat::I16
         }
     );
     assert_eq!(

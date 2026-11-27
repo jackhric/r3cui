@@ -15,7 +15,7 @@ r3cui-sdk = { path = "../sdk" }
 homeassistant = { path = "../homeassistant" }
 kodi = { path = "../kodi" }
 androidtv = { path = "../androidtv" }
-voicelink = { path = "../voicelink" }
+r3cui-bridge = { path = "../bridge" }
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
@@ -56,6 +56,7 @@ preview = ["demo"]
 demo = []
 
 [dev-dependencies]
+r3cui-bridge = { path = "../bridge", features = ["testing"] }
 r3cui-sdk = { path = "../sdk", features = ["testing"] }
 tokio = { workspace = true, features = ["test-util"] }
 

@@ -1,5 +1,5 @@
 //! Starting and ending a recording through the core: it records only for the voice assistant set on the remote,
-//! which must be r3cui's relay for the audio to reach r3cui.
+//! which must be r3cui's bridge for the audio to reach r3cui.
 
 use crate::coreapi::{Core, EntityId, VoiceStart};
 

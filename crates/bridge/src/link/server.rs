@@ -1,10 +1,10 @@
-//! The relay's end of the voice link: r3cui connects here.
+//! The bridge's end of the bridge link: r3cui connects here.
 
 use crate::conn::{Conn, Frame};
 use crate::hub::Hub;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use voicelink::UiMsg;
+use super::UiMsg;
 
 pub async fn serve(listener: TcpListener, hub: Arc<Hub>) {
     loop {

@@ -1,12 +1,12 @@
-//! The Integration-API as the relay speaks it: message names, the envelope, and the few payloads it sends.
+//! The Integration-API as the bridge speaks it: message names, the envelope, and the few payloads it sends.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
-use voicelink::{ErrorCode, SessionId};
+use crate::link::{ErrorCode, SessionId};
 
-pub const ENTITY_ID: &str = voicelink::RELAY_ENTITY_ID;
-pub const DRIVER_NAME: &str = "r3cui-voice";
+pub const ENTITY_ID: &str = crate::link::VOICE_ENTITY_ID;
+pub const DRIVER_NAME: &str = "r3cui-bridge";
 pub const API_VERSION: &str = "0.20.0";
 pub const DRIVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const DRIVER_JSON: &str = include_str!("../driver.json");
@@ -309,8 +309,8 @@ mod tests {
     fn driver_json_matches_the_crate() {
         let meta = driver_metadata();
         assert_eq!(meta["version"], DRIVER_VERSION);
-        assert_eq!(meta["driver_id"], voicelink::RELAY_DRIVER_ID);
-        // The core refuses a driver.json without one, though the relay has nothing to ask.
+        assert_eq!(meta["driver_id"], crate::link::BRIDGE_DRIVER_ID);
+        // The core refuses a driver.json without one, though the bridge has nothing to ask.
         assert_eq!(meta["setup_data_schema"]["settings"], serde_json::json!([]));
     }
 }

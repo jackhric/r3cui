@@ -1,15 +1,15 @@
-//! Hold the voice key to talk: the session the key starts, the audio the relay brings to it, the answer reported
+//! Hold the voice key to talk: the session the key starts, the audio the bridge brings to it, the answer reported
 //! back. Pure logic: each step returns what to do, and the session does it.
 
 use r3cui_sdk::api::{Voice, VoiceFailure, VoiceIntent, VoicePhase};
 use std::time::{Duration, Instant};
-use voicelink::{ErrorCode, LinkEvent, UiMsg};
+use r3cui_bridge::link::{ErrorCode, LinkEvent, UiMsg};
 
 /// Held this long, the core is asked to record. The remote powers its microphone about 650 ms into a press, and the
 /// core refuses a recording asked for before that ("input device is not enabled") without trying again; the stock UI
 /// waits as long. Let go sooner and it was only a tap: the core is never asked, and the session goes at once.
 pub(crate) const HOLD: Duration = Duration::from_millis(800);
-/// After the key is let go, how long the relay has to bring the last audio before r3cui ends it itself.
+/// After the key is let go, how long the bridge has to bring the last audio before r3cui ends it itself.
 pub(crate) const END_GRACE: Duration = Duration::from_millis(1500);
 /// What the core records unless asked otherwise.
 pub(crate) const SAMPLE_RATE: u32 = 16_000;
@@ -23,9 +23,9 @@ pub(crate) enum Do {
     /// Ask the core to record after this long, if the key is still held (`start_due`).
     StartAfter(u32, Duration),
     CoreEnd(u32),
-    /// End the session's audio after this long, unless the relay has by then.
+    /// End the session's audio after this long, unless the bridge has by then.
     EndAfter(u32, Duration),
-    /// Tell the relay how the session ended, so it can tell the core.
+    /// Tell the bridge how the session ended, so it can tell the core.
     Report(UiMsg),
 }
 
@@ -37,7 +37,7 @@ struct Active {
     reported: bool,
     /// The core was asked to record: the key was held past `HOLD`.
     recording: bool,
-    /// Audio bytes the relay brought, for the log.
+    /// Audio bytes the bridge brought, for the log.
     heard: usize,
 }
 
@@ -75,7 +75,7 @@ impl VoiceKey {
         }
     }
 
-    /// `grace` is how long the relay gets to end the audio: `END_GRACE` on the remote, none without a relay.
+    /// `grace` is how long the bridge gets to end the audio: `END_GRACE` on the remote, none without a bridge.
     pub(crate) fn release(&mut self, now: Instant, grace: Duration) -> Vec<Do> {
         if std::mem::take(&mut self.closing) {
             return Vec::new();
@@ -95,7 +95,7 @@ impl VoiceKey {
         out
     }
 
-    pub(crate) fn relay(&mut self, event: LinkEvent) -> Vec<Do> {
+    pub(crate) fn bridge(&mut self, event: LinkEvent) -> Vec<Do> {
         match event {
             LinkEvent::Audio { session_id, pcm } if self.listening(session_id) => {
                 if let Some(a) = self.active.as_mut() {
@@ -116,7 +116,7 @@ impl VoiceKey {
         self.end(session)
     }
 
-    /// Once the destination has answered or failed, the relay hears how it went, once.
+    /// Once the destination has answered or failed, the bridge hears how it went, once.
     pub(crate) fn answered(&mut self, view: Option<&Voice>) -> Vec<Do> {
         let (Some(a), Some(v)) = (self.active.as_mut(), view) else { return Vec::new() };
         if a.session != v.session || a.reported {
@@ -148,7 +148,7 @@ impl VoiceKey {
         match self.active.as_mut().filter(|a| a.session == session && !a.ended) {
             Some(a) => {
                 a.ended = true;
-                tracing::info!("voice: session {session} ended with {} bytes of audio from the relay", a.heard);
+                tracing::info!("voice: session {session} ended with {} bytes of audio from the bridge", a.heard);
                 vec![Do::Driver(VoiceIntent::End { session })]
             }
             None => Vec::new(),
@@ -180,13 +180,13 @@ mod tests {
         assert_eq!(key.press(t, None), [Do::Driver(VoiceIntent::Start { session: 1, sample_rate: SAMPLE_RATE }), Do::StartAfter(1, HOLD)]);
         assert_eq!(key.start_due(1), [Do::CoreStart(1)], "held past HOLD: the core records");
         assert!(key.start_due(1).is_empty(), "asked once");
-        assert_eq!(key.relay(audio(1, &[1, 2])), [Do::Driver(VoiceIntent::Audio { session: 1, pcm: vec![1, 2] })]);
-        assert!(key.relay(audio(9, &[9])).is_empty(), "another session's audio");
+        assert_eq!(key.bridge(audio(1, &[1, 2])), [Do::Driver(VoiceIntent::Audio { session: 1, pcm: vec![1, 2] })]);
+        assert!(key.bridge(audio(9, &[9])).is_empty(), "another session's audio");
         assert_eq!(key.release(t + Duration::from_secs(2), END_GRACE), [Do::CoreEnd(1), Do::EndAfter(1, END_GRACE)]);
-        assert_eq!(key.relay(audio(1, &[3])), [Do::Driver(VoiceIntent::Audio { session: 1, pcm: vec![3] })], "late audio still counts");
-        assert_eq!(key.relay(LinkEvent::End { session_id: 1 }), [Do::Driver(VoiceIntent::End { session: 1 })]);
+        assert_eq!(key.bridge(audio(1, &[3])), [Do::Driver(VoiceIntent::Audio { session: 1, pcm: vec![3] })], "late audio still counts");
+        assert_eq!(key.bridge(LinkEvent::End { session_id: 1 }), [Do::Driver(VoiceIntent::End { session: 1 })]);
         assert!(key.end_due(1).is_empty(), "ended once");
-        assert!(key.relay(audio(1, &[4])).is_empty(), "nothing after the end");
+        assert!(key.bridge(audio(1, &[4])).is_empty(), "nothing after the end");
 
         let mut v = Voice { session: 1, ..Voice::default() };
         assert!(key.answered(Some(&v)).is_empty(), "still listening");
@@ -220,7 +220,7 @@ mod tests {
         key.press(t, None);
         assert_eq!(key.release(t + Duration::from_millis(500), END_GRACE), [Do::Driver(VoiceIntent::Cancel { session: 1 })], "the core was never asked");
         assert!(key.start_due(1).is_empty(), "let go before HOLD: nothing to record");
-        assert!(key.relay(audio(1, &[1])).is_empty());
+        assert!(key.bridge(audio(1, &[1])).is_empty());
     }
 
     #[test]
