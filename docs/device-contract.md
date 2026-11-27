@@ -53,7 +53,7 @@ Symlinks are stripped. `release.json` has **no strictly-required fields** per th
 # install (⚠ writes permanent void_warranty flag)
 curl -u 'web-configurator:<PIN>' \
   'http://<IP>/api/system/install/ui?void_warranty=yes' \
-  --form 'file=@"out/remote-ui.tar.gz"'
+  --form 'file=@"out/r3cui.tar.gz"'
 
 GET    /api/system/install          # list installed custom components
 GET    /api/system/install/ui       # status of our UI

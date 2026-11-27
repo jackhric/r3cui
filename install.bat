@@ -8,7 +8,7 @@ rem Installing a custom UI voids the remote's warranty (the remote keeps a perma
 setlocal EnableExtensions
 
 set "REPO=jackhric/r3cui"
-set "URL=https://github.com/%REPO%/releases/latest/download/remote-ui.tar.gz"
+set "URL=https://github.com/%REPO%/releases/latest/download/r3cui.tar.gz"
 set "PAUSE="
 if "%~1"=="" set "PAUSE=1"
 set "IP=%~1"
@@ -40,9 +40,9 @@ set /p "ANSWER=Type yes to install r3cui: "
 if /i not "%ANSWER%"=="yes" (echo Nothing was installed. & goto fail)
 
 if "%FILE%"=="" (
-  set "FILE=%TEMP%\remote-ui.tar.gz"
+  set "FILE=%TEMP%\r3cui.tar.gz"
   echo Downloading the latest r3cui release...
-  curl.exe -fL --progress-bar -o "%TEMP%\remote-ui.tar.gz" "%URL%" || (echo The download failed. Try again, or pass a remote-ui.tar.gz you downloaded. & goto fail)
+  curl.exe -fL --progress-bar -o "%TEMP%\r3cui.tar.gz" "%URL%" || (echo The download failed. Try again, or pass a r3cui.tar.gz you downloaded. & goto fail)
 )
 if not exist "%FILE%" (echo No file at %FILE%. & goto fail)
 

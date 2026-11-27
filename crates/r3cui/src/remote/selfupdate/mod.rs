@@ -13,7 +13,7 @@ use std::time::Duration;
 
 pub(crate) const REPO_PATH: &str = "github.com/jackhric/r3cui";
 /// The file in a release that the remote installs.
-pub(crate) const ASSET_NAME: &str = "remote-ui.tar.gz";
+pub(crate) const ASSET_NAME: &str = "r3cui.tar.gz";
 /// Overrides `LATEST_URL`: a stand-in for GitHub's API in tests and on the desktop.
 pub(crate) const LATEST_URL_ENV: &str = "UC_RELEASES_URL";
 const LATEST_URL: &str = "https://api.github.com/repos/jackhric/r3cui/releases/latest";
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn a_release_is_read_for_its_archive_and_checksum() {
-        let r = parse_release(&release_json("v0.2.0", Some(&format!("sha256:{}", HELLO_SHA.to_uppercase())), "https://x/remote-ui.tar.gz")).unwrap();
+        let r = parse_release(&release_json("v0.2.0", Some(&format!("sha256:{}", HELLO_SHA.to_uppercase())), "https://x/r3cui.tar.gz")).unwrap();
         assert_eq!((r.version.to_string().as_str(), r.size, r.sha256.as_str()), ("0.2.0", 11, HELLO_SHA));
         assert_eq!(r.page_url, "https://github.com/jackhric/r3cui/releases/tag/v0.2.0");
         assert!(newer(r.clone(), &Version::new(0, 1, 0)).is_some());

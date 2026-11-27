@@ -8,7 +8,7 @@
 set -eu
 
 REPO=jackhric/r3cui
-URL="https://github.com/$REPO/releases/latest/download/remote-ui.tar.gz"
+URL="https://github.com/$REPO/releases/latest/download/r3cui.tar.gz"
 ip=${1:-${R3_IP:-}}
 pin=${2:-${R3_PIN:-}}
 file=${3:-}
@@ -51,9 +51,9 @@ read -r answer
 if [ -z "$file" ]; then
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
-  file="$tmp/remote-ui.tar.gz"
+  file="$tmp/r3cui.tar.gz"
   echo "Downloading the latest r3cui release..."
-  curl -fL --progress-bar -o "$file" "$URL" || { echo "The download failed. Try again, or pass a remote-ui.tar.gz you downloaded." >&2; exit 1; }
+  curl -fL --progress-bar -o "$file" "$URL" || { echo "The download failed. Try again, or pass a r3cui.tar.gz you downloaded." >&2; exit 1; }
 fi
 [ -f "$file" ] || { echo "No file at $file." >&2; exit 1; }
 

@@ -85,13 +85,13 @@ release and installs it. Wait for the remote to show the new screen. If it does 
 <details>
 <summary>Install by hand instead</summary>
 
-Download `remote-ui.tar.gz` from the [Releases](https://github.com/jackhric/r3cui/releases) page, open a terminal in
+Download `r3cui.tar.gz` from the [Releases](https://github.com/jackhric/r3cui/releases) page, open a terminal in
 the folder with the file and run this command. Put your PIN and IP address in place of `<PIN>` and `<IP>`
 
 ```sh
 curl -u 'web-configurator:<PIN>' \
   'http://<IP>/api/system/install/ui?void_warranty=yes' \
-  --form 'file=@remote-ui.tar.gz'
+  --form 'file=@r3cui.tar.gz'
 ```
 
 </details>

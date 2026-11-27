@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the installable custom-UI archive: release.json at root, the binary at bin/remote-ui, settings in config/.
 # Usage: pack.sh <path-to-aarch64-remote-ui-binary>
-# Output: packaging/out/remote-ui.tar.gz
+# Output: packaging/out/r3cui.tar.gz
 set -euo pipefail
 
 BIN="${1:?usage: pack.sh <path-to-remote-ui-binary>}"
@@ -22,10 +22,10 @@ cp -r "$HERE/../config" "$STAGE/config"
 [ -f "$STAGE/config/modules.json" ] && echo "including config/modules.json: it may hold tokens, keep the archive private"
 
 # No symlinks (the installer strips them); keep it a plain tar.
-tar -C "$STAGE" -czf "$OUT/remote-ui.tar.gz" release.json bin/remote-ui config
-echo "wrote $OUT/remote-ui.tar.gz"
+tar -C "$STAGE" -czf "$OUT/r3cui.tar.gz" release.json bin/remote-ui config
+echo "wrote $OUT/r3cui.tar.gz"
 echo
 echo "Install (⚠ writes permanent void_warranty flag):"
 echo "  curl -u 'web-configurator:<PIN>' \\"
 echo "    'http://<IP>/api/system/install/ui?void_warranty=yes' \\"
-echo "    --form 'file=@\"$OUT/remote-ui.tar.gz\"'"
+echo "    --form 'file=@\"$OUT/r3cui.tar.gz\"'"

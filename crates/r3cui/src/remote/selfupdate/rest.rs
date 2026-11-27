@@ -181,7 +181,7 @@ mod tests {
         assert_eq!(seen.header("authorization"), Some(expected.as_str()));
         assert!(seen.header("content-type").unwrap().starts_with("multipart/form-data; boundary="));
         let body = String::from_utf8_lossy(&seen.body);
-        assert!(body.contains("name=\"file\"; filename=\"remote-ui.tar.gz\"") && body.contains("ARCHIVE-BYTES") && body.trim_end().ends_with("--"), "{body}");
+        assert!(body.contains("name=\"file\"; filename=\"r3cui.tar.gz\"") && body.contains("ARCHIVE-BYTES") && body.trim_end().ends_with("--"), "{body}");
         let _ = std::fs::remove_file(file);
     }
 

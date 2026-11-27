@@ -634,7 +634,7 @@ mod tests {
             page_url: format!("https://github.com/jackhric/r3cui/releases/tag/v{version}"),
             published_at: "2026-11-20T09:00:00Z".into(),
             size: 6_800_000,
-            download_url: "https://example.invalid/remote-ui.tar.gz".into(),
+            download_url: "https://example.invalid/r3cui.tar.gz".into(),
             sha256: "ab".into(),
         }
     }
