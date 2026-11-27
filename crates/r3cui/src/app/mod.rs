@@ -82,4 +82,6 @@ pub(crate) enum Later {
     Software(software::Event),
     /// The relay did not end a session's audio in time after the key was let go.
     VoiceEndDue(u32),
+    /// The voice key has been held long enough for the core to record.
+    VoiceStartDue(u32),
 }

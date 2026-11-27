@@ -310,11 +310,13 @@ async fn an_error_from_r3cui_becomes_an_assistant_error() {
 }
 
 #[tokio::test]
-async fn without_r3cui_the_start_is_answered_then_errors() {
+async fn without_r3cui_the_session_runs_then_errors_at_its_end() {
     let rig = start().await;
     let mut core = core_with_handshake(&rig).await;
     core.voice_start(3).await;
     assert_eq!(core.frame().await["code"], 200);
+    assert_eq!(core.frame().await["msg_data"]["type"], "ready", "the audio is still asked for, to be logged");
+    core.voice(Voice::VoiceEnd(RemoteVoiceEnd { session_id: 3 })).await;
     let v = core.frame().await;
     assert_eq!(v["msg"], "assistant_event");
     assert_eq!(v["msg_data"]["type"], "error");

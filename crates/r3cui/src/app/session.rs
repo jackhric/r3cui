@@ -213,6 +213,13 @@ impl Session<'_> {
                     let link = link.clone();
                     tokio::spawn(async move { link.voice_end(s).await });
                 }
+                voice_key::Do::StartAfter(s, wait) => {
+                    let later = later.clone();
+                    tokio::spawn(async move {
+                        tokio::time::sleep(wait).await;
+                        let _ = later.send(Later::VoiceStartDue(s));
+                    });
+                }
                 voice_key::Do::EndAfter(s, wait) => {
                     let later = later.clone();
                     tokio::spawn(async move {
@@ -525,6 +532,10 @@ pub(crate) async fn serve(
             }
             Some(later) = later_rx.recv() => {
                 match later {
+                    Later::VoiceStartDue(s) => {
+                        let todo = session.voice.start_due(s);
+                        session.voice_do(&link, &later_tx, todo);
+                    }
                     Later::VoiceEndDue(s) => {
                         let todo = session.voice.end_due(s);
                         session.voice_do(&link, &later_tx, todo);

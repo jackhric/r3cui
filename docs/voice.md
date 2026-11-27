@@ -24,13 +24,14 @@ is decided in r3cui, which already holds the Home Assistant connection. The rela
 voice key down (evdev)
   r3cui: listening screen at once
   r3cui → HA: assist_pipeline/run (stt → intent), so HA is ready before the first chunk
+  key held 800 ms (the microphone powers up ~650 ms into a press; voice-core refuses a stream asked for sooner)
   r3cui → core: execute_entity_command voice_start {session_id, timeout}   (Core-API)
       core → relay: entity_command voice_start      relay: OK at once, then assistant_event ready
       core → relay: binary frames voice_begin, voice_data..., (Integration-API, protobuf)
       relay → r3cui: begin, PCM chunks                (voice link, localhost)
   r3cui → HA: [stt_binary_handler_id] + PCM per chunk
 voice key up
-  r3cui → core: voice_end;  core → relay: voice_end;  relay → r3cui: end
+  r3cui → core: voice_end;  core → relay: binary voice_end (no entity_command);  relay → r3cui: end
   r3cui → HA: [stt_binary_handler_id] alone (end of audio)
   HA → r3cui: stt-end (what was heard), intent-end (the answer), run-end
   r3cui → relay: finished (or error);  relay → core: assistant_event finished (or error)
@@ -47,7 +48,7 @@ Audio is what the core sends by default: PCM, 16 kHz, mono, signed 16-bit, in ch
 | Assist | `crates/homeassistant` | `assist_pipeline/pipeline/list` and `assist_pipeline/run`, the binary audio frames, typed pipeline events. Needs binary frames in `crates/wsclient`. |
 | Voice port | `crates/sdk` | A driver can take voice (`Provides.voice`, `Driver::voice()`): start a session, push chunks, end, and report what was heard and the answer. Global control gains **Voice**, bound like Volume and Inputs. Home Assistant provides it, one target per Assist pipeline. |
 | Core | `crates/coreapi` | `execute_entity_command` (`voice_start`, `voice_end`) and the `assistant_event` stream. |
-| UI | `crates/r3cui` | The voice key held starts a session, released ends it (a tap sends nothing; the inputs are Home's, held); the voice overlay: listening, what was heard, the answer or an error. |
+| UI | `crates/r3cui` | The voice key held starts a session, released ends it (a press shorter than 800 ms sends nothing to the core; the inputs are Home's, held); the voice overlay: listening, what was heard, the answer or an error. |
 
 ## The voice link
 

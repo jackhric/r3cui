@@ -5,8 +5,10 @@ use r3cui_sdk::api::{Voice, VoiceFailure, VoiceIntent, VoicePhase};
 use std::time::{Duration, Instant};
 use voicelink::{ErrorCode, LinkEvent, UiMsg};
 
-/// Let go sooner and it was only a tap: nothing is sent, and the session goes at once.
-pub(crate) const TAP: Duration = Duration::from_millis(250);
+/// Held this long, the core is asked to record. The remote powers its microphone about 650 ms into a press, and the
+/// core refuses a recording asked for before that ("input device is not enabled") without trying again; the stock UI
+/// waits as long. Let go sooner and it was only a tap: the core is never asked, and the session goes at once.
+pub(crate) const HOLD: Duration = Duration::from_millis(800);
 /// After the key is let go, how long the relay has to bring the last audio before r3cui ends it itself.
 pub(crate) const END_GRACE: Duration = Duration::from_millis(1500);
 /// What the core records unless asked otherwise.
@@ -18,6 +20,8 @@ pub(crate) enum Do {
     Driver(VoiceIntent),
     /// Ask the core to start or end recording for the session.
     CoreStart(u32),
+    /// Ask the core to record after this long, if the key is still held (`start_due`).
+    StartAfter(u32, Duration),
     CoreEnd(u32),
     /// End the session's audio after this long, unless the relay has by then.
     EndAfter(u32, Duration),
@@ -31,6 +35,8 @@ struct Active {
     pressed: Instant,
     ended: bool,
     reported: bool,
+    /// The core was asked to record: the key was held past `HOLD`.
+    recording: bool,
     /// Audio bytes the relay brought, for the log.
     heard: usize,
 }
@@ -54,8 +60,19 @@ impl VoiceKey {
         }
         self.last += 1;
         let session = self.last;
-        self.active = Some(Active { session, pressed: now, ended: false, reported: false, heard: 0 });
-        vec![Do::Driver(VoiceIntent::Start { session, sample_rate: SAMPLE_RATE }), Do::CoreStart(session)]
+        self.active = Some(Active { session, pressed: now, ended: false, reported: false, recording: false, heard: 0 });
+        vec![Do::Driver(VoiceIntent::Start { session, sample_rate: SAMPLE_RATE }), Do::StartAfter(session, HOLD)]
+    }
+
+    /// `HOLD` has passed since the press: the core records, unless the key was let go first.
+    pub(crate) fn start_due(&mut self, session: u32) -> Vec<Do> {
+        match self.active.as_mut().filter(|a| a.session == session && !a.recording && !a.ended) {
+            Some(a) => {
+                a.recording = true;
+                vec![Do::CoreStart(session)]
+            }
+            None => Vec::new(),
+        }
     }
 
     /// `grace` is how long the relay gets to end the audio: `END_GRACE` on the remote, none without a relay.
@@ -65,9 +82,9 @@ impl VoiceKey {
         }
         let Some(a) = &self.active else { return Vec::new() };
         let session = a.session;
-        if now.duration_since(a.pressed) < TAP {
+        if !a.recording || now.duration_since(a.pressed) < HOLD {
             self.active = None;
-            return vec![Do::Driver(VoiceIntent::Cancel { session }), Do::CoreEnd(session)];
+            return vec![Do::Driver(VoiceIntent::Cancel { session })];
         }
         let mut out = vec![Do::CoreEnd(session)];
         if grace.is_zero() {
@@ -160,7 +177,9 @@ mod tests {
     #[test]
     fn a_hold_talks_and_reports_once() {
         let (mut key, t) = (VoiceKey::default(), Instant::now());
-        assert_eq!(key.press(t, None), [Do::Driver(VoiceIntent::Start { session: 1, sample_rate: SAMPLE_RATE }), Do::CoreStart(1)]);
+        assert_eq!(key.press(t, None), [Do::Driver(VoiceIntent::Start { session: 1, sample_rate: SAMPLE_RATE }), Do::StartAfter(1, HOLD)]);
+        assert_eq!(key.start_due(1), [Do::CoreStart(1)], "held past HOLD: the core records");
+        assert!(key.start_due(1).is_empty(), "asked once");
         assert_eq!(key.relay(audio(1, &[1, 2])), [Do::Driver(VoiceIntent::Audio { session: 1, pcm: vec![1, 2] })]);
         assert!(key.relay(audio(9, &[9])).is_empty(), "another session's audio");
         assert_eq!(key.release(t + Duration::from_secs(2), END_GRACE), [Do::CoreEnd(1), Do::EndAfter(1, END_GRACE)]);
@@ -183,6 +202,7 @@ mod tests {
     fn the_key_closes_a_shown_answer_instead_of_talking_again() {
         let (mut key, t) = (VoiceKey::default(), Instant::now());
         key.press(t, None);
+        key.start_due(1);
         key.release(t + Duration::from_secs(1), Duration::ZERO);
         for phase in [VoicePhase::Thinking, VoicePhase::Answered { success: true }] {
             let v = Voice { session: 1, phase, ..Voice::default() };
@@ -190,7 +210,7 @@ mod tests {
             assert!(key.press(t + Duration::from_secs(2), Some(&v)).is_empty(), "no new session");
             assert!(key.shown(Some(&v)).is_none(), "the overlay goes");
             assert!(key.release(t + Duration::from_secs(3), END_GRACE).is_empty(), "its release ends nothing");
-            assert_eq!(key.press(t + Duration::from_secs(4), Some(&v))[1], Do::CoreStart(2), "the next press talks");
+            assert_eq!(key.press(t + Duration::from_secs(4), Some(&v))[1], Do::StartAfter(2, HOLD), "the next press talks");
         }
     }
 
@@ -198,7 +218,8 @@ mod tests {
     fn a_tap_sends_nothing() {
         let (mut key, t) = (VoiceKey::default(), Instant::now());
         key.press(t, None);
-        assert_eq!(key.release(t + Duration::from_millis(100), END_GRACE), [Do::Driver(VoiceIntent::Cancel { session: 1 }), Do::CoreEnd(1)]);
+        assert_eq!(key.release(t + Duration::from_millis(500), END_GRACE), [Do::Driver(VoiceIntent::Cancel { session: 1 })], "the core was never asked");
+        assert!(key.start_due(1).is_empty(), "let go before HOLD: nothing to record");
         assert!(key.relay(audio(1, &[1])).is_empty());
     }
 
@@ -206,6 +227,7 @@ mod tests {
     fn without_a_relay_the_audio_ends_with_the_key_and_failures_are_reported() {
         let (mut key, t) = (VoiceKey::default(), Instant::now());
         key.press(t, None);
+        key.start_due(1);
         assert_eq!(key.release(t + Duration::from_secs(1), Duration::ZERO), [Do::CoreEnd(1), Do::Driver(VoiceIntent::End { session: 1 })]);
         let v = Voice { session: 1, phase: VoicePhase::Failed(VoiceFailure::NoTextRecognized), ..Voice::default() };
         assert!(matches!(key.answered(Some(&v)).as_slice(), [Do::Report(UiMsg::Error { session_id: 1, code: ErrorCode::NoTextRecognized, .. })]));

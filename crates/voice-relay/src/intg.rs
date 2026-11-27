@@ -9,7 +9,7 @@ use prost::Message as _;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use voicelink::{ErrorCode, RelayMsg, SampleFormat};
+use voicelink::{ErrorCode, RelayMsg, SampleFormat, UiMsg};
 
 const DEFAULT_SAMPLE_RATE: u32 = 16000;
 const DEFAULT_CHANNELS: u16 = 1;
@@ -128,18 +128,12 @@ fn entity_command(hub: &Hub, out: &Outbox, req_id: u64, data: Value) {
             else {
                 return reply(code::BAD_REQUEST);
             };
-            tracing::info!("voice_start session {session_id}");
-            let listening = hub.ui_connected();
-            if listening {
-                hub.open_session(session_id, out.clone());
-            }
+            tracing::info!("voice_start session {session_id}, r3cui {}", if hub.ui_connected() { "listening" } else { "not listening" });
+            // Ready even with no r3cui on the link: the audio still comes, and is logged, and the session fails at its
+            // end instead, so a missing stream and a missing r3cui can be told apart.
+            hub.open_session(session_id, out.clone());
             reply(code::OK);
-            let event = if listening {
-                Assistant::Ready
-            } else {
-                Assistant::error(ErrorCode::ServiceUnavailable, NOT_LISTENING)
-            };
-            let _ = out.send(api::assistant_event(session_id, event));
+            let _ = out.send(api::assistant_event(session_id, Assistant::Ready));
         }
         cmd::VOICE_END => {
             tracing::info!("voice_end");
@@ -180,6 +174,9 @@ fn handle_binary(hub: &Hub, bytes: &[u8]) {
         Voice::VoiceData(data) => hub.audio_to_ui(data.samples),
         Voice::VoiceEnd(end) => {
             hub.audio_ended(end.session_id);
+            if !hub.ui_connected() {
+                hub.ui_said(UiMsg::Error { session_id: end.session_id, code: ErrorCode::ServiceUnavailable, message: NOT_LISTENING.into() });
+            }
             hub.to_ui(&RelayMsg::End {
                 session_id: end.session_id,
             })
